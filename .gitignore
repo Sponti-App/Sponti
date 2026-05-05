@@ -34,3 +34,10 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# capacitor
+/ios
+/android
+
+#local-data
+.project-context
