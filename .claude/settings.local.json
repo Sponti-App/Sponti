@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(rm -rf /Users/patrickcaire/Development/Sponti/node_modules)",
+      "Bash(npm --prefix /Users/patrickcaire/Development/Sponti install)"
+    ]
+  }
+}
