@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides the canonical team-vetted guidance for AI coding agents working in this repository.
+Claude Code reads this file directly. Codex reads `AGENTS.md`, which points back here to avoid duplicating instructions.
 
 ## What is Sponti
 
@@ -48,7 +49,9 @@ v2 plan: migrate to Expo/React Native if there is traction.
 
 ## Commands
 
-### Frontend (repo root)
+### Frontend (`spa/`)
+
+Run these commands from the `spa/` directory.
 
 ```bash
 npm run dev           # Next.js dev server with Turbopack (localhost:3000)
@@ -140,3 +143,5 @@ There is no separate "spontaneous" vs "planned" type — only timing determines 
 
 - Environment variables must never be exposed to the frontend unless prefixed  
   (e.g., `NEXT_PUBLIC_*`)
+
+- Do not add private planning notes, raw meeting notes, or agent handoffs to this code repository.
