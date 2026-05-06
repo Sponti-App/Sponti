@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides the canonical team-vetted guidance for AI coding agents working in this repository.
+Claude Code reads this file directly. Codex reads `AGENTS.md`, which points back here to avoid duplicating instructions.
 
 ## What is Sponti
 
@@ -22,10 +23,11 @@ Key differentiators: low-notification noise, granular privacy controls (per-list
 
 1. Auth — email/password register + login (backend scaffolded, frontend needed)
 2. Event creation flow — title, time, location, visibility picker, post
-3. Friend lists — add friends, organise into lists, use lists as invite targets
-4. Profile — view/edit, public/private toggle
-5. Notification settings — per-type preferences, quiet hours
-6. QR code — generate card, scan to add friend
+3. Event joining flow - click on map, details, route to event with ETA, add to calendar
+4. Friend lists — add friends, organise into lists, use lists as invite targets
+5. Profile — view/edit, public/private toggle
+6. Notification settings — per-type preferences, quiet hours
+7. QR code — generate card, scan to add friend
 
 **Deferred to v2:**
 
@@ -43,12 +45,14 @@ v2 plan: migrate to Expo/React Native if there is traction.
 | Directory      | Purpose                                                                                                   |
 | -------------- | --------------------------------------------------------------------------------------------------------- |
 | `spa/`         | Frontend application — Next.js (App Router), React components, hooks, UI, and client-side logic           |
-| `apis/`        | Main API server — handles business logic such as events, circles, invitations, and core app functionality |
+| `api/`         | Main API server — handles business logic such as events, circles, invitations, and core app functionality |
 | `auth-server/` | Authentication server — Express + MongoDB handling authentication, authorization, JWTs, and user identity |
 
 ## Commands
 
 ### Frontend (`spa/`)
+
+Run these commands from the `spa/` directory.
 
 ```bash
 cd spa
@@ -135,10 +139,14 @@ There is no separate "spontaneous" vs "planned" type — only timing determines 
 
 - Keep clear separation of concerns:
   - `spa/` → presentation layer
-  - `apis/` → business logic
+  - `api/` → business logic
   - `auth-server/` → authentication
 
 - Never trust client input — validate and compute sensitive data server-side
 
 - Environment variables must never be exposed to the frontend unless prefixed  
   (e.g., `NEXT_PUBLIC_*`)
+
+- Do not add private planning notes, raw meeting notes, or agent handoffs to this code repository.
+
+- When coding UI, only use the pre-installed UI library shadcn with the Nova preset or default shadcn styling

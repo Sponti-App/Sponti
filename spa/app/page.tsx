@@ -4,11 +4,56 @@ import { useState } from "react"
 import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
 import { BottomNav } from "@/components/bottom-nav"
+import { EventDetailSheet } from "@/components/event-detail-sheet"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Bell, Map, Calendar } from "lucide-react"
+import { Bell, Map, Calendar, Navigation, X } from "lucide-react"
+import { isImminent } from "@/lib/events"
+import type { EventItem } from "@/lib/events"
 
 export default function Home() {
   const [view, setView] = useState<"map" | "calendar">("map")
+  const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
+  const [activeRoute, setActiveRoute] = useState<EventItem | null>(null)
+  const [routeEta, setRouteEta] = useState<string | null>(null)
+  const [joinedIds, setJoinedIds] = useState<Set<number>>(() => new Set())
+
+  const handleJoin = (event: EventItem, eta: string | null) => {
+    setJoinedIds((prev) => {
+      const next = new Set(prev)
+      next.add(event.id)
+      return next
+    })
+    if (isImminent(event) && event.position) {
+      setActiveRoute(event)
+      setRouteEta(eta)
+      setView("map")
+    }
+    setSelectedEvent(null)
+  }
+
+  const handleSeeRoute = (event: EventItem) => {
+    setActiveRoute(event)
+    setView("map")
+    setSelectedEvent(null)
+  }
+
+  const handleLeave = (event: EventItem) => {
+    setJoinedIds((prev) => {
+      const next = new Set(prev)
+      next.delete(event.id)
+      return next
+    })
+    if (activeRoute?.id === event.id) {
+      setActiveRoute(null)
+      setRouteEta(null)
+    }
+    setSelectedEvent(null)
+  }
+
+  const handleClearRoute = () => {
+    setActiveRoute(null)
+    setRouteEta(null)
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -27,8 +72,10 @@ export default function Home() {
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3">
-          <Avatar className="h-9 w-9 border border-foreground">
-            <AvatarFallback className="bg-background text-sm font-medium">M</AvatarFallback>
+          <Avatar className="h-9 w-9">
+            <AvatarFallback className="bg-brand text-brand-foreground text-sm font-medium">
+              M
+            </AvatarFallback>
           </Avatar>
 
           {/* Toggle */}
@@ -36,7 +83,7 @@ export default function Home() {
             <button
               onClick={() => setView("map")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors ${
-                view === "map" ? "bg-foreground text-background" : ""
+                view === "map" ? "bg-brand text-brand-foreground" : ""
               }`}
             >
               <Map className="h-4 w-4" />
@@ -45,7 +92,7 @@ export default function Home() {
             <button
               onClick={() => setView("calendar")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors ${
-                view === "calendar" ? "bg-foreground text-background" : ""
+                view === "calendar" ? "bg-brand text-brand-foreground" : ""
               }`}
             >
               <Calendar className="h-4 w-4" />
@@ -58,16 +105,65 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-hidden flex flex-col">
-          {view === "map" ? <MapView /> : <CalendarView />}
+        {/* Content Area — fills all remaining height; nav floats over it */}
+        <div className="flex-1 relative overflow-hidden">
+          {view === "map" ? (
+            <MapView
+              onEventSelect={setSelectedEvent}
+              activeRoute={activeRoute}
+              joinedIds={joinedIds}
+            />
+          ) : (
+            <CalendarView onEventSelect={setSelectedEvent} joinedIds={joinedIds} />
+          )}
+
+          {/* Route active pill — tap to reopen details, X to clear */}
+          {activeRoute && !selectedEvent && view === "map" && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-brand text-brand-foreground pl-3 pr-1.5 py-1.5 rounded-full text-xs font-medium shadow-md">
+              <button
+                onClick={() => setSelectedEvent(activeRoute)}
+                className="flex items-center gap-2"
+              >
+                <Navigation className="w-3.5 h-3.5" />
+                <span>
+                  routing to {activeRoute.location.name}
+                  {routeEta ? ` · ETA ${routeEta}` : ""}
+                </span>
+              </button>
+              <button
+                onClick={handleClearRoute}
+                aria-label="Clear route"
+                className="ml-1 rounded-full p-1 hover:bg-brand-foreground/10"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Bottom Navigation */}
-        <BottomNav />
+        {/* Event Detail Sheet — covers content + nav when open (z-50) */}
+        {selectedEvent && (
+          <div className="absolute inset-0 z-50">
+            <EventDetailSheet
+              event={selectedEvent}
+              joined={joinedIds.has(selectedEvent.id)}
+              onClose={() => setSelectedEvent(null)}
+              onJoin={handleJoin}
+              onLeave={handleLeave}
+              onSeeRoute={handleSeeRoute}
+            />
+          </div>
+        )}
+
+        {/* Bottom Nav — floats over content (z-40) */}
+        <div className="absolute bottom-6 left-0 right-0 z-40 pointer-events-none">
+          <div className="pointer-events-auto">
+            <BottomNav />
+          </div>
+        </div>
 
         {/* Home Indicator */}
-        <div className="flex justify-center pb-2 pt-1">
+        <div className="absolute bottom-1 left-0 right-0 flex justify-center">
           <div className="w-32 h-1 bg-foreground rounded-full" />
         </div>
       </div>
