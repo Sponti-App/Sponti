@@ -1,9 +1,13 @@
-import express from 'express';
-import { login, register } from '#controllers';
+import { Router } from "express";
+import { login, logout, me, register } from "#controllers";
+import { validateBody } from "#middleware";
+import { loginSchema, registerSchema } from "#schemas";
 
-const router = express.Router();
+const router = Router();
 
-router.post('/register', register);
-router.post('/login', login);
+router.post("/register", validateBody(registerSchema), register);
+router.post("/login", validateBody(loginSchema), login);
+router.post("/logout", logout);
+router.get("/me", me);
 
 export default router;
