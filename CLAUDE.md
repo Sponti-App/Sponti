@@ -48,9 +48,10 @@ v2 plan: migrate to Expo/React Native if there is traction.
 
 ## Commands
 
-### Frontend (repo root)
+### Frontend (`spa/`)
 
 ```bash
+cd spa
 npm run dev           # Next.js dev server with Turbopack (localhost:3000)
 npm run build         # Production static export → out/
 npm run build:mobile  # next build + cap sync (deploy to native)
@@ -64,6 +65,7 @@ npm run typecheck     # tsc --noEmit
 ### Capacitor dev workflow
 
 ```bash
+cd spa
 npm run dev                # start Next.js on localhost:3000
 npx cap run ios            # run in iOS Simulator with live reload
 npx cap run android        # run in Android emulator with live reload
