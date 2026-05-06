@@ -1,0 +1,64 @@
+{"timestamp":"00:00:03.036","source":"Server","level":"LOG","message":""}
+{"timestamp":"04:03:08.936","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:08.945","source":"Server","level":"ERROR","message":"⨯ \"unhandledRejection:\" Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:08.947","source":"Server","level":"ERROR","message":"⨯ \"unhandledRejection: \" Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:09.042","source":"Server","level":"ERROR","message":"⨯ PageNotFoundError: Cannot find module for page: route not found /_not-found/page"}
+{"timestamp":"04:03:10.321","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.323","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.335","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.336","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.339","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.340","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.343","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.346","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.356","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.357","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.363","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.365","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.368","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.370","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.374","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.375","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.382","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.383","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.385","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.386","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.390","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.391","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.416","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.418","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.424","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.429","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.440","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.441","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.444","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.445","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.454","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.455","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.463","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.464","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.474","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.475","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.488","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.498","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.505","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.508","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.512","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.515","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.537","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.540","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.553","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.554","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.558","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.559","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.564","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.566","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.579","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"04:03:10.581","source":"Server","level":"ERROR","message":"Error: ENOENT: no such file or directory, scandir '/Users/patrickcaire/Development/Sponti/app'"}
+{"timestamp":"05:41:05.299","source":"Server","level":"LOG","message":"✓ Compiled in 281ms"}
+{"timestamp":"05:41:05.898","source":"Server","level":"LOG","message":"✓ Compiled in 485ms"}
+{"timestamp":"05:41:06.322","source":"Server","level":"LOG","message":"✓ Compiled in 317ms"}
+{"timestamp":"05:41:06.398","source":"Server","level":"LOG","message":"✓ Compiled in 0ms"}
+{"timestamp":"05:41:06.471","source":"Server","level":"LOG","message":"✓ Compiled in 64ms"}
+{"timestamp":"05:41:06.535","source":"Server","level":"LOG","message":"✓ Compiled in 40ms"}
+{"timestamp":"05:41:06.761","source":"Server","level":"LOG","message":"✓ Compiled in 206ms"}
