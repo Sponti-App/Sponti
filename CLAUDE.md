@@ -13,11 +13,13 @@ Key differentiators: low-notification noise, granular privacy controls (per-list
 **Timeline:** 16-day bootcamp sprint. Team of 4 (UX/UI, frontend dev, tech lead, PM).
 
 **Completed:**
+
 - Home screen — map view with flares + calendar view toggle
 - Figtree font, Tailwind v4, shadcn/ui (radix-nova) design system
 - Capacitor set up for iOS/Android WebView wrapper
 
 **Next to build (in priority order):**
+
 1. Auth — email/password register + login (backend scaffolded, frontend needed)
 2. Event creation flow — title, time, location, visibility picker, post
 3. Friend lists — add friends, organise into lists, use lists as invite targets
@@ -26,32 +28,28 @@ Key differentiators: low-notification noise, granular privacy controls (per-list
 6. QR code — generate card, scan to add friend
 
 **Deferred to v2:**
+
 - Phone number auth + contact importing
 - React Native migration (Expo) — v1 ships as Capacitor WebView
 
 ## Platform strategy
 
-v1 is a **Next.js web app wrapped in Capacitor** for iOS/Android. The `out/` static export is what Capacitor serves. In dev, Capacitor points to `http://localhost:3000` for live reload.
+v1 is a **Next.js web app wrapped in Capacitor** for iOS/Android. The SPA is served as a web application and can be exported for mobile usage.
 
 v2 plan: migrate to Expo/React Native if there is traction.
 
 ## Repository structure
 
-| Directory | Purpose |
-|-----------|---------|
-| `app/` | Next.js App Router pages and layouts |
-| `components/` | React components (`ui/` for shadcn primitives) |
-| `lib/` | Shared utilities (`utils.ts` — `cn` helper) |
-| `hooks/` | Custom React hooks |
-| `auth-server/` | Auth backend — Express 5 + MongoDB (own `package.json`) |
-| `ios/` | Capacitor iOS project (gitignored) |
-| `android/` | Capacitor Android project (gitignored) |
-| `api/` | Future API workspace (placeholder) |
-| `spa/` | Future SPA workspace (placeholder) |
+| Directory      | Purpose                                                                                                   |
+| -------------- | --------------------------------------------------------------------------------------------------------- |
+| `spa/`         | Frontend application — Next.js (App Router), React components, hooks, UI, and client-side logic           |
+| `apis/`        | Main API server — handles business logic such as events, circles, invitations, and core app functionality |
+| `auth-server/` | Authentication server — Express + MongoDB handling authentication, authorization, JWTs, and user identity |
 
 ## Commands
 
 ### Frontend (repo root)
+
 ```bash
 npm run dev           # Next.js dev server with Turbopack (localhost:3000)
 npm run build         # Production static export → out/
@@ -64,6 +62,7 @@ npm run typecheck     # tsc --noEmit
 ```
 
 ### Capacitor dev workflow
+
 ```bash
 npm run dev                # start Next.js on localhost:3000
 npx cap run ios            # run in iOS Simulator with live reload
@@ -71,6 +70,7 @@ npx cap run android        # run in Android emulator with live reload
 ```
 
 ### auth-server
+
 ```bash
 cd auth-server
 npm run dev          # node --watch (no compile step)
@@ -80,28 +80,63 @@ npm start            # build then run dist/app.js
 
 ## Architecture
 
-### Frontend
-- **Next.js 16** (App Router, static export via `output: 'export'`) with React 19.
-- **Tailwind CSS v4** via PostCSS (`@tailwindcss/postcss`).
-- **shadcn/ui** with `radix-nova` style; add components via `npx shadcn add <component>`. Path aliases: `@/components/ui`, `@/lib`, `@/hooks`.
-- **Figtree** font loaded via `next/font/google`, applied through `--font-sans` CSS variable on `<html>`.
-- **next-themes** wraps the app (`components/theme-provider.tsx`). Dark mode is class-based.
-- **Google Maps** via `@vis.gl/react-google-maps`. Requires `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_ID` in `.env.local`. Falls back to a static illustrated map if the API fails or is blocked.
+### Frontend (SPA)
+
+- **Next.js (App Router)** with React
+- Handles UI, routing, and client-side state
+- Communicates with `apis/` and `auth-server/` via HTTP (REST APIs)
+- Tailwind CSS + shadcn/ui for styling
+
+### APIs server
+
+- Core backend for the application
+- Handles:
+  - Events (creation, retrieval, updates)
+  - Circles / friend groups
+  - Invitations and participation
+- Contains main business logic
+- Connects to database (MongoDB)
 
 ### auth-server
-- **Express 5** with ESM modules (`"type": "module"`).
-- **Mongoose** for MongoDB, **bcrypt** for password hashing, **jsonwebtoken** for tokens, **zod** for request validation.
-- Path alias `#*` → `./src/*`. Entry: `src/app.ts`. Build output: `dist/`.
-- TypeScript enforces `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`.
-- Excluded from root `tsconfig.json` to avoid type bleed into the Next.js build.
 
-### Data model note
-A flare/event is a **single object** surfaced in two views: map (now/imminent) and calendar (upcoming). There is no separate "spontaneous" vs "planned" type — only timing determines which view it appears in.
+- Dedicated authentication service
+- Express + MongoDB + JWT
+- Responsibilities:
+  - User registration & login
+  - Token issuing (access + refresh)
+  - Authorization middleware
+- Decoupled from main API for scalability and separation of concerns
+
+---
+
+## Data model note
+
+A flare/event is a **single object** surfaced in two views:
+
+- Map → now / imminent
+- Calendar → upcoming
+
+There is no separate "spontaneous" vs "planned" type — only timing determines which view it appears in.
+
+---
 
 ## Auth
-- v1: email/password. JWT tokens. Backend scaffolded in `auth-server/`.
-- Phone number auth deferred to v2 (required for contact importing).
 
-## Important: Next.js 16 breaking changes
+- v1: email/password with JWT tokens
+- Managed by `auth-server/`
+- Other services validate tokens via middleware
+- Phone number auth deferred to v2
 
-Next.js 16 has API and convention changes that differ from common training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any Next.js code. Heed deprecation notices.
+---
+
+## Important notes
+
+- Keep clear separation of concerns:
+  - `spa/` → presentation layer
+  - `apis/` → business logic
+  - `auth-server/` → authentication
+
+- Never trust client input — validate and compute sensitive data server-side
+
+- Environment variables must never be exposed to the frontend unless prefixed  
+  (e.g., `NEXT_PUBLIC_*`)
