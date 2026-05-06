@@ -18,7 +18,7 @@ export function BottomNav() {
           <button
             key={i}
             className={`flex items-center justify-center p-2.5 rounded-full transition-colors ${
-              item.active ? "bg-foreground text-background" : "text-foreground"
+              item.active ? "bg-brand text-brand-foreground" : "text-foreground"
             }`}
             aria-label={item.label}
           >

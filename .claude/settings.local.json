@@ -7,7 +7,9 @@
       "Bash(node -e \"const p=require\\('./node_modules/typescript/package.json'\\); console.log\\(p.version\\)\")",
       "Bash(git checkout *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)"
     ]
   }
 }
