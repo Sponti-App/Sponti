@@ -43,7 +43,7 @@ v2 plan: migrate to Expo/React Native if there is traction.
 | Directory      | Purpose                                                                                                   |
 | -------------- | --------------------------------------------------------------------------------------------------------- |
 | `spa/`         | Frontend application — Next.js (App Router), React components, hooks, UI, and client-side logic           |
-| `apis/`        | Main API server — handles business logic such as events, circles, invitations, and core app functionality |
+| `api/`         | Main API server — handles business logic such as events, circles, invitations, and core app functionality |
 | `auth-server/` | Authentication server — Express + MongoDB handling authentication, authorization, JWTs, and user identity |
 
 ## Commands
@@ -133,7 +133,7 @@ There is no separate "spontaneous" vs "planned" type — only timing determines 
 
 - Keep clear separation of concerns:
   - `spa/` → presentation layer
-  - `apis/` → business logic
+  - `api/` → business logic
   - `auth-server/` → authentication
 
 - Never trust client input — validate and compute sensitive data server-side
