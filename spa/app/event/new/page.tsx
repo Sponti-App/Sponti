@@ -56,6 +56,18 @@ const DURATION_OPTIONS = [
   { label: "3h", minutes: 180 },
 ] as const
 
+// "right now" mode caps start at +6h to keep the flow imminent —
+// anything further out belongs in "pick a time".
+const START_OFFSET_OPTIONS = [
+  { label: "now", minutes: 0 },
+  { label: "+15m", minutes: 15 },
+  { label: "+30m", minutes: 30 },
+  { label: "+1h", minutes: 60 },
+  { label: "+2h", minutes: 120 },
+  { label: "+4h", minutes: 240 },
+  { label: "+6h", minutes: 360 },
+] as const
+
 const WHERE_OPTIONS: { value: WhereType; label: string; icon: typeof MapPin }[] = [
   { value: "current", label: "current loc", icon: MapPin },
   { value: "home", label: "home", icon: HomeIcon },
@@ -111,11 +123,18 @@ function formatDateInput(d: Date): string {
   return `${yyyy}-${mm}-${dd}`
 }
 
+function formatRelative(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`
+  const hours = minutes / 60
+  return Number.isInteger(hours) ? `${hours}h` : `${minutes}m`
+}
+
 export default function NewEventPage() {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>("now")
   const [what, setWhat] = useState("")
   const [durationMinutes, setDurationMinutes] = useState<number>(60)
+  const [startOffsetMinutes, setStartOffsetMinutes] = useState<number>(0)
   const [startDate, setStartDate] = useState(formatDateInput(new Date()))
   const [startTime, setStartTime] = useState("19:00")
   const [whereType, setWhereType] = useState<WhereType>("current")
@@ -141,6 +160,7 @@ export default function NewEventPage() {
       mode,
       what: what.trim(),
       durationMinutes,
+      startOffsetMinutes: mode === "now" ? startOffsetMinutes : undefined,
       startDate: mode === "scheduled" ? startDate : undefined,
       startTime: mode === "scheduled" ? startTime : undefined,
       recurrence: mode === "scheduled" ? recurrence : undefined,
@@ -211,7 +231,20 @@ export default function NewEventPage() {
 
             {/* WHEN */}
             <TabsContent value="now" className="m-0">
-              <Section label="when">
+              <Section label="starts">
+                <ChipRow>
+                  {START_OFFSET_OPTIONS.map((s) => (
+                    <Chip
+                      key={s.minutes}
+                      selected={startOffsetMinutes === s.minutes}
+                      onClick={() => setStartOffsetMinutes(s.minutes)}
+                    >
+                      {s.label}
+                    </Chip>
+                  ))}
+                </ChipRow>
+              </Section>
+              <Section label="how long">
                 <ChipRow>
                   {DURATION_OPTIONS.map((d) => (
                     <Chip
@@ -224,7 +257,8 @@ export default function NewEventPage() {
                   ))}
                 </ChipRow>
                 <p className="text-xs text-muted-foreground mt-2">
-                  starts now · ends in {formatDuration(durationMinutes)}
+                  {startOffsetMinutes === 0 ? "starts now" : `starts in ${formatRelative(startOffsetMinutes)}`}
+                  {" · "}runs for {formatRelative(durationMinutes)}
                 </p>
               </Section>
             </TabsContent>
@@ -729,8 +763,3 @@ function ToggleRow({
   )
 }
 
-function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`
-  const hours = minutes / 60
-  return Number.isInteger(hours) ? `${hours}h` : `${minutes / 60}h`
-}
