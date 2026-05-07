@@ -81,12 +81,12 @@ export const register = async (req: Request, res: Response) => {
         {
             ownerId: user._id,
             name: "Close Friends",
-            color: "#FF0000",
+            color: "#00FF00", // Green
         },
         {
             ownerId: user._id,
             name: "All Friends",
-            color: "#00FF00",
+            color: "#FF0000",// Red
         },
     ]);
     await NotificationSettings.create({
