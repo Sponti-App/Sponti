@@ -2,14 +2,27 @@
 
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Check } from "lucide-react"
+import { avatarText, events } from "@/lib/events"
+import type { EventItem } from "@/lib/events"
 
 const weekDays = ["m", "t", "w", "t", "f", "s", "s"]
 const dates = [3, 4, 5, 6, 7, 8, 9]
 const today = 4
 
-export function CalendarView() {
+const todayEvents = events.filter((e) => e.calendarDay === "today")
+const tomorrowEvents = events.filter((e) => e.calendarDay === "tomorrow")
+
+export function CalendarView({
+  onEventSelect,
+  joinedIds,
+}: {
+  onEventSelect: (event: EventItem) => void
+  joinedIds: Set<number>
+}) {
   return (
-    <div className="h-full overflow-y-auto px-4 pb-4">
+    /* pb-28 leaves room for the floating nav pill */
+    <div className="h-full overflow-y-auto px-4 pb-28">
       {/* Month Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-medium italic">May</h2>
@@ -23,18 +36,18 @@ export function CalendarView() {
             <span className="text-xs text-muted-foreground mb-1">{day}</span>
             <div
               className={`w-10 h-10 flex flex-col items-center justify-center rounded-lg ${
-                dates[i] === today
-                  ? "bg-[#e85a4f] text-background"
-                  : ""
+                dates[i] === today ? "bg-accent text-accent-foreground" : ""
               }`}
             >
               <span className={`text-sm font-medium ${dates[i] === today ? "" : "italic"}`}>
                 {dates[i]}
               </span>
               {(dates[i] === 4 || dates[i] === 6 || dates[i] === 7) && (
-                <div className={`w-1 h-1 rounded-full mt-0.5 ${
-                  dates[i] === today ? "bg-background" : "bg-foreground"
-                }`} />
+                <div
+                  className={`w-1 h-1 rounded-full mt-0.5 ${
+                    dates[i] === today ? "bg-accent-foreground" : "bg-foreground"
+                  }`}
+                />
               )}
             </div>
           </div>
@@ -45,25 +58,17 @@ export function CalendarView() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-medium">today</h3>
-          <span className="text-sm text-muted-foreground">2 events</span>
+          <span className="text-sm text-muted-foreground">{todayEvents.length} events</span>
         </div>
-
         <div className="space-y-2">
-          <EventCard
-            time="3pm"
-            title="coffee w/ Mira"
-            subtitle="Reuben's · 1:1"
-            avatars={[{ letter: "M", bg: "bg-[#e85a4f]" }]}
-          />
-          <EventCard
-            time="7pm"
-            title="patio hang"
-            subtitle="hosting · 4 going"
-            avatars={[
-              { letter: "S", bg: "bg-muted", outlined: true },
-              { letter: "K", bg: "bg-muted", outlined: true },
-            ]}
-          />
+          {todayEvents.map((event) => (
+            <EventCard
+              key={event.id}
+              event={event}
+              joined={joinedIds.has(event.id)}
+              onSelect={onEventSelect}
+            />
+          ))}
         </div>
       </div>
 
@@ -71,48 +76,58 @@ export function CalendarView() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-medium">tomorrow</h3>
-          <span className="text-sm text-muted-foreground">1 event</span>
+          <span className="text-sm text-muted-foreground">{tomorrowEvents.length} event</span>
         </div>
-
-        <EventCard
-          time="10am"
-          title="run club"
-          subtitle="park · 6 going"
-          avatars={[{ letter: "J", bg: "bg-muted", outlined: true }]}
-        />
+        <div className="space-y-2">
+          {tomorrowEvents.map((event) => (
+            <EventCard
+              key={event.id}
+              event={event}
+              joined={joinedIds.has(event.id)}
+              onSelect={onEventSelect}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )
 }
 
 function EventCard({
-  time,
-  title,
-  subtitle,
-  avatars,
+  event,
+  joined,
+  onSelect,
 }: {
-  time: string
-  title: string
-  subtitle: string
-  avatars: Array<{ letter: string; bg: string; outlined?: boolean }>
+  event: EventItem
+  joined: boolean
+  onSelect: (event: EventItem) => void
 }) {
   return (
-    <Card className="p-3 flex-row items-center gap-3 border border-border rounded-xl">
-      <span className="text-sm text-muted-foreground w-12">{time}</span>
+    <Card
+      className={`p-3 flex-row items-center gap-3 border rounded-xl cursor-pointer hover:bg-muted/50 active:bg-muted transition-colors ${
+        joined ? "border-accent bg-accent/5" : "border-border"
+      }`}
+      onClick={() => onSelect(event)}
+    >
+      <span className="text-sm text-muted-foreground w-10 shrink-0">{event.calendarTime}</span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium">{title}</p>
-        <p className="text-xs text-muted-foreground">{subtitle}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium truncate">{event.title}</p>
+          {joined && (
+            <span className="flex items-center gap-0.5 text-[10px] font-medium bg-accent/10 text-accent px-1.5 py-0.5 rounded-full shrink-0">
+              <Check className="w-2.5 h-2.5" /> going
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground truncate">
+          {event.location.name} · {event.going} going
+        </p>
       </div>
-      <div className="flex -space-x-1">
-        {avatars.map((avatar, i) => (
-          <Avatar 
-            key={i} 
-            className={`h-7 w-7 ${avatar.outlined ? "border border-foreground" : ""}`}
-          >
-            <AvatarFallback 
-              className={`${avatar.bg} ${avatar.outlined ? "text-foreground" : "text-background"} text-xs`}
-            >
-              {avatar.letter}
+      <div className="flex -space-x-1 shrink-0">
+        {event.attendees.slice(0, 2).map((a, i) => (
+          <Avatar key={i} className={`h-7 w-7 ${a.color !== "bg-accent" ? "border border-border" : ""}`}>
+            <AvatarFallback className={`${a.color} ${avatarText(a.color)} text-xs`}>
+              {a.avatar}
             </AvatarFallback>
           </Avatar>
         ))}
