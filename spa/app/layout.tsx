@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Figtree } from 'next/font/google'
 import './globals.css'
+import { AuthProvider } from '@/components/auth-provider'
+import { AuthGate } from '@/components/auth-gate'
 
 const figtree = Figtree({
   subsets: ['latin'],
@@ -39,7 +41,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={figtree.variable}>
       <body className="font-sans antialiased">
-        {children}
+        <AuthProvider>
+          <AuthGate>{children}</AuthGate>
+        </AuthProvider>
       </body>
     </html>
   )

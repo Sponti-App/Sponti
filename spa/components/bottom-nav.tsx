@@ -7,7 +7,7 @@ const navItems = [
   { icon: QrCode, label: "QR", href: null },
   { icon: Sparkles, label: "Host", href: "/event/new" },
   { icon: Home, label: "Home", href: "/" },
-  { icon: User, label: "Profile", href: null },
+  { icon: User, label: "Profile", href: "/profile" },
   { icon: Settings, label: "Settings", href: null },
 ] as const
 
