@@ -1,0 +1,8 @@
+# env files — never commit secrets or local config.
+# .env.example is the documented template and may be committed.
+.env
+.env.*
+!.env.example
+
+# os
+.DS_Store

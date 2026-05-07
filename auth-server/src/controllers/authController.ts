@@ -3,10 +3,6 @@ import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { User, Circle, NotificationSettings } from "#models";
 
-type JwtPayload = {
-    userId: string;
-};
-
 const createAccessToken = (userId: string) => {
     const secret = process.env.JWT_SECRET;
 
@@ -15,30 +11,6 @@ const createAccessToken = (userId: string) => {
     }
 
     return jwt.sign({ userId }, secret, { expiresIn: "7d" });
-};
-
-const getBearerToken = (authorizationHeader?: string) => {
-    if (!authorizationHeader?.startsWith("Bearer ")) {
-        throw new Error("Missing or invalid authorization header", {
-            cause: { status: 401 },
-        });
-    }
-
-    return authorizationHeader.slice("Bearer ".length);
-};
-
-const verifyAccessToken = (token: string) => {
-    try {
-        return jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
-    } catch (error) {
-        if (error instanceof jwt.TokenExpiredError) {
-            throw new Error("Access token expired", {
-                cause: { status: 401, code: "ACCESS_TOKEN_EXPIRED" },
-            });
-        }
-
-        throw new Error("Invalid access token", { cause: { status: 401 } });
-    }
 };
 
 const toUserResponse = (user: InstanceType<typeof User>) => ({
@@ -129,9 +101,7 @@ export const logout = async (_req: Request, res: Response) => {
 };
 
 export const me = async (req: Request, res: Response) => {
-    const token = getBearerToken(req.headers.authorization);
-    const payload = verifyAccessToken(token);
-    const user = await User.findById(payload.userId);
+    const user = await User.findById(req.userId);
 
     if (!user) {
         throw new Error("User not found", { cause: { status: 404 } });
