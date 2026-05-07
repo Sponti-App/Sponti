@@ -10,7 +10,7 @@ import type { EventItem } from "@/lib/events"
 const ETA_OPTIONS = ["5 min", "15 min", "30 min", "1 hr"]
 
 function EventTypeIcon({ type }: { type: EventItem["type"] }) {
-  const cls = "w-6 h-6 text-brand"
+  const cls = "w-6 h-6 text-accent"
   if (type === "coffee") return <Coffee className={cls} />
   if (type === "run") return <Activity className={cls} />
   return <Users className={cls} />
@@ -71,18 +71,18 @@ export function EventDetailSheet({ event, joined, onClose, onJoin, onLeave, onSe
         <div className="px-4 pb-6 overflow-y-auto max-h-[62vh]">
           {/* Event Header */}
           <div className="flex items-start gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-brand/10 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
               <EventTypeIcon type={event.type} />
             </div>
             <div className="flex-1">
               <h2 className="text-xl font-semibold">{event.title}</h2>
-              <div className="flex items-center gap-1 text-brand text-sm">
+              <div className="flex items-center gap-1 text-accent text-sm">
                 <Flame className="w-4 h-4" />
                 <span>{event.status}</span>
               </div>
             </div>
             {joined && (
-              <span className="flex items-center gap-1 text-xs font-medium bg-brand/10 text-brand px-2 py-1 rounded-full self-start">
+              <span className="flex items-center gap-1 text-xs font-medium bg-accent/10 text-accent px-2 py-1 rounded-full self-start">
                 <Check className="w-3 h-3" /> going
               </span>
             )}
@@ -159,7 +159,7 @@ export function EventDetailSheet({ event, joined, onClose, onJoin, onLeave, onSe
                     size="sm"
                     className={`flex-1 rounded-full ${
                       selectedEta === eta
-                        ? "bg-brand text-brand-foreground hover:bg-brand/90"
+                        ? "bg-accent text-accent-foreground hover:bg-accent/90"
                         : "bg-background text-foreground"
                     }`}
                     onClick={() => setSelectedEta(eta)}
@@ -176,7 +176,7 @@ export function EventDetailSheet({ event, joined, onClose, onJoin, onLeave, onSe
             <div className="space-y-2">
               {imminent && event.position && (
                 <Button
-                  className="w-full rounded-full py-6 text-base bg-brand text-brand-foreground hover:bg-brand/90"
+                  className="w-full rounded-full py-6 text-base bg-accent text-accent-foreground hover:bg-accent/90"
                   onClick={() => onSeeRoute(event)}
                 >
                   <Navigation className="w-4 h-4 mr-1" />
@@ -196,7 +196,7 @@ export function EventDetailSheet({ event, joined, onClose, onJoin, onLeave, onSe
             <Button
               className={`w-full rounded-full py-6 text-base ${
                 selectedEta
-                  ? "bg-brand text-brand-foreground hover:bg-brand/90"
+                  ? "bg-accent text-accent-foreground hover:bg-accent/90"
                   : "bg-muted text-muted-foreground cursor-not-allowed"
               }`}
               disabled={!selectedEta}
@@ -212,7 +212,7 @@ export function EventDetailSheet({ event, joined, onClose, onJoin, onLeave, onSe
             </Button>
           ) : (
             <Button
-              className="w-full rounded-full py-6 text-base bg-brand text-brand-foreground hover:bg-brand/90"
+              className="w-full rounded-full py-6 text-base bg-accent text-accent-foreground hover:bg-accent/90"
               onClick={() => onJoin(event, null)}
             >
               <Check className="w-4 h-4 mr-1" />

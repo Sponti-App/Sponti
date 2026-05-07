@@ -1,25 +1,37 @@
 "use client"
 
 import { Home, User, Settings, QrCode, Sparkles } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
 
 const navItems = [
-  { icon: QrCode, label: "QR" },
-  { icon: Sparkles, label: "Host" },
-  { icon: Home, label: "Home", active: true },
-  { icon: User, label: "Profile" },
-  { icon: Settings, label: "Settings" },
-]
+  { icon: QrCode, label: "QR", href: null },
+  { icon: Sparkles, label: "Host", href: "/event/new" },
+  { icon: Home, label: "Home", href: "/" },
+  { icon: User, label: "Profile", href: null },
+  { icon: Settings, label: "Settings", href: null },
+] as const
 
 export function BottomNav() {
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const isActive = (href: string | null) => {
+    if (href === null) return false
+    if (href === "/") return pathname === "/"
+    return pathname.startsWith(href)
+  }
+
   return (
     <div className="flex justify-center pb-2 px-4">
       <div className="flex items-center justify-center gap-2 px-4 py-2 bg-background border border-border rounded-full shadow-sm">
         {navItems.map((item, i) => (
           <button
             key={i}
+            onClick={() => item.href && router.push(item.href)}
+            disabled={item.href === null}
             className={`flex items-center justify-center p-2.5 rounded-full transition-colors ${
-              item.active ? "bg-brand text-brand-foreground" : "text-foreground"
-            }`}
+              isActive(item.href) ? "bg-accent text-accent-foreground" : "text-foreground"
+            } ${item.href === null ? "opacity-40" : ""}`}
             aria-label={item.label}
           >
             <item.icon className="h-5 w-5" />

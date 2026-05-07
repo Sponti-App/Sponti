@@ -18,9 +18,9 @@ const mapEvents = events.filter((e) => e.position != null)
 
 const userLocation = { lat: 37.7849, lng: -122.4344 }
 
-// Hex equivalent of --color-brand (oklch 0.57 0.18 28) — Google Maps Polyline
+// Hex equivalent of --accent (oklch 0.55 0.19 25) — Google Maps Polyline
 // does not accept CSS variables, so we mirror the token here. Keep in sync with globals.css.
-const BRAND_HEX = "#cc3e35"
+const ACCENT_HEX = "#c44040"
 
 // Pixel positions of the static map markers (used to draw route on static fallback)
 const STATIC_MARKER_PX: Record<number, { x: number; y: number }> = {
@@ -36,7 +36,7 @@ function GoogleMapPolyline({ path }: { path: google.maps.LatLngLiteral[] }) {
     const polyline = new google.maps.Polyline({
       path,
       geodesic: true,
-      strokeColor: BRAND_HEX,
+      strokeColor: ACCENT_HEX,
       strokeOpacity: 0.9,
       strokeWeight: 4,
       map,
@@ -86,7 +86,7 @@ function StaticMapFallback({
             y1={STATIC_USER_PX.y}
             x2={routePx.x}
             y2={routePx.y}
-            stroke="var(--color-brand)"
+            stroke="var(--accent)"
             strokeWidth="4"
             strokeDasharray="8 6"
             strokeLinecap="round"
@@ -94,15 +94,15 @@ function StaticMapFallback({
         )}
       </svg>
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-        <div className="w-4 h-4 bg-brand rounded-full border-2 border-background shadow-lg" />
+        <div className="w-4 h-4 bg-accent rounded-full border-2 border-background shadow-lg" />
       </div>
       <button
         onClick={() => onEventSelect(events[0])}
         className="absolute top-[32%] left-[28%] flex flex-col items-center cursor-pointer"
       >
         <div
-          className={`w-10 h-10 bg-brand rounded-full flex items-center justify-center text-brand-foreground text-sm font-medium shadow-lg ${
-            joinedIds.has(events[0].id) ? "ring-2 ring-brand ring-offset-2" : ""
+          className={`w-10 h-10 bg-accent rounded-full flex items-center justify-center text-accent-foreground text-sm font-medium shadow-lg ${
+            joinedIds.has(events[0].id) ? "ring-2 ring-accent ring-offset-2" : ""
           }`}
         >
           M
@@ -118,13 +118,13 @@ function StaticMapFallback({
         className="absolute top-[52%] right-[12%] flex flex-col items-center cursor-pointer"
       >
         <div
-          className={`w-10 h-10 bg-stone-800 rounded-full flex items-center justify-center text-brand-foreground shadow-lg ${
-            joinedIds.has(events[1].id) ? "ring-2 ring-brand ring-offset-2" : ""
+          className={`w-10 h-10 bg-stone-800 rounded-full flex items-center justify-center text-accent-foreground shadow-lg ${
+            joinedIds.has(events[1].id) ? "ring-2 ring-accent ring-offset-2" : ""
           }`}
         >
           <span className="text-xs">👥</span>
         </div>
-        <div className="mt-1 px-2 py-1 bg-stone-800 rounded-lg text-xs font-medium text-brand-foreground shadow-md text-center italic">
+        <div className="mt-1 px-2 py-1 bg-stone-800 rounded-lg text-xs font-medium text-accent-foreground shadow-md text-center italic">
           Sam
           <br />
           +3
@@ -158,7 +158,7 @@ function GoogleMapContent({
       className="w-full h-full"
     >
       <AdvancedMarker position={userLocation}>
-        <div className="w-4 h-4 bg-brand rounded-full border-2 border-background shadow-lg" />
+        <div className="w-4 h-4 bg-accent rounded-full border-2 border-background shadow-lg" />
       </AdvancedMarker>
       {mapEvents.map((event) => (
         <AdvancedMarker
@@ -169,7 +169,7 @@ function GoogleMapContent({
           <div className="flex flex-col items-center cursor-pointer">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${
-                joinedIds.has(event.id) ? "ring-2 ring-brand ring-offset-2" : ""
+                joinedIds.has(event.id) ? "ring-2 ring-accent ring-offset-2" : ""
               }`}
             >
               {event.host.avatar}
@@ -299,7 +299,7 @@ function FlareCard({
   return (
     <Card
       className={`p-3 flex-row items-center gap-3 border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors ${
-        joined ? "border-brand bg-brand/5" : "border-border"
+        joined ? "border-accent bg-accent/5" : "border-border"
       }`}
       onClick={onClick}
     >
@@ -310,11 +310,11 @@ function FlareCard({
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <p className="font-medium text-brand truncate">
+          <p className="font-medium text-accent truncate">
             {event.type} · {event.host.name}
           </p>
           {joined && (
-            <span className="flex items-center gap-0.5 text-[10px] font-medium bg-brand/10 text-brand px-1.5 py-0.5 rounded-full shrink-0">
+            <span className="flex items-center gap-0.5 text-[10px] font-medium bg-accent/10 text-accent px-1.5 py-0.5 rounded-full shrink-0">
               <Check className="w-2.5 h-2.5" /> going
             </span>
           )}
