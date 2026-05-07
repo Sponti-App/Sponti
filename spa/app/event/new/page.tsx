@@ -1,14 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowLeft,
+  Check,
   Coffee,
+  Heart,
   Home as HomeIcon,
   MapPin,
   Search,
   Sparkles,
+  UserPlus,
+  Users,
+  X,
   ChevronDown,
 } from "lucide-react"
 import { BottomNav } from "@/components/bottom-nav"
@@ -23,12 +28,26 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { saveDraftEvent } from "@/lib/draft-events"
+import { saveDraftEvent, type Audience, type Recurrence } from "@/lib/draft-events"
 
 type Mode = "now" | "scheduled"
 type WhereType = "current" | "home" | "coffee" | "search" | "custom"
-type Audience = "close-friends" | "all-friends" | "custom-list"
 type Visibility = "private" | "public"
+
+type Friend = { id: string; name: string }
+
+const MOCK_FRIENDS: Friend[] = [
+  { id: "maya", name: "Maya R." },
+  { id: "jordan", name: "Jordan T." },
+  { id: "sam", name: "Sam K." },
+  { id: "avery", name: "Avery L." },
+  { id: "noah", name: "Noah P." },
+  { id: "riley", name: "Riley M." },
+  { id: "eli", name: "Eli S." },
+  { id: "tay", name: "Tay W." },
+  { id: "kai", name: "Kai B." },
+  { id: "nina", name: "Nina O." },
+]
 
 const DURATION_OPTIONS = [
   { label: "30m", minutes: 30 },
@@ -52,11 +71,38 @@ const GUEST_LIMITS = [
 ] as const
 
 // Mocked friend lists — real lists arrive with the friend-lists feature (roadmap item 4).
-const AUDIENCE_OPTIONS: { value: Audience; label: string; sublabel: string }[] = [
-  { value: "close-friends", label: "close friends", sublabel: "5 people" },
-  { value: "all-friends", label: "all friends", sublabel: "42 people" },
-  { value: "custom-list", label: "custom list", sublabel: "pick a list" },
+const AUDIENCE_OPTIONS: {
+  value: Exclude<Audience, "custom">
+  label: string
+  sublabel: string
+  icon: typeof Heart
+}[] = [
+  { value: "close-friends", label: "close friends", sublabel: "your tighter group", icon: Sparkles },
+  { value: "all-friends", label: "all friends", sublabel: "everyone you follow", icon: Users },
 ]
+
+const RECURRENCE_OPTIONS: { value: Recurrence; label: string }[] = [
+  { value: "none", label: "no repeat" },
+  { value: "daily", label: "daily" },
+  { value: "weekly", label: "weekly" },
+  { value: "monthly", label: "monthly" },
+]
+
+function weekdayName(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number)
+  if (!y || !m || !d) return ""
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long" })
+}
+
+function recurrenceSummary(value: Recurrence, dateStr: string): string {
+  if (value === "none") return "one-off — does not repeat"
+  if (value === "daily") return "repeats every day"
+  if (value === "weekly") {
+    const day = weekdayName(dateStr)
+    return day ? `repeats weekly on ${day}` : "repeats weekly"
+  }
+  return "repeats monthly"
+}
 
 function formatDateInput(d: Date): string {
   const yyyy = d.getFullYear()
@@ -77,6 +123,10 @@ export default function NewEventPage() {
   const [title, setTitle] = useState("")
   const [guestLimit, setGuestLimit] = useState<number | null>(null)
   const [audience, setAudience] = useState<Audience>("close-friends")
+  const [recurrence, setRecurrence] = useState<Recurrence>("none")
+  const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([])
+  const [customListName, setCustomListName] = useState("")
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [visibility, setVisibility] = useState<Visibility>("private")
   const [allowForward, setAllowForward] = useState(false)
@@ -93,11 +143,15 @@ export default function NewEventPage() {
       durationMinutes,
       startDate: mode === "scheduled" ? startDate : undefined,
       startTime: mode === "scheduled" ? startTime : undefined,
+      recurrence: mode === "scheduled" ? recurrence : undefined,
       whereType,
       customWhere: whereType === "search" ? customWhere : undefined,
       title: title.trim() || undefined,
       guestLimit,
       audience,
+      selectedFriendIds: audience === "custom" ? selectedFriendIds : undefined,
+      customListName:
+        audience === "custom" && customListName.trim() ? customListName.trim() : undefined,
       visibility,
       allowForward,
       allowPlusOne,
@@ -214,6 +268,23 @@ export default function NewEventPage() {
                   ))}
                 </ChipRow>
               </Section>
+
+              <Section label="repeat">
+                <ChipRow>
+                  {RECURRENCE_OPTIONS.map((r) => (
+                    <Chip
+                      key={r.value}
+                      selected={recurrence === r.value}
+                      onClick={() => setRecurrence(r.value)}
+                    >
+                      {r.label}
+                    </Chip>
+                  ))}
+                </ChipRow>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {recurrenceSummary(recurrence, startDate)}
+                </p>
+              </Section>
             </TabsContent>
 
             {/* WHERE */}
@@ -268,24 +339,37 @@ export default function NewEventPage() {
               </ChipRow>
             </Section>
 
-            {/* WHO INVITES */}
-            <Section label="who invites">
+            {/* BROADCAST TO */}
+            <Section label="broadcast to">
               <div className="flex flex-col gap-2">
                 {AUDIENCE_OPTIONS.map((a) => (
-                  <button
+                  <AudienceCard
                     key={a.value}
-                    type="button"
+                    icon={a.icon}
+                    label={a.label}
+                    sublabel={a.sublabel}
+                    selected={audience === a.value}
                     onClick={() => setAudience(a.value)}
-                    className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
-                      audience === a.value
-                        ? "border-accent bg-accent/5"
-                        : "border-border bg-background"
-                    }`}
-                  >
-                    <span className="text-sm font-medium">{a.label}</span>
-                    <span className="text-xs text-muted-foreground">{a.sublabel}</span>
-                  </button>
+                  />
                 ))}
+                <AudienceCard
+                  icon={UserPlus}
+                  label={customListName.trim() || "pick friends"}
+                  sublabel={
+                    audience === "custom"
+                      ? selectedFriendIds.length === 0
+                        ? "no one selected"
+                        : `${selectedFriendIds.length} ${selectedFriendIds.length === 1 ? "person" : "people"}${
+                            customListName.trim() ? " · saved as list" : ""
+                          }`
+                      : "invite specific people or save a list"
+                  }
+                  selected={audience === "custom"}
+                  onClick={() => {
+                    setAudience("custom")
+                    setPickerOpen(true)
+                  }}
+                />
               </div>
             </Section>
 
@@ -369,8 +453,191 @@ export default function NewEventPage() {
         <div className="absolute bottom-1 left-0 right-0 flex justify-center">
           <div className="w-32 h-1 bg-foreground rounded-full" />
         </div>
+
+        {pickerOpen && (
+          <FriendPicker
+            friends={MOCK_FRIENDS}
+            selectedIds={selectedFriendIds}
+            listName={customListName}
+            onListNameChange={setCustomListName}
+            onToggle={(id) =>
+              setSelectedFriendIds((prev) =>
+                prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+              )
+            }
+            onCancel={() => {
+              setPickerOpen(false)
+              if (selectedFriendIds.length === 0 && !customListName.trim()) {
+                setAudience("close-friends")
+              }
+            }}
+            onConfirm={() => setPickerOpen(false)}
+          />
+        )}
       </div>
     </div>
+  )
+}
+
+function FriendPicker({
+  friends,
+  selectedIds,
+  listName,
+  onListNameChange,
+  onToggle,
+  onCancel,
+  onConfirm,
+}: {
+  friends: Friend[]
+  selectedIds: string[]
+  listName: string
+  onListNameChange: (v: string) => void
+  onToggle: (id: string) => void
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const [query, setQuery] = useState("")
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return friends
+    return friends.filter((f) => f.name.toLowerCase().includes(q))
+  }, [friends, query])
+
+  const count = selectedIds.length
+  const willSave = listName.trim().length > 0
+  const ctaLabel =
+    count === 0
+      ? "select friends"
+      : willSave
+        ? `save list · ${count}`
+        : `invite ${count} ${count === 1 ? "person" : "people"}`
+
+  return (
+    <div className="absolute inset-0 z-30 flex flex-col">
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onCancel}
+        className="absolute inset-0 bg-foreground/30"
+      />
+      <div className="relative mt-auto bg-card rounded-t-3xl border-t border-border shadow-2xl flex flex-col max-h-[88%]">
+        <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+          <span className="text-[11px] tracking-wide uppercase text-muted-foreground">
+            broadcast to
+          </span>
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Close picker"
+            className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-secondary"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-4 pb-2 shrink-0">
+          <Label htmlFor="list-name" className="text-xs text-muted-foreground mb-1 block">
+            save as list (optional)
+          </Label>
+          <Input
+            id="list-name"
+            placeholder="list name (e.g. studio crew)"
+            value={listName}
+            onChange={(e) => onListNameChange(e.target.value)}
+            maxLength={40}
+            className="border-accent/40"
+          />
+        </div>
+
+        <div className="px-4 pb-2 shrink-0">
+          <Input
+            placeholder="add individuals…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-2 pb-2">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-muted-foreground px-2 py-4">no matches</p>
+          ) : (
+            <ul className="flex flex-col">
+              {filtered.map((f) => {
+                const checked = selectedIds.includes(f.id)
+                return (
+                  <li key={f.id}>
+                    <button
+                      type="button"
+                      onClick={() => onToggle(f.id)}
+                      className="w-full flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-secondary text-left"
+                    >
+                      <span
+                        className={`h-5 w-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                          checked ? "border-accent bg-accent text-accent-foreground" : "border-border"
+                        }`}
+                      >
+                        {checked && <Check className="h-3 w-3" />}
+                      </span>
+                      <span className="text-sm">{f.name}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 px-4 py-3 border-t border-border shrink-0">
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            className="flex-1 rounded-full"
+          >
+            cancel
+          </Button>
+          <Button
+            onClick={onConfirm}
+            disabled={count === 0}
+            className="flex-1 rounded-full bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
+          >
+            {ctaLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AudienceCard({
+  icon: Icon,
+  label,
+  sublabel,
+  selected,
+  onClick,
+}: {
+  icon: typeof Heart
+  label: string
+  sublabel: string
+  selected: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+        selected ? "border-accent bg-accent/5" : "border-border bg-background"
+      }`}
+    >
+      <Icon className={`h-4 w-4 shrink-0 ${selected ? "text-accent" : "text-muted-foreground"}`} />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium truncate">{label}</div>
+        <div className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">
+          {sublabel}
+        </div>
+      </div>
+      {selected && <Check className="h-4 w-4 text-accent shrink-0" />}
+    </button>
   )
 }
 
