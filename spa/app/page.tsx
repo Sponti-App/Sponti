@@ -5,10 +5,12 @@ import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
 import { BottomNav } from "@/components/bottom-nav"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
+import { NotificationsPopover } from "@/components/notifications-popover"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Bell, Map, Calendar, Navigation, X } from "lucide-react"
 import { isImminent } from "@/lib/events"
 import type { EventItem } from "@/lib/events"
+import { MOCK_NOTIFICATIONS } from "@/lib/notifications"
 
 export default function Home() {
   const [view, setView] = useState<"map" | "calendar">("map")
@@ -16,6 +18,9 @@ export default function Home() {
   const [activeRoute, setActiveRoute] = useState<EventItem | null>(null)
   const [routeEta, setRouteEta] = useState<string | null>(null)
   const [joinedIds, setJoinedIds] = useState<Set<number>>(() => new Set())
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS)
+  const unreadCount = notifications.filter((n) => !n.read).length
 
   const handleJoin = (event: EventItem, eta: string | null) => {
     setJoinedIds((prev) => {
@@ -100,10 +105,37 @@ export default function Home() {
             </button>
           </div>
 
-          <button className="h-9 w-9 rounded-full border border-foreground flex items-center justify-center">
+          <button
+            onClick={() => {
+              setNotificationsOpen((v) => {
+                const next = !v
+                if (next) {
+                  setNotifications((curr) => curr.map((n) => ({ ...n, read: true })))
+                }
+                return next
+              })
+            }}
+            aria-label="Notifications"
+            aria-expanded={notificationsOpen}
+            className="relative h-9 w-9 rounded-full border border-foreground flex items-center justify-center"
+          >
             <Bell className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span
+                aria-label={`${unreadCount} unread`}
+                className="absolute -top-0.5 -right-0.5 min-w-4.5 h-4.5 px-1 rounded-full bg-accent text-accent-foreground text-[10px] font-semibold flex items-center justify-center"
+              >
+                {unreadCount}
+              </span>
+            )}
           </button>
         </div>
+
+        <NotificationsPopover
+          open={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+          notifications={notifications}
+        />
 
         {/* Content Area — fills all remaining height; nav floats over it */}
         <div className="flex-1 relative overflow-hidden">
