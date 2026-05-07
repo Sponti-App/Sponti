@@ -73,7 +73,7 @@ export default function Home() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3">
           <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-brand text-brand-foreground text-sm font-medium">
+            <AvatarFallback className="bg-accent text-accent-foreground text-sm font-medium">
               M
             </AvatarFallback>
           </Avatar>
@@ -83,7 +83,7 @@ export default function Home() {
             <button
               onClick={() => setView("map")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors ${
-                view === "map" ? "bg-brand text-brand-foreground" : ""
+                view === "map" ? "bg-accent text-accent-foreground" : ""
               }`}
             >
               <Map className="h-4 w-4" />
@@ -92,7 +92,7 @@ export default function Home() {
             <button
               onClick={() => setView("calendar")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors ${
-                view === "calendar" ? "bg-brand text-brand-foreground" : ""
+                view === "calendar" ? "bg-accent text-accent-foreground" : ""
               }`}
             >
               <Calendar className="h-4 w-4" />
@@ -119,7 +119,7 @@ export default function Home() {
 
           {/* Route active pill — tap to reopen details, X to clear */}
           {activeRoute && !selectedEvent && view === "map" && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-brand text-brand-foreground pl-3 pr-1.5 py-1.5 rounded-full text-xs font-medium shadow-md">
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-accent text-accent-foreground pl-3 pr-1.5 py-1.5 rounded-full text-xs font-medium shadow-md">
               <button
                 onClick={() => setSelectedEvent(activeRoute)}
                 className="flex items-center gap-2"
@@ -133,7 +133,7 @@ export default function Home() {
               <button
                 onClick={handleClearRoute}
                 aria-label="Clear route"
-                className="ml-1 rounded-full p-1 hover:bg-brand-foreground/10"
+                className="ml-1 rounded-full p-1 hover:bg-accent-foreground/10"
               >
                 <X className="w-3 h-3" />
               </button>

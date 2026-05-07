@@ -36,7 +36,7 @@ export function CalendarView({
             <span className="text-xs text-muted-foreground mb-1">{day}</span>
             <div
               className={`w-10 h-10 flex flex-col items-center justify-center rounded-lg ${
-                dates[i] === today ? "bg-brand text-brand-foreground" : ""
+                dates[i] === today ? "bg-accent text-accent-foreground" : ""
               }`}
             >
               <span className={`text-sm font-medium ${dates[i] === today ? "" : "italic"}`}>
@@ -45,7 +45,7 @@ export function CalendarView({
               {(dates[i] === 4 || dates[i] === 6 || dates[i] === 7) && (
                 <div
                   className={`w-1 h-1 rounded-full mt-0.5 ${
-                    dates[i] === today ? "bg-brand-foreground" : "bg-foreground"
+                    dates[i] === today ? "bg-accent-foreground" : "bg-foreground"
                   }`}
                 />
               )}
@@ -105,7 +105,7 @@ function EventCard({
   return (
     <Card
       className={`p-3 flex-row items-center gap-3 border rounded-xl cursor-pointer hover:bg-muted/50 active:bg-muted transition-colors ${
-        joined ? "border-brand bg-brand/5" : "border-border"
+        joined ? "border-accent bg-accent/5" : "border-border"
       }`}
       onClick={() => onSelect(event)}
     >
@@ -114,7 +114,7 @@ function EventCard({
         <div className="flex items-center gap-1.5">
           <p className="text-sm font-medium truncate">{event.title}</p>
           {joined && (
-            <span className="flex items-center gap-0.5 text-[10px] font-medium bg-brand/10 text-brand px-1.5 py-0.5 rounded-full shrink-0">
+            <span className="flex items-center gap-0.5 text-[10px] font-medium bg-accent/10 text-accent px-1.5 py-0.5 rounded-full shrink-0">
               <Check className="w-2.5 h-2.5" /> going
             </span>
           )}
@@ -125,7 +125,7 @@ function EventCard({
       </div>
       <div className="flex -space-x-1 shrink-0">
         {event.attendees.slice(0, 2).map((a, i) => (
-          <Avatar key={i} className={`h-7 w-7 ${a.color !== "bg-brand" ? "border border-border" : ""}`}>
+          <Avatar key={i} className={`h-7 w-7 ${a.color !== "bg-accent" ? "border border-border" : ""}`}>
             <AvatarFallback className={`${a.color} ${avatarText(a.color)} text-xs`}>
               {a.avatar}
             </AvatarFallback>
