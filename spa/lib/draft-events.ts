@@ -4,17 +4,23 @@
 
 const STORAGE_KEY = "sponti.draftEvents.v1"
 
+export type Recurrence = "none" | "daily" | "weekly" | "monthly"
+export type Audience = "close-friends" | "all-friends" | "custom"
+
 export type DraftEvent = {
   mode: "now" | "scheduled"
   what: string
   durationMinutes: number
   startDate?: string
   startTime?: string
+  recurrence?: Recurrence
   whereType: "current" | "home" | "coffee" | "search" | "custom"
   customWhere?: string
   title?: string
   guestLimit: number | null
-  audience: "close-friends" | "all-friends" | "custom-list"
+  audience: Audience
+  selectedFriendIds?: string[]
+  customListName?: string
   visibility: "private" | "public"
   allowForward: boolean
   allowPlusOne: boolean
