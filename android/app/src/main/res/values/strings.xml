@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Sponti</string>
+    <string name="title_activity_main">Sponti</string>
+    <string name="package_name">com.sponti.app</string>
+    <string name="custom_url_scheme">com.sponti.app</string>
+</resources>
