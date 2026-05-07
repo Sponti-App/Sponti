@@ -11,6 +11,7 @@ export type DraftEvent = {
   mode: "now" | "scheduled"
   what: string
   durationMinutes: number
+  startOffsetMinutes?: number
   startDate?: string
   startTime?: string
   recurrence?: Recurrence
