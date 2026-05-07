@@ -3,8 +3,8 @@ export function isImminent(event: EventItem): boolean {
 }
 
 export function avatarText(bgColor: string): string {
-  return bgColor === "bg-brand" || bgColor === "bg-stone-800"
-    ? "text-brand-foreground"
+  return bgColor === "bg-accent" || bgColor === "bg-stone-800"
+    ? "text-accent-foreground"
     : "text-foreground"
 }
 
@@ -43,7 +43,7 @@ export const events: EventItem[] = [
     host: {
       name: "Mira",
       avatar: "M",
-      color: "bg-brand",
+      color: "bg-accent",
       note: "grabbing a latte before my 4pm — pop by if you're around ☕",
     },
     location: {
@@ -53,7 +53,7 @@ export const events: EventItem[] = [
       walkTime: "8 min walk",
     },
     attendees: [
-      { name: "Mira", avatar: "M", color: "bg-brand" },
+      { name: "Mira", avatar: "M", color: "bg-accent" },
       { name: "Sam", avatar: "S", color: "bg-stone-300" },
     ],
     going: 2,
