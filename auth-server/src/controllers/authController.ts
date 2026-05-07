@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { User } from "#models";
+import { User, Circle, NotificationSettings } from "#models";
 
 type JwtPayload = {
     userId: string;
@@ -76,6 +76,21 @@ export const register = async (req: Request, res: Response) => {
         displayName,
         email: normalizedEmail,
         passwordHash,
+    });
+    await Circle.create([
+        {
+            ownerId: user._id,
+            name: "Close Friends",
+            color: "#00FF00", // Green
+        },
+        {
+            ownerId: user._id,
+            name: "All Friends",
+            color: "#FF0000",// Red
+        },
+    ]);
+    await NotificationSettings.create({
+        userId: user._id,
     });
 
     const accessToken = createAccessToken(user._id.toString());
