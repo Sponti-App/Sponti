@@ -9,7 +9,9 @@ const app = express();
 // Allow the Next dev server and Capacitor WebView origins. Override via
 // CORS_ORIGINS (comma-separated) when deploying.
 const defaultOrigins = [
+    "https://sponti-spa.vercel.app",
     "http://localhost:3000",
+    "http://localhost:3001",
     "http://localhost",
     "capacitor://localhost",
     "ionic://localhost",
