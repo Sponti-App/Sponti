@@ -28,26 +28,18 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { saveDraftEvent, type Audience, type Recurrence } from "@/lib/draft-events"
+import { saveDraftEvent, type Audience, type DraftEvent, type Recurrence } from "@/lib/draft-events"
+import { pushDraftAsHosted } from "@/lib/host-events"
+import {
+  MOCK_CIRCLES,
+  MOCK_CONNECTIONS,
+  type Circle,
+  type Connection,
+} from "@/lib/circles"
 
 type Mode = "now" | "scheduled"
 type WhereType = "current" | "home" | "coffee" | "search" | "custom"
 type Visibility = "private" | "public"
-
-type Friend = { id: string; name: string }
-
-const MOCK_FRIENDS: Friend[] = [
-  { id: "maya", name: "Maya R." },
-  { id: "jordan", name: "Jordan T." },
-  { id: "sam", name: "Sam K." },
-  { id: "avery", name: "Avery L." },
-  { id: "noah", name: "Noah P." },
-  { id: "riley", name: "Riley M." },
-  { id: "eli", name: "Eli S." },
-  { id: "tay", name: "Tay W." },
-  { id: "kai", name: "Kai B." },
-  { id: "nina", name: "Nina O." },
-]
 
 const DURATION_OPTIONS = [
   { label: "30m", minutes: 30 },
@@ -154,9 +146,9 @@ export default function NewEventPage() {
   const canSubmit = what.trim().length > 0
   const ctaLabel = mode === "now" ? "go live" : "post plan"
 
-  const handleSubmit = () => {
+  const handleSubmit = (): void => {
     if (!canSubmit) return
-    saveDraftEvent({
+    const draft: DraftEvent = {
       mode,
       what: what.trim(),
       durationMinutes,
@@ -176,8 +168,10 @@ export default function NewEventPage() {
       allowForward,
       allowPlusOne,
       createdAt: new Date().toISOString(),
-    })
-    router.push("/")
+    }
+    saveDraftEvent(draft)
+    pushDraftAsHosted(draft)
+    router.push("/event")
   }
 
   return (
@@ -490,15 +484,12 @@ export default function NewEventPage() {
 
         {pickerOpen && (
           <FriendPicker
-            friends={MOCK_FRIENDS}
+            connections={MOCK_CONNECTIONS}
+            circles={MOCK_CIRCLES}
             selectedIds={selectedFriendIds}
             listName={customListName}
             onListNameChange={setCustomListName}
-            onToggle={(id) =>
-              setSelectedFriendIds((prev) =>
-                prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-              )
-            }
+            onSelectionChange={setSelectedFriendIds}
             onCancel={() => {
               setPickerOpen(false)
               if (selectedFriendIds.length === 0 && !customListName.trim()) {
@@ -513,29 +504,64 @@ export default function NewEventPage() {
   )
 }
 
+function setsEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  const setA = new Set(a)
+  return b.every((id) => setA.has(id))
+}
+
 function FriendPicker({
-  friends,
+  connections,
+  circles,
   selectedIds,
   listName,
   onListNameChange,
-  onToggle,
+  onSelectionChange,
   onCancel,
   onConfirm,
 }: {
-  friends: Friend[]
+  connections: Connection[]
+  circles: Circle[]
   selectedIds: string[]
   listName: string
   onListNameChange: (v: string) => void
-  onToggle: (id: string) => void
+  onSelectionChange: (next: string[]) => void
   onCancel: () => void
   onConfirm: () => void
 }) {
   const [query, setQuery] = useState("")
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return friends
-    return friends.filter((f) => f.name.toLowerCase().includes(q))
-  }, [friends, query])
+    if (!q) return connections
+    return connections.filter(
+      (c) =>
+        c.displayName.toLowerCase().includes(q) ||
+        c.username.toLowerCase().includes(q),
+    )
+  }, [connections, query])
+
+  // Highlight the circle whose membership exactly matches the current
+  // selection. Diverges as soon as the user adds or removes anyone.
+  const activeCircleId = useMemo(() => {
+    return circles.find((c) => setsEqual(c.memberIds, selectedIds))?.id ?? null
+  }, [circles, selectedIds])
+
+  const toggleId = (id: string): void => {
+    onSelectionChange(
+      selectedIds.includes(id)
+        ? selectedIds.filter((x) => x !== id)
+        : [...selectedIds, id],
+    )
+  }
+
+  const startFromCircle = (circle: Circle): void => {
+    onSelectionChange(circle.memberIds)
+  }
+
+  const clearSelection = (): void => {
+    onSelectionChange([])
+  }
 
   const count = selectedIds.length
   const willSave = listName.trim().length > 0
@@ -570,12 +596,52 @@ function FriendPicker({
         </div>
 
         <div className="px-4 pb-2 shrink-0">
+          <Label className="text-xs text-muted-foreground mb-1 block">
+            start from a circle
+          </Label>
+          <div className="flex flex-wrap gap-1.5">
+            {circles.map((c) => {
+              const active = c.id === activeCircleId
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => startFromCircle(c)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${
+                    active
+                      ? "border-accent bg-accent/10 text-accent"
+                      : "border-border bg-background hover:bg-secondary"
+                  }`}
+                >
+                  <span>{c.name}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {c.memberIds.length}
+                  </span>
+                </button>
+              )
+            })}
+            {count > 0 && (
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-muted-foreground hover:text-foreground"
+              >
+                clear
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1.5">
+            then add or remove people below
+          </p>
+        </div>
+
+        <div className="px-4 pb-2 shrink-0">
           <Label htmlFor="list-name" className="text-xs text-muted-foreground mb-1 block">
-            save as list (optional)
+            save as new circle (optional)
           </Label>
           <Input
             id="list-name"
-            placeholder="list name (e.g. studio crew)"
+            placeholder="circle name (e.g. studio crew)"
             value={listName}
             onChange={(e) => onListNameChange(e.target.value)}
             maxLength={40}
@@ -585,7 +651,7 @@ function FriendPicker({
 
         <div className="px-4 pb-2 shrink-0">
           <Input
-            placeholder="add individuals…"
+            placeholder="search friends…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -596,23 +662,30 @@ function FriendPicker({
             <p className="text-xs text-muted-foreground px-2 py-4">no matches</p>
           ) : (
             <ul className="flex flex-col">
-              {filtered.map((f) => {
-                const checked = selectedIds.includes(f.id)
+              {filtered.map((c) => {
+                const checked = selectedIds.includes(c.id)
                 return (
-                  <li key={f.id}>
+                  <li key={c.id}>
                     <button
                       type="button"
-                      onClick={() => onToggle(f.id)}
+                      onClick={() => toggleId(c.id)}
                       className="w-full flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-secondary text-left"
                     >
                       <span
                         className={`h-5 w-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
-                          checked ? "border-accent bg-accent text-accent-foreground" : "border-border"
+                          checked
+                            ? "border-accent bg-accent text-accent-foreground"
+                            : "border-border"
                         }`}
                       >
                         {checked && <Check className="h-3 w-3" />}
                       </span>
-                      <span className="text-sm">{f.name}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm">{c.displayName}</span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          @{c.username}
+                        </span>
+                      </span>
                     </button>
                   </li>
                 )
@@ -622,11 +695,7 @@ function FriendPicker({
         </div>
 
         <div className="flex items-center gap-2 px-4 py-3 border-t border-border shrink-0">
-          <Button
-            variant="outline"
-            onClick={onCancel}
-            className="flex-1 rounded-full"
-          >
+          <Button variant="outline" onClick={onCancel} className="flex-1 rounded-full">
             cancel
           </Button>
           <Button
