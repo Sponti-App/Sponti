@@ -1,10 +1,10 @@
 "use client"
 
-import { Home, User, Settings, QrCode, Sparkles } from "lucide-react"
+import { Home, User, Settings, Users, Sparkles } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 
 const navItems = [
-  { icon: QrCode, label: "QR", href: null },
+  { icon: Users, label: "Circles", href: "/circles" },
   { icon: Sparkles, label: "Host", href: "/event/new" },
   { icon: Home, label: "Home", href: "/" },
   { icon: User, label: "Profile", href: "/profile" },
