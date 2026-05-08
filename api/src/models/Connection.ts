@@ -1,4 +1,4 @@
-import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import mongoose, { Schema, model, type InferSchemaType, type Model } from "mongoose";
 
 const connectionSchema = new Schema(
   {
@@ -39,5 +39,5 @@ export type ConnectionType = "qr" | "shared_invitation" | "email_invitation";
 export type ConnectionDocument = InferSchemaType<typeof connectionSchema>;
 
 export const Connection: Model<ConnectionDocument> =
-  (models.Connection as Model<ConnectionDocument>) ||
+  (mongoose.models.Connection as Model<ConnectionDocument>) ||
   model<ConnectionDocument>("Connection", connectionSchema);
