@@ -1,0 +1,125 @@
+// Frontend models for circles, connections and blocks. Shape matches the
+// circles / circle_members / connections / blocks Mongo collections so the
+// real fetch layer can drop in without UI changes.
+
+export type Connection = {
+  id: string
+  displayName: string
+  username: string
+  note?: string
+}
+
+export type ConnectionRequest = {
+  id: string
+  user: Connection
+  createdAt: string
+}
+
+// Tier drives the CircleStackIcon visual — 1 dot is the tightest inner ring,
+// 2 and 3 expand outward. Custom circles default to tier 2.
+export type CircleTier = 1 | 2 | 3
+
+export type Circle = {
+  id: string
+  name: string
+  description: string
+  tier: CircleTier
+  memberIds: string[]
+}
+
+export type BlockedUser = {
+  id: string
+  displayName: string
+  username: string
+  blockedAt: string
+}
+
+export const MOCK_CONNECTIONS: Connection[] = [
+  { id: "maya", displayName: "Maya R.", username: "mayar", note: "coffee, walks, study breaks" },
+  { id: "jordan", displayName: "Jordan T.", username: "jordant", note: "lunch and weekend plans" },
+  { id: "sam", displayName: "Sam K.", username: "samk", note: "classmate" },
+  { id: "avery", displayName: "Avery L.", username: "averyl", note: "nearby evenings" },
+  { id: "noah", displayName: "Noah P.", username: "noahp", note: "board games and food" },
+  { id: "riley", displayName: "Riley M.", username: "rileym", note: "gym, parks, events" },
+  { id: "lina", displayName: "Lina S.", username: "linas", note: "studio crew" },
+  { id: "emil", displayName: "Emil A.", username: "emila", note: "weekend plans" },
+]
+
+export const MOCK_CIRCLES: Circle[] = [
+  {
+    id: "inner",
+    name: "inner circle",
+    description: "your tightest 5",
+    tier: 1,
+    memberIds: ["maya", "jordan", "sam", "avery", "noah"],
+  },
+  {
+    id: "close",
+    name: "close friends",
+    description: "your tighter group",
+    tier: 2,
+    memberIds: ["maya", "sam", "riley", "lina"],
+  },
+  {
+    id: "all",
+    name: "all friends",
+    description: "everyone you follow",
+    tier: 3,
+    memberIds: MOCK_CONNECTIONS.map((c) => c.id),
+  },
+]
+
+const MIN = 60_000
+const HOUR = 60 * MIN
+const DAY = 24 * HOUR
+
+export const MOCK_REQUESTS: ConnectionRequest[] = [
+  {
+    id: "req-kai",
+    user: { id: "kai", displayName: "Kai B.", username: "kaib", note: "met at the studio" },
+    createdAt: new Date(Date.now() - 30 * MIN).toISOString(),
+  },
+  {
+    id: "req-tay",
+    user: { id: "tay", displayName: "Tay W.", username: "tayw" },
+    createdAt: new Date(Date.now() - 4 * HOUR).toISOString(),
+  },
+]
+
+export const MOCK_BLOCKED: BlockedUser[] = [
+  {
+    id: "ex-user",
+    displayName: "Ex User",
+    username: "exuser",
+    blockedAt: new Date(Date.now() - 7 * DAY).toISOString(),
+  },
+]
+
+// Pool of strangers the @handle search can match against. Shrinks as the user
+// sends requests during the prototype session.
+export const MOCK_DISCOVERABLE: Connection[] = [
+  { id: "iris", displayName: "Iris N.", username: "irisn" },
+  { id: "olu", displayName: "Olu A.", username: "oluadebayo" },
+  { id: "mira", displayName: "Mira J.", username: "mira" },
+  { id: "lin", displayName: "Lin", username: "lin_w" },
+  { id: "nick", displayName: "Nick T.", username: "nickt" },
+]
+
+export function initials(name: string): string {
+  return name
+    .split(" ")
+    .map((part) => part[0] ?? "")
+    .join("")
+    .replace(/\./g, "")
+    .slice(0, 2)
+    .toUpperCase()
+}
+
+export function formatBlockedAt(iso: string): string {
+  const days = Math.round((Date.now() - new Date(iso).getTime()) / DAY)
+  if (days < 1) return "today"
+  if (days === 1) return "yesterday"
+  if (days < 30) return `${days}d ago`
+  const months = Math.round(days / 30)
+  return `${months}mo ago`
+}
