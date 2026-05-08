@@ -5,8 +5,9 @@ import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
 import { BottomNav } from "@/components/bottom-nav"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
+import { MenuDrawer } from "@/components/menu-drawer"
 import { NotificationsPopover } from "@/components/notifications-popover"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Bell, Map, Calendar, Navigation, X } from "lucide-react"
 import { isImminent } from "@/lib/events"
 import type { EventItem } from "@/lib/events"
@@ -18,6 +19,7 @@ export default function Home() {
   const [activeRoute, setActiveRoute] = useState<EventItem | null>(null)
   const [routeEta, setRouteEta] = useState<string | null>(null)
   const [joinedIds, setJoinedIds] = useState<Set<number>>(() => new Set())
+  const [menuOpen, setMenuOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS)
   const unreadCount = notifications.filter((n) => !n.read).length
@@ -77,11 +79,23 @@ export default function Home() {
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3">
-          <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-accent text-accent-foreground text-sm font-medium">
-              M
-            </AvatarFallback>
-          </Avatar>
+          <button
+            type="button"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            className="relative z-30 rounded-full focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <Avatar className="h-9 w-9">
+              <AvatarImage
+                src="/martin-profilepic-dev.jpg"
+                alt="Martin Lindholm"
+              />
+              <AvatarFallback className="bg-accent text-sm font-medium text-accent-foreground">
+                M
+              </AvatarFallback>
+            </Avatar>
+          </button>
 
           {/* Toggle */}
           <div className="flex items-center border border-foreground rounded-full p-1">
@@ -198,6 +212,8 @@ export default function Home() {
         <div className="absolute bottom-1 left-0 right-0 flex justify-center">
           <div className="w-32 h-1 bg-foreground rounded-full" />
         </div>
+
+        <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
       </div>
     </div>
   )
