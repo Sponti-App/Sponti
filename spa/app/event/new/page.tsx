@@ -28,7 +28,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { saveDraftEvent, type Audience, type Recurrence } from "@/lib/draft-events"
+import { saveDraftEvent, type Audience, type DraftEvent, type Recurrence } from "@/lib/draft-events"
+import { pushDraftAsHosted } from "@/lib/host-events"
 import {
   MOCK_CIRCLES,
   MOCK_CONNECTIONS,
@@ -145,9 +146,9 @@ export default function NewEventPage() {
   const canSubmit = what.trim().length > 0
   const ctaLabel = mode === "now" ? "go live" : "post plan"
 
-  const handleSubmit = () => {
+  const handleSubmit = (): void => {
     if (!canSubmit) return
-    saveDraftEvent({
+    const draft: DraftEvent = {
       mode,
       what: what.trim(),
       durationMinutes,
@@ -167,8 +168,10 @@ export default function NewEventPage() {
       allowForward,
       allowPlusOne,
       createdAt: new Date().toISOString(),
-    })
-    router.push("/")
+    }
+    saveDraftEvent(draft)
+    pushDraftAsHosted(draft)
+    router.push("/event")
   }
 
   return (
