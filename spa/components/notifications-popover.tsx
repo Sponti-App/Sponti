@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Sparkles, UserPlus, X, type LucideIcon } from "lucide-react"
+import { Bell, Check, MapPin, Sparkles, UserPlus, X, type LucideIcon } from "lucide-react"
 import {
   formatRelative,
   type Notification,
@@ -16,12 +16,35 @@ const TYPE_VISUAL: Record<Notification["type"], Visual> = {
   invitation: { icon: UserPlus, ring: "border-accent/30 text-accent" },
   rsvp: { icon: Sparkles, ring: "border-foreground/15 text-foreground" },
   confirmation: { icon: Check, ring: "border-accent/30 text-accent" },
+  event_update: { icon: Bell, ring: "border-accent/30 text-accent" },
 }
 
 const RSVP_LABEL: Record<RsvpStatus, string> = {
   yes: "going",
   no: "can't make it",
   maybe: "maybe",
+}
+
+function eventUpdateTitle(n: Notification): string {
+  const changes = n.changes ?? []
+  if (changes.includes("cancelled")) return `${n.actorName} cancelled ${n.eventTitle}`
+  if (changes.includes("removed")) return `removed from ${n.eventTitle}`
+  if (changes.length > 1) return `${n.actorName} updated ${n.eventTitle}`
+  if (changes[0] === "time" && n.changeDetail)
+    return `${n.actorName} moved ${n.eventTitle} to ${n.changeDetail}`
+  if (changes[0] === "location" && n.changeDetail)
+    return `${n.actorName} moved ${n.eventTitle} to ${n.changeDetail}`
+  return `${n.actorName} updated ${n.eventTitle}`
+}
+
+function eventUpdateSubtitle(n: Notification): string {
+  const changes = n.changes ?? []
+  if (changes.includes("cancelled")) return "they're notifying everyone"
+  if (changes.includes("removed")) return "you're no longer invited"
+  if (changes.length > 1) return changes.join(", ") + " changed"
+  if (changes[0] === "time") return "time updated"
+  if (changes[0] === "location") return "location updated"
+  return "tap to view"
 }
 
 function renderTitle(n: Notification): string {
@@ -32,6 +55,8 @@ function renderTitle(n: Notification): string {
       return `${n.actorName} is ${n.rsvp ? RSVP_LABEL[n.rsvp] : "responding"}`
     case "confirmation":
       return `${n.actorName} confirmed`
+    case "event_update":
+      return eventUpdateTitle(n)
   }
 }
 
@@ -43,7 +68,21 @@ function renderSubtitle(n: Notification): string {
       return `for ${n.eventTitle}`
     case "confirmation":
       return `coming to ${n.eventTitle}`
+    case "event_update":
+      return eventUpdateSubtitle(n)
   }
+}
+
+// Marks the visual type used for cancellation — high-priority, needs to read
+// urgent. Map / Bell switch keeps location updates feeling spatial.
+function visualFor(n: Notification): Visual {
+  if (n.type !== "event_update") return TYPE_VISUAL[n.type]
+  const changes = n.changes ?? []
+  if (changes.includes("cancelled"))
+    return { icon: X, ring: "border-destructive/40 text-destructive" }
+  if (changes.includes("location") && changes.length === 1)
+    return { icon: MapPin, ring: "border-accent/30 text-accent" }
+  return TYPE_VISUAL.event_update
 }
 
 export function NotificationsPopover({
@@ -103,7 +142,7 @@ export function NotificationsPopover({
         ) : (
           <ul className="divide-y divide-border max-h-[360px] overflow-y-auto">
             {notifications.map((n) => {
-              const { icon: Icon, ring } = TYPE_VISUAL[n.type]
+              const { icon: Icon, ring } = visualFor(n)
               return (
                 <li key={n.id}>
                   <button
