@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import { User, Circle, NotificationSettings } from "#models";
 
 type JwtPayload = {
-  userId: string;
+  sub: string;
 };
 
 const createAccessToken = (userId: string) => {
@@ -133,7 +133,7 @@ export const logout = async (_req: Request, res: Response) => {
 export const me = async (req: Request, res: Response) => {
   const token = getBearerToken(req.headers.authorization);
   const payload = verifyAccessToken(token);
-  const user = await User.findById(payload.userId);
+  const user = await User.findById(payload.sub);
 
   if (!user) {
     throw new Error("User not found", { cause: { status: 404 } });
