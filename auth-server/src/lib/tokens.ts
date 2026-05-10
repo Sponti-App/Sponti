@@ -22,10 +22,10 @@ const getRefreshSecret = () => {
 };
 
 export const createAccessToken = (userId: string) =>
-    jwt.sign({ userId }, getAccessSecret(), { expiresIn: "7d" });
+    jwt.sign({ userId }, getAccessSecret(), { expiresIn: "15m" });
 
 export const createRefreshToken = (userId: string) =>
-    jwt.sign({ userId }, getRefreshSecret(), { expiresIn: "30d" });
+    jwt.sign({ userId }, getRefreshSecret(), { expiresIn: "7d" });
 
 export const verifyAccessToken = (token: string) =>
     jwt.verify(token, getAccessSecret()) as JwtPayload & { userId: string };
