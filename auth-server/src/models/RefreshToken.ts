@@ -6,7 +6,7 @@ const refreshTokenSchema = new Schema({
         ref: "User",
         required: true,
     },
-    token: {
+    tokenHash: {
         type: String,
         required: true,
         unique: true,
@@ -14,6 +14,10 @@ const refreshTokenSchema = new Schema({
     expiresAt: {
         type: Date,
         required: true,
+    },
+    revokedAt: {
+        type: Date,
+        default: null,
     },
 },
     {
