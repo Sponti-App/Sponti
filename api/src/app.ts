@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import morgan from "morgan";
 import { env } from "#config/env";
+import { connectDB } from "#db/connect";
 import { errorHandler } from "#middleware/errorHandler";
 import { notFound } from "#middleware/notFound";
 import { apiRoutes } from "#routes/index";
@@ -30,6 +31,15 @@ export const createApp = () => {
     });
   });
 
+  app.use("/api/v1", async (_req, _res, next) => {
+    try {
+      await connectDB();
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.use("/api/v1", apiRoutes);
 
   app.use(notFound);
@@ -39,3 +49,4 @@ export const createApp = () => {
 };
 
 export const app = createApp();
+export default app;
