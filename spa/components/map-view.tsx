@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   APIProvider,
   Map,
@@ -10,7 +11,7 @@ import {
   useMap,
 } from "@vis.gl/react-google-maps"
 import { Card } from "@/components/ui/card"
-import { ChevronRight, ChevronUp, Check } from "lucide-react"
+import { ChevronRight, ChevronUp, Check, Flame } from "lucide-react"
 import { avatarText, events } from "@/lib/events"
 import type { EventItem } from "@/lib/events"
 
@@ -187,7 +188,10 @@ function GoogleMapContent({
   )
 }
 
-type PeekState = "peek" | "mini"
+type PeekState = "mini" | "peek" | "expanded"
+
+// Fixed pixel heights for mini and peek states
+const SHEET_PX = { mini: 64, peek: 268 } as const
 
 export function MapView({
   onEventSelect,
@@ -198,6 +202,7 @@ export function MapView({
   activeRoute: EventItem | null
   joinedIds: Set<number>
 }) {
+  const router = useRouter()
   const [peekState, setPeekState] = useState<PeekState>("peek")
   const dragStartY = useRef<number | null>(null)
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
@@ -211,14 +216,26 @@ export function MapView({
     if (dragStartY.current === null) return
     const delta = e.clientY - dragStartY.current
     dragStartY.current = null
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    } catch {
-      // pointer already released
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* already released */ }
+    if (delta > 60) {
+      if (peekState === "expanded") setPeekState("peek")
+      else if (peekState === "peek") setPeekState("mini")
+    } else if (delta < -60) {
+      if (peekState === "mini") setPeekState("peek")
+      else if (peekState === "peek") setPeekState("expanded")
     }
-    if (delta > 50 && peekState === "peek") setPeekState("mini")
-    if (delta < -50 && peekState === "mini") setPeekState("peek")
   }
+
+  const sheetStyle =
+    peekState === "expanded"
+      ? { height: "100%" }
+      : { height: `${SHEET_PX[peekState]}px` }
+
+  // FAB sits 12px above the sheet top edge; hidden when sheet is fully expanded
+  const fabBottomPx =
+    peekState === "mini"
+      ? SHEET_PX.mini + 12
+      : SHEET_PX.peek + 12
 
   return (
     <div className="flex-1 h-full relative overflow-hidden">
@@ -238,13 +255,26 @@ export function MapView({
         />
       )}
 
-      {/* Peek bottom sheet — z-20, sits below floating nav (z-40) */}
+      {/* Floating + flare FAB — hidden when sheet is fully expanded */}
+      {peekState !== "expanded" && (
+        <button
+          onClick={() => router.push("/event/new")}
+          style={{ bottom: `${fabBottomPx}px` }}
+          className="absolute right-4 z-30 w-14 h-14 rounded-full bg-accent text-accent-foreground flex items-center justify-center shadow-xl transition-[bottom] duration-300 ease-out"
+          aria-label="Light a flare"
+        >
+          <Flame className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Bottom sheet — z-50 when expanded so it covers the nav pill */}
       <div
-        className={`absolute bottom-0 left-0 right-0 z-20 bg-background rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] transition-all duration-300 ease-out ${
-          peekState === "peek" ? "h-[36%]" : "h-12"
+        style={sheetStyle}
+        className={`absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] transition-all duration-300 ease-out ${
+          peekState === "expanded" ? "z-50" : "z-20"
         }`}
       >
-        {/* Drag handle — always draggable */}
+        {/* Drag handle */}
         <div
           className="flex justify-center py-3 touch-none cursor-grab active:cursor-grabbing"
           onPointerDown={handlePointerDown}
@@ -255,7 +285,6 @@ export function MapView({
         </div>
 
         {peekState === "mini" ? (
-          /* Mini state — just a prompt to restore */
           <button
             onClick={() => setPeekState("peek")}
             className="flex items-center justify-center gap-2 w-full text-sm text-muted-foreground pb-1"
@@ -264,8 +293,11 @@ export function MapView({
             {mapEvents.length} flares near you
           </button>
         ) : (
-          /* Peek state — flares list */
-          <div className="px-4 pb-24 overflow-y-auto h-[calc(100%-44px)]">
+          <div
+            className={`px-4 overflow-y-auto h-[calc(100%-44px)] ${
+              peekState === "expanded" ? "pb-8" : "pb-24"
+            }`}
+          >
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-medium">Flares near you</h2>
               <span className="text-sm text-muted-foreground">{mapEvents.length} active</span>
