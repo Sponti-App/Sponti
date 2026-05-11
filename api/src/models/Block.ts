@@ -1,4 +1,4 @@
-import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import mongoose, { Schema, model, type InferSchemaType, type Model } from "mongoose";
 
 const blockSchema = new Schema(
   {
@@ -25,4 +25,4 @@ blockSchema.index({ blockerId: 1 });
 export type BlockDocument = InferSchemaType<typeof blockSchema>;
 
 export const Block: Model<BlockDocument> =
-  (models.Block as Model<BlockDocument>) || model<BlockDocument>("Block", blockSchema);
+  (mongoose.models.Block as Model<BlockDocument>) || model<BlockDocument>("Block", blockSchema);
