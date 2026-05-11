@@ -1,30 +1,13 @@
 import Link from "next/link"
 import { menuItems } from "@/components/menu-items"
+import { MenuProfile } from "@/components/menu-profile"
 import { MenuPageShell } from "@/components/menu-page-shell"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export default function MenuPage() {
   return (
     <MenuPageShell title="Menu" backHref="/" backLabel="Back to home">
       <div className="flex flex-col">
-        <section className="pb-6">
-          <Avatar className="size-16 border border-border">
-            <AvatarImage
-              src="/martin-profilepic-dev.jpg"
-              alt="Martin Lindholm"
-            />
-            <AvatarFallback className="bg-secondary text-lg font-medium">
-              ML
-            </AvatarFallback>
-          </Avatar>
-          <div className="mt-4">
-            <p className="text-2xl font-semibold">Martin Lindholm</p>
-            <p className="mt-2 text-sm leading-5 text-muted-foreground">
-              Sponti MVP tester
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">Piteå, Sweden</p>
-          </div>
-        </section>
+        <MenuProfile />
 
         <div className="h-px bg-border" />
 
