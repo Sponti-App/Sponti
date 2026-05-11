@@ -1,4 +1,4 @@
-import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import mongoose, { Schema, model, type InferSchemaType, type Model } from "mongoose";
 
 const circleMemberSchema = new Schema(
   {
@@ -30,5 +30,5 @@ circleMemberSchema.index({ ownerId: 1, userId: 1 });
 export type CircleMemberDocument = InferSchemaType<typeof circleMemberSchema>;
 
 export const CircleMember: Model<CircleMemberDocument> =
-  (models.CircleMember as Model<CircleMemberDocument>) ||
+  (mongoose.models.CircleMember as Model<CircleMemberDocument>) ||
   model<CircleMemberDocument>("CircleMember", circleMemberSchema);
