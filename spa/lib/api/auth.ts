@@ -3,6 +3,7 @@ import type { AuthUser } from "../auth-store"
 
 type AuthResponse = {
   accessToken: string
+  refreshToken: string
   user: AuthUser
 }
 
@@ -18,6 +19,10 @@ export type LoginPayload = {
   password: string
 }
 
+export type RefreshPayload = {
+  refreshToken: string
+}
+
 export function register(payload: RegisterPayload): Promise<AuthResponse> {
   return authFetch<AuthResponse>("/auth/register", { method: "POST", body: payload })
 }
@@ -26,8 +31,19 @@ export function login(payload: LoginPayload): Promise<AuthResponse> {
   return authFetch<AuthResponse>("/auth/login", { method: "POST", body: payload })
 }
 
-export function logout(): Promise<void> {
-  return authFetch<void>("/auth/logout", { method: "POST" })
+export function refresh(payload: RefreshPayload): Promise<Pick<AuthResponse, "accessToken" | "refreshToken">> {
+  return authFetch<Pick<AuthResponse, "accessToken" | "refreshToken">>("/auth/refresh", {
+    method: "POST",
+    body: payload,
+  })
+}
+
+export function logout(refreshToken: string): Promise<{ success: true }> {
+  return authFetch<{ success: true }>("/auth/logout", {
+    method: "POST",
+    auth: true,
+    body: { refreshToken },
+  })
 }
 
 export function me(): Promise<{ user: AuthUser }> {

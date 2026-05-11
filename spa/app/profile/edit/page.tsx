@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { getToken, setSession, type AuthUser } from "@/lib/auth-store"
+import { getRefreshToken, getToken, setSession, type AuthUser } from "@/lib/auth-store"
 import {
   buildProfileDraft,
   initialsFromName,
@@ -71,8 +71,9 @@ function ProfileEditPageContent({ user }: { user: AuthUser }) {
     })
 
     const token = getToken()
-    if (token) {
-      setSession(token, updatedUser)
+    const refreshToken = getRefreshToken()
+    if (token && refreshToken) {
+      setSession(token, refreshToken, updatedUser)
     }
 
     setBaseline(draft)
