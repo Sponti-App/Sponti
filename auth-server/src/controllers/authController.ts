@@ -21,6 +21,26 @@ const toUserResponse = (user: InstanceType<typeof User>) => ({
     updatedAt: user.updatedAt,
 });
 
+const deleteExpiredRefreshTokens = (userId: string) =>
+    RefreshToken.deleteMany({
+        userId,
+        expiresAt: { $lte: new Date() },
+    });
+
+const saveRefreshToken = async (userId: string, refreshToken: string) => {
+    const tokenHash = await hashRefreshToken(refreshToken);
+    const refreshPayload = verifyRefreshToken(refreshToken);
+    const expiresAt = refreshPayload.exp
+        ? new Date(refreshPayload.exp * 1000)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    await RefreshToken.create({
+        userId,
+        tokenHash,
+        expiresAt,
+    });
+};
+
 export const register = async (req: Request, res: Response) => {
     const { username, displayName, email, password } = req.body;
 
@@ -62,17 +82,7 @@ export const register = async (req: Request, res: Response) => {
 
     const accessToken = createAccessToken(user._id.toString());
     const refreshToken = createRefreshToken(user._id.toString());
-    const tokenHash = await hashRefreshToken(refreshToken);
-    const refreshPayload = verifyRefreshToken(refreshToken);
-    const expiresAt = refreshPayload.exp
-        ? new Date(refreshPayload.exp * 1000)
-        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-    await RefreshToken.create({
-        userId: user._id,
-        tokenHash,
-        expiresAt,
-    });
+    await saveRefreshToken(user._id.toString(), refreshToken);
 
     res.status(201).json({
         accessToken,
@@ -98,17 +108,8 @@ export const login = async (req: Request, res: Response) => {
 
     const accessToken = createAccessToken(user._id.toString());
     const refreshToken = createRefreshToken(user._id.toString());
-    const tokenHash = await hashRefreshToken(refreshToken);
-    const refreshPayload = verifyRefreshToken(refreshToken);
-    const expiresAt = refreshPayload.exp
-        ? new Date(refreshPayload.exp * 1000)
-        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-    await RefreshToken.create({
-        userId: user._id,
-        tokenHash,
-        expiresAt,
-    });
+    await deleteExpiredRefreshTokens(user._id.toString());
+    await saveRefreshToken(user._id.toString(), refreshToken);
 
     res.json({
         accessToken,
@@ -149,15 +150,12 @@ export const refresh = async (req: Request, res: Response) => {
         throw new Error("Invalid refresh token", { cause: { status: 401 } });
     }
 
-    const revokedAt = new Date();
-    const consumedToken = await RefreshToken.findOneAndUpdate(
+    const consumedToken = await RefreshToken.findOneAndDelete(
         {
             _id: matchedToken._id,
             revokedAt: null,
-            expiresAt: { $gt: revokedAt },
-        },
-        { $set: { revokedAt } },
-        { returnDocument: "before" }
+            expiresAt: { $gt: new Date() },
+        }
     );
 
     if (!consumedToken) {
@@ -166,17 +164,8 @@ export const refresh = async (req: Request, res: Response) => {
 
     const accessToken = createAccessToken(refreshPayload.userId);
     const nextRefreshToken = createRefreshToken(refreshPayload.userId);
-    const tokenHash = await hashRefreshToken(nextRefreshToken);
-    const nextRefreshPayload = verifyRefreshToken(nextRefreshToken);
-    const expiresAt = nextRefreshPayload.exp
-        ? new Date(nextRefreshPayload.exp * 1000)
-        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-    await RefreshToken.create({
-        userId: refreshPayload.userId,
-        tokenHash,
-        expiresAt,
-    });
+    await deleteExpiredRefreshTokens(refreshPayload.userId);
+    await saveRefreshToken(refreshPayload.userId, nextRefreshToken);
 
     res.json({
         accessToken,
@@ -211,10 +200,7 @@ export const logout = async (req: Request, res: Response) => {
         }
     }
 
-    if (matchedToken) {
-        matchedToken.revokedAt = new Date();
-        await matchedToken.save();
-    }
+    if (matchedToken) await matchedToken.deleteOne();
 
     res.json({ success: true });
 };
