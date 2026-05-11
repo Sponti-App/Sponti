@@ -49,3 +49,11 @@ export function logout(refreshToken: string): Promise<{ success: true }> {
 export function me(): Promise<{ user: AuthUser }> {
   return authFetch<{ user: AuthUser }>("/auth/me", { auth: true })
 }
+
+export function forgotPassword(email: string): Promise<{ message: string }> {
+  return authFetch<{ message: string }>("/auth/forgot-password", { method: "POST", body: { email } })
+}
+
+export function resetPassword(token: string, password: string): Promise<{ message: string }> {
+  return authFetch<{ message: string }>("/auth/reset-password", { method: "POST", body: { token, password } })
+}

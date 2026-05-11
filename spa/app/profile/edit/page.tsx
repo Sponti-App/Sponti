@@ -89,21 +89,10 @@ function ProfileEditPageContent({ user }: { user: AuthUser }) {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <form
-        onSubmit={handleSave}
-        className="w-[390px] h-[844px] bg-background rounded-[40px] border-[8px] border-foreground relative overflow-hidden flex flex-col"
-      >
-        <div className="flex items-center justify-between px-6 pt-3 pb-2 shrink-0">
-          <span className="text-sm font-medium">9:41</span>
-          <div className="w-[80px] h-[24px] bg-foreground rounded-full" />
-          <div className="flex items-center gap-1">
-            <span className="text-xs">•••</span>
-            <span className="text-xs">◗</span>
-            <span className="text-xs">▌</span>
-          </div>
-        </div>
-
+    <form
+      onSubmit={handleSave}
+      className="min-h-screen w-full bg-background relative overflow-hidden flex flex-col"
+    >
         <div className="flex items-center justify-between gap-3 px-4 py-3 shrink-0">
           <Button
             type="button"
@@ -310,12 +299,7 @@ function ProfileEditPageContent({ user }: { user: AuthUser }) {
         <div className="absolute bottom-6 left-0 right-0 z-10">
           <BottomNav />
         </div>
-
-        <div className="absolute bottom-1 left-0 right-0 flex justify-center">
-          <div className="w-32 h-1 bg-foreground rounded-full" />
-        </div>
-      </form>
-    </div>
+    </form>
   )
 }
 
