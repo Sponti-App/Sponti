@@ -1,13 +1,24 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { AuthFrame } from "@/components/auth-frame"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { HttpError } from "@/lib/http"
+
+function ResetSuccessBanner() {
+  const searchParams = useSearchParams()
+  if (searchParams.get("reset") !== "1") return null
+  return (
+    <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2" role="status">
+      password updated — sign in with your new password.
+    </p>
+  )
+}
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -47,6 +58,10 @@ export default function LoginPage() {
       }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Suspense>
+          <ResetSuccessBanner />
+        </Suspense>
+
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="email" className="text-xs text-muted-foreground">
             email
@@ -61,9 +76,14 @@ export default function LoginPage() {
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="password" className="text-xs text-muted-foreground">
-            password
-          </Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password" className="text-xs text-muted-foreground">
+              password
+            </Label>
+            <Link href="/forgot-password" className="text-xs text-accent">
+              forgot password?
+            </Link>
+          </div>
           <Input
             id="password"
             type="password"
