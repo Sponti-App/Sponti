@@ -7,7 +7,8 @@ import { BottomNav } from "@/components/bottom-nav"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
 import { MenuDrawer } from "@/components/menu-drawer"
 import { NotificationsPopover } from "@/components/notifications-popover"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuth } from "@/components/auth-provider"
+import { AccountAvatar } from "@/components/account-avatar"
 import { Bell, Map, Calendar, Navigation, X } from "lucide-react"
 import { isImminent } from "@/lib/events"
 import type { EventItem } from "@/lib/events"
@@ -22,6 +23,7 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS)
+  const { user } = useAuth()
   const unreadCount = notifications.filter((n) => !n.read).length
 
   const handleJoin = (event: EventItem, eta: string | null) => {
@@ -86,15 +88,11 @@ export default function Home() {
             className="relative z-30 rounded-full focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             onClick={() => setMenuOpen((open) => !open)}
           >
-            <Avatar className="h-9 w-9">
-              <AvatarImage
-                src="/martin-profilepic-dev.jpg"
-                alt="Martin Lindholm"
-              />
-              <AvatarFallback className="bg-accent text-sm font-medium text-accent-foreground">
-                M
-              </AvatarFallback>
-            </Avatar>
+            <AccountAvatar
+              user={user}
+              className="h-9 w-9"
+              fallbackClassName="bg-accent text-sm font-medium text-accent-foreground"
+            />
           </button>
 
           {/* Toggle */}
