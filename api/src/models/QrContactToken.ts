@@ -1,4 +1,4 @@
-import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import mongoose, { Schema, model, type InferSchemaType, type Model } from "mongoose";
 
 const qrContactTokenSchema = new Schema(
   {
@@ -36,5 +36,5 @@ qrContactTokenSchema.index({ userId: 1 });
 export type QrContactTokenDocument = InferSchemaType<typeof qrContactTokenSchema>;
 
 export const QrContactToken: Model<QrContactTokenDocument> =
-  (models.QrContactToken as Model<QrContactTokenDocument>) ||
+  (mongoose.models.QrContactToken as Model<QrContactTokenDocument>) ||
   model<QrContactTokenDocument>("QrContactToken", qrContactTokenSchema);
