@@ -1,17 +1,12 @@
 import bcrypt from "bcrypt";
 import type { Request, Response } from "express";
-import jwt from "jsonwebtoken";
-import { User, Circle, NotificationSettings } from "#models";
-
-const createAccessToken = (userId: string) => {
-    const secret = process.env.JWT_SECRET;
-
-    if (!secret) {
-        throw new Error("JWT_SECRET is not configured", { cause: { status: 500 } });
-    }
-
-    return jwt.sign({ userId }, secret, { expiresIn: "7d" });
-};
+import { User, Circle, NotificationSettings, RefreshToken } from "#models";
+import {
+    createAccessToken,
+    createRefreshToken,
+    hashRefreshToken,
+    verifyRefreshToken,
+} from "#lib";
 
 const toUserResponse = (user: InstanceType<typeof User>) => ({
     id: user._id.toString(),
@@ -25,6 +20,26 @@ const toUserResponse = (user: InstanceType<typeof User>) => ({
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
 });
+
+const deleteExpiredRefreshTokens = (userId: string) =>
+    RefreshToken.deleteMany({
+        userId,
+        expiresAt: { $lte: new Date() },
+    });
+
+const saveRefreshToken = async (userId: string, refreshToken: string) => {
+    const tokenHash = await hashRefreshToken(refreshToken);
+    const refreshPayload = verifyRefreshToken(refreshToken);
+    const expiresAt = refreshPayload.exp
+        ? new Date(refreshPayload.exp * 1000)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    await RefreshToken.create({
+        userId,
+        tokenHash,
+        expiresAt,
+    });
+};
 
 export const register = async (req: Request, res: Response) => {
     const { username, displayName, email, password } = req.body;
@@ -66,9 +81,12 @@ export const register = async (req: Request, res: Response) => {
     });
 
     const accessToken = createAccessToken(user._id.toString());
+    const refreshToken = createRefreshToken(user._id.toString());
+    await saveRefreshToken(user._id.toString(), refreshToken);
 
     res.status(201).json({
         accessToken,
+        refreshToken,
         user: toUserResponse(user),
     });
 };
@@ -89,15 +107,102 @@ export const login = async (req: Request, res: Response) => {
     }
 
     const accessToken = createAccessToken(user._id.toString());
+    const refreshToken = createRefreshToken(user._id.toString());
+    await deleteExpiredRefreshTokens(user._id.toString());
+    await saveRefreshToken(user._id.toString(), refreshToken);
 
     res.json({
         accessToken,
+        refreshToken,
         user: toUserResponse(user),
     });
 };
 
-export const logout = async (_req: Request, res: Response) => {
-    res.status(204).send();
+export const refresh = async (req: Request, res: Response) => {
+    const { refreshToken } = req.body;
+
+    let refreshPayload: ReturnType<typeof verifyRefreshToken>;
+
+    try {
+        refreshPayload = verifyRefreshToken(refreshToken);
+    } catch {
+        throw new Error("Invalid refresh token", { cause: { status: 401 } });
+    }
+
+    const activeTokens = await RefreshToken.find({
+        userId: refreshPayload.userId,
+        revokedAt: null,
+        expiresAt: { $gt: new Date() },
+    }).sort({ createdAt: -1 });
+
+    let matchedToken: InstanceType<typeof RefreshToken> | null = null;
+
+    for (const tokenDoc of activeTokens) {
+        const matches = await bcrypt.compare(refreshToken, tokenDoc.tokenHash);
+
+        if (matches) {
+            matchedToken = tokenDoc;
+            break;
+        }
+    }
+
+    if (!matchedToken) {
+        throw new Error("Invalid refresh token", { cause: { status: 401 } });
+    }
+
+    const consumedToken = await RefreshToken.findOneAndDelete(
+        {
+            _id: matchedToken._id,
+            revokedAt: null,
+            expiresAt: { $gt: new Date() },
+        }
+    );
+
+    if (!consumedToken) {
+        throw new Error("Invalid refresh token", { cause: { status: 401 } });
+    }
+
+    const accessToken = createAccessToken(refreshPayload.userId);
+    const nextRefreshToken = createRefreshToken(refreshPayload.userId);
+    await deleteExpiredRefreshTokens(refreshPayload.userId);
+    await saveRefreshToken(refreshPayload.userId, nextRefreshToken);
+
+    res.json({
+        accessToken,
+        refreshToken: nextRefreshToken,
+    });
+};
+
+export const logout = async (req: Request, res: Response) => {
+    const { refreshToken } = req.body;
+
+    let refreshPayload: ReturnType<typeof verifyRefreshToken>;
+
+    try {
+        refreshPayload = verifyRefreshToken(refreshToken);
+    } catch {
+        throw new Error("Invalid refresh token", { cause: { status: 401 } });
+    }
+
+    const activeTokens = await RefreshToken.find({
+        userId: refreshPayload.userId,
+        revokedAt: null,
+    }).sort({ createdAt: -1 });
+
+    let matchedToken: InstanceType<typeof RefreshToken> | null = null;
+
+    for (const tokenDoc of activeTokens) {
+        const matches = await bcrypt.compare(refreshToken, tokenDoc.tokenHash);
+
+        if (matches) {
+            matchedToken = tokenDoc;
+            break;
+        }
+    }
+
+    if (matchedToken) await matchedToken.deleteOne();
+
+    res.json({ success: true });
 };
 
 export const me = async (req: Request, res: Response) => {

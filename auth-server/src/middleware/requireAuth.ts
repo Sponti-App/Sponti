@@ -1,9 +1,6 @@
 import type { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
-
-type JwtPayload = {
-    userId: string;
-};
+import { verifyAccessToken } from "#lib";
 
 declare module "express-serve-static-core" {
     interface Request {
@@ -23,16 +20,9 @@ const requireAuth: RequestHandler = (req, _res, next) => {
     }
 
     const token = header.slice("Bearer ".length);
-    const secret = process.env.JWT_SECRET;
-
-    if (!secret) {
-        return next(
-            new Error("JWT_SECRET is not configured", { cause: { status: 500 } })
-        );
-    }
 
     try {
-        const payload = jwt.verify(token, secret) as JwtPayload;
+        const payload = verifyAccessToken(token);
         req.userId = payload.userId;
         next();
     } catch (error) {
@@ -42,6 +32,10 @@ const requireAuth: RequestHandler = (req, _res, next) => {
                     cause: { status: 401, code: "ACCESS_TOKEN_EXPIRED" },
                 })
             );
+        }
+
+        if (error instanceof Error) {
+            return next(error);
         }
 
         return next(
