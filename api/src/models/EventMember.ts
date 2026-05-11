@@ -1,4 +1,4 @@
-import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import mongoose, { Schema, model, type InferSchemaType, type Model } from "mongoose";
 
 const eventMemberSchema = new Schema(
   {
@@ -51,5 +51,5 @@ export type RsvpStatus = "invited" | "going" | "maybe" | "declined";
 export type EventMemberDocument = InferSchemaType<typeof eventMemberSchema>;
 
 export const EventMember: Model<EventMemberDocument> =
-  (models.EventMember as Model<EventMemberDocument>) ||
+  (mongoose.models.EventMember as Model<EventMemberDocument>) ||
   model<EventMemberDocument>("EventMember", eventMemberSchema);

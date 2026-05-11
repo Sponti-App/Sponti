@@ -1,4 +1,4 @@
-import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import mongoose, { Schema, model, type InferSchemaType, type Model } from "mongoose";
 
 export const MAX_GUEST_INVITE_LIMIT = 100000;
 
@@ -97,4 +97,4 @@ export type EventStatus = "active" | "cancelled" | "completed";
 export type EventDocument = InferSchemaType<typeof eventSchema>;
 
 export const Event: Model<EventDocument> =
-  (models.Event as Model<EventDocument>) || model<EventDocument>("Event", eventSchema);
+  (mongoose.models.Event as Model<EventDocument>) || model<EventDocument>("Event", eventSchema);

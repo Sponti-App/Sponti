@@ -1,4 +1,4 @@
-import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import mongoose, { Schema, model, type InferSchemaType, type Model } from "mongoose";
 
 const notificationSettingsSchema = new Schema(
   {
@@ -40,5 +40,5 @@ notificationSettingsSchema.index({ userId: 1 }, { unique: true });
 export type NotificationSettingsDocument = InferSchemaType<typeof notificationSettingsSchema>;
 
 export const NotificationSettings: Model<NotificationSettingsDocument> =
-  (models.NotificationSettings as Model<NotificationSettingsDocument>) ||
+  (mongoose.models.NotificationSettings as Model<NotificationSettingsDocument>) ||
   model<NotificationSettingsDocument>("NotificationSettings", notificationSettingsSchema);
