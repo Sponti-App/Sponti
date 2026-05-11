@@ -1,4 +1,4 @@
-import { getToken } from "./auth-store"
+import { clearSession, getRefreshToken, getToken, getUser, setSession } from "./auth-store"
 
 export class HttpError extends Error {
   status: number
@@ -19,7 +19,54 @@ type RequestOptions = {
   signal?: AbortSignal
 }
 
-async function request<T>(baseUrl: string, path: string, opts: RequestOptions): Promise<T> {
+type ErrorBody = {
+  message?: string
+  code?: string
+}
+
+async function parseError(res: Response): Promise<ErrorBody | null> {
+  try {
+    return (await res.json()) as ErrorBody
+  } catch {
+    return null
+  }
+}
+
+async function refreshSession(): Promise<string | null> {
+  if (!AUTH_BASE) return null
+
+  const refreshToken = getRefreshToken()
+  const user = getUser()
+
+  if (!refreshToken || !user) {
+    clearSession()
+    return null
+  }
+
+  const res = await fetch(`${AUTH_BASE}/auth/refresh`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ refreshToken }),
+  })
+
+  if (!res.ok) {
+    clearSession()
+    return null
+  }
+
+  const body = (await res.json()) as { accessToken: string; refreshToken: string }
+  setSession(body.accessToken, body.refreshToken, user)
+  return body.accessToken
+}
+
+async function request<T>(
+  baseUrl: string,
+  path: string,
+  opts: RequestOptions,
+  hasRetried = false,
+): Promise<T> {
   if (!baseUrl) {
     throw new HttpError(0, `Missing base URL for request to ${path}`)
   }
@@ -39,12 +86,15 @@ async function request<T>(baseUrl: string, path: string, opts: RequestOptions): 
   })
 
   if (!res.ok) {
-    let body: { message?: string; code?: string } | null = null
-    try {
-      body = (await res.json()) as { message?: string; code?: string }
-    } catch {
-      // non-JSON error body — fall through to statusText
+    if (opts.auth && res.status === 401 && !hasRetried && path !== "/auth/refresh") {
+      const nextAccessToken = await refreshSession()
+
+      if (nextAccessToken) {
+        return request<T>(baseUrl, path, opts, true)
+      }
     }
+
+    const body = await parseError(res)
     throw new HttpError(res.status, body?.message ?? res.statusText, body?.code)
   }
 

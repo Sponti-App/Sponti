@@ -37,52 +37,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [revalidatedFor, setRevalidatedFor] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!session.token) return
-    if (revalidatedFor === session.token) return
+    if (!session.accessToken || !session.refreshToken) return
+    if (revalidatedFor === session.accessToken) return
 
     let cancelled = false
-    const token = session.token
+    const accessToken = session.accessToken
+    const refreshToken = session.refreshToken
 
     authApi
       .me()
       .then(({ user: fresh }) => {
         if (cancelled) return
-        setSession(token, fresh)
-        setRevalidatedFor(token)
+        setSession(accessToken, refreshToken, fresh)
+        setRevalidatedFor(accessToken)
       })
       .catch(() => {
         if (cancelled) return
         // clearSession dispatches a session-change event, which re-runs the
-        // useSyncExternalStore snapshot and drops session.token to null.
+        // useSyncExternalStore snapshot and drops the stored tokens to null.
         clearSession()
       })
 
     return () => {
       cancelled = true
     }
-  }, [session.token, revalidatedFor])
+  }, [session.accessToken, session.refreshToken, revalidatedFor])
 
-  const status: Status = !session.token
+  const status: Status = !session.accessToken
     ? "unauthenticated"
-    : revalidatedFor === session.token
+    : revalidatedFor === session.accessToken
       ? "authenticated"
       : "loading"
 
   const handleLogin = useCallback(async (email: string, password: string) => {
-    const { accessToken, user: nextUser } = await authApi.login({ email, password })
-    setSession(accessToken, nextUser)
+    const { accessToken, refreshToken, user: nextUser } = await authApi.login({ email, password })
+    setSession(accessToken, refreshToken, nextUser)
     setRevalidatedFor(accessToken)
   }, [])
 
   const handleRegister = useCallback(async (payload: authApi.RegisterPayload) => {
-    const { accessToken, user: nextUser } = await authApi.register(payload)
-    setSession(accessToken, nextUser)
+    const { accessToken, refreshToken, user: nextUser } = await authApi.register(payload)
+    setSession(accessToken, refreshToken, nextUser)
     setRevalidatedFor(accessToken)
   }, [])
 
   const handleLogout = useCallback(async () => {
+    const refreshToken = readSession().refreshToken
+
     try {
-      await authApi.logout()
+      if (refreshToken) {
+        await authApi.logout(refreshToken)
+      }
     } catch {
       // Server failure shouldn't block client-side sign-out.
     }
