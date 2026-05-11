@@ -149,8 +149,20 @@ export const refresh = async (req: Request, res: Response) => {
         throw new Error("Invalid refresh token", { cause: { status: 401 } });
     }
 
-    matchedToken.revokedAt = new Date();
-    await matchedToken.save();
+    const revokedAt = new Date();
+    const consumedToken = await RefreshToken.findOneAndUpdate(
+        {
+            _id: matchedToken._id,
+            revokedAt: null,
+            expiresAt: { $gt: revokedAt },
+        },
+        { $set: { revokedAt } },
+        { returnDocument: "before" }
+    );
+
+    if (!consumedToken) {
+        throw new Error("Invalid refresh token", { cause: { status: 401 } });
+    }
 
     const accessToken = createAccessToken(refreshPayload.userId);
     const nextRefreshToken = createRefreshToken(refreshPayload.userId);

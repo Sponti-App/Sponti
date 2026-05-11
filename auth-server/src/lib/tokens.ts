@@ -1,4 +1,5 @@
 import bcrypt from "bcrypt";
+import { randomUUID } from "node:crypto";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 
 const getAccessSecret = () => {
@@ -22,10 +23,10 @@ const getRefreshSecret = () => {
 };
 
 export const createAccessToken = (userId: string) =>
-    jwt.sign({ userId }, getAccessSecret(), { expiresIn: "15m" });
+    jwt.sign({ userId }, getAccessSecret(), { expiresIn: "1min" });
 
 export const createRefreshToken = (userId: string) =>
-    jwt.sign({ userId }, getRefreshSecret(), { expiresIn: "7d" });
+    jwt.sign({ userId }, getRefreshSecret(), { expiresIn: "5m", jwtid: randomUUID() });
 
 export const verifyAccessToken = (token: string) =>
     jwt.verify(token, getAccessSecret()) as JwtPayload & { userId: string };
