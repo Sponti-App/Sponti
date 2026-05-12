@@ -1,19 +1,10 @@
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import type { Request, Response } from "express";
-import jwt from "jsonwebtoken";
-import { User, Circle, NotificationSettings, PasswordResetToken } from "#models";
+import { User, Circle, NotificationSettings, RefreshToken, PasswordResetToken } from "#models";
 import { sendPasswordResetEmail } from "#lib/email";
+import { createAccessToken, createRefreshToken, verifyAccessToken, hashRefreshToken, verifyRefreshToken } from "#lib/tokens";
 
-const createAccessToken = (userId: string) => {
-    const secret = process.env.JWT_SECRET;
-
-    if (!secret) {
-        throw new Error("JWT_SECRET is not configured", { cause: { status: 500 } });
-    }
-
-    return jwt.sign({ userId }, secret, { expiresIn: "7d" });
-};
 
 const toUserResponse = (user: InstanceType<typeof User>) => ({
     id: user._id.toString(),

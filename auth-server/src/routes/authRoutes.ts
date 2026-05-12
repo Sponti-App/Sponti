@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { login, logout, me, register, forgotPassword, resetPassword } from "#controllers";
+import { login, logout, me, register, refresh, forgotPassword, resetPassword } from "#controllers";
 import { requireAuth, validateBody } from "#middleware";
-import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema } from "#schemas";
+import { loginSchema, registerSchema, refreshTokenSchema, logoutSchema, forgotPasswordSchema, resetPasswordSchema } from "#schemas";
 
 const router = Router();
 
