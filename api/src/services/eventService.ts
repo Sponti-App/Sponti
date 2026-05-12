@@ -345,6 +345,41 @@ export const updateMyEventMembership = async (
   return membership;
 };
 
+// Attach the caller's rsvpStatus to a list of event documents. The SPA's
+// adaptApiEvent reads `myRsvp` and surfaces it as `event.myRsvp`, which the
+// home screen uses to render the "going" badge without depending on local
+// optimistic state alone.
+const attachMyRsvp = async <T extends { _id: unknown }>(
+  userId: string,
+  events: T[]
+): Promise<Array<T & { myRsvp: string | null }>> => {
+  if (events.length === 0) {
+    return [];
+  }
+
+  // Cast to ObjectId[] — every Event document _id is one, but the generic
+  // signature can't prove it. Keeping the helper generic so it works against
+  // both the map and calendar endpoints' lean results.
+  const eventIds = events.map((event) => toObjectId(String(event._id)));
+  const memberships = await EventMember.find({
+    eventId: { $in: eventIds },
+    userId: toObjectId(userId),
+  })
+    .select("eventId rsvpStatus")
+    .lean();
+
+  const rsvpByEventId = new Map<string, string>();
+
+  for (const m of memberships) {
+    rsvpByEventId.set(String(m.eventId), m.rsvpStatus);
+  }
+
+  return events.map((event) => ({
+    ...event,
+    myRsvp: rsvpByEventId.get(String(event._id)) ?? null,
+  }));
+};
+
 export const getActiveMapEvents = async (userId: string, query: ActiveMapEventsQuery) => {
   const baseFilter = await buildAccessibleEventFilter(userId);
   const filter = withConditions(baseFilter, {
@@ -360,7 +395,8 @@ export const getActiveMapEvents = async (userId: string, query: ActiveMapEventsQ
     },
   });
 
-  return Event.find(filter).sort({ startAt: 1 }).limit(200).lean();
+  const events = await Event.find(filter).sort({ startAt: 1 }).limit(200).lean();
+  return attachMyRsvp(userId, events);
 };
 
 export const getUpcomingCalendarEvents = async (
@@ -379,7 +415,7 @@ export const getUpcomingCalendarEvents = async (
   ]);
 
   return {
-    data: events,
+    data: await attachMyRsvp(userId, events),
     pagination: toPagination(page, limit, total),
   };
 };

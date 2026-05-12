@@ -10,8 +10,9 @@ import { NotificationsPopover } from "@/components/notifications-popover"
 import { useAuth } from "@/components/auth-provider"
 import { AccountAvatar } from "@/components/account-avatar"
 import { Bell, Map, Calendar, Navigation, X } from "lucide-react"
-import { isImminent } from "@/lib/events"
+import { isImminent, isJoined } from "@/lib/events"
 import type { EventItem } from "@/lib/events"
+import { etaToIso, updateMyRsvp } from "@/lib/api/events"
 import { MOCK_NOTIFICATIONS } from "@/lib/notifications"
 
 export default function Home() {
@@ -26,14 +27,31 @@ export default function Home() {
   const { user } = useAuth()
   const unreadCount = notifications.filter((n) => !n.read).length
 
-  const handleJoin = (event: EventItem, _eta: string | null) => {
+  const handleJoin = (event: EventItem, eta: string | null) => {
+    // Optimistic UI: flip the going-badge immediately. If the PATCH fails we
+    // revert below. `joinedIds` is a local overlay on top of `event.myRsvp`
+    // from the API so the badge survives a refresh once the backend persists.
     setJoinedIds((prev) => {
       const next = new Set(prev)
       next.add(event.id)
       return next
     })
-    // Backend wiring point: PATCH /events/:id/me with
-    // { rsvpStatus: "going", memberWillArriveAt: <ISO from _eta> }
+    // PATCH /events/:id/me — backend writes to EventMember (rsvpStatus +
+    // memberWillArriveAt). The "let host know" ETA chip is the user's
+    // committed arrival time; the Routes API ETA shown in the route pill is
+    // separate (display-only, not persisted).
+    updateMyRsvp(event.id, {
+      rsvpStatus: "going",
+      memberWillArriveAt: etaToIso(eta),
+    }).catch((err) => {
+      // Revert the optimistic add so the UI matches server state.
+      console.error("[Sponti] failed to RSVP going", err)
+      setJoinedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(event.id)
+        return next
+      })
+    })
     if (isImminent(event) && event.location.coordinates) {
       setActiveRoute(event)
       setRouteEta(null) // Routes API will fill this in via onRouteReady
@@ -50,10 +68,21 @@ export default function Home() {
   }
 
   const handleLeave = (event: EventItem) => {
+    // Optimistic remove. Same revert-on-error pattern as handleJoin.
     setJoinedIds((prev) => {
       const next = new Set(prev)
       next.delete(event.id)
       return next
+    })
+    // PATCH /events/:id/me with declined — backend keeps the EventMember row
+    // but updates rsvpStatus, so any future invite history is preserved.
+    updateMyRsvp(event.id, { rsvpStatus: "declined" }).catch((err) => {
+      console.error("[Sponti] failed to RSVP declined", err)
+      setJoinedIds((prev) => {
+        const next = new Set(prev)
+        next.add(event.id)
+        return next
+      })
     })
     if (activeRoute?.id === event.id) {
       setActiveRoute(null)
@@ -144,7 +173,7 @@ export default function Home() {
         />
 
         {/* Content Area — fills all remaining height; nav floats over it */}
-        <div className="flex-1 relative overflow-hidden">
+        <div className="flex-1 min-h-0 relative overflow-hidden">
           {view === "map" ? (
             <MapView
               onEventSelect={setSelectedEvent}
@@ -185,7 +214,7 @@ export default function Home() {
           <div className="absolute inset-0 z-50">
             <EventDetailSheet
               event={selectedEvent}
-              joined={joinedIds.has(selectedEvent.id)}
+              joined={isJoined(selectedEvent, joinedIds)}
               onClose={() => setSelectedEvent(null)}
               onJoin={handleJoin}
               onLeave={handleLeave}
