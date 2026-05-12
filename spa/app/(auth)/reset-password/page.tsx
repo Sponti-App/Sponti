@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { AuthFrame } from "@/components/auth-frame"
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { resetPassword } from "@/lib/api/auth"
 import { HttpError } from "@/lib/http"
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const searchParams = useSearchParams()
   const token = searchParams.get("token") ?? ""
   const router = useRouter()
@@ -85,7 +85,7 @@ export default function ResetPasswordPage() {
           />
           {mismatch && (
             <p className="text-xs text-destructive" role="alert">
-              passwords don't match
+              passwords do not match
             </p>
           )}
         </div>
@@ -105,5 +105,13 @@ export default function ResetPasswordPage() {
         </Button>
       </form>
     </AuthFrame>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ResetPasswordForm />
+    </Suspense>
   )
 }

@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getRefreshToken, getToken, setSession, type AuthUser } from "@/lib/auth-store"
+import { uploadAvatar } from "@/lib/api/auth"
 import {
   buildProfileDraft,
   initialsFromName,
@@ -32,6 +33,9 @@ function ProfileEditPageContent({ user }: { user: AuthUser }) {
   const [baseline, setBaseline] = useState<ProfileDraft>(() =>
     buildProfileDraft(user, readProfileExtras(user.id)),
   )
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const avatarInitials = useMemo(() => initialsFromName(draft.displayName), [draft.displayName])
 
@@ -42,23 +46,43 @@ function ProfileEditPageContent({ user }: { user: AuthUser }) {
     draft.email !== baseline.email ||
     draft.instagram !== baseline.instagram ||
     draft.telegram !== baseline.telegram ||
-    avatarPreview !== (user.avatarUrl ?? "")
+    avatarPreview !== (user.avatarUrl ?? "") ||
+    selectedFile !== null
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
     const nextAvatar = await readFileAsDataUrl(file)
     setAvatarPreview(nextAvatar)
+    setSelectedFile(file)
+    setUploadError(null)
     setDraft((prev) => ({ ...prev, avatarUrl: nextAvatar }))
   }
 
-  const handleSave = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!isDirty) return
+    if (!isDirty || uploading) return
+
+    let newAvatarUrl: string | null = user.avatarUrl ?? null
+
+    if (selectedFile) {
+      setUploading(true)
+      setUploadError(null)
+      try {
+        const { avatarUrl } = await uploadAvatar(selectedFile)
+        newAvatarUrl = avatarUrl
+        setSelectedFile(null)
+      } catch (error) {
+        setUploadError(error instanceof Error ? error.message : 'Upload failed')
+        setUploading(false)
+        return
+      }
+      setUploading(false)
+    }
 
     const updatedUser: AuthUser = {
       ...user,
-      avatarUrl: avatarPreview || null,
+      avatarUrl: newAvatarUrl,
       displayName: draft.displayName.trim(),
       username: normalizeUsername(draft.username),
       email: draft.email.trim(),
@@ -85,6 +109,8 @@ function ProfileEditPageContent({ user }: { user: AuthUser }) {
     setDraft(restored)
     setBaseline(restored)
     setAvatarPreview(user.avatarUrl ?? "")
+    setSelectedFile(null)
+    setUploadError(null)
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
@@ -93,212 +119,217 @@ function ProfileEditPageContent({ user }: { user: AuthUser }) {
       onSubmit={handleSave}
       className="min-h-screen w-full bg-background relative overflow-hidden flex flex-col"
     >
-        <div className="flex items-center justify-between gap-3 px-4 py-3 shrink-0">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push("/profile")}
-            aria-label="Back"
-            className="rounded-full border border-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex flex-col items-center">
-            <span className="text-base font-semibold">edit profile</span>
-            <p className="text-[11px] text-muted-foreground">
-              upload an image and update your details
-            </p>
-          </div>
-          <Button
-            type="submit"
-            disabled={!isDirty}
-            size="sm"
-            className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
-          >
-            save
-          </Button>
+      <div className="flex items-center justify-between gap-3 px-4 py-3 shrink-0">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => router.push("/profile")}
+          aria-label="Back"
+          className="rounded-full border border-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex flex-col items-center">
+          <span className="text-base font-semibold">edit profile</span>
+          <p className="text-[11px] text-muted-foreground">
+            upload an image and update your details
+          </p>
         </div>
+        <Button
+          type="submit"
+          disabled={!isDirty || uploading}
+          size="sm"
+          className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
+        >
+          {uploading ? "Uploading..." : "save"}
+        </Button>
+      </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-36 space-y-4">
-          <Card className="border-border bg-card/90 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-[15px]">
-                <Camera className="h-4 w-4 text-accent" />
-                avatar upload
-              </CardTitle>
-              <CardDescription>
-                Upload a photo from your device. It stays local for now.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-start gap-4">
-                <Avatar className="h-20 w-20 ring-1 ring-border bg-muted">
-                  <AvatarImage src={avatarPreview || undefined} alt={draft.displayName} />
-                  <AvatarFallback className="bg-accent/10 text-base font-semibold text-accent">
-                    {avatarInitials}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1 space-y-2">
-                  <p className="text-sm font-medium leading-none">preview</p>
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    The image is saved with your session only. There is no backend upload yet.
+      <div className="flex-1 overflow-y-auto px-4 pb-36 space-y-4">
+        <Card className="border-border bg-card/90 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-[15px]">
+              <Camera className="h-4 w-4 text-accent" />
+              avatar upload
+            </CardTitle>
+            <CardDescription>
+              Upload a photo from your device. It will be saved to your profile.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-4">
+              <Avatar className="h-20 w-20 ring-1 ring-border bg-muted">
+                <AvatarImage src={avatarPreview || undefined} alt={draft.displayName} />
+                <AvatarFallback className="bg-accent/10 text-base font-semibold text-accent">
+                  {avatarInitials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1 space-y-2">
+                <p className="text-sm font-medium leading-none">preview</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  The image will be uploaded and saved to your profile.
+                </p>
+                {uploadError && (
+                  <p className="text-xs leading-relaxed text-destructive">
+                    {uploadError}
                   </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-full"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Upload className="h-4 w-4" />
-                    upload photo
-                  </Button>
-                  <Input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border bg-card/90 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-[15px]">profile details</CardTitle>
-              <CardDescription>
-                Keep the core fields current so your friends see the right info.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="displayName" className="text-xs text-muted-foreground">
-                  name
-                </Label>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                  upload photo
+                </Button>
                 <Input
-                  id="displayName"
-                  autoComplete="name"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-card/90 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-[15px]">profile details</CardTitle>
+            <CardDescription>
+              Keep the core fields current so your friends see the right info.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="displayName" className="text-xs text-muted-foreground">
+                name
+              </Label>
+              <Input
+                id="displayName"
+                autoComplete="name"
+                required
+                minLength={2}
+                maxLength={50}
+                value={draft.displayName}
+                onChange={(event) =>
+                  setDraft((prev) => ({ ...prev, displayName: event.target.value }))
+                }
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="username" className="text-xs text-muted-foreground">
+                username
+              </Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground">
+                  @
+                </span>
+                <Input
+                  id="username"
+                  autoComplete="username"
                   required
-                  minLength={2}
-                  maxLength={50}
-                  value={draft.displayName}
+                  minLength={3}
+                  maxLength={30}
+                  pattern="[a-zA-Z0-9_-]+"
+                  className="pl-7"
+                  value={draft.username}
                   onChange={(event) =>
-                    setDraft((prev) => ({ ...prev, displayName: event.target.value }))
+                    setDraft((prev) => ({ ...prev, username: event.target.value }))
                   }
                 />
               </div>
+            </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="username" className="text-xs text-muted-foreground">
-                  username
-                </Label>
-                <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground">
-                    @
-                  </span>
-                  <Input
-                    id="username"
-                    autoComplete="username"
-                    required
-                    minLength={3}
-                    maxLength={30}
-                    pattern="[a-zA-Z0-9_-]+"
-                    className="pl-7"
-                    value={draft.username}
-                    onChange={(event) =>
-                      setDraft((prev) => ({ ...prev, username: event.target.value }))
-                    }
-                  />
-                </div>
-              </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-xs text-muted-foreground">
+                email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={draft.email}
+                onChange={(event) => setDraft((prev) => ({ ...prev, email: event.target.value }))}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-xs text-muted-foreground">
-                  email
-                </Label>
+        <Card className="border-border bg-card/90 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-[15px]">social links</CardTitle>
+            <CardDescription>
+              Add the handles people can use when they want to reach you.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="instagram" className="text-xs text-muted-foreground">
+                instagram
+              </Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground">
+                  @
+                </span>
                 <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={draft.email}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, email: event.target.value }))}
+                  id="instagram"
+                  placeholder="yourhandle"
+                  className="pl-7"
+                  value={draft.instagram}
+                  onChange={(event) =>
+                    setDraft((prev) => ({ ...prev, instagram: event.target.value }))
+                  }
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          <Card className="border-border bg-card/90 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-[15px]">social links</CardTitle>
-              <CardDescription>
-                Add the handles people can use when they want to reach you.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="instagram" className="text-xs text-muted-foreground">
-                  instagram
-                </Label>
-                <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground">
-                    @
-                  </span>
-                  <Input
-                    id="instagram"
-                    placeholder="yourhandle"
-                    className="pl-7"
-                    value={draft.instagram}
-                    onChange={(event) =>
-                      setDraft((prev) => ({ ...prev, instagram: event.target.value }))
-                    }
-                  />
-                </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="telegram" className="text-xs text-muted-foreground">
+                telegram
+              </Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground">
+                  @
+                </span>
+                <Input
+                  id="telegram"
+                  placeholder="yourhandle"
+                  className="pl-7"
+                  value={draft.telegram}
+                  onChange={(event) =>
+                    setDraft((prev) => ({ ...prev, telegram: event.target.value }))
+                  }
+                />
               </div>
+            </div>
+          </CardContent>
+        </Card>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="telegram" className="text-xs text-muted-foreground">
-                  telegram
-                </Label>
-                <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground">
-                    @
-                  </span>
-                  <Input
-                    id="telegram"
-                    placeholder="yourhandle"
-                    className="pl-7"
-                    value={draft.telegram}
-                    onChange={(event) =>
-                      setDraft((prev) => ({ ...prev, telegram: event.target.value }))
-                    }
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex items-center justify-between gap-3 pb-2 pt-1">
-            <Button type="button" variant="outline" onClick={handleReset} className="rounded-full border-border">
-              reset
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => logout()}
-              className="rounded-full border-destructive/20 text-destructive hover:bg-destructive/10"
-            >
-              <LogOut className="h-4 w-4" />
-              sign out
-            </Button>
-          </div>
+        <div className="flex items-center justify-between gap-3 pb-2 pt-1">
+          <Button type="button" variant="outline" onClick={handleReset} className="rounded-full border-border">
+            reset
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => logout()}
+            className="rounded-full border-destructive/20 text-destructive hover:bg-destructive/10"
+          >
+            <LogOut className="h-4 w-4" />
+            sign out
+          </Button>
         </div>
+      </div>
 
-        <div className="absolute bottom-6 left-0 right-0 z-10">
-          <BottomNav />
-        </div>
+      <div className="absolute bottom-6 left-0 right-0 z-10">
+        <BottomNav />
+      </div>
     </form>
   )
 }
