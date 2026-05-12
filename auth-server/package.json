@@ -19,9 +19,9 @@
       "development": "./src/db/index.ts",
       "default": "./dist/db/index.js"
     },
-    "#lib": {
-      "development": "./src/lib/tokens.ts",
-      "default": "./dist/lib/tokens.js"
+    "#lib/*": {
+      "development": "./src/lib/*.ts",
+      "default": "./dist/lib/*.js"
     },
     "#middleware": {
       "development": "./src/middleware/index.ts",

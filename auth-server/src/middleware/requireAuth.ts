@@ -1,6 +1,6 @@
 import type { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
-import { verifyAccessToken } from "#lib";
+import { verifyAccessToken } from "#lib/tokens";
 
 declare module "express-serve-static-core" {
     interface Request {
