@@ -7,7 +7,8 @@ import { BottomNav } from "@/components/bottom-nav"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
 import { MenuDrawer } from "@/components/menu-drawer"
 import { NotificationsPopover } from "@/components/notifications-popover"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuth } from "@/components/auth-provider"
+import { AccountAvatar } from "@/components/account-avatar"
 import { Bell, Map, Calendar, Navigation, X } from "lucide-react"
 import { isImminent } from "@/lib/events"
 import type { EventItem } from "@/lib/events"
@@ -22,6 +23,7 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS)
+  const { user } = useAuth()
   const unreadCount = notifications.filter((n) => !n.read).length
 
   const handleJoin = (event: EventItem, eta: string | null) => {
@@ -63,20 +65,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      {/* Mobile Frame */}
-      <div className="w-[390px] h-[844px] bg-background rounded-[40px] border-[8px] border-foreground relative overflow-hidden flex flex-col">
-        {/* Status Bar */}
-        <div className="flex items-center justify-between px-6 pt-3 pb-2">
-          <span className="text-sm font-medium">9:41</span>
-          <div className="w-[80px] h-[24px] bg-foreground rounded-full" />
-          <div className="flex items-center gap-1">
-            <span className="text-xs">•••</span>
-            <span className="text-xs">◗</span>
-            <span className="text-xs">▌</span>
-          </div>
-        </div>
-
+    <div className="min-h-screen w-full bg-background relative overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3">
           <button
@@ -86,15 +75,11 @@ export default function Home() {
             className="relative z-30 rounded-full focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             onClick={() => setMenuOpen((open) => !open)}
           >
-            <Avatar className="h-9 w-9">
-              <AvatarImage
-                src="/martin-profilepic-dev.jpg"
-                alt="Martin Lindholm"
-              />
-              <AvatarFallback className="bg-accent text-sm font-medium text-accent-foreground">
-                M
-              </AvatarFallback>
-            </Avatar>
+            <AccountAvatar
+              user={user}
+              className="h-9 w-9"
+              fallbackClassName="bg-accent text-sm font-medium text-accent-foreground"
+            />
           </button>
 
           {/* Toggle */}
@@ -208,13 +193,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Home Indicator */}
-        <div className="absolute bottom-1 left-0 right-0 flex justify-center">
-          <div className="w-32 h-1 bg-foreground rounded-full" />
-        </div>
-
         <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
-      </div>
     </div>
   )
 }

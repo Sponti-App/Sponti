@@ -1,12 +1,19 @@
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import type { Request, Response } from "express";
-import { User, Circle, NotificationSettings, RefreshToken } from "#models";
-import {
-    createAccessToken,
-    createRefreshToken,
-    hashRefreshToken,
-    verifyRefreshToken,
-} from "#lib";
+import jwt from "jsonwebtoken";
+import { User, Circle, NotificationSettings, PasswordResetToken } from "#models";
+import { sendPasswordResetEmail } from "#lib/email";
+
+const createAccessToken = (userId: string) => {
+    const secret = process.env.JWT_SECRET;
+
+    if (!secret) {
+        throw new Error("JWT_SECRET is not configured", { cause: { status: 500 } });
+    }
+
+    return jwt.sign({ userId }, secret, { expiresIn: "7d" });
+};
 
 const toUserResponse = (user: InstanceType<typeof User>) => ({
     id: user._id.toString(),
@@ -215,4 +222,53 @@ export const me = async (req: Request, res: Response) => {
     res.json({
         user: toUserResponse(user),
     });
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+    const { email } = req.body as { email: string };
+    const normalizedEmail = email.toLowerCase();
+
+    const user = await User.findOne({ email: normalizedEmail });
+
+    // Always respond 200 to avoid leaking whether an account exists
+    if (!user) {
+        res.json({ message: "If that email is registered you will receive a reset link shortly." });
+        return;
+    }
+
+    // Invalidate any existing unused tokens for this user
+    await PasswordResetToken.updateMany(
+        { userId: user._id, used: false },
+        { used: true }
+    );
+
+    const plainToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(plainToken).digest("hex");
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await PasswordResetToken.create({ userId: user._id, tokenHash, expiresAt });
+
+    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+    const resetUrl = `${appUrl}/reset-password?token=${plainToken}`;
+
+    await sendPasswordResetEmail(normalizedEmail, resetUrl);
+
+    res.json({ message: "If that email is registered you will receive a reset link shortly." });
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+    const { token, password } = req.body as { token: string; password: string };
+
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const record = await PasswordResetToken.findOne({ tokenHash, used: false });
+
+    if (!record || record.expiresAt < new Date()) {
+        throw new Error("Reset link is invalid or has expired", { cause: { status: 400 } });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    await User.findByIdAndUpdate(record.userId, { passwordHash });
+    await PasswordResetToken.findByIdAndUpdate(record._id, { used: true });
+
+    res.json({ message: "Password updated successfully." });
 };

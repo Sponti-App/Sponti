@@ -1,8 +1,9 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Check } from "lucide-react"
+import { Check, Flame } from "lucide-react"
 import { avatarText, events } from "@/lib/events"
 import type { EventItem } from "@/lib/events"
 
@@ -20,6 +21,7 @@ export function CalendarView({
   onEventSelect: (event: EventItem) => void
   joinedIds: Set<number>
 }) {
+  const router = useRouter()
   return (
     /* pb-28 leaves room for the floating nav pill */
     <div className="h-full overflow-y-auto px-4 pb-28">
@@ -89,6 +91,21 @@ export function CalendarView({
           ))}
         </div>
       </div>
+
+      {/* Make a plan CTA */}
+      <button
+        type="button"
+        onClick={() => router.push("/event/new")}
+        className="mt-3 w-full flex items-center gap-3 rounded-xl border-2 border-dashed border-accent/50 bg-accent/5 px-4 py-3 text-left transition-colors hover:bg-accent/10"
+      >
+        <div className="w-9 h-9 rounded-full bg-accent text-accent-foreground flex items-center justify-center shrink-0">
+          <Flame className="w-4 h-4" />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-accent">+ make a plan</p>
+          <p className="text-xs text-muted-foreground">light a flare for any time this week</p>
+        </div>
+      </button>
     </div>
   )
 }

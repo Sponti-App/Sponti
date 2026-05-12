@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { menuItems } from "@/components/menu-items"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { MenuProfile } from "@/components/menu-profile"
 
 export function MenuDrawer({
   open,
@@ -34,23 +34,8 @@ export function MenuDrawer({
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="pt-16 pb-6">
-          <Avatar className="size-16 border border-border">
-            <AvatarImage
-              src="/martin-profilepic-dev.jpg"
-              alt="Martin Lindholm"
-            />
-            <AvatarFallback className="bg-secondary text-lg font-medium">
-              ML
-            </AvatarFallback>
-          </Avatar>
-          <div className="mt-4">
-            <p className="text-2xl font-semibold">Martin Lindholm</p>
-            <p className="mt-2 text-sm leading-5 text-muted-foreground">
-              Sponti MVP tester
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">Piteå, Sweden</p>
-          </div>
+        <div className="pt-16">
+          <MenuProfile />
         </div>
 
         <div className="h-px bg-border" />
