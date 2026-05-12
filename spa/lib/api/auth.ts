@@ -50,6 +50,17 @@ export function me(): Promise<{ user: AuthUser }> {
   return authFetch<{ user: AuthUser }>("/auth/me", { auth: true })
 }
 
+export function uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
+  const formData = new FormData()
+  formData.append("avatar", file)
+  return authFetch<{ avatarUrl: string }>("/auth/me/avatar", {
+    method: "PATCH",
+    auth: true,
+    formData: true,
+    body: formData,
+  })
+}
+
 export function forgotPassword(email: string): Promise<{ message: string }> {
   return authFetch<{ message: string }>("/auth/forgot-password", { method: "POST", body: { email } })
 }
