@@ -19,22 +19,24 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const [activeRoute, setActiveRoute] = useState<EventItem | null>(null)
   const [routeEta, setRouteEta] = useState<string | null>(null)
-  const [joinedIds, setJoinedIds] = useState<Set<number>>(() => new Set())
+  const [joinedIds, setJoinedIds] = useState<Set<string>>(() => new Set())
   const [menuOpen, setMenuOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS)
   const { user } = useAuth()
   const unreadCount = notifications.filter((n) => !n.read).length
 
-  const handleJoin = (event: EventItem, eta: string | null) => {
+  const handleJoin = (event: EventItem, _eta: string | null) => {
     setJoinedIds((prev) => {
       const next = new Set(prev)
       next.add(event.id)
       return next
     })
-    if (isImminent(event) && event.position) {
+    // Backend wiring point: PATCH /events/:id/me with
+    // { rsvpStatus: "going", memberWillArriveAt: <ISO from _eta> }
+    if (isImminent(event) && event.location.coordinates) {
       setActiveRoute(event)
-      setRouteEta(eta)
+      setRouteEta(null) // Routes API will fill this in via onRouteReady
       setView("map")
     }
     setSelectedEvent(null)
@@ -42,6 +44,7 @@ export default function Home() {
 
   const handleSeeRoute = (event: EventItem) => {
     setActiveRoute(event)
+    setRouteEta(null)
     setView("map")
     setSelectedEvent(null)
   }
@@ -62,6 +65,10 @@ export default function Home() {
   const handleClearRoute = () => {
     setActiveRoute(null)
     setRouteEta(null)
+  }
+
+  const handleRouteReady = (event: EventItem, etaLabel: string) => {
+    if (activeRoute?.id === event.id) setRouteEta(etaLabel)
   }
 
   return (
@@ -143,6 +150,7 @@ export default function Home() {
               onEventSelect={setSelectedEvent}
               activeRoute={activeRoute}
               joinedIds={joinedIds}
+              onRouteReady={handleRouteReady}
             />
           ) : (
             <CalendarView onEventSelect={setSelectedEvent} joinedIds={joinedIds} />
