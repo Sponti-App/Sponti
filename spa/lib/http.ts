@@ -1,4 +1,11 @@
-import { clearSession, getRefreshToken, getToken, getUser, setSession } from "./auth-store"
+import { error } from "node:console"
+import {
+  clearSession,
+  getRefreshToken,
+  getToken,
+  getUser,
+  setSession,
+} from "./auth-store"
 
 export class HttpError extends Error {
   status: number
@@ -19,14 +26,17 @@ type RequestOptions = {
   signal?: AbortSignal
 }
 
-type ErrorBody = {
-  message?: string
-  code?: string
+type ErrorResponse = {
+  error?: {
+    message?: string
+    code?: string
+    details?: unknown
+  }
 }
 
-async function parseError(res: Response): Promise<ErrorBody | null> {
+async function parseError(res: Response): Promise<ErrorResponse | null> {
   try {
-    return (await res.json()) as ErrorBody
+    return (await res.json()) as ErrorResponse
   } catch {
     return null
   }
@@ -56,7 +66,10 @@ async function refreshSession(): Promise<string | null> {
     return null
   }
 
-  const body = (await res.json()) as { accessToken: string; refreshToken: string }
+  const body = (await res.json()) as {
+    accessToken: string
+    refreshToken: string
+  }
   setSession(body.accessToken, body.refreshToken, user)
   return body.accessToken
 }
@@ -65,7 +78,7 @@ async function request<T>(
   baseUrl: string,
   path: string,
   opts: RequestOptions,
-  hasRetried = false,
+  hasRetried = false
 ): Promise<T> {
   if (!baseUrl) {
     throw new HttpError(0, `Missing base URL for request to ${path}`)
@@ -86,7 +99,12 @@ async function request<T>(
   })
 
   if (!res.ok) {
-    if (opts.auth && res.status === 401 && !hasRetried && path !== "/auth/refresh") {
+    if (
+      opts.auth &&
+      res.status === 401 &&
+      !hasRetried &&
+      path !== "/auth/refresh"
+    ) {
       const nextAccessToken = await refreshSession()
 
       if (nextAccessToken) {
@@ -95,7 +113,11 @@ async function request<T>(
     }
 
     const body = await parseError(res)
-    throw new HttpError(res.status, body?.message ?? res.statusText, body?.code)
+    throw new HttpError(
+      res.status,
+      body?.error?.message ?? res.statusText,
+      body?.error?.code
+    )
   }
 
   if (res.status === 204) return undefined as T
@@ -105,10 +127,16 @@ async function request<T>(
 const AUTH_BASE = process.env.NEXT_PUBLIC_AUTH_BASE_URL ?? ""
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
 
-export function authFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+export function authFetch<T>(
+  path: string,
+  opts: RequestOptions = {}
+): Promise<T> {
   return request<T>(AUTH_BASE, path, opts)
 }
 
-export function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+export function apiFetch<T>(
+  path: string,
+  opts: RequestOptions = {}
+): Promise<T> {
   return request<T>(API_BASE, path, { auth: true, ...opts })
 }

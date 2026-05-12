@@ -1,5 +1,5 @@
 export function isImminent(event: EventItem): boolean {
-  return event.status === "happening now"
+  // Is imminent should check it by datetime
 }
 
 export function avatarText(bgColor: string): string {
@@ -8,11 +8,18 @@ export function avatarText(bgColor: string): string {
     : "text-foreground"
 }
 
+type EventsType = {
+  type: "hangout" | "sports" | "drinks"
+  icon: string
+}
+
+// Response DTO ?
+// Maybe location.area, calendarTime, calendarDay, type not need
 export interface EventItem {
   id: number
   title: string
-  type: "coffee" | "hang" | "run"
-  status: string
+  type: EventsType
+  status: "active" | "cancelled" | "completed"
   calendarTime?: string
   calendarDay?: "today" | "tomorrow"
   host: {
@@ -33,58 +40,6 @@ export interface EventItem {
 }
 
 export const events: EventItem[] = [
-  {
-    id: 1,
-    title: "coffee at Reuben's",
-    type: "coffee",
-    status: "happening now",
-    calendarTime: "3pm",
-    calendarDay: "today",
-    host: {
-      name: "Mira",
-      avatar: "M",
-      color: "bg-accent",
-      note: "grabbing a latte before my 4pm — pop by if you're around ☕",
-    },
-    location: {
-      name: "Reuben's Espresso",
-      area: "Fillmore",
-      distance: "0.4 mi",
-      walkTime: "8 min walk",
-    },
-    attendees: [
-      { name: "Mira", avatar: "M", color: "bg-accent" },
-      { name: "Sam", avatar: "S", color: "bg-stone-300" },
-    ],
-    going: 2,
-    position: { lat: 37.7855, lng: -122.4364 },
-  },
-  {
-    id: 2,
-    title: "patio hang",
-    type: "hang",
-    status: "7pm",
-    calendarTime: "7pm",
-    calendarDay: "today",
-    host: {
-      name: "Sam",
-      avatar: "S",
-      color: "bg-stone-800",
-      note: "patio hangs at my place, bring snacks!",
-    },
-    location: {
-      name: "the patio",
-      area: "Castro",
-      distance: "0.6 mi",
-      walkTime: "12 min walk",
-    },
-    attendees: [
-      { name: "Sam", avatar: "S", color: "bg-stone-800" },
-      { name: "K", avatar: "K", color: "bg-stone-300" },
-    ],
-    going: 4,
-    position: { lat: 37.7825, lng: -122.4324 },
-  },
   {
     id: 3,
     title: "run club",
