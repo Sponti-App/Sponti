@@ -15,18 +15,7 @@ export function MenuPageShell({
   children: ReactNode
 }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-secondary p-4">
-      <div className="relative flex h-[844px] w-[390px] flex-col overflow-hidden rounded-[40px] border-[8px] border-foreground bg-background">
-        <div className="flex items-center justify-between px-6 pt-3 pb-2">
-          <span className="text-sm font-medium">9:41</span>
-          <div className="h-[24px] w-[80px] rounded-full bg-foreground" />
-          <div className="flex items-center gap-1">
-            <span className="text-xs">•••</span>
-            <span className="text-xs">◗</span>
-            <span className="text-xs">▌</span>
-          </div>
-        </div>
-
+    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background">
         <header className="flex items-center justify-between px-4 pt-3 pb-5">
           <Link
             href={backHref}
@@ -42,11 +31,6 @@ export function MenuPageShell({
         <main className="flex-1 overflow-y-auto px-4 pb-4">{children}</main>
 
         <BottomNav />
-
-        <div className="flex justify-center pt-1 pb-2">
-          <div className="h-1 w-32 rounded-full bg-foreground" />
-        </div>
-      </div>
     </div>
   )
 }

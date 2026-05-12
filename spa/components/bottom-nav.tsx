@@ -8,7 +8,7 @@ const navItems = [
   { icon: Sparkles, label: "Host", href: "/event" },
   { icon: Home, label: "Home", href: "/" },
   { icon: User, label: "Profile", href: "/profile" },
-  { icon: Settings, label: "Settings", href: null },
+  { icon: Settings, label: "Settings", href: "/settings" },
 ] as const
 
 export function BottomNav() {

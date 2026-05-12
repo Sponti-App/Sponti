@@ -8,7 +8,7 @@ const config: CapacitorConfig = {
   webDir: 'out',
   // In dev, point to the Next.js dev server for live reload
   server: isDev ? {
-    url: 'http://localhost:3000',
+    url: '192.168.178.185',
     cleartext: true,
   } : undefined,
   plugins: {
