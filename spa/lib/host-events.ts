@@ -5,8 +5,9 @@
 // useSyncExternalStore so React 19's purity rules stay happy.
 
 import { useSyncExternalStore } from "react"
-import { MOCK_CIRCLES, MOCK_CONNECTIONS } from "./circles"
-import type { Audience, DraftEvent, Recurrence } from "./draft-events"
+import { MOCK_CONNECTIONS } from "./circles"
+import { getCirclesSnapshot } from "./circles-store"
+import type { DraftEvent, Recurrence } from "./draft-events"
 
 export type EventStatus = "live" | "upcoming" | "past" | "cancelled"
 export type EventVisibility = "private" | "public"
@@ -208,20 +209,14 @@ export function duplicateHostedEvent(id: string): HostedEvent | null {
 
 const WHERE_LABEL: Record<DraftEvent["whereType"], string> = {
   current: "current location",
-  home: "home",
-  coffee: "coffee",
   search: "custom",
-  custom: "custom",
+  saved: "saved place",
 }
 
 function audienceForDraft(draft: DraftEvent): { label: string; ids: string[] } {
-  if (draft.audience === "close-friends") {
-    const circle = MOCK_CIRCLES.find((c) => c.id === "close")
-    return { label: "close friends", ids: circle?.memberIds ?? [] }
-  }
-  if (draft.audience === "all-friends") {
-    const circle = MOCK_CIRCLES.find((c) => c.id === "all")
-    return { label: "all friends", ids: circle?.memberIds ?? [] }
+  if (draft.audience !== "custom") {
+    const circle = getCirclesSnapshot().find((c) => c.id === draft.audience)
+    if (circle) return { label: circle.name, ids: circle.memberIds }
   }
   const ids = draft.selectedFriendIds ?? []
   if (draft.customListName?.trim()) return { label: draft.customListName.trim(), ids }
@@ -246,12 +241,19 @@ export function pushDraftAsHosted(draft: DraftEvent): HostedEvent {
   const { label, ids } = audienceForDraft(draft)
   const { startAt, endAt } = startEndFromDraft(draft)
   const now = Date.now()
+  const locationLabel =
+    draft.whereType === "search" && draft.customWhere
+      ? draft.customWhere
+      : draft.whereType === "saved" && draft.savedPlaceLabel
+        ? draft.savedPlaceLabel
+        : WHERE_LABEL[draft.whereType]
   const event: HostedEvent = {
     id: `evt-${now}`,
-    title: draft.title?.trim() || draft.what,
+    title: draft.title.trim() || draft.eventType,
+    description: draft.details?.trim() || undefined,
     startAt,
     endAt,
-    locationLabel: draft.whereType === "search" && draft.customWhere ? draft.customWhere : WHERE_LABEL[draft.whereType],
+    locationLabel,
     audienceLabel: label,
     attendeeIds: ids,
     attendingIds: [],
@@ -261,14 +263,6 @@ export function pushDraftAsHosted(draft: DraftEvent): HostedEvent {
   }
   writeAll([...snapshot(), event])
   return event
-}
-
-// Map an audience label back to the form's audience type — used by edit
-// flows that prefill the create form.
-export function audienceLabelToAudience(label: string): Audience {
-  if (label === "close friends") return "close-friends"
-  if (label === "all friends") return "all-friends"
-  return "custom"
 }
 
 export function inferEventStartShape(event: HostedEvent): {
