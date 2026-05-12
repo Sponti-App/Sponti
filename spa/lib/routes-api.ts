@@ -1,14 +1,14 @@
-// Thin client for Google's Routes API v2 (computeRoutes).
+// Thin client for our backend's Routes API proxy at POST /maps/route. The
+// backend (api/src/services/mapsService.ts) calls Google's Routes API v2 with
+// the server-held GOOGLE_MAPS_API_KEY so the key never ships to the SPA.
 //
-// Why this exists: the legacy DirectionsService is being deprecated and the
-// new Routes API gives us the route polyline + duration in one call. We call
-// it directly from the client for the prototype — the API key is already
-// exposed in NEXT_PUBLIC_GOOGLE_MAPS_API_KEY for map rendering. Before
-// production, this should be proxied through `api/` so the key can be
-// scoped/rate-limited server-side and so the client can fall back gracefully
-// when Routes API quota is exhausted.
+// Server returns `encodedPolyline` (Google's compact format) so we get the
+// bytes-saving benefit over the wire and the decode happens here. We also
+// format the human-readable labels (etaLabel / distanceLabel) client-side so
+// the server only owns transport — formatters belong with the UI.
 
 import type { GeoCoords } from "./geolocation"
+import { apiFetch } from "./http"
 
 export type TravelMode = "DRIVE" | "WALK" | "BICYCLE" | "TRANSIT"
 
@@ -23,10 +23,13 @@ export type RouteResult = {
   distanceLabel: string
 }
 
-const ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes"
-
-const FIELD_MASK =
-  "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline"
+type ComputeRouteResponse = {
+  data: {
+    encodedPolyline: string
+    durationSeconds: number
+    distanceMeters: number
+  }
+}
 
 export async function computeRoute(
   origin: GeoCoords,
@@ -34,55 +37,14 @@ export async function computeRoute(
   travelMode: TravelMode = "WALK",
   signal?: AbortSignal,
 ): Promise<RouteResult> {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-  if (!apiKey) {
-    throw new Error("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not set")
-  }
-
-  const body = {
-    origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lng } } },
-    destination: {
-      location: { latLng: { latitude: destination.lat, longitude: destination.lng } },
-    },
-    travelMode,
-    // Routing prefs only apply to DRIVE — Routes API ignores otherwise.
-    routingPreference: travelMode === "DRIVE" ? "TRAFFIC_AWARE" : undefined,
-    polylineQuality: "OVERVIEW",
-    languageCode: "en-US",
-    units: "IMPERIAL",
-  }
-
-  const res = await fetch(ENDPOINT, {
+  const res = await apiFetch<ComputeRouteResponse>("/maps/route", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask": FIELD_MASK,
-    },
-    body: JSON.stringify(body),
+    body: { origin, destination, travelMode },
     signal,
   })
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`Routes API error ${res.status}: ${text || res.statusText}`)
-  }
-
-  const json = (await res.json()) as {
-    routes?: Array<{
-      duration?: string
-      distanceMeters?: number
-      polyline?: { encodedPolyline?: string }
-    }>
-  }
-  const route = json.routes?.[0]
-  if (!route?.polyline?.encodedPolyline) {
-    throw new Error("Routes API returned no route")
-  }
-
-  const durationSeconds = parseDuration(route.duration)
-  const distanceMeters = route.distanceMeters ?? 0
-  const path = decodePolyline(route.polyline.encodedPolyline)
+  const { encodedPolyline, durationSeconds, distanceMeters } = res.data
+  const path = decodePolyline(encodedPolyline)
 
   return {
     path,
@@ -91,13 +53,6 @@ export async function computeRoute(
     etaLabel: formatDurationLabel(durationSeconds),
     distanceLabel: formatDistanceLabel(distanceMeters),
   }
-}
-
-// Routes API returns durations like "523s". Parse to seconds.
-function parseDuration(value: string | undefined): number {
-  if (!value) return 0
-  const match = /^(\d+)s$/.exec(value)
-  return match ? Number(match[1]) : 0
 }
 
 export function formatDurationLabel(seconds: number): string {

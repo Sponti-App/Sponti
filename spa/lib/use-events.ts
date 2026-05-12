@@ -58,10 +58,15 @@ function useApiEnabled() {
   return API_BASE.length > 0
 }
 
+// Demo-mode events used when the API is configured but unreachable (server
+// down, not authenticated, network blocked). Lets the prototype keep working
+// during backend outages instead of showing an empty map.
+const DEMO_MAP_EVENTS = MOCK_EVENTS.filter((e) => !!e.location.coordinates)
+
 export function useMapEvents(userCoords: GeoCoords | null, radiusKm = 25): EventsState {
   const apiEnabled = useApiEnabled()
   const [state, setState] = useState<EventsState>({
-    events: apiEnabled ? [] : MOCK_EVENTS.filter((e) => !!e.location.coordinates),
+    events: apiEnabled ? [] : DEMO_MAP_EVENTS,
     loading: apiEnabled,
     error: null,
     refresh: () => {},
@@ -89,7 +94,18 @@ export function useMapEvents(userCoords: GeoCoords | null, radiusKm = 25): Event
       )
       .catch((err) => {
         if (ac.signal.aborted) return
-        setState((s) => ({ ...s, loading: false, error: errMessage(err) }))
+        // API is configured but unreachable (server down, 401, network).
+        // Fall back to demo events so the map UI keeps working — this is the
+        // *prototype safety net*. Remove (or gate behind a NODE_ENV check)
+        // when the backend is consistently available in your env.
+        // eslint-disable-next-line no-console
+        console.warn("[Sponti] map events fetch failed, using demo data:", err)
+        setState({
+          events: DEMO_MAP_EVENTS,
+          loading: false,
+          error: errMessage(err),
+          refresh: () => setTick((n) => n + 1),
+        })
       })
     return () => ac.abort()
   }, [apiEnabled, userCoords, radiusKm, tick])
@@ -137,7 +153,16 @@ export function useCalendarEvents(): EventsState {
       )
       .catch((err) => {
         if (ac.signal.aborted) return
-        setState((s) => ({ ...s, loading: false, error: errMessage(err) }))
+        // Same prototype safety net as useMapEvents — fall back to demo data
+        // so the calendar UI keeps working when the API is unreachable.
+        // eslint-disable-next-line no-console
+        console.warn("[Sponti] calendar events fetch failed, using demo data:", err)
+        setState({
+          events: MOCK_EVENTS,
+          loading: false,
+          error: errMessage(err),
+          refresh: () => setTick((n) => n + 1),
+        })
       })
     return () => ac.abort()
   }, [apiEnabled, tick])

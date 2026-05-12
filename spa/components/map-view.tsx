@@ -25,6 +25,7 @@ import {
   distanceFromUser,
   eventCoords,
   formatRelativeStatus,
+  isJoined,
   isLive,
 } from "@/lib/events"
 import type { EventItem } from "@/lib/events"
@@ -122,7 +123,7 @@ function StaticMapFallback({
           >
             <div
               className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${
-                joinedIds.has(event.id) ? "ring-2 ring-accent ring-offset-2" : ""
+                isJoined(event, joinedIds) ? "ring-2 ring-accent ring-offset-2" : ""
               }`}
             >
               {event.host.avatar}
@@ -205,7 +206,7 @@ function GoogleMapContent({
             <div className="flex flex-col items-center cursor-pointer">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${
-                  joinedIds.has(event.id) ? "ring-2 ring-accent ring-offset-2" : ""
+                  isJoined(event, joinedIds) ? "ring-2 ring-accent ring-offset-2" : ""
                 }`}
               >
                 {event.host.avatar}
@@ -364,7 +365,7 @@ export function MapView({
     peekState === "mini" ? SHEET_PX.mini + 12 : SHEET_PX.peek + 12
 
   return (
-    <div className="flex-1 h-full relative overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden">
       {apiKey ? (
         <APIProvider apiKey={apiKey}>
           <GoogleMapContent
@@ -472,7 +473,7 @@ export function MapView({
                   <FlareCard
                     key={event.id}
                     event={event}
-                    joined={joinedIds.has(event.id)}
+                    joined={isJoined(event, joinedIds)}
                     user={geo.coords}
                     onClick={() => onEventSelect(event)}
                   />
