@@ -2,22 +2,27 @@
 // Persists drafts to localStorage so the form has somewhere to write to
 // while the api/ POST endpoint isn't wired up yet.
 
-const STORAGE_KEY = "sponti.draftEvents.v1"
+const STORAGE_KEY = "sponti.draftEvents.v2"
 
-export type Recurrence = "none" | "daily" | "weekly" | "monthly"
-export type Audience = "close-friends" | "all-friends" | "custom"
+export type Recurrence = "none" | "daily" | "weekly"
+// A circle id (e.g. "inner", "close", "all", or a custom-NNN id) OR the
+// literal "custom" for the ad-hoc friend-picker path.
+export type Audience = string
+export type EventType = "food" | "drinks" | "sports" | "hangout"
 
 export type DraftEvent = {
   mode: "now" | "scheduled"
-  what: string
+  eventType: EventType
+  title: string
+  details?: string
   durationMinutes: number
   startOffsetMinutes?: number
   startDate?: string
   startTime?: string
   recurrence?: Recurrence
-  whereType: "current" | "home" | "coffee" | "search" | "custom"
+  whereType: "current" | "search" | "saved"
   customWhere?: string
-  title?: string
+  savedPlaceLabel?: string
   guestLimit: number | null
   audience: Audience
   selectedFriendIds?: string[]
@@ -33,7 +38,6 @@ export function saveDraftEvent(draft: DraftEvent): void {
   const existing = getDraftEvents()
   const next = [...existing, draft]
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-  // Visible breadcrumb during dev — replace with toast once we have one.
   console.info("[Sponti] draft event saved", draft)
 }
 
