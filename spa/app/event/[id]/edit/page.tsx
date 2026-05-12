@@ -36,7 +36,6 @@ const RECURRENCE_OPTIONS: { value: Recurrence; label: string }[] = [
   { value: "none", label: "no repeat" },
   { value: "daily", label: "daily" },
   { value: "weekly", label: "weekly" },
-  { value: "monthly", label: "monthly" },
 ]
 
 const RECENT_PLACES = [
