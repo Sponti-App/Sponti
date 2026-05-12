@@ -17,6 +17,7 @@ type RequestOptions = {
   body?: unknown
   auth?: boolean
   signal?: AbortSignal
+  formData?: boolean
 }
 
 type ErrorBody = {
@@ -72,7 +73,7 @@ async function request<T>(
   }
 
   const headers: Record<string, string> = {}
-  if (opts.body !== undefined) headers["Content-Type"] = "application/json"
+  if (!opts.formData && opts.body !== undefined) headers["Content-Type"] = "application/json"
   if (opts.auth) {
     const token = getToken()
     if (token) headers.Authorization = `Bearer ${token}`
@@ -81,7 +82,7 @@ async function request<T>(
   const res = await fetch(`${baseUrl}${path}`, {
     method: opts.method ?? "GET",
     headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    body: opts.formData ? (opts.body as FormData) : opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     signal: opts.signal,
   })
 
