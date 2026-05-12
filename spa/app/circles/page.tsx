@@ -27,7 +27,6 @@ import {
   formatBlockedAt,
   initials,
   MOCK_BLOCKED,
-  MOCK_CIRCLES,
   MOCK_CONNECTIONS,
   MOCK_DISCOVERABLE,
   MOCK_REQUESTS,
@@ -36,6 +35,7 @@ import {
   type Connection,
   type ConnectionRequest,
 } from "@/lib/circles"
+import { setCircles, useCircles } from "@/lib/circles-store"
 
 type Tab = "circles" | "people" | "blocked"
 
@@ -53,7 +53,7 @@ export default function CirclesPage() {
   const [requests, setRequests] = useState<ConnectionRequest[]>(MOCK_REQUESTS)
   const [blocked, setBlocked] = useState<BlockedUser[]>(MOCK_BLOCKED)
 
-  const [circles, setCircles] = useState<Circle[]>(MOCK_CIRCLES)
+  const circles = useCircles()
   const [selectedCircleId, setSelectedCircleId] = useState<string>(circles[0]?.id ?? "")
   const [isEditing, setIsEditing] = useState(false)
   const [memberQuery, setMemberQuery] = useState("")
