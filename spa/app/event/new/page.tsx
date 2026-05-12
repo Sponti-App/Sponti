@@ -35,7 +35,7 @@ import {
 } from "@/lib/draft-events"
 import { pushDraftAsHosted } from "@/lib/host-events"
 import { MOCK_CONNECTIONS, type Circle, type Connection } from "@/lib/circles"
-import { useCircles } from "@/lib/circles-store"
+import { setCircles, useCircles } from "@/lib/circles-store"
 
 type Mode = "now" | "scheduled"
 type WhereType = "current" | "search" | "saved"
@@ -311,6 +311,31 @@ export default function NewEventPage() {
 
   // ------ Submit ------
   const handleSubmit = (): void => {
+    // If the user named their ad-hoc list, persist it to the circles store
+    // so it shows up in the connections hub next time. Name collision with an
+    // existing circle reuses that circle rather than creating a duplicate —
+    // the FriendPicker's "save as new circle" label explicitly opts into new.
+    let finalAudience: Audience = effectiveAudience
+    if (effectiveAudience === "custom" && customListName.trim()) {
+      const name = customListName.trim()
+      const existing = circles.find(
+        (c) => c.name.toLowerCase() === name.toLowerCase(),
+      )
+      if (existing) {
+        finalAudience = existing.id
+      } else {
+        const newCircle: Circle = {
+          id: `custom-${Date.now()}`,
+          name,
+          description: "custom circle",
+          tier: 2,
+          memberIds: selectedFriendIds,
+        }
+        setCircles((prev) => [...prev, newCircle])
+        finalAudience = newCircle.id
+      }
+    }
+
     const draft: DraftEvent = {
       mode,
       eventType,
@@ -335,12 +360,12 @@ export default function NewEventPage() {
           : undefined,
       guestLimit: isOpen ? null : guestLimit,
       audience: isOpen
-        ? (circles.find((c) => c.id === "all")?.id ?? effectiveAudience)
-        : effectiveAudience,
+        ? (circles.find((c) => c.id === "all")?.id ?? finalAudience)
+        : finalAudience,
       selectedFriendIds:
-        effectiveAudience === "custom" ? selectedFriendIds : undefined,
+        finalAudience === "custom" ? selectedFriendIds : undefined,
       customListName:
-        effectiveAudience === "custom" && customListName.trim()
+        finalAudience === "custom" && customListName.trim()
           ? customListName.trim()
           : undefined,
       visibility: isOpen ? "public" : "private",

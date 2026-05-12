@@ -26,16 +26,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   formatBlockedAt,
   initials,
-  MOCK_BLOCKED,
-  MOCK_CONNECTIONS,
-  MOCK_DISCOVERABLE,
-  MOCK_REQUESTS,
   type BlockedUser,
   type Circle,
   type Connection,
   type ConnectionRequest,
 } from "@/lib/circles"
 import { setCircles, useCircles } from "@/lib/circles-store"
+import {
+  acceptRequest as acceptRequestAction,
+  blockConnection as blockConnectionAction,
+  declineRequest as declineRequestAction,
+  removeConnection as removeConnectionAction,
+  sendRequest as sendRequestAction,
+  unblock as unblockAction,
+  useConnectionsState,
+} from "@/lib/connections-store"
 
 type Tab = "circles" | "people" | "blocked"
 
@@ -46,13 +51,8 @@ export default function CirclesPage() {
   const [qrOpen, setQrOpen] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState("")
-  const [discoverable, setDiscoverable] = useState<Connection[]>(MOCK_DISCOVERABLE)
-  const [sentRequestIds, setSentRequestIds] = useState<string[]>([])
-
-  const [connections, setConnections] = useState<Connection[]>(MOCK_CONNECTIONS)
-  const [requests, setRequests] = useState<ConnectionRequest[]>(MOCK_REQUESTS)
-  const [blocked, setBlocked] = useState<BlockedUser[]>(MOCK_BLOCKED)
-
+  const { connections, requests, blocked, discoverable, sentRequestIds } =
+    useConnectionsState()
   const circles = useCircles()
   const [selectedCircleId, setSelectedCircleId] = useState<string>(circles[0]?.id ?? "")
   const [isEditing, setIsEditing] = useState(false)
@@ -104,40 +104,28 @@ export default function CirclesPage() {
   // ----- handlers -----
 
   const sendRequest = (target: Connection): void => {
-    setDiscoverable((prev) => prev.filter((d) => d.id !== target.id))
-    setSentRequestIds((prev) => [...prev, target.id])
+    sendRequestAction(target)
     setSearchQuery("")
   }
 
   const acceptRequest = (req: ConnectionRequest): void => {
-    setRequests((prev) => prev.filter((r) => r.id !== req.id))
-    setConnections((prev) => [...prev, req.user])
+    acceptRequestAction(req.id)
   }
 
   const declineRequest = (req: ConnectionRequest): void => {
-    setRequests((prev) => prev.filter((r) => r.id !== req.id))
+    declineRequestAction(req.id)
   }
 
   const removeConnection = (target: Connection): void => {
-    setConnections((prev) => prev.filter((c) => c.id !== target.id))
-    setCircles((prev) =>
-      prev.map((circle) => ({
-        ...circle,
-        memberIds: circle.memberIds.filter((id) => id !== target.id),
-      })),
-    )
+    removeConnectionAction(target.id)
   }
 
   const blockConnection = (target: Connection): void => {
-    removeConnection(target)
-    setBlocked((prev) => [
-      { id: target.id, displayName: target.displayName, username: target.username, blockedAt: new Date().toISOString() },
-      ...prev,
-    ])
+    blockConnectionAction(target)
   }
 
   const unblock = (target: BlockedUser): void => {
-    setBlocked((prev) => prev.filter((b) => b.id !== target.id))
+    unblockAction(target.id)
   }
 
   const updateSelectedCircle = (updater: (c: Circle) => Circle): void => {
