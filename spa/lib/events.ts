@@ -8,6 +8,12 @@ const DAY = 24 * HOUR
 export type EventVisibility = "public" | "private"
 export type EventType = "coffee" | "hang" | "run"
 
+// Backend-mirrored RSVP statuses. "invited" is what the server defaults to
+// when a user is added as a member; the user can only *set* one of the three
+// action statuses via PATCH /events/:id/me. The home screen treats "going" as
+// "joined" and anything else as not joined.
+export type EventRsvp = "invited" | "going" | "maybe" | "declined"
+
 export interface EventItem {
   id: string
   title: string
@@ -15,6 +21,11 @@ export interface EventItem {
   startAt: string
   endAt: string
   visibility: EventVisibility
+  // Caller's RSVP from the backend. `null` means the caller is not a member of
+  // this event yet (typical for public flares discoverable on the map). The
+  // home screen seeds `joinedIds` from this so the going-badge survives a
+  // page reload.
+  myRsvp?: EventRsvp | null
   host: {
     name: string
     avatar: string
@@ -30,6 +41,18 @@ export interface EventItem {
   }
   attendees: Array<{ name: string; avatar: string; color: string }>
   going: number
+}
+
+// ---- join-state helper ----
+
+// The home screen tracks two sources of "is the caller going?":
+//   1. `event.myRsvp === "going"` — server-confirmed state via the API
+//      (attached by api/src/services/eventService.ts in the list endpoints).
+//   2. `joinedIds.has(event.id)` — optimistic overlay set by handleJoin /
+//      handleLeave before the PATCH /events/:id/me round-trip completes.
+// Components should always go through this helper so both sources agree.
+export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
+  return event.myRsvp === "going" || joinedIds.has(event.id)
 }
 
 // ---- presence / time helpers ----

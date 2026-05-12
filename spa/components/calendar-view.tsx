@@ -17,6 +17,7 @@ import {
   dayKey,
   eventDayKey,
   formatEventTime,
+  isJoined,
   isLive,
 } from "@/lib/events"
 import type { EventItem } from "@/lib/events"
@@ -369,7 +370,7 @@ export function CalendarView({
                     <EventCard
                       key={event.id}
                       event={event}
-                      joined={joinedIds.has(event.id)}
+                      joined={isJoined(event, joinedIds)}
                       onSelect={onEventSelect}
                     />
                   ))}
@@ -426,7 +427,7 @@ function DaySection({
             <EventCard
               key={event.id}
               event={event}
-              joined={joinedIds.has(event.id)}
+              joined={isJoined(event, joinedIds)}
               onSelect={onSelect}
             />
           ))}

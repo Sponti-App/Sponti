@@ -106,10 +106,15 @@ async function request<T>(
 const AUTH_BASE = process.env.NEXT_PUBLIC_AUTH_BASE_URL ?? ""
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
 
+function withApiVersionPrefix(path: string): string {
+  if (path.startsWith("/api/v1")) return path
+  return `/api/v1${path.startsWith("/") ? path : `/${path}`}`
+}
+
 export function authFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   return request<T>(AUTH_BASE, path, opts)
 }
 
 export function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  return request<T>(API_BASE, path, { auth: true, ...opts })
+  return request<T>(API_BASE, withApiVersionPrefix(path), { auth: true, ...opts })
 }
