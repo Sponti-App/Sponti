@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import {
   ArrowLeft,
   Check,
+  MoreHorizontal,
   Pencil,
   Plus,
   QrCode,
@@ -12,7 +13,6 @@ import {
   ShieldOff,
   UserMinus,
   UserPlus,
-  UserX,
   X,
 } from "lucide-react"
 import { BottomNav } from "@/components/bottom-nav"
@@ -20,6 +20,12 @@ import { CircleStackIcon } from "@/components/circle-stack-icon"
 import { QrShareSheet } from "@/components/qr-share-sheet"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -35,8 +41,8 @@ import { setCircles, useCircles } from "@/lib/circles-store"
 import {
   acceptRequest as acceptRequestAction,
   blockConnection as blockConnectionAction,
+  cancelSentRequest as cancelSentRequestAction,
   declineRequest as declineRequestAction,
-  removeConnection as removeConnectionAction,
   sendRequest as sendRequestAction,
   unblock as unblockAction,
   useConnectionsState,
@@ -51,7 +57,7 @@ export default function CirclesPage() {
   const [qrOpen, setQrOpen] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState("")
-  const { connections, requests, blocked, discoverable, sentRequestIds } =
+  const { connections, requests, blocked, discoverable, sentRequests } =
     useConnectionsState()
   const circles = useCircles()
   const [selectedCircleId, setSelectedCircleId] = useState<string>(circles[0]?.id ?? "")
@@ -59,6 +65,7 @@ export default function CirclesPage() {
   const [memberQuery, setMemberQuery] = useState("")
   const [newCircleOpen, setNewCircleOpen] = useState(false)
   const [newCircleName, setNewCircleName] = useState("")
+  const [pendingBlock, setPendingBlock] = useState<Connection | null>(null)
   const [newCircleMemberIds, setNewCircleMemberIds] = useState<string[]>([])
 
   const selectedCircle = circles.find((c) => c.id === selectedCircleId) ?? circles[0]
@@ -116,12 +123,12 @@ export default function CirclesPage() {
     declineRequestAction(req.id)
   }
 
-  const removeConnection = (target: Connection): void => {
-    removeConnectionAction(target.id)
-  }
-
   const blockConnection = (target: Connection): void => {
     blockConnectionAction(target)
+  }
+
+  const cancelSentRequest = (targetId: string): void => {
+    cancelSentRequestAction(targetId)
   }
 
   const unblock = (target: BlockedUser): void => {
@@ -218,10 +225,31 @@ export default function CirclesPage() {
               )}
             </div>
           )}
-          {sentRequestIds.length > 0 && !searchQuery.trim() && (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              {sentRequestIds.length} request{sentRequestIds.length === 1 ? "" : "s"} sent
-            </p>
+          {sentRequests.length > 0 && !searchQuery.trim() && (
+            <div className="mt-2 rounded-xl border border-border bg-card overflow-hidden">
+              <p className="px-3 pt-2.5 pb-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+                pending
+              </p>
+              <ul className="divide-y divide-border">
+                {sentRequests.map((r) => (
+                  <li key={r.id} className="flex items-center gap-3 px-3 py-2">
+                    <Avatar name={r.displayName} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{r.displayName}</p>
+                      <p className="text-xs text-muted-foreground truncate">@{r.username}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => cancelSentRequest(r.id)}
+                      className="rounded-full h-8 px-3 text-xs shrink-0"
+                    >
+                      cancel
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
 
@@ -376,143 +404,156 @@ export default function CirclesPage() {
               )}
 
               {/* Selected circle editor */}
-              {selectedCircle && (
-                <div className="rounded-xl border border-border bg-card p-3 flex flex-col gap-3 mt-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                        editing
-                      </p>
-                      {isEditing ? (
-                        <Input
-                          value={selectedCircle.name}
-                          onChange={(e) =>
-                            updateSelectedCircle((c) => ({ ...c, name: e.target.value }))
-                          }
-                          aria-label="circle name"
-                          className="mt-1 text-base font-semibold"
-                        />
-                      ) : (
-                        <p className="text-base font-semibold mt-0.5">{selectedCircle.name}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {selectedCircle.memberIds.length}{" "}
-                        {selectedCircle.memberIds.length === 1 ? "person" : "people"}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setIsEditing((v) => !v)
-                        setMemberQuery("")
-                      }}
-                      className="rounded-full h-8 text-xs shrink-0"
-                    >
-                      {isEditing ? (
-                        <>
-                          <Check className="h-3.5 w-3.5 mr-1" />
-                          done
-                        </>
-                      ) : (
-                        <>
-                          <Pencil className="h-3.5 w-3.5 mr-1" />
-                          edit
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  <div className="h-px bg-border" />
-
-                  {selectedMembers.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-                      this circle is empty.
-                    </p>
-                  ) : (
-                    <ul className="flex flex-col">
-                      {selectedMembers.map((m) => (
-                        <li
-                          key={m.id}
-                          className="flex items-center gap-3 px-1 py-2"
+              {selectedCircle && (() => {
+                const isAllFriends = selectedCircle.id === "all"
+                const displayMembers = isAllFriends ? connections : selectedMembers
+                return (
+                  <div className="rounded-xl border border-border bg-card p-3 flex flex-col gap-3 mt-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          {isAllFriends ? "all friends" : "editing"}
+                        </p>
+                        {isEditing && !isAllFriends ? (
+                          <Input
+                            value={selectedCircle.name}
+                            onChange={(e) =>
+                              updateSelectedCircle((c) => ({ ...c, name: e.target.value }))
+                            }
+                            aria-label="circle name"
+                            className="mt-1 text-base font-semibold"
+                          />
+                        ) : (
+                          <p className="text-base font-semibold mt-0.5">{selectedCircle.name}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {isAllFriends
+                            ? "synced with your connections"
+                            : `${selectedCircle.memberIds.length} ${selectedCircle.memberIds.length === 1 ? "person" : "people"}`}
+                        </p>
+                      </div>
+                      {!isAllFriends && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setIsEditing((v) => !v)
+                            setMemberQuery("")
+                          }}
+                          className="rounded-full h-8 text-xs shrink-0"
                         >
-                          <Avatar name={m.displayName} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{m.displayName}</p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              @{m.username}
-                            </p>
-                          </div>
-                          {isEditing && (
+                          {isEditing ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 mr-1" />
+                              done
+                            </>
+                          ) : (
+                            <>
+                              <Pencil className="h-3.5 w-3.5 mr-1" />
+                              edit
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="h-px bg-border" />
+
+                    {displayMembers.length === 0 ? (
+                      <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+                        this circle is empty.
+                      </p>
+                    ) : (
+                      <ul className="flex flex-col">
+                        {displayMembers.map((m) => (
+                          <li
+                            key={m.id}
+                            className="flex items-center gap-3 px-1 py-2"
+                          >
                             <button
                               type="button"
-                              onClick={() =>
-                                updateSelectedCircle((c) => ({
-                                  ...c,
-                                  memberIds: c.memberIds.filter((id) => id !== m.id),
-                                }))
-                              }
-                              aria-label={`remove ${m.displayName}`}
-                              className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground"
+                              onClick={() => router.push(`/profile/${m.username}`)}
+                              className="flex items-center gap-3 flex-1 min-w-0 text-left"
                             >
-                              <UserMinus className="h-4 w-4" />
+                              <Avatar name={m.displayName} />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{m.displayName}</p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  @{m.username}
+                                </p>
+                              </div>
                             </button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {isEditing && (
-                    <div className="flex flex-col gap-2">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-                        <Input
-                          placeholder="add a friend to this circle…"
-                          value={memberQuery}
-                          onChange={(e) => setMemberQuery(e.target.value)}
-                          className="pl-9"
-                        />
-                      </div>
-                      <ul className="flex flex-col">
-                        {memberlessConnections.length === 0 ? (
-                          <p className="text-xs text-muted-foreground px-1 py-2">
-                            no more friends to add.
-                          </p>
-                        ) : (
-                          memberlessConnections.map((c) => (
-                            <li key={c.id}>
+                            {isEditing && !isAllFriends && (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  updateSelectedCircle((circle) => ({
-                                    ...circle,
-                                    memberIds: [...circle.memberIds, c.id],
+                                onClick={() =>
+                                  updateSelectedCircle((c) => ({
+                                    ...c,
+                                    memberIds: c.memberIds.filter((id) => id !== m.id),
                                   }))
-                                  setMemberQuery("")
-                                }}
-                                className="w-full flex items-center gap-3 rounded-lg px-1 py-2 text-left hover:bg-secondary"
+                                }
+                                aria-label={`remove ${m.displayName}`}
+                                className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground"
                               >
-                                <span className="h-9 w-9 rounded-full border border-dashed border-border flex items-center justify-center text-muted-foreground shrink-0">
-                                  <Plus className="h-4 w-4" />
-                                </span>
-                                <span className="flex-1 min-w-0">
-                                  <span className="block text-sm font-medium truncate">
-                                    {c.displayName}
-                                  </span>
-                                  <span className="block text-xs text-muted-foreground truncate">
-                                    @{c.username}
-                                  </span>
-                                </span>
+                                <UserMinus className="h-4 w-4" />
                               </button>
-                            </li>
-                          ))
-                        )}
+                            )}
+                          </li>
+                        ))}
                       </ul>
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+
+                    {isEditing && !isAllFriends && (
+                      <div className="flex flex-col gap-2">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                          <Input
+                            placeholder="add a friend to this circle…"
+                            value={memberQuery}
+                            onChange={(e) => setMemberQuery(e.target.value)}
+                            className="pl-9"
+                          />
+                        </div>
+                        <ul className="flex flex-col">
+                          {memberlessConnections.length === 0 ? (
+                            <p className="text-xs text-muted-foreground px-1 py-2">
+                              no more friends to add.
+                            </p>
+                          ) : (
+                            memberlessConnections.map((c) => (
+                              <li key={c.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateSelectedCircle((circle) => ({
+                                      ...circle,
+                                      memberIds: [...circle.memberIds, c.id],
+                                    }))
+                                    setMemberQuery("")
+                                  }}
+                                  className="w-full flex items-center gap-3 rounded-lg px-1 py-2 text-left hover:bg-secondary"
+                                >
+                                  <span className="h-9 w-9 rounded-full border border-dashed border-border flex items-center justify-center text-muted-foreground shrink-0">
+                                    <Plus className="h-4 w-4" />
+                                  </span>
+                                  <span className="flex-1 min-w-0">
+                                    <span className="block text-sm font-medium truncate">
+                                      {c.displayName}
+                                    </span>
+                                    <span className="block text-xs text-muted-foreground truncate">
+                                      @{c.username}
+                                    </span>
+                                  </span>
+                                </button>
+                              </li>
+                            ))
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </TabsContent>
 
             {/* PEOPLE TAB */}
@@ -528,16 +569,22 @@ export default function CirclesPage() {
                         key={req.id}
                         className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
                       >
-                        <Avatar name={req.user.displayName} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {req.user.displayName}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            @{req.user.username}
-                            {req.user.note ? ` · ${req.user.note}` : ""}
-                          </p>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/profile/${req.user.username}`)}
+                          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                        >
+                          <Avatar name={req.user.displayName} />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {req.user.displayName}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              @{req.user.username}
+                              {req.user.note ? ` · ${req.user.note}` : ""}
+                            </p>
+                          </div>
+                        </button>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <Button
                             size="sm"
@@ -581,29 +628,43 @@ export default function CirclesPage() {
                         key={c.id}
                         className="flex items-center gap-3 px-1 py-2 border-b border-border last:border-b-0"
                       >
-                        <Avatar name={c.displayName} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{c.displayName}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            @{c.username}
-                          </p>
-                        </div>
                         <button
                           type="button"
-                          onClick={() => removeConnection(c)}
-                          aria-label={`remove ${c.displayName}`}
-                          className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground"
+                          onClick={() => router.push(`/profile/${c.username}`)}
+                          className="flex items-center gap-3 flex-1 min-w-0 text-left"
                         >
-                          <UserMinus className="h-4 w-4" />
+                          <Avatar name={c.displayName} />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{c.displayName}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              @{c.username}
+                            </p>
+                          </div>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => blockConnection(c)}
-                          aria-label={`block ${c.displayName}`}
-                          className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-destructive"
-                        >
-                          <UserX className="h-4 w-4" />
-                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label={`options for ${c.displayName}`}
+                              className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => router.push(`/profile/${c.username}`)}
+                            >
+                              view profile
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setPendingBlock(c)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              block
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </li>
                     ))}
                   </ul>
@@ -624,13 +685,19 @@ export default function CirclesPage() {
                       key={b.id}
                       className="flex items-center gap-3 px-1 py-2 border-b border-border last:border-b-0"
                     >
-                      <Avatar name={b.displayName} muted />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{b.displayName}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          @{b.username} · blocked {formatBlockedAt(b.blockedAt)}
-                        </p>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/profile/${b.username}`)}
+                        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                      >
+                        <Avatar name={b.displayName} muted />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{b.displayName}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            @{b.username} · blocked {formatBlockedAt(b.blockedAt)}
+                          </p>
+                        </div>
+                      </button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -661,6 +728,44 @@ export default function CirclesPage() {
             handle={user?.username ?? "you"}
             onClose={() => setQrOpen(false)}
           />
+        )}
+
+        {pendingBlock && (
+          <div
+            className="absolute inset-0 z-20 flex items-end bg-black/40"
+            onClick={() => setPendingBlock(null)}
+          >
+            <div
+              className="w-full rounded-t-2xl bg-card p-5 flex flex-col gap-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div>
+                <p className="text-base font-semibold">block {pendingBlock.displayName}?</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  They won&apos;t appear in your circles or see your flares. You can unblock
+                  them later from the blocked tab.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={() => {
+                    blockConnection(pendingBlock)
+                    setPendingBlock(null)
+                  }}
+                  className="rounded-full bg-destructive text-white hover:bg-destructive/90 w-full"
+                >
+                  block
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setPendingBlock(null)}
+                  className="rounded-full w-full"
+                >
+                  cancel
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
     </div>
   )
