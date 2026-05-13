@@ -8,7 +8,8 @@ import type {
 
 const MIN = 60_000
 
-// TODO: Once google map API is added, use real location data
+// TODO: Replace this fallback once Places/Maps selection provides real
+// coordinates and addresses from the user's chosen location.
 export const TEMP_EVENT_LOCATION_FALLBACK = {
   locationName: "Hamburg",
   locationAddress: "Hamburg, Germany",
@@ -54,6 +55,10 @@ function hostFromApi(host: ApiEvent["hostId"]): EventItem["host"] {
   }
 }
 
+/**
+ * Converts a backend event document into the EventItem shape consumed by the
+ * home map/calendar UI.
+ */
 export function adaptApiEvent(api: ApiEvent): EventItem {
   return {
     id: api._id,
@@ -81,6 +86,9 @@ export function adaptApiEvent(api: ApiEvent): EventItem {
   }
 }
 
+/**
+ * Maps the create-event sharing toggles to the backend guest-invite mode.
+ */
 export function guestInviteModeFromDraft(
   draft: DraftEvent
 ): EventGuestInviteMode {
@@ -90,6 +98,10 @@ export function guestInviteModeFromDraft(
   return "none"
 }
 
+/**
+ * Resolves the form's current/search/saved location fields into the backend
+ * location payload. Coordinates are temporary until Places/Maps is wired.
+ */
 function locationFromDraft(
   draft: DraftEvent
 ): Pick<CreateEventRequest, "locationName" | "locationAddress" | "location"> {
@@ -112,6 +124,10 @@ function locationFromDraft(
   return TEMP_EVENT_LOCATION_FALLBACK
 }
 
+/**
+ * Derives ISO start/end timestamps from the draft when the caller does not
+ * provide the exact range already computed by the form.
+ */
 export function timeRangeFromDraft(draft: DraftEvent): EventTimeRange {
   let startMs: number
 
@@ -132,6 +148,10 @@ export function timeRangeFromDraft(draft: DraftEvent): EventTimeRange {
   }
 }
 
+/**
+ * Builds the POST /events request body from the create-event draft plus the
+ * resolved audience target.
+ */
 export function createEventRequestFromDraft(
   draft: DraftEvent,
   audience: EventAudienceTarget,
@@ -160,6 +180,10 @@ export function createEventRequestFromDraft(
   }
 }
 
+/**
+ * Converts compact ETA labels from the detail sheet into an ISO arrival time
+ * for the RSVP endpoint.
+ */
 export function etaToIso(eta: string | null): string | null {
   if (!eta) return null
   const trimmed = eta.trim().toLowerCase()
