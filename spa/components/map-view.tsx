@@ -24,6 +24,7 @@ import {
   avatarText,
   distanceFromUser,
   eventCoords,
+  EventType,
   formatRelativeStatus,
   isJoined,
   isLive,
@@ -37,6 +38,7 @@ import {
 } from "@/lib/geolocation"
 import { useMapEvents } from "@/lib/use-events"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
+import { EVENT_TYPES } from "@/types/utils"
 
 // Hex equivalent of --accent (oklch 0.55 0.19 25). Google Maps overlays can't
 // read CSS variables, so we mirror the token here. Keep in sync with globals.css.
@@ -81,6 +83,18 @@ function FitBoundsOnce({
     map.fitBounds(bounds, 80)
   }, [map, origin, destination])
   return null
+}
+
+function eventIcon(type: EventType, avatar: string) {
+  const match = EVENT_TYPES.find((t) => t.value === type)
+
+  if (!match) {
+    return <>{avatar}</>
+  }
+
+  const Icon = match.icon
+
+  return <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
 }
 
 function StaticMapFallback({
@@ -133,7 +147,7 @@ function StaticMapFallback({
                   : ""
               }`}
             >
-              {event.host.avatar}
+              {eventIcon(event.type, event.host.avatar)}
             </div>
             <div className="mt-1 rounded bg-card px-2 py-1 text-center text-xs shadow-md">
               <span className="font-medium">{event.host.name}</span>
@@ -590,7 +604,7 @@ function FlareCard({
       <div
         className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium ${event.host.color} ${avatarText(event.host.color)}`}
       >
-        {event.host.avatar}
+        {eventIcon(event.type, event.host.avatar)}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">

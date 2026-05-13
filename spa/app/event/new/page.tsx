@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import {
   ArrowLeft,
   Check,
-  Dumbbell,
   MapPin,
   Minus,
   Pencil,
@@ -13,9 +12,6 @@ import {
   Search,
   Sparkles,
   UserPlus,
-  Users,
-  UtensilsCrossed,
-  Wine,
   X,
 } from "lucide-react"
 import { BottomNav } from "@/components/bottom-nav"
@@ -32,7 +28,7 @@ import {
   pushDraftAsHosted,
   type Audience,
   type DraftEvent,
-  type DraftEventType as EventType,
+  type EventType,
   type Recurrence,
 } from "@/lib/api/events"
 import {
@@ -42,6 +38,7 @@ import {
 import { fetchAcceptedConnections } from "@/lib/api/connections"
 import { type Circle, type Connection } from "@/lib/circles"
 import { setCircles, useCircles } from "@/lib/circles-store"
+import { EVENT_TYPES } from "@/types/utils"
 
 type Mode = "now" | "scheduled"
 type WhereType = "current" | "search" | "saved"
@@ -54,17 +51,6 @@ const MIN_DURATION_MIN = 15 // duration ≥ 15min
 const SCHEDULED_MAX_DAYS = 14
 const SCHEDULED_DAY_START_MIN = 6 * 60 // 06:00
 const SCHEDULED_DAY_END_MIN = 26 * 60 // 02:00 next-day
-
-const EVENT_TYPES: {
-  value: EventType
-  label: string
-  icon: typeof UtensilsCrossed
-}[] = [
-  { value: "food", label: "food", icon: UtensilsCrossed },
-  { value: "drinks", label: "drinks", icon: Wine },
-  { value: "sports", label: "sports", icon: Dumbbell },
-  { value: "hangout", label: "hang out", icon: Users },
-]
 
 const RECURRENCE_OPTIONS: { value: Recurrence; label: string }[] = [
   { value: "none", label: "no repeat" },
@@ -233,7 +219,7 @@ export default function NewEventPage() {
   const [customListName, setCustomListName] = useState("")
   const [pickerOpen, setPickerOpen] = useState(false)
   const [allowForward, setAllowForward] = useState(false)
-  const [allowPlusOne, setAllowPlusOne] = useState(true)
+  const [allowPlusOne, setAllowPlusOne] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -622,7 +608,8 @@ export default function NewEventPage() {
                 {formatTimeOfDay(endTimeMin)}
               </p>
             </Section>
-            <Section label="repeat">
+            {/* TODO: V2 add recurring events */}
+            {/* <Section label="repeat">
               <ChipRow>
                 {RECURRENCE_OPTIONS.map((r) => (
                   <Chip
@@ -634,7 +621,7 @@ export default function NewEventPage() {
                   </Chip>
                 ))}
               </ChipRow>
-            </Section>
+            </Section> */}
           </TabsContent>
 
           {/* WHERE */}

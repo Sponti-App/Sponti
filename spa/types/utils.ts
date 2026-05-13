@@ -1,6 +1,13 @@
-import { Types } from "mongoose"
-import { z } from "zod"
+import { type EventType } from "@/lib/api/events"
+import { Dumbbell, Users, UtensilsCrossed, Wine } from "lucide-react"
 
-export const objectIdSchema = z
-  .string()
-  .refine((value) => Types.ObjectId.isValid(value), "Invalid MongoDB ObjectId")
+export const EVENT_TYPES: {
+  value: EventType
+  label: string
+  icon: typeof UtensilsCrossed
+}[] = [
+  { value: "food", label: "food", icon: UtensilsCrossed },
+  { value: "drinks", label: "drinks", icon: Wine },
+  { value: "sports", label: "sports", icon: Dumbbell },
+  { value: "hangout", label: "hang out", icon: Users },
+]
