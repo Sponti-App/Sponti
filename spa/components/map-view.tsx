@@ -12,8 +12,8 @@ import {
 } from "@vis.gl/react-google-maps"
 import { Card } from "@/components/ui/card"
 import { ChevronRight, ChevronUp, Check, Flame } from "lucide-react"
-import { avatarText, events } from "@/lib/events"
-import type { EventItem } from "@/lib/events"
+import { avatarText, events } from "@/lib/api/events/events"
+import type { EventItem } from "@/lib/api/events/events"
 
 const mapEvents = events.filter((e) => e.position != null)
 
