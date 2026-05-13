@@ -209,8 +209,6 @@ Table event_members {
   role role
   rsvpStatus rsvpStatus
 
-  canInviteGuests boolean
-
   memberWillArriveAt datetime // The time, calculate it before (null if it's the host)
 
   createdAt datetime
