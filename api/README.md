@@ -18,6 +18,7 @@ Required environment variables:
 - `DB_NAME`
 - `PORT`
 - `CLIENT_BASE_URL`
+- `CORS_ORIGINS` (optional comma-separated override)
 - `ACCESS_JWT_SECRET`
 
 ## Scripts
@@ -70,7 +71,8 @@ QR token routes currently return `501` until the frontend contract is finalized.
 
 ## Notes
 
-- CORS allows `CLIENT_BASE_URL`.
+- CORS allows `CLIENT_BASE_URL`, normalizing trailing slashes. In development it also allows
+  standard local SPA/Capacitor origins unless `CORS_ORIGINS` is set.
 - Responses use `{ data }` or `{ error }`.
 - Validation errors return `400`.
 - Duplicate Mongo keys return `409`.

@@ -9,6 +9,7 @@ const envSchema = z.object({
   DB_NAME: z.string().min(1, "DB_NAME is required"),
   PORT: z.coerce.number().int().positive().default(4000),
   CLIENT_BASE_URL: z.string().url("CLIENT_BASE_URL must be a valid URL"),
+  CORS_ORIGINS: z.string().optional(),
   ACCESS_JWT_SECRET: z.string().min(1, "ACCESS_JWT_SECRET is required"),
   // Used by the /maps/route proxy to call Google Routes API server-side so the
   // key never ships to the SPA. Optional: when unset, the route endpoint
