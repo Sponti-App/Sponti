@@ -307,3 +307,37 @@ export const updateAvatar = async (req: Request, res: Response) => {
 
     streamfier.createReadStream(fileBuffer).pipe(uploadResult);
 };
+
+export const updateProfile = async (req: Request, res: Response) => {
+    const { displayName, username, email, profileVisibility } = req.body;
+    const user = await User.findById(req.userId);
+
+    if (!user) {
+        throw new Error("User not found", { cause: { status: 404 } });
+    }
+
+    if (username && username !== user.username) {
+        const usernameExists = await User.exists({ username });
+
+        if (usernameExists) {
+            throw new Error("Username already taken", { cause: { status: 409 } });
+        }
+        user.username = username;
+    }
+
+    if (email && email.toLowerCase() !== user.email) {
+        const normalizedEmail = email.toLowerCase();
+        const emailExists = await User.exists({ email: normalizedEmail });
+        if (emailExists) {
+            throw new Error("Email already in use", { cause: { status: 409 } });
+        }
+        user.email = normalizedEmail;
+    }
+
+    if (displayName) user.displayName = displayName;
+    if (profileVisibility) user.profileVisibility = profileVisibility;
+
+    await user.save();
+
+    res.json({ user: toUserResponse(user) });
+}; 
