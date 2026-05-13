@@ -1,5 +1,5 @@
-// Frontend event shape. Kept close to the backend `Event` model so the API
-// adapter in lib/api/events.ts is a thin mapping rather than a translation.
+// Frontend event shape consumed by the home map/calendar UI. The backend API
+// adapter maps Mongo event documents into this view model.
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -7,11 +7,6 @@ const DAY = 24 * HOUR
 
 export type EventVisibility = "public" | "private"
 export type EventType = "coffee" | "hang" | "run"
-
-// Backend-mirrored RSVP statuses. "invited" is what the server defaults to
-// when a user is added as a member; the user can only *set* one of the three
-// action statuses via PATCH /events/:id/me. The home screen treats "going" as
-// "joined" and anything else as not joined.
 export type EventRsvp = "invited" | "going" | "maybe" | "declined"
 
 export interface EventItem {
@@ -21,10 +16,6 @@ export interface EventItem {
   startAt: string
   endAt: string
   visibility: EventVisibility
-  // Caller's RSVP from the backend. `null` means the caller is not a member of
-  // this event yet (typical for public flares discoverable on the map). The
-  // home screen seeds `joinedIds` from this so the going-badge survives a
-  // page reload.
   myRsvp?: EventRsvp | null
   host: {
     name: string
@@ -36,31 +27,22 @@ export interface EventItem {
     name: string
     area?: string
     address?: string
-    // [lng, lat] — GeoJSON order, matches backend `location.coordinates`.
     coordinates?: [number, number]
   }
   attendees: Array<{ name: string; avatar: string; color: string }>
   going: number
 }
 
-// ---- join-state helper ----
-
-// The home screen tracks two sources of "is the caller going?":
-//   1. `event.myRsvp === "going"` — server-confirmed state via the API
-//      (attached by api/src/services/eventService.ts in the list endpoints).
-//   2. `joinedIds.has(event.id)` — optimistic overlay set by handleJoin /
-//      handleLeave before the PATCH /events/:id/me round-trip completes.
-// Components should always go through this helper so both sources agree.
 export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
   return event.myRsvp === "going" || joinedIds.has(event.id)
 }
 
-// ---- presence / time helpers ----
-
-export function isImminent(event: EventItem, now: number = Date.now()): boolean {
+export function isImminent(
+  event: EventItem,
+  now: number = Date.now()
+): boolean {
   const start = new Date(event.startAt).getTime()
   const end = new Date(event.endAt).getTime()
-  // Imminent = live now OR starting within the next 30 minutes
   return now >= start - 30 * MIN && now <= end
 }
 
@@ -70,14 +52,12 @@ export function isLive(event: EventItem, now: number = Date.now()): boolean {
   return now >= start && now <= end
 }
 
-export function eventDayKey(event: EventItem): string {
-  // Returns YYYY-MM-DD in local time
-  const d = new Date(event.startAt)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-}
-
 export function dayKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+
+export function eventDayKey(event: EventItem): string {
+  return dayKey(new Date(event.startAt))
 }
 
 export function formatEventTime(event: EventItem): string {
@@ -87,7 +67,10 @@ export function formatEventTime(event: EventItem): string {
   })
 }
 
-export function formatRelativeStatus(event: EventItem, now: number = Date.now()): string {
+export function formatRelativeStatus(
+  event: EventItem,
+  now: number = Date.now()
+): string {
   const start = new Date(event.startAt).getTime()
   if (isLive(event, now)) return "happening now"
   const diffMs = start - now
@@ -97,8 +80,8 @@ export function formatRelativeStatus(event: EventItem, now: number = Date.now())
   const sameDay = dayKey(new Date(start)) === dayKey(new Date(now))
   if (sameDay) return formatEventTime(event)
   const tomorrowKey = dayKey(new Date(now + DAY))
-  if (dayKey(new Date(start)) === tomorrowKey) return `${formatEventTime(event)} tomorrow`
-  // Otherwise: weekday + time, e.g. "Sat 10am"
+  if (dayKey(new Date(start)) === tomorrowKey)
+    return `${formatEventTime(event)} tomorrow`
   return new Date(start).toLocaleString(undefined, {
     weekday: "short",
     hour: "numeric",
@@ -106,21 +89,17 @@ export function formatRelativeStatus(event: EventItem, now: number = Date.now())
   })
 }
 
-// ---- color helpers ----
-
 export function avatarText(bgColor: string): string {
   return bgColor === "bg-accent" || bgColor === "bg-stone-800"
     ? "text-accent-foreground"
     : "text-foreground"
 }
 
-// ---- distance/walk helpers (Haversine; ~ok for sub-50km) ----
-
 const EARTH_RADIUS_M = 6_371_000
 
 function haversineMeters(
   a: { lat: number; lng: number },
-  b: { lat: number; lng: number },
+  b: { lat: number; lng: number }
 ): number {
   const toRad = (v: number) => (v * Math.PI) / 180
   const dLat = toRad(b.lat - a.lat)
@@ -135,7 +114,7 @@ function haversineMeters(
 
 export function distanceFromUser(
   event: EventItem,
-  user: { lat: number; lng: number } | null,
+  user: { lat: number; lng: number } | null
 ): { meters: number; label: string } | null {
   if (!user || !event.location.coordinates) return null
   const [lng, lat] = event.location.coordinates
@@ -144,7 +123,6 @@ export function distanceFromUser(
 }
 
 export function formatDistance(meters: number): string {
-  // Approximate units; backend can later canonicalize to user locale.
   const miles = meters / 1609.344
   if (miles < 0.1) return `${Math.round(meters)} m`
   if (miles < 10) return `${miles.toFixed(1)} mi`
@@ -152,7 +130,6 @@ export function formatDistance(meters: number): string {
 }
 
 export function walkTimeLabel(meters: number): string {
-  // ~80m/min ≈ 4.8 km/h walking pace
   const minutes = Math.max(1, Math.round(meters / 80))
   if (minutes < 60) return `${minutes} min walk`
   const hours = Math.floor(minutes / 60)
@@ -160,13 +137,13 @@ export function walkTimeLabel(meters: number): string {
   return rem === 0 ? `${hours} hr walk` : `${hours}h ${rem}m walk`
 }
 
-export function eventCoords(event: EventItem): { lat: number; lng: number } | null {
+export function eventCoords(
+  event: EventItem
+): { lat: number; lng: number } | null {
   if (!event.location.coordinates) return null
   const [lng, lat] = event.location.coordinates
   return { lat, lng }
 }
-
-// ---- mock seed (replaced by API once NEXT_PUBLIC_API_BASE_URL is wired) ----
 
 const now = Date.now()
 
@@ -182,7 +159,7 @@ export const events: EventItem[] = [
       name: "Mira",
       avatar: "M",
       color: "bg-accent",
-      note: "grabbing a latte before my 4pm — pop by if you're around ☕",
+      note: "grabbing a latte before my 4pm",
     },
     location: {
       name: "Reuben's Espresso",
@@ -252,7 +229,7 @@ export const events: EventItem[] = [
       name: "Lina",
       avatar: "L",
       color: "bg-stone-500",
-      note: "we're on chapter 4 — show up even if you didn't read 📚",
+      note: "we're on chapter 4 - show up even if you didn't read",
     },
     location: {
       name: "Lina's place",

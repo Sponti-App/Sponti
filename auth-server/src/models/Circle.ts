@@ -9,6 +9,7 @@ interface CircleDocument {
   name: string;
   color: string;
   type: CircleType;
+  icon?: string | null;
 }
 
 const circleSchema = new Schema<CircleDocument>(
@@ -35,10 +36,20 @@ const circleSchema = new Schema<CircleDocument>(
       trim: true,
       default: "close",
     },
+    icon: {
+      type: String,
+      default: null,
+      trim: true,
+    },
   },
   {
     timestamps: true,
   },
+);
+
+circleSchema.index(
+  { ownerId: 1, name: 1 },
+  { unique: true, collation: { locale: "en", strength: 2 } },
 );
 
 export const Circle = model("Circle", circleSchema);

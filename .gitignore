@@ -3,6 +3,6 @@
 .env
 .env.*
 !.env.example
-
+.vscode
 # os
 .DS_Store
