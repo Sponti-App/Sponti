@@ -22,6 +22,12 @@ export type LoginPayload = {
 export type RefreshPayload = {
   refreshToken: string
 }
+export type UpdateProfilePayload = {
+  displayName?: string
+  username?: string
+  email?: string
+  profileVisibility?: "public" | "private"
+}
 
 export function register(payload: RegisterPayload): Promise<AuthResponse> {
   return authFetch<AuthResponse>("/auth/register", { method: "POST", body: payload })
@@ -58,6 +64,13 @@ export function uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
     auth: true,
     formData: true,
     body: formData,
+  })
+}
+export function updateProfile(payload: UpdateProfilePayload): Promise<{ user: AuthUser }> {
+  return authFetch<{ user: AuthUser }>("/auth/me/profile", {
+    method: "PATCH",
+    auth: true,
+    body: payload,
   })
 }
 
