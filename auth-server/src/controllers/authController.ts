@@ -16,6 +16,8 @@ import {
   hashRefreshToken,
   verifyRefreshToken,
 } from "#lib/tokens";
+import cloudinary from "#lib/cloudinary";
+import streamfier from "streamifier";
 
 const toUserResponse = (user: InstanceType<typeof User>) => ({
   id: user._id.toString(),
@@ -292,4 +294,46 @@ export const resetPassword = async (req: Request, res: Response) => {
   await PasswordResetToken.findByIdAndUpdate(record._id, { used: true });
 
   res.json({ message: "Password updated successfully." });
+};
+
+export const updateAvatar = async (req: Request, res: Response) => {
+  const user = await User.findById(req.userId);
+
+  if (!user) {
+    throw new Error("User not found", { cause: { status: 404 } });
+  }
+
+  if (!req.file) {
+    throw new Error("No file uploaded", { cause: { status: 400 } });
+  }
+
+  const fileBuffer = req.file.buffer;
+  const uploadResult = await cloudinary.uploader.upload_stream(
+    {
+      folder: "avatars",
+      public_id: `${user._id}-${Date.now()}`,
+      overwrite: true,
+      resource_type: "image",
+    },
+    async (error, result) => {
+      if (error || !result) {
+        console.error("Cloudinary upload error:", error);
+        throw new Error("Failed to upload avatar", { cause: { status: 500 } });
+      }
+
+      const oldPublicId = user.avatarPublicId;
+
+      user.avatarUrl = result.secure_url;
+      user.avatarPublicId = result.public_id;
+      await user.save();
+
+      if (oldPublicId) {
+        await cloudinary.uploader.destroy(oldPublicId);
+      }
+
+      res.json({ avatarUrl: user.avatarUrl });
+    },
+  );
+
+  streamfier.createReadStream(fileBuffer).pipe(uploadResult);
 };

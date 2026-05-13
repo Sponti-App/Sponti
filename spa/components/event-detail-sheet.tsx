@@ -13,8 +13,14 @@ import {
   Navigation,
   X,
 } from "lucide-react"
-import { avatarText, isImminent } from "@/lib/api/events/events"
-import type { EventItem } from "@/lib/api/events/events"
+import {
+  avatarText,
+  eventCoords,
+  formatEventTime,
+  formatRelativeStatus,
+  isImminent,
+} from "@/lib/events"
+import type { EventItem } from "@/lib/events"
 
 const ETA_OPTIONS = ["5 min", "15 min", "30 min", "1 hr"]
 
@@ -94,7 +100,7 @@ export function EventDetailSheet({
               <h2 className="text-xl font-semibold">{event.title}</h2>
               <div className="flex items-center gap-1 text-sm text-accent">
                 <Flame className="h-4 w-4" />
-                <span>{event.status}</span>
+                <span>{formatRelativeStatus(event)}</span>
               </div>
             </div>
             {joined && (
@@ -123,24 +129,20 @@ export function EventDetailSheet({
 
           {/* Where */}
           <div className="mb-4">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs tracking-wide text-muted-foreground uppercase">
-                Where
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {event.location.walkTime}
-              </span>
-            </div>
+            <span className="mb-2 block text-xs tracking-wide text-muted-foreground uppercase">
+              Where
+            </span>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border">
                 <MapPin className="h-5 w-5 text-muted-foreground" />
               </div>
-              <div>
-                <p className="font-medium">{event.location.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {event.location.area} · {event.location.distance} ·{" "}
-                  {event.location.walkTime}
-                </p>
+              <div className="min-w-0">
+                <p className="truncate font-medium">{event.location.name}</p>
+                {(event.location.area || event.location.address) && (
+                  <p className="truncate text-sm text-muted-foreground">
+                    {event.location.area ?? event.location.address}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -201,7 +203,7 @@ export function EventDetailSheet({
           {/* CTAs */}
           {joined ? (
             <div className="space-y-2">
-              {imminent && event.position && (
+              {imminent && eventCoords(event) && (
                 <Button
                   className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
                   onClick={() => onSeeRoute(event)}
@@ -244,7 +246,7 @@ export function EventDetailSheet({
             >
               <Check className="mr-1 h-4 w-4" />
               I&apos;m in
-              {event.calendarTime ? ` · ${event.calendarTime}` : ""}
+              {` · ${formatEventTime(event)}`}
             </Button>
           )}
         </div>
