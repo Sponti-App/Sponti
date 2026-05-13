@@ -27,8 +27,8 @@ import {
   formatRelativeStatus,
   isJoined,
   isLive,
-} from "@/lib/events"
-import type { EventItem } from "@/lib/events"
+  type EventItem,
+} from "@/lib/api/events"
 import {
   FALLBACK_COORDS,
   useGeolocation,

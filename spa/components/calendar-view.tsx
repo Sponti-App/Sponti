@@ -19,8 +19,8 @@ import {
   formatEventTime,
   isJoined,
   isLive,
-} from "@/lib/events"
-import type { EventItem } from "@/lib/events"
+  type EventItem,
+} from "@/lib/api/events"
 import { useCalendarEvents } from "@/lib/use-events"
 
 const MONTH_NAMES = [

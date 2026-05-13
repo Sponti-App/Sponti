@@ -19,8 +19,8 @@ import {
   formatEventTime,
   formatRelativeStatus,
   isImminent,
-} from "@/lib/events"
-import type { EventItem } from "@/lib/events"
+  type EventItem,
+} from "@/lib/api/events"
 
 const ETA_OPTIONS = ["5 min", "15 min", "30 min", "1 hr"]
 

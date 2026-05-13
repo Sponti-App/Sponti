@@ -10,9 +10,13 @@ import { NotificationsPopover } from "@/components/notifications-popover"
 import { useAuth } from "@/components/auth-provider"
 import { AccountAvatar } from "@/components/account-avatar"
 import { Bell, Map, Calendar, Navigation, X } from "lucide-react"
-import { isImminent, isJoined } from "@/lib/events"
-import type { EventItem } from "@/lib/events"
-import { etaToIso, updateMyRsvp } from "@/lib/api/events"
+import {
+  etaToIso,
+  isImminent,
+  isJoined,
+  updateMyRsvp,
+  type EventItem,
+} from "@/lib/api/events"
 import { MOCK_NOTIFICATIONS } from "@/lib/notifications"
 
 export default function Home() {

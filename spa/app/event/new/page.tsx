@@ -27,18 +27,19 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import {
+  createEvent,
+  createEventRequestFromDraft,
+  pushDraftAsHosted,
   type Audience,
   type DraftEvent,
-  type EventType,
+  type DraftEventType as EventType,
   type Recurrence,
-} from "@/lib/draft-events"
-import { pushDraftAsHosted } from "@/lib/host-events"
+} from "@/lib/api/events"
 import {
   createCircle as createCircleRequest,
   fetchMyCircles,
 } from "@/lib/api/circles"
 import { fetchAcceptedConnections } from "@/lib/api/connections"
-import { createEvent, createEventRequestFromDraft } from "@/lib/api/events"
 import { type Circle, type Connection } from "@/lib/circles"
 import { setCircles, useCircles } from "@/lib/circles-store"
 

@@ -1,12 +1,17 @@
-import type { DraftEvent } from "@/lib/draft-events"
-import type { EventItem, EventType } from "@/lib/events"
 import type {
   ApiEvent,
   CreateEventRequest,
+  DraftEvent,
+  EventAudienceTarget,
+  EventCoordinates,
   EventGuestInviteMode,
+  EventItem,
+  EventTimeRange,
+  EventType,
 } from "./events.types"
 
 const MIN = 60_000
+const DAY = 24 * 60 * MIN
 
 // TODO: Replace this fallback once Places/Maps selection provides real
 // coordinates and addresses from the user's chosen location.
@@ -17,16 +22,6 @@ export const TEMP_EVENT_LOCATION_FALLBACK = {
     type: "Point" as const,
     coordinates: [9.9937, 53.5511] as [number, number],
   },
-}
-
-export type EventAudienceTarget =
-  | { kind: "public" }
-  | { kind: "circle"; circleId: string }
-  | { kind: "members"; memberIds: string[] }
-
-type EventTimeRange = {
-  startAt: string
-  endAt: string
 }
 
 const TYPE_KEYWORDS: Array<{ test: RegExp; type: EventType }> = [
@@ -40,6 +35,113 @@ const TYPE_KEYWORDS: Array<{ test: RegExp; type: EventType }> = [
 function inferType(title: string): EventType {
   for (const { test, type } of TYPE_KEYWORDS) if (test.test(title)) return type
   return "hang"
+}
+
+export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
+  return event.myRsvp === "going" || joinedIds.has(event.id)
+}
+
+export function isImminent(
+  event: EventItem,
+  now: number = Date.now()
+): boolean {
+  const start = new Date(event.startAt).getTime()
+  const end = new Date(event.endAt).getTime()
+  return now >= start - 30 * MIN && now <= end
+}
+
+export function isLive(event: EventItem, now: number = Date.now()): boolean {
+  const start = new Date(event.startAt).getTime()
+  const end = new Date(event.endAt).getTime()
+  return now >= start && now <= end
+}
+
+export function dayKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+
+export function eventDayKey(event: EventItem): string {
+  return dayKey(new Date(event.startAt))
+}
+
+export function formatEventTime(event: EventItem): string {
+  return new Date(event.startAt).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
+export function formatRelativeStatus(
+  event: EventItem,
+  now: number = Date.now()
+): string {
+  const start = new Date(event.startAt).getTime()
+  if (isLive(event, now)) return "happening now"
+  const diffMs = start - now
+  if (diffMs < 0) return "ended"
+  const diffMin = Math.round(diffMs / MIN)
+  if (diffMin < 60) return `in ${diffMin} min`
+  const sameDay = dayKey(new Date(start)) === dayKey(new Date(now))
+  if (sameDay) return formatEventTime(event)
+  const tomorrowKey = dayKey(new Date(now + DAY))
+  if (dayKey(new Date(start)) === tomorrowKey)
+    return `${formatEventTime(event)} tomorrow`
+  return new Date(start).toLocaleString(undefined, {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
+export function avatarText(bgColor: string): string {
+  return bgColor === "bg-accent" || bgColor === "bg-stone-800"
+    ? "text-accent-foreground"
+    : "text-foreground"
+}
+
+const EARTH_RADIUS_M = 6_371_000
+
+function haversineMeters(a: EventCoordinates, b: EventCoordinates): number {
+  const toRad = (v: number) => (v * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2)
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h))
+}
+
+export function distanceFromUser(
+  event: EventItem,
+  user: EventCoordinates | null
+): { meters: number; label: string } | null {
+  if (!user || !event.location.coordinates) return null
+  const [lng, lat] = event.location.coordinates
+  const meters = haversineMeters(user, { lat, lng })
+  return { meters, label: formatDistance(meters) }
+}
+
+export function formatDistance(meters: number): string {
+  const miles = meters / 1609.344
+  if (miles < 0.1) return `${Math.round(meters)} m`
+  if (miles < 10) return `${miles.toFixed(1)} mi`
+  return `${Math.round(miles)} mi`
+}
+
+export function walkTimeLabel(meters: number): string {
+  const minutes = Math.max(1, Math.round(meters / 80))
+  if (minutes < 60) return `${minutes} min walk`
+  const hours = Math.floor(minutes / 60)
+  const rem = minutes % 60
+  return rem === 0 ? `${hours} hr walk` : `${hours}h ${rem}m walk`
+}
+
+export function eventCoords(event: EventItem): EventCoordinates | null {
+  if (!event.location.coordinates) return null
+  const [lng, lat] = event.location.coordinates
+  return { lat, lng }
 }
 
 function hostFromApi(host: ApiEvent["hostId"]): EventItem["host"] {
