@@ -1,20 +1,31 @@
-export function isImminent(event: EventItem): boolean {
-  return event.status === "happening now"
-}
+// Frontend event shape. Kept close to the backend `Event` model so the API
+// adapter in lib/api/events.ts is a thin mapping rather than a translation.
 
-export function avatarText(bgColor: string): string {
-  return bgColor === "bg-accent" || bgColor === "bg-stone-800"
-    ? "text-accent-foreground"
-    : "text-foreground"
-}
+const MIN = 60_000
+const HOUR = 60 * MIN
+const DAY = 24 * HOUR
+
+export type EventVisibility = "public" | "private"
+export type EventType = "coffee" | "hang" | "run"
+
+// Backend-mirrored RSVP statuses. "invited" is what the server defaults to
+// when a user is added as a member; the user can only *set* one of the three
+// action statuses via PATCH /events/:id/me. The home screen treats "going" as
+// "joined" and anything else as not joined.
+export type EventRsvp = "invited" | "going" | "maybe" | "declined"
 
 export interface EventItem {
-  id: number
+  id: string
   title: string
-  type: "coffee" | "hang" | "run"
-  status: string
-  calendarTime?: string
-  calendarDay?: "today" | "tomorrow"
+  type: EventType
+  startAt: string
+  endAt: string
+  visibility: EventVisibility
+  // Caller's RSVP from the backend. `null` means the caller is not a member of
+  // this event yet (typical for public flares discoverable on the map). The
+  // home screen seeds `joinedIds` from this so the going-badge survives a
+  // page reload.
+  myRsvp?: EventRsvp | null
   host: {
     name: string
     avatar: string
@@ -23,23 +34,150 @@ export interface EventItem {
   }
   location: {
     name: string
-    area: string
-    distance: string
-    walkTime: string
+    area?: string
+    address?: string
+    // [lng, lat] — GeoJSON order, matches backend `location.coordinates`.
+    coordinates?: [number, number]
   }
   attendees: Array<{ name: string; avatar: string; color: string }>
   going: number
-  position?: { lat: number; lng: number }
 }
+
+// ---- join-state helper ----
+
+// The home screen tracks two sources of "is the caller going?":
+//   1. `event.myRsvp === "going"` — server-confirmed state via the API
+//      (attached by api/src/services/eventService.ts in the list endpoints).
+//   2. `joinedIds.has(event.id)` — optimistic overlay set by handleJoin /
+//      handleLeave before the PATCH /events/:id/me round-trip completes.
+// Components should always go through this helper so both sources agree.
+export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
+  return event.myRsvp === "going" || joinedIds.has(event.id)
+}
+
+// ---- presence / time helpers ----
+
+export function isImminent(event: EventItem, now: number = Date.now()): boolean {
+  const start = new Date(event.startAt).getTime()
+  const end = new Date(event.endAt).getTime()
+  // Imminent = live now OR starting within the next 30 minutes
+  return now >= start - 30 * MIN && now <= end
+}
+
+export function isLive(event: EventItem, now: number = Date.now()): boolean {
+  const start = new Date(event.startAt).getTime()
+  const end = new Date(event.endAt).getTime()
+  return now >= start && now <= end
+}
+
+export function eventDayKey(event: EventItem): string {
+  // Returns YYYY-MM-DD in local time
+  const d = new Date(event.startAt)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+export function dayKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+
+export function formatEventTime(event: EventItem): string {
+  return new Date(event.startAt).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
+export function formatRelativeStatus(event: EventItem, now: number = Date.now()): string {
+  const start = new Date(event.startAt).getTime()
+  if (isLive(event, now)) return "happening now"
+  const diffMs = start - now
+  if (diffMs < 0) return "ended"
+  const diffMin = Math.round(diffMs / MIN)
+  if (diffMin < 60) return `in ${diffMin} min`
+  const sameDay = dayKey(new Date(start)) === dayKey(new Date(now))
+  if (sameDay) return formatEventTime(event)
+  const tomorrowKey = dayKey(new Date(now + DAY))
+  if (dayKey(new Date(start)) === tomorrowKey) return `${formatEventTime(event)} tomorrow`
+  // Otherwise: weekday + time, e.g. "Sat 10am"
+  return new Date(start).toLocaleString(undefined, {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
+// ---- color helpers ----
+
+export function avatarText(bgColor: string): string {
+  return bgColor === "bg-accent" || bgColor === "bg-stone-800"
+    ? "text-accent-foreground"
+    : "text-foreground"
+}
+
+// ---- distance/walk helpers (Haversine; ~ok for sub-50km) ----
+
+const EARTH_RADIUS_M = 6_371_000
+
+function haversineMeters(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const toRad = (v: number) => (v * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2)
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h))
+}
+
+export function distanceFromUser(
+  event: EventItem,
+  user: { lat: number; lng: number } | null,
+): { meters: number; label: string } | null {
+  if (!user || !event.location.coordinates) return null
+  const [lng, lat] = event.location.coordinates
+  const meters = haversineMeters(user, { lat, lng })
+  return { meters, label: formatDistance(meters) }
+}
+
+export function formatDistance(meters: number): string {
+  // Approximate units; backend can later canonicalize to user locale.
+  const miles = meters / 1609.344
+  if (miles < 0.1) return `${Math.round(meters)} m`
+  if (miles < 10) return `${miles.toFixed(1)} mi`
+  return `${Math.round(miles)} mi`
+}
+
+export function walkTimeLabel(meters: number): string {
+  // ~80m/min ≈ 4.8 km/h walking pace
+  const minutes = Math.max(1, Math.round(meters / 80))
+  if (minutes < 60) return `${minutes} min walk`
+  const hours = Math.floor(minutes / 60)
+  const rem = minutes % 60
+  return rem === 0 ? `${hours} hr walk` : `${hours}h ${rem}m walk`
+}
+
+export function eventCoords(event: EventItem): { lat: number; lng: number } | null {
+  if (!event.location.coordinates) return null
+  const [lng, lat] = event.location.coordinates
+  return { lat, lng }
+}
+
+// ---- mock seed (replaced by API once NEXT_PUBLIC_API_BASE_URL is wired) ----
+
+const now = Date.now()
 
 export const events: EventItem[] = [
   {
-    id: 1,
+    id: "evt-mira",
     title: "coffee at Reuben's",
     type: "coffee",
-    status: "happening now",
-    calendarTime: "3pm",
-    calendarDay: "today",
+    startAt: new Date(now - 10 * MIN).toISOString(),
+    endAt: new Date(now + 50 * MIN).toISOString(),
+    visibility: "public",
     host: {
       name: "Mira",
       avatar: "M",
@@ -49,23 +187,22 @@ export const events: EventItem[] = [
     location: {
       name: "Reuben's Espresso",
       area: "Fillmore",
-      distance: "0.4 mi",
-      walkTime: "8 min walk",
+      address: "2400 Fillmore St, San Francisco, CA",
+      coordinates: [-122.4364, 37.7855],
     },
     attendees: [
       { name: "Mira", avatar: "M", color: "bg-accent" },
       { name: "Sam", avatar: "S", color: "bg-stone-300" },
     ],
     going: 2,
-    position: { lat: 37.7855, lng: -122.4364 },
   },
   {
-    id: 2,
+    id: "evt-sam-patio",
     title: "patio hang",
     type: "hang",
-    status: "7pm",
-    calendarTime: "7pm",
-    calendarDay: "today",
+    startAt: new Date(now + 4 * HOUR).toISOString(),
+    endAt: new Date(now + 7 * HOUR).toISOString(),
+    visibility: "private",
     host: {
       name: "Sam",
       avatar: "S",
@@ -75,23 +212,21 @@ export const events: EventItem[] = [
     location: {
       name: "the patio",
       area: "Castro",
-      distance: "0.6 mi",
-      walkTime: "12 min walk",
+      coordinates: [-122.4324, 37.7825],
     },
     attendees: [
       { name: "Sam", avatar: "S", color: "bg-stone-800" },
       { name: "K", avatar: "K", color: "bg-stone-300" },
     ],
     going: 4,
-    position: { lat: 37.7825, lng: -122.4324 },
   },
   {
-    id: 3,
+    id: "evt-run-club",
     title: "run club",
     type: "run",
-    status: "10am tomorrow",
-    calendarTime: "10am",
-    calendarDay: "tomorrow",
+    startAt: new Date(now + DAY + 2 * HOUR).toISOString(),
+    endAt: new Date(now + DAY + 3 * HOUR).toISOString(),
+    visibility: "public",
     host: {
       name: "J",
       avatar: "J",
@@ -101,10 +236,33 @@ export const events: EventItem[] = [
     location: {
       name: "Dolores Park",
       area: "Mission",
-      distance: "1.2 mi",
-      walkTime: "25 min walk",
+      coordinates: [-122.4271, 37.7596],
     },
     attendees: [{ name: "J", avatar: "J", color: "bg-stone-400" }],
     going: 6,
+  },
+  {
+    id: "evt-bookclub",
+    title: "book club",
+    type: "hang",
+    startAt: new Date(now + 3 * DAY + 6 * HOUR).toISOString(),
+    endAt: new Date(now + 3 * DAY + 8 * HOUR).toISOString(),
+    visibility: "private",
+    host: {
+      name: "Lina",
+      avatar: "L",
+      color: "bg-stone-500",
+      note: "we're on chapter 4 — show up even if you didn't read 📚",
+    },
+    location: {
+      name: "Lina's place",
+      area: "Hayes Valley",
+      coordinates: [-122.4267, 37.7766],
+    },
+    attendees: [
+      { name: "Lina", avatar: "L", color: "bg-stone-500" },
+      { name: "Mira", avatar: "M", color: "bg-accent" },
+    ],
+    going: 3,
   },
 ]

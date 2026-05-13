@@ -17,6 +17,7 @@ type RequestOptions = {
   body?: unknown
   auth?: boolean
   signal?: AbortSignal
+  formData?: boolean
 }
 
 type ErrorBody = {
@@ -72,7 +73,7 @@ async function request<T>(
   }
 
   const headers: Record<string, string> = {}
-  if (opts.body !== undefined) headers["Content-Type"] = "application/json"
+  if (!opts.formData && opts.body !== undefined) headers["Content-Type"] = "application/json"
   if (opts.auth) {
     const token = getToken()
     if (token) headers.Authorization = `Bearer ${token}`
@@ -81,7 +82,7 @@ async function request<T>(
   const res = await fetch(`${baseUrl}${path}`, {
     method: opts.method ?? "GET",
     headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    body: opts.formData ? (opts.body as FormData) : opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     signal: opts.signal,
   })
 
@@ -105,10 +106,15 @@ async function request<T>(
 const AUTH_BASE = process.env.NEXT_PUBLIC_AUTH_BASE_URL ?? ""
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
 
+function withApiVersionPrefix(path: string): string {
+  if (path.startsWith("/api/v1")) return path
+  return `/api/v1${path.startsWith("/") ? path : `/${path}`}`
+}
+
 export function authFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   return request<T>(AUTH_BASE, path, opts)
 }
 
 export function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  return request<T>(API_BASE, path, { auth: true, ...opts })
+  return request<T>(API_BASE, withApiVersionPrefix(path), { auth: true, ...opts })
 }
