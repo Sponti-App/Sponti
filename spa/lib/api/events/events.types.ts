@@ -1,6 +1,6 @@
 export type EventVisibility = "public" | "private"
-export type EventType = "coffee" | "hang" | "run"
 export type EventRsvp = "invited" | "going" | "maybe" | "declined"
+export type EventType = "food" | "drinks" | "sports" | "hangout"
 export type RsvpStatus = Extract<EventRsvp, "going" | "maybe" | "declined">
 export type EventGuestInviteMode = "multiple" | "single" | "none"
 export type EventInviteRole = "admin" | "guest"
@@ -34,11 +34,10 @@ export type Recurrence = "none" | "daily" | "weekly"
 // A circle id (e.g. "inner", "close", "all", or a custom-NNN id) OR the
 // literal "custom" for the ad-hoc friend-picker path.
 export type Audience = string
-export type DraftEventType = "food" | "drinks" | "sports" | "hangout"
 
 export type DraftEvent = {
   mode: "now" | "scheduled"
-  eventType: DraftEventType
+  eventType: EventType
   title: string
   details?: string
   durationMinutes: number

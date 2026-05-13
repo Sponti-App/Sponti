@@ -27,14 +27,14 @@ export const TEMP_EVENT_LOCATION_FALLBACK = {
 const TYPE_KEYWORDS: Array<{ test: RegExp; type: EventType }> = [
   {
     test: /coffee|latte|espresso|brunch|breakfast|food|dinner|lunch/i,
-    type: "coffee",
+    type: "drinks",
   },
-  { test: /run|jog|hike|cycle|ride|sports|gym/i, type: "run" },
+  { test: /run|jog|hike|cycle|ride|sports|gym/i, type: "sports" },
 ]
 
 function inferType(title: string): EventType {
   for (const { test, type } of TYPE_KEYWORDS) if (test.test(title)) return type
-  return "hang"
+  return "hangout"
 }
 
 export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
