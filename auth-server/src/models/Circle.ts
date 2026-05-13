@@ -33,6 +33,7 @@ const circleSchema = new Schema<CircleDocument>(
       enum: circleTypes,
       required: true,
       trim: true,
+      default: "close",
     },
   },
   {
