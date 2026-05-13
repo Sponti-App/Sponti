@@ -4,7 +4,13 @@ import { useRef, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MapPin, Coffee, Users, Activity, Flame, Check, Navigation, X } from "lucide-react"
-import { avatarText, isImminent } from "@/lib/events"
+import {
+  avatarText,
+  eventCoords,
+  formatEventTime,
+  formatRelativeStatus,
+  isImminent,
+} from "@/lib/events"
 import type { EventItem } from "@/lib/events"
 
 const ETA_OPTIONS = ["5 min", "15 min", "30 min", "1 hr"]
@@ -78,7 +84,7 @@ export function EventDetailSheet({ event, joined, onClose, onJoin, onLeave, onSe
               <h2 className="text-xl font-semibold">{event.title}</h2>
               <div className="flex items-center gap-1 text-accent text-sm">
                 <Flame className="w-4 h-4" />
-                <span>{event.status}</span>
+                <span>{formatRelativeStatus(event)}</span>
               </div>
             </div>
             {joined && (
@@ -105,19 +111,20 @@ export function EventDetailSheet({ event, joined, onClose, onJoin, onLeave, onSe
 
           {/* Where */}
           <div className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">Where</span>
-              <span className="text-xs text-muted-foreground">{event.location.walkTime}</span>
-            </div>
+            <span className="text-xs text-muted-foreground uppercase tracking-wide mb-2 block">
+              Where
+            </span>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full border border-border flex items-center justify-center">
                 <MapPin className="w-5 h-5 text-muted-foreground" />
               </div>
-              <div>
-                <p className="font-medium">{event.location.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {event.location.area} · {event.location.distance} · {event.location.walkTime}
-                </p>
+              <div className="min-w-0">
+                <p className="font-medium truncate">{event.location.name}</p>
+                {(event.location.area || event.location.address) && (
+                  <p className="text-sm text-muted-foreground truncate">
+                    {event.location.area ?? event.location.address}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -174,7 +181,7 @@ export function EventDetailSheet({ event, joined, onClose, onJoin, onLeave, onSe
           {/* CTAs */}
           {joined ? (
             <div className="space-y-2">
-              {imminent && event.position && (
+              {imminent && eventCoords(event) && (
                 <Button
                   className="w-full rounded-full py-6 text-base bg-accent text-accent-foreground hover:bg-accent/90"
                   onClick={() => onSeeRoute(event)}
@@ -217,7 +224,7 @@ export function EventDetailSheet({ event, joined, onClose, onJoin, onLeave, onSe
             >
               <Check className="w-4 h-4 mr-1" />
               I&apos;m in
-              {event.calendarTime ? ` · ${event.calendarTime}` : ""}
+              {` · ${formatEventTime(event)}`}
             </Button>
           )}
         </div>
