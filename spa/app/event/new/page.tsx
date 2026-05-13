@@ -102,7 +102,9 @@ function formatTimeOfDay(minSinceMidnight: number): string {
   const m = total % 60
   const ampm = h >= 12 ? "pm" : "am"
   const h12 = h % 12 === 0 ? 12 : h % 12
-  return m === 0 ? `${h12}${ampm}` : `${h12}:${String(m).padStart(2, "0")}${ampm}`
+  return m === 0
+    ? `${h12}${ampm}`
+    : `${h12}:${String(m).padStart(2, "0")}${ampm}`
 }
 
 function formatDayChip(d: Date): { weekday: string; date: string } {
@@ -110,11 +112,15 @@ function formatDayChip(d: Date): { weekday: string; date: string } {
   today.setHours(0, 0, 0, 0)
   const target = new Date(d)
   target.setHours(0, 0, 0, 0)
-  const diffDays = Math.round((target.getTime() - today.getTime()) / (24 * 3600 * 1000))
+  const diffDays = Math.round(
+    (target.getTime() - today.getTime()) / (24 * 3600 * 1000)
+  )
   if (diffDays === 0) return { weekday: "today", date: String(d.getDate()) }
   if (diffDays === 1) return { weekday: "tmrw", date: String(d.getDate()) }
   return {
-    weekday: d.toLocaleDateString(undefined, { weekday: "short" }).toLowerCase(),
+    weekday: d
+      .toLocaleDateString(undefined, { weekday: "short" })
+      .toLowerCase(),
     date: String(d.getDate()),
   }
 }
@@ -174,7 +180,7 @@ export default function NewEventPage() {
   const effectiveAudience =
     audience === "custom" || circles.some((c) => c.id === audience)
       ? audience
-      : circles[0]?.id ?? "custom"
+      : (circles[0]?.id ?? "custom")
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([])
   const [customListName, setCustomListName] = useState("")
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -228,7 +234,11 @@ export default function NewEventPage() {
 
   const scheduledStartOptions = useMemo(() => {
     const out: { value: number; label: string }[] = []
-    for (let m = SCHEDULED_DAY_START_MIN; m <= SCHEDULED_DAY_END_MIN; m += STEP_MIN) {
+    for (
+      let m = SCHEDULED_DAY_START_MIN;
+      m <= SCHEDULED_DAY_END_MIN;
+      m += STEP_MIN
+    ) {
       out.push({ value: m, label: formatTimeOfDay(m) })
     }
     return out
@@ -319,7 +329,7 @@ export default function NewEventPage() {
     if (effectiveAudience === "custom" && customListName.trim()) {
       const name = customListName.trim()
       const existing = circles.find(
-        (c) => c.name.toLowerCase() === name.toLowerCase(),
+        (c) => c.name.toLowerCase() === name.toLowerCase()
       )
       if (existing) {
         finalAudience = existing.id
@@ -379,12 +389,12 @@ export default function NewEventPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background relative overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 shrink-0">
+    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background">
+      <div className="flex shrink-0 items-center justify-between px-4 py-3">
         <button
           onClick={() => router.push("/")}
           aria-label="Back"
-          className="h-9 w-9 rounded-full border border-foreground flex items-center justify-center"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -418,17 +428,24 @@ export default function NewEventPage() {
                 onStart={handleStartOffset}
                 onEnd={setEndOffsetMin}
               />
-              <p className="text-xs text-muted-foreground mt-2">
-                {startOffsetMin === 0 ? "starts now" : `starts in ${formatRelative(startOffsetMin)}`}
+              <p className="mt-2 text-xs text-muted-foreground">
+                {startOffsetMin === 0
+                  ? "starts now"
+                  : `starts in ${formatRelative(startOffsetMin)}`}
                 {" · "}
-                runs {formatRelative(durationMin)} · ends {formatTimeOfDay(wallTimeForNow.endMin)}
+                runs {formatRelative(durationMin)} · ends{" "}
+                {formatTimeOfDay(wallTimeForNow.endMin)}
               </p>
             </Section>
           </TabsContent>
 
           <TabsContent value="scheduled" className="m-0">
             <Section label="date">
-              <DateStrip days={dateStripDays} value={startDate} onChange={setStartDate} />
+              <DateStrip
+                days={dateStripDays}
+                value={startDate}
+                onChange={setStartDate}
+              />
             </Section>
             <Section label="when">
               <TimeRange
@@ -439,8 +456,9 @@ export default function NewEventPage() {
                 onStart={handleStartTime}
                 onEnd={setEndTimeMin}
               />
-              <p className="text-xs text-muted-foreground mt-2">
-                runs {formatRelative(durationMin)} · ends {formatTimeOfDay(endTimeMin)}
+              <p className="mt-2 text-xs text-muted-foreground">
+                runs {formatRelative(durationMin)} · ends{" "}
+                {formatTimeOfDay(endTimeMin)}
               </p>
             </Section>
             <Section label="repeat">
@@ -536,10 +554,10 @@ export default function NewEventPage() {
               onChange={(e) => setDetails(e.target.value.slice(0, 200))}
               placeholder="anything else? dress code, what to bring, vibe…"
               rows={3}
-              className="w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-none"
+              className="w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
             {details.length > 160 && (
-              <p className="text-[11px] text-muted-foreground mt-1 text-right">
+              <p className="mt-1 text-right text-[11px] text-muted-foreground">
                 {200 - details.length} left
               </p>
             )}
@@ -547,7 +565,7 @@ export default function NewEventPage() {
         </Tabs>
       </div>
 
-      <div className="absolute bottom-24 left-0 right-0 px-4 z-20 flex flex-col gap-2">
+      <div className="absolute right-0 bottom-24 left-0 z-20 flex flex-col gap-2 px-4">
         <PreviewPill
           title={composedTitle}
           editing={titleEditing}
@@ -557,13 +575,13 @@ export default function NewEventPage() {
         />
         <Button
           onClick={handleSubmit}
-          className="w-full rounded-full py-6 text-base bg-accent text-accent-foreground hover:bg-accent/90"
+          className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
         >
           light a flare
         </Button>
       </div>
 
-      <div className="absolute bottom-6 left-0 right-0 z-10 pointer-events-none">
+      <div className="pointer-events-none absolute right-0 bottom-6 left-0 z-10">
         <div className="pointer-events-auto">
           <BottomNav />
         </div>
@@ -615,24 +633,26 @@ function PreviewPill({
             onChange={(e) => onOverrideChange(e.target.value)}
             placeholder={title}
             maxLength={60}
-            className="flex-1 border-0 bg-transparent px-0 focus-visible:ring-0 text-sm"
+            className="flex-1 border-0 bg-transparent px-0 text-sm focus-visible:ring-0"
           />
           <button
             type="button"
             onClick={onToggle}
-            className="text-xs text-accent font-medium shrink-0"
+            className="shrink-0 text-xs font-medium text-accent"
           >
             done
           </button>
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <Sparkles className="h-3.5 w-3.5 text-accent shrink-0" />
-          <span className="flex-1 text-sm text-foreground truncate">{title}</span>
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent" />
+          <span className="flex-1 truncate text-sm text-foreground">
+            {title}
+          </span>
           <button
             type="button"
             onClick={onToggle}
-            className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 shrink-0"
+            className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
             aria-label="edit title"
           >
             <Pencil className="h-3 w-3" />
@@ -672,7 +692,9 @@ function EventTypeGrid({
             <Icon
               className={`h-5 w-5 shrink-0 ${selected ? "text-accent" : "text-muted-foreground"}`}
             />
-            <span className={`text-sm ${selected ? "text-accent font-medium" : ""}`}>
+            <span
+              className={`text-sm ${selected ? "font-medium text-accent" : ""}`}
+            >
               {t.label}
             </span>
           </button>
@@ -703,7 +725,7 @@ function TimeRange({
     <div className="rounded-xl border border-border bg-secondary/30 p-2">
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <div className="text-xs text-muted-foreground text-center mb-1">
+          <div className="mb-1 text-center text-xs text-muted-foreground">
             start
           </div>
           <TimeWheel
@@ -714,7 +736,7 @@ function TimeRange({
           />
         </div>
         <div>
-          <div className="text-xs text-muted-foreground text-center mb-1">
+          <div className="mb-1 text-center text-xs text-muted-foreground">
             end
           </div>
           <TimeWheel
@@ -781,7 +803,7 @@ function TimeWheel({
       style={{ height: VISIBLE * ITEM_H }}
     >
       <div
-        className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-9 rounded-md border-y border-accent/40 bg-accent/10 pointer-events-none z-10"
+        className="pointer-events-none absolute inset-x-0 top-1/2 z-10 h-9 -translate-y-1/2 rounded-md border-y border-accent/40 bg-accent/10"
         aria-hidden
       />
       <div
@@ -789,7 +811,7 @@ function TimeWheel({
         onScroll={handleScroll}
         role="listbox"
         aria-label={ariaLabel}
-        className="h-full overflow-y-scroll snap-y snap-mandatory no-scrollbar"
+        className="no-scrollbar h-full snap-y snap-mandatory overflow-y-scroll"
       >
         <div style={{ height: PAD }} aria-hidden />
         {options.map((o, i) => {
@@ -800,8 +822,10 @@ function TimeWheel({
               role="option"
               aria-selected={selected}
               onClick={() => handleItemClick(i)}
-              className={`h-9 flex items-center justify-center text-sm snap-center cursor-pointer transition-colors ${
-                selected ? "text-foreground font-medium" : "text-muted-foreground"
+              className={`flex h-9 cursor-pointer snap-center items-center justify-center text-sm transition-colors ${
+                selected
+                  ? "font-medium text-foreground"
+                  : "text-muted-foreground"
               }`}
             >
               {o.label}
@@ -826,7 +850,7 @@ function DateStrip({
   onChange: (v: string) => void
 }) {
   return (
-    <div className="-mx-1 overflow-x-auto no-scrollbar">
+    <div className="-mx-1 no-scrollbar overflow-x-auto">
       <div className="flex gap-1.5 px-1">
         {days.map((d) => {
           const iso = formatDateInput(d)
@@ -837,7 +861,7 @@ function DateStrip({
               key={iso}
               type="button"
               onClick={() => onChange(iso)}
-              className={`shrink-0 w-14 rounded-xl border px-2 py-2 flex flex-col items-center transition-colors ${
+              className={`flex w-14 shrink-0 flex-col items-center rounded-xl border px-2 py-2 transition-colors ${
                 selected
                   ? "border-accent bg-accent/10"
                   : "border-border bg-background hover:bg-secondary"
@@ -905,7 +929,7 @@ function WherePicker({
     if (!q || pickedSearchAddress) return []
     return MOCK_PLACE_RESULTS.filter(
       (r) =>
-        r.label.toLowerCase().includes(q) || r.address.toLowerCase().includes(q),
+        r.label.toLowerCase().includes(q) || r.address.toLowerCase().includes(q)
     ).slice(0, 5)
   }, [searchQuery, pickedSearchAddress])
 
@@ -939,7 +963,7 @@ function WherePicker({
         <button
           type="button"
           onClick={onAdd}
-          className="inline-flex items-center gap-1 px-3 py-2 rounded-full border border-dashed border-border text-xs text-muted-foreground hover:bg-secondary"
+          className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary"
         >
           <Plus className="h-3 w-3" />
           add place
@@ -954,18 +978,18 @@ function WherePicker({
             onChange={(e) => onSearchQuery(e.target.value)}
           />
           {results.length > 0 && (
-            <ul className="mt-1.5 rounded-lg border border-border bg-card overflow-hidden">
+            <ul className="mt-1.5 overflow-hidden rounded-lg border border-border bg-card">
               {results.map((r) => (
                 <li key={`${r.label}-${r.address}`}>
                   <button
                     type="button"
                     onClick={() => onPickSearch(r.label)}
-                    className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
+                    className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
                   >
-                    <MapPin className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm truncate">{r.label}</div>
-                      <div className="text-[11px] text-muted-foreground truncate">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm">{r.label}</div>
+                      <div className="truncate text-[11px] text-muted-foreground">
                         {r.address}
                       </div>
                     </div>
@@ -978,7 +1002,7 @@ function WherePicker({
       )}
 
       {adding && (
-        <div className="mt-1 rounded-xl border border-border p-3 flex flex-col gap-2">
+        <div className="mt-1 flex flex-col gap-2 rounded-xl border border-border p-3">
           <Label className="text-xs font-medium text-muted-foreground">
             new quick place
           </Label>
@@ -1117,7 +1141,7 @@ function GuestBlock({
       )}
 
       {/* Summary */}
-      <div className="text-xs text-muted-foreground px-1">{summary}</div>
+      <div className="px-1 text-xs text-muted-foreground">{summary}</div>
     </div>
   )
 }
@@ -1140,7 +1164,7 @@ function Stepper({
   return (
     <div
       className={`flex items-center justify-between rounded-xl border border-border px-3 py-2.5 ${
-        disabled ? "opacity-40 pointer-events-none" : ""
+        disabled ? "pointer-events-none opacity-40" : ""
       }`}
     >
       <span className="text-sm font-medium">guest limit</span>
@@ -1149,7 +1173,7 @@ function Stepper({
           type="button"
           onClick={dec}
           aria-label="decrease"
-          className="h-8 w-8 rounded-full border border-border flex items-center justify-center hover:bg-secondary disabled:opacity-40"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-border hover:bg-secondary disabled:opacity-40"
           disabled={disabled || value <= min}
         >
           <Minus className="h-3.5 w-3.5" />
@@ -1166,13 +1190,13 @@ function Stepper({
             const n = Math.max(min, Math.min(max, parseInt(raw, 10)))
             onChange(n)
           }}
-          className="w-12 text-center text-base font-medium bg-transparent outline-none"
+          className="w-12 bg-transparent text-center text-base font-medium outline-none"
         />
         <button
           type="button"
           onClick={inc}
           aria-label="increase"
-          className="h-8 w-8 rounded-full border border-border flex items-center justify-center hover:bg-secondary disabled:opacity-40"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-border hover:bg-secondary disabled:opacity-40"
           disabled={disabled || value >= max}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -1217,7 +1241,7 @@ function FriendPicker({
     return connections.filter(
       (c) =>
         c.displayName.toLowerCase().includes(q) ||
-        c.username.toLowerCase().includes(q),
+        c.username.toLowerCase().includes(q)
     )
   }, [connections, query])
 
@@ -1229,7 +1253,7 @@ function FriendPicker({
     onSelectionChange(
       selectedIds.includes(id)
         ? selectedIds.filter((x) => x !== id)
-        : [...selectedIds, id],
+        : [...selectedIds, id]
     )
   }
 
@@ -1258,8 +1282,8 @@ function FriendPicker({
         onClick={onCancel}
         className="absolute inset-0 bg-foreground/30"
       />
-      <div className="relative mt-auto bg-card rounded-t-3xl border-t border-border shadow-2xl flex flex-col max-h-[88%]">
-        <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+      <div className="relative mt-auto flex max-h-[88%] flex-col rounded-t-3xl border-t border-border bg-card shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between px-4 pt-4 pb-2">
           <span className="text-xs font-medium text-muted-foreground">
             broadcast to
           </span>
@@ -1267,14 +1291,14 @@ function FriendPicker({
             type="button"
             onClick={onCancel}
             aria-label="Close picker"
-            className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-secondary"
+            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="px-4 pb-2 shrink-0">
-          <Label className="text-xs text-muted-foreground mb-1 block">
+        <div className="shrink-0 px-4 pb-2">
+          <Label className="mb-1 block text-xs text-muted-foreground">
             start from a circle
           </Label>
           <div className="flex flex-wrap gap-1.5">
@@ -1285,7 +1309,7 @@ function FriendPicker({
                   key={c.id}
                   type="button"
                   onClick={() => startFromCircle(c)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors ${
                     active
                       ? "border-accent bg-accent/10 text-accent"
                       : "border-border bg-background hover:bg-secondary"
@@ -1302,7 +1326,7 @@ function FriendPicker({
               <button
                 type="button"
                 onClick={clearSelection}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-muted-foreground hover:text-foreground"
+                className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
               >
                 clear
               </button>
@@ -1310,8 +1334,11 @@ function FriendPicker({
           </div>
         </div>
 
-        <div className="px-4 pb-2 shrink-0">
-          <Label htmlFor="list-name" className="text-xs text-muted-foreground mb-1 block">
+        <div className="shrink-0 px-4 pb-2">
+          <Label
+            htmlFor="list-name"
+            className="mb-1 block text-xs text-muted-foreground"
+          >
             save as new circle (optional)
           </Label>
           <Input
@@ -1324,7 +1351,7 @@ function FriendPicker({
           />
         </div>
 
-        <div className="px-4 pb-2 shrink-0">
+        <div className="shrink-0 px-4 pb-2">
           <Input
             placeholder="search friends…"
             value={query}
@@ -1334,7 +1361,9 @@ function FriendPicker({
 
         <div className="flex-1 overflow-y-auto px-2 pb-2">
           {filtered.length === 0 ? (
-            <p className="text-xs text-muted-foreground px-2 py-4">no matches</p>
+            <p className="px-2 py-4 text-xs text-muted-foreground">
+              no matches
+            </p>
           ) : (
             <ul className="flex flex-col">
               {filtered.map((c) => {
@@ -1344,10 +1373,10 @@ function FriendPicker({
                     <button
                       type="button"
                       onClick={() => toggleId(c.id)}
-                      className="w-full flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-secondary text-left"
+                      className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-secondary"
                     >
                       <span
-                        className={`h-5 w-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
                           checked
                             ? "border-accent bg-accent text-accent-foreground"
                             : "border-border"
@@ -1355,7 +1384,7 @@ function FriendPicker({
                       >
                         {checked && <Check className="h-3 w-3" />}
                       </span>
-                      <span className="flex-1 min-w-0">
+                      <span className="min-w-0 flex-1">
                         <span className="block text-sm">{c.displayName}</span>
                         <span className="block text-[11px] text-muted-foreground">
                           @{c.username}
@@ -1369,8 +1398,12 @@ function FriendPicker({
           )}
         </div>
 
-        <div className="flex items-center gap-2 px-4 py-3 border-t border-border shrink-0">
-          <Button variant="outline" onClick={onCancel} className="flex-1 rounded-full">
+        <div className="flex shrink-0 items-center gap-2 border-t border-border px-4 py-3">
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            className="flex-1 rounded-full"
+          >
             cancel
           </Button>
           <Button
@@ -1417,21 +1450,29 @@ function AudienceCard({
           className={`h-4 w-4 shrink-0 ${selected ? "text-accent" : "text-muted-foreground"}`}
         />
       )}
-      <span className={`flex-1 text-sm font-medium truncate ${selected ? "text-accent" : ""}`}>
+      <span
+        className={`flex-1 truncate text-sm font-medium ${selected ? "text-accent" : ""}`}
+      >
         {label}
       </span>
       {count !== undefined && (
-        <span className="text-xs text-muted-foreground shrink-0">{count}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{count}</span>
       )}
-      {selected && <Check className="h-4 w-4 text-accent shrink-0" />}
+      {selected && <Check className="h-4 w-4 shrink-0 text-accent" />}
     </button>
   )
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
   return (
     <div className="mt-5">
-      <Label className="text-xs font-medium text-muted-foreground mb-2 block">
+      <Label className="mb-2 block text-xs font-medium text-muted-foreground">
         {label}
       </Label>
       {children}
@@ -1456,7 +1497,7 @@ function Chip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border text-sm transition-colors ${
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm transition-colors ${
         selected
           ? "border-accent bg-accent/10 text-accent"
           : "border-border bg-background text-foreground hover:bg-secondary"
