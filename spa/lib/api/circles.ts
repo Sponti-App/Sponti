@@ -1,0 +1,73 @@
+import { apiFetch } from "@/lib/http"
+import type { Circle, CircleTier, CircleType } from "@/lib/circles"
+
+type ApiUserSummary = {
+  _id: string
+  username: string
+  displayName?: string
+}
+
+type ApiCircleMember = {
+  _id: string
+  circleId: string
+  ownerId: string
+  userId: string
+  user?: ApiUserSummary | null
+}
+
+type ApiCircle = {
+  _id: string
+  ownerId: string
+  name: string
+  color?: string | null
+  type?: CircleType
+  icon?: string | null
+  members?: ApiCircleMember[]
+}
+
+export type CreateCircleRequest = {
+  name: string
+  type?: CircleType
+  color?: string | null
+  icon?: string | null
+  memberIds?: string[]
+}
+
+function tierFromType(type: CircleType | undefined): CircleTier {
+  if (type === "inner") return 1
+  if (type === "all") return 3
+  return 2
+}
+
+function descriptionFromType(type: CircleType | undefined): string {
+  if (type === "inner") return "your tightest group"
+  if (type === "all") return "everyone you follow"
+  return "your closer group"
+}
+
+export function adaptApiCircle(circle: ApiCircle): Circle {
+  const type = circle.type ?? "close"
+  return {
+    id: circle._id,
+    name: circle.name,
+    description: descriptionFromType(type),
+    tier: tierFromType(type),
+    type,
+    color: circle.color ?? null,
+    icon: circle.icon ?? null,
+    memberIds: (circle.members ?? []).map((member) => member.userId),
+  }
+}
+
+export function fetchMyCircles(signal?: AbortSignal): Promise<Circle[]> {
+  return apiFetch<{ data: ApiCircle[] }>("/circles", { signal }).then(
+    (response) => response.data.map(adaptApiCircle)
+  )
+}
+
+export function createCircle(body: CreateCircleRequest): Promise<Circle> {
+  return apiFetch<{ data: ApiCircle }>("/circles", {
+    method: "POST",
+    body,
+  }).then((response) => adaptApiCircle(response.data))
+}

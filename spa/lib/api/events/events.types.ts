@@ -1,50 +1,88 @@
-import { objectIdSchema } from "@/types/utils";
-import { LucideProps } from "lucide-react";
-import React from "react";
-import { z } from "zod";
+import type { EventItem, EventRsvp, EventVisibility } from "@/lib/events"
 
-type EventsType = {
-  type: "hangout" | "sports" | "drinks" | "food"
-  icon: React.ForwardRefExoticComponent<Omit<LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>>
+export type EventGuestInviteMode = "multiple" | "single" | "none"
+export type EventInviteRole = "admin" | "guest"
+
+export type EventMemberInviteRequest = {
+  userId: string
+  role?: EventInviteRole
 }
 
-const eventRoleInputSchema = z.enum(["admin", "guest"]);
+export type EventCircleInviteRequest = {
+  circleId: string
+  role?: EventInviteRole
+}
 
+export type CreateEventRequest = {
+  title: string
+  description?: string | null
+  startAt: string
+  endAt: string
+  locationName: string
+  locationAddress?: string | null
+  location: {
+    type: "Point"
+    coordinates: [number, number]
+  }
+  visibility?: EventVisibility
+  allowGuestInvites?: EventGuestInviteMode
+  guestInviteLimit?: number
+  members?: EventMemberInviteRequest[]
+  circles?: EventCircleInviteRequest[]
+}
 
-const eventMemberInviteSchema = z
-  .object({
-    userId: objectIdSchema,
-    role: eventRoleInputSchema.default("guest"),
-    canInviteGuests: z.boolean().optional(),
-  })
-  .strict();
+export type ApiEventMember = {
+  _id: string
+  eventId: string
+  userId: string
+  role: "host" | EventInviteRole
+  rsvpStatus: EventRsvp
+  canInviteGuests?: boolean
+}
 
-type eventMemberInvite = z.infer<typeof eventMemberInviteSchema>
-
-// TODO: If it's necessary create the request DTO
-
-// Response DTO ?
-
-export interface EventItem {
-  id: number
-  title: string // TODO: in the spa the title is not entered by the user, but created out of a combination of EventsType.type, user displayName and location's name.
-  type: EventsType
+export type ApiEvent = {
+  _id: string
+  hostId: string | { _id: string; displayName?: string; username?: string }
+  title: string
+  description?: string | null
+  startAt: string
+  endAt: string
+  locationName: string
+  locationAddress?: string | null
+  location: { type: "Point"; coordinates: [number, number] }
+  visibility: EventVisibility
+  allowGuestInvites: EventGuestInviteMode
+  guestInviteLimit: number
   status: "active" | "cancelled" | "completed"
-  start: // TODO: decide the type,
-  end: // TODO: decide the type,
-  host: {
-    name: string
-    avatar: string
-    color: string
-    note: string
-  }
-  location: { // TODO: for now use a static mock data, google maps API is not set yet. 
-    name: string
-    area: string
-    distance: string
-    walkTime: string
-  }
-  attendees: Array<eventMemberInvite> // TODO: attendees has to be change to members to match data model
-  going: number, // TODO: The API has to use eventId to retrieve all the event_members rsvpStatus is going
-  guestLimit: number
+  myRsvp?: EventRsvp | null
+  goingCount?: number
+  attendees?: Array<{ _id: string; displayName?: string; username?: string }>
+}
+
+export type CreateEventResponse = {
+  event: ApiEvent
+  members: ApiEventMember[]
+}
+
+export type Paginated<T> = {
+  data: T[]
+  pagination: { page: number; limit: number; total: number; totalPages: number }
+}
+
+export type FetchMapEventsParams = {
+  lat: number
+  lng: number
+  radiusKm?: number
+  signal?: AbortSignal
+}
+
+export type FetchCalendarEventsParams = {
+  page?: number
+  limit?: number
+  signal?: AbortSignal
+}
+
+export type FetchCalendarEventsResult = {
+  items: EventItem[]
+  pagination: Paginated<unknown>["pagination"]
 }

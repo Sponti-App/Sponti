@@ -27,14 +27,19 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import {
-  saveDraftEvent,
   type Audience,
   type DraftEvent,
   type EventType,
   type Recurrence,
 } from "@/lib/draft-events"
 import { pushDraftAsHosted } from "@/lib/host-events"
-import { MOCK_CONNECTIONS, type Circle, type Connection } from "@/lib/circles"
+import {
+  createCircle as createCircleRequest,
+  fetchMyCircles,
+} from "@/lib/api/circles"
+import { fetchAcceptedConnections } from "@/lib/api/connections"
+import { createEvent, createEventRequestFromDraft } from "@/lib/api/events"
+import { type Circle, type Connection } from "@/lib/circles"
 import { setCircles, useCircles } from "@/lib/circles-store"
 
 type Mode = "now" | "scheduled"
@@ -140,11 +145,45 @@ function composeTitle(args: {
   return parts.join(" · ")
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return "Something went wrong. Try again."
+}
+
+function buildTimeRange(args: {
+  mode: Mode
+  createdAt: string
+  startOffsetMin: number
+  startDate: string
+  startTimeMin: number
+  durationMin: number
+}): { startAt: string; endAt: string } {
+  let startMs: number
+
+  if (args.mode === "now") {
+    startMs = new Date(args.createdAt).getTime() + args.startOffsetMin * 60_000
+  } else {
+    const start = new Date(`${args.startDate}T00:00:00`)
+    start.setMinutes(start.getMinutes() + args.startTimeMin)
+    startMs = start.getTime()
+  }
+
+  return {
+    startAt: new Date(startMs).toISOString(),
+    endAt: new Date(startMs + args.durationMin * 60_000).toISOString(),
+  }
+}
+
 export default function NewEventPage() {
   const router = useRouter()
   const { user } = useAuth()
   const hostName = user?.displayName?.trim() || "you"
-  const circles = useCircles()
+  const storedCircles = useCircles()
+  const [apiCircles, setApiCircles] = useState<Circle[] | null>(null)
+  const [connections, setConnections] = useState<Connection[]>([])
+  const [audienceLoading, setAudienceLoading] = useState(true)
+  const [audienceError, setAudienceError] = useState<string | null>(null)
+  const circles = apiCircles ?? storedCircles
 
   const [mode, setMode] = useState<Mode>("now")
   const [eventType, setEventType] = useState<EventType>("hangout")
@@ -174,21 +213,54 @@ export default function NewEventPage() {
   // GUESTS
   const [isOpen, setIsOpen] = useState(false)
   const [guestLimit, setGuestLimit] = useState(10)
-  const [audience, setAudience] = useState<Audience>("close")
+  const [audience, setAudience] = useState<Audience>("")
   // SSR/hydration: circles may be empty on the first render. If the chosen
   // audience id no longer exists, fall back to the first available circle.
+  const defaultAudience = useMemo(
+    () =>
+      circles.find((c) => c.type === "close")?.id ??
+      circles.find((c) => c.name.toLowerCase() === "close friends")?.id ??
+      circles[0]?.id ??
+      "custom",
+    [circles]
+  )
   const effectiveAudience =
     audience === "custom" || circles.some((c) => c.id === audience)
       ? audience
-      : (circles[0]?.id ?? "custom")
+      : defaultAudience
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([])
   const [customListName, setCustomListName] = useState("")
   const [pickerOpen, setPickerOpen] = useState(false)
   const [allowForward, setAllowForward] = useState(false)
   const [allowPlusOne, setAllowPlusOne] = useState(true)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // DETAILS
   const [details, setDetails] = useState("")
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    Promise.all([
+      fetchAcceptedConnections(controller.signal),
+      fetchMyCircles(controller.signal),
+    ])
+      .then(([nextConnections, nextCircles]) => {
+        if (controller.signal.aborted) return
+        setConnections(nextConnections)
+        setApiCircles(nextCircles)
+        setCircles(nextCircles)
+        setAudienceLoading(false)
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        setAudienceError(getErrorMessage(error))
+        setAudienceLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [])
 
   // Snap end ≥ start+15m and ≤ start+4h atomically when start moves.
   const handleStartOffset = (next: number): void => {
@@ -308,8 +380,34 @@ export default function NewEventPage() {
   }, [])
 
   // ------ Headcount summary ------
+  const inviteeCount = useMemo(() => {
+    if (isOpen) return 0
+    if (effectiveAudience === "custom") return selectedFriendIds.length
+    return (
+      circles.find((c) => c.id === effectiveAudience)?.memberIds.length ?? 0
+    )
+  }, [circles, effectiveAudience, isOpen, selectedFriendIds.length])
+
+  const duplicateCustomCircleName = useMemo(() => {
+    const name = customListName.trim().toLowerCase()
+    if (!name || effectiveAudience !== "custom") return false
+    return circles.some((circle) => circle.name.trim().toLowerCase() === name)
+  }, [circles, customListName, effectiveAudience])
+
+  const headcountWarning = useMemo(() => {
+    if (isOpen) return null
+    if (inviteeCount > guestLimit) {
+      return `you are inviting ${inviteeCount} people, but the event limit is ${guestLimit}.`
+    }
+    const possibleWithPlusOnes = allowPlusOne ? inviteeCount * 2 : inviteeCount
+    if (allowPlusOne && possibleWithPlusOnes > guestLimit) {
+      return `the event limit is ${guestLimit}, but up to ${possibleWithPlusOnes} people could come with +1s.`
+    }
+    return null
+  }, [allowPlusOne, guestLimit, inviteeCount, isOpen])
+
   const headcountSummary = useMemo(() => {
-    if (isOpen) return "anyone with the link can join"
+    if (isOpen) return `visible on the public map Â· up to ${guestLimit}`
     const base = guestLimit
     const cap = allowPlusOne ? base * 2 : base
     const plusOneNote = allowPlusOne ? ` (up to ${cap} with +1s)` : ""
@@ -320,72 +418,134 @@ export default function NewEventPage() {
   }, [isOpen, guestLimit, allowPlusOne, allowForward])
 
   // ------ Submit ------
-  const handleSubmit = (): void => {
-    // If the user named their ad-hoc list, persist it to the circles store
-    // so it shows up in the connections hub next time. Name collision with an
-    // existing circle reuses that circle rather than creating a duplicate —
-    // the FriendPicker's "save as new circle" label explicitly opts into new.
-    let finalAudience: Audience = effectiveAudience
-    if (effectiveAudience === "custom" && customListName.trim()) {
-      const name = customListName.trim()
-      const existing = circles.find(
-        (c) => c.name.toLowerCase() === name.toLowerCase()
-      )
-      if (existing) {
-        finalAudience = existing.id
-      } else {
-        const newCircle: Circle = {
-          id: `custom-${Date.now()}`,
-          name,
-          description: "custom circle",
-          tier: 2,
-          memberIds: selectedFriendIds,
-        }
-        setCircles((prev) => [...prev, newCircle])
-        finalAudience = newCircle.id
-      }
+  const handleSubmit = async (): Promise<void> => {
+    if (isSubmitting) return
+    setSubmitError(null)
+
+    if (!isOpen && audienceLoading) {
+      setSubmitError("Still loading your circles and friends.")
+      return
     }
 
-    const draft: DraftEvent = {
-      mode,
-      eventType,
-      title: composedTitle,
-      details: details.trim() || undefined,
-      durationMinutes: durationMin,
-      startOffsetMinutes: mode === "now" ? startOffsetMin : undefined,
-      startDate: mode === "scheduled" ? startDate : undefined,
-      startTime:
-        mode === "scheduled"
-          ? `${String(Math.floor((startTimeMin % 1440) / 60)).padStart(2, "0")}:${String(startTimeMin % 60).padStart(2, "0")}`
-          : undefined,
-      recurrence: mode === "scheduled" ? recurrence : undefined,
-      whereType,
-      customWhere:
-        whereType === "search"
-          ? pickedSearchAddress || searchQuery.trim() || undefined
-          : undefined,
-      savedPlaceLabel:
-        whereType === "saved" && savedPlaceId
-          ? savedPlaces.find((p) => p.id === savedPlaceId)?.label
-          : undefined,
-      guestLimit: isOpen ? null : guestLimit,
-      audience: isOpen
-        ? (circles.find((c) => c.id === "all")?.id ?? finalAudience)
-        : finalAudience,
-      selectedFriendIds:
-        finalAudience === "custom" ? selectedFriendIds : undefined,
-      customListName:
-        finalAudience === "custom" && customListName.trim()
-          ? customListName.trim()
-          : undefined,
-      visibility: isOpen ? "public" : "private",
-      allowForward: isOpen ? true : allowForward,
-      allowPlusOne,
-      createdAt: new Date().toISOString(),
+    if (!isOpen && audienceError) {
+      setSubmitError(
+        "Load your circles and friends before creating a private event."
+      )
+      return
     }
-    saveDraftEvent(draft)
-    pushDraftAsHosted(draft)
-    router.push("/event")
+
+    if (!isOpen && duplicateCustomCircleName) {
+      setSubmitError("You already have a circle with that name.")
+      return
+    }
+
+    if (
+      !isOpen &&
+      effectiveAudience === "custom" &&
+      selectedFriendIds.length === 0
+    ) {
+      setSubmitError("Pick at least one friend or choose an existing circle.")
+      return
+    }
+
+    setIsSubmitting(true)
+    const createdAt = new Date().toISOString()
+    let finalAudience: Audience = effectiveAudience
+    let eventAudience:
+      | { kind: "public" }
+      | { kind: "circle"; circleId: string }
+      | { kind: "members"; memberIds: string[] } = { kind: "public" }
+
+    try {
+      if (!isOpen && effectiveAudience === "custom") {
+        const name = customListName.trim()
+
+        if (name) {
+          const createdCircle = await createCircleRequest({
+            name,
+            type: "close",
+            memberIds: selectedFriendIds,
+          })
+          setApiCircles((prev) => [...(prev ?? circles), createdCircle])
+          setCircles((prev) => [
+            ...prev.filter((c) => c.id !== createdCircle.id),
+            createdCircle,
+          ])
+          finalAudience = createdCircle.id
+          eventAudience = { kind: "circle", circleId: createdCircle.id }
+        } else {
+          finalAudience = "custom"
+          eventAudience = { kind: "members", memberIds: selectedFriendIds }
+        }
+      } else if (!isOpen) {
+        finalAudience = effectiveAudience
+        eventAudience = { kind: "circle", circleId: effectiveAudience }
+      }
+
+      const scheduledStart = new Date(`${startDate}T00:00:00`)
+      scheduledStart.setMinutes(scheduledStart.getMinutes() + startTimeMin)
+
+      const draft: DraftEvent = {
+        mode,
+        eventType,
+        title: composedTitle,
+        details: details.trim() || undefined,
+        durationMinutes: durationMin,
+        startOffsetMinutes: mode === "now" ? startOffsetMin : undefined,
+        startDate:
+          mode === "scheduled" ? formatDateInput(scheduledStart) : undefined,
+        startTime:
+          mode === "scheduled"
+            ? `${String(scheduledStart.getHours()).padStart(2, "0")}:${String(scheduledStart.getMinutes()).padStart(2, "0")}`
+            : undefined,
+        recurrence: mode === "scheduled" ? recurrence : undefined,
+        whereType,
+        customWhere:
+          whereType === "search"
+            ? pickedSearchAddress || searchQuery.trim() || undefined
+            : undefined,
+        savedPlaceLabel:
+          whereType === "saved" && savedPlaceId
+            ? savedPlaces.find((p) => p.id === savedPlaceId)?.label
+            : undefined,
+        guestLimit,
+        audience: isOpen
+          ? (circles.find((c) => c.type === "all")?.id ?? finalAudience)
+          : finalAudience,
+        selectedFriendIds:
+          finalAudience === "custom" ? selectedFriendIds : undefined,
+        customListName:
+          finalAudience === "custom" && customListName.trim()
+            ? customListName.trim()
+            : undefined,
+        visibility: isOpen ? "public" : "private",
+        allowForward: isOpen ? false : allowForward,
+        allowPlusOne: isOpen ? false : allowPlusOne,
+        createdAt,
+      }
+
+      const timeRange = buildTimeRange({
+        mode,
+        createdAt,
+        startOffsetMin,
+        startDate,
+        startTimeMin,
+        durationMin,
+      })
+
+      await createEvent(
+        createEventRequestFromDraft(draft, eventAudience, timeRange)
+      )
+
+      // TODO: remove this compatibility write once /event reads hosted events
+      // from the backend instead of the local hosted-event store.
+      pushDraftAsHosted(draft)
+      router.push("/event")
+    } catch (error) {
+      setSubmitError(getErrorMessage(error))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -525,6 +685,16 @@ export default function NewEventPage() {
 
           {/* GUESTS */}
           <Section label="guests">
+            {audienceLoading && (
+              <p className="mb-2 text-xs text-muted-foreground">
+                loading your circles and friends...
+              </p>
+            )}
+            {audienceError && (
+              <p className="mb-2 text-xs text-destructive" role="alert">
+                {audienceError}
+              </p>
+            )}
             <GuestBlock
               isOpen={isOpen}
               onOpen={setIsOpen}
@@ -545,6 +715,11 @@ export default function NewEventPage() {
               onAllowPlusOne={setAllowPlusOne}
               summary={headcountSummary}
             />
+            {duplicateCustomCircleName && (
+              <p className="mt-2 text-xs text-destructive" role="alert">
+                you already have a circle with that name
+              </p>
+            )}
           </Section>
 
           {/* DETAILS */}
@@ -573,11 +748,29 @@ export default function NewEventPage() {
           onToggle={() => setTitleEditing((v) => !v)}
           onOverrideChange={setTitleOverride}
         />
+        {headcountWarning && (
+          <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground">
+            {headcountWarning}
+          </p>
+        )}
+        {submitError && (
+          <p
+            className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            role="alert"
+          >
+            {submitError}
+          </p>
+        )}
         <Button
           onClick={handleSubmit}
+          disabled={
+            isSubmitting ||
+            duplicateCustomCircleName ||
+            (!isOpen && (audienceLoading || Boolean(audienceError)))
+          }
           className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
         >
-          light a flare
+          {isSubmitting ? "lighting..." : "light a flare"}
         </Button>
       </div>
 
@@ -589,7 +782,7 @@ export default function NewEventPage() {
 
       {pickerOpen && (
         <FriendPicker
-          connections={MOCK_CONNECTIONS}
+          connections={connections}
           circles={circles}
           selectedIds={selectedFriendIds}
           listName={customListName}
@@ -598,7 +791,7 @@ export default function NewEventPage() {
           onCancel={() => {
             setPickerOpen(false)
             if (selectedFriendIds.length === 0 && !customListName.trim()) {
-              setAudience("close-friends")
+              setAudience(defaultAudience)
             }
           }}
           onConfirm={() => setPickerOpen(false)}
@@ -1090,14 +1283,8 @@ function GuestBlock({
         <Switch checked={isOpen} onCheckedChange={onOpen} />
       </div>
 
-      {/* Limit stepper — disabled when open */}
-      <Stepper
-        value={guestLimit}
-        onChange={onGuestLimit}
-        disabled={isOpen}
-        min={1}
-        max={200}
-      />
+      {/* Limit stepper */}
+      <Stepper value={guestLimit} onChange={onGuestLimit} min={1} max={200} />
 
       {/* Audience picker — hidden when open */}
       {!isOpen && (
@@ -1125,12 +1312,14 @@ function GuestBlock({
       )}
 
       {/* Guest controls */}
-      <ToggleRow
-        label="let guests bring +1"
-        description="adds a single guest each — doubles your max headcount"
-        checked={allowPlusOne}
-        onCheckedChange={onAllowPlusOne}
-      />
+      {!isOpen && (
+        <ToggleRow
+          label="let guests bring +1"
+          description="adds a single guest each — doubles your max headcount"
+          checked={allowPlusOne}
+          onCheckedChange={onAllowPlusOne}
+        />
+      )}
       {!isOpen && (
         <ToggleRow
           label="let guests forward invite"
