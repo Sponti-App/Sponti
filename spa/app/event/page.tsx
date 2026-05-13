@@ -15,7 +15,7 @@ import {
   uncancelHostedEvent,
   useHostedEvents,
   type HostedEvent,
-} from "@/lib/host-events"
+} from "@/lib/api/events"
 import { MOCK_NOTIFICATIONS, pushEventUpdate, type Notification } from "@/lib/notifications"
 
 const UNDO_WINDOW_MS = 5_000

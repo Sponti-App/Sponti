@@ -33,18 +33,30 @@ export type CreateCircleRequest = {
   memberIds?: string[]
 }
 
+/**
+ * Converts the backend circle type into the visual tier used by the frontend
+ * circle stack icon and audience picker ordering.
+ */
 function tierFromType(type: CircleType | undefined): CircleTier {
   if (type === "inner") return 1
   if (type === "all") return 3
   return 2
 }
 
+/**
+ * Provides the short UI description for known system circle types. Custom or
+ * missing types fall back to the default close-friends wording.
+ */
 function descriptionFromType(type: CircleType | undefined): string {
   if (type === "inner") return "your tightest group"
   if (type === "all") return "everyone you follow"
   return "your closer group"
 }
 
+/**
+ * Normalizes a backend circle document into the Circle shape used by frontend
+ * stores and pickers, including flattening members into memberIds.
+ */
 export function adaptApiCircle(circle: ApiCircle): Circle {
   const type = circle.type ?? "close"
   return {

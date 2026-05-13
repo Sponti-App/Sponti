@@ -2,7 +2,7 @@
 
 import { AlertTriangle, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { HostedEvent, EventStatus } from "@/lib/host-events"
+import type { HostedEvent, EventStatus } from "@/lib/api/events"
 
 export function CancelEventDialog({
   event,

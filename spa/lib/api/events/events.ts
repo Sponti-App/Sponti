@@ -8,6 +8,7 @@ import type {
   FetchCalendarEventsResult,
   FetchMapEventsParams,
   Paginated,
+  RsvpStatus,
 } from "./events.types"
 
 /**
@@ -69,8 +70,6 @@ export function fetchEventById(id: string, signal?: AbortSignal) {
   )
 }
 
-export type RsvpStatus = "going" | "maybe" | "declined"
-
 /**
  * Persists the current user's RSVP/arrival fields through the event membership
  * endpoint used by the home event detail sheet.
@@ -84,6 +83,3 @@ export function updateMyRsvp(
     body,
   })
 }
-
-export { etaToIso } from "./events.adapter"
-export type * from "./events.types"

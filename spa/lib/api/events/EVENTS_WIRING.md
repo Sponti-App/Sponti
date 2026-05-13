@@ -53,11 +53,12 @@ defaults, invite modes, and backend payload structure.
   provides real selected-location data.
 - After a successful API create, `pushDraftAsHosted(draft)` writes a local copy
   so the existing `/event` host dashboard can show the new event.
-- `saveDraftEvent()` is no longer used by this create-event flow.
+- The old draft localStorage helpers were removed; this flow posts directly to
+  the API and only keeps the hosted-event compatibility copy below.
 
 ## Remove When `/event` Uses Backend Events
 
 Once `/event` reads host events from the API, remove the
 `pushDraftAsHosted(draft)` compatibility write from `page.tsx`. At the same time,
-remove the local hosted-event conversion path that only exists to mirror created
-events into localStorage.
+remove the hosted-event compatibility helpers in `events.mock.ts` that only
+exist to mirror created events into localStorage.

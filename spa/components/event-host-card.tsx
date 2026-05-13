@@ -19,7 +19,7 @@ import {
   type EventStatus,
   setLocation,
   shiftStart,
-} from "@/lib/host-events"
+} from "@/lib/api/events"
 
 const MIN = 60_000
 const HOUR = 60 * MIN
