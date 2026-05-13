@@ -8,6 +8,19 @@ type RequestSchemas = {
   query?: ZodType;
 };
 
+const setRequestProperty = (
+  req: Parameters<RequestHandler>[0],
+  key: keyof RequestSchemas,
+  value: unknown
+) => {
+  Object.defineProperty(req, key, {
+    value,
+    configurable: true,
+    enumerable: true,
+    writable: true,
+  });
+};
+
 export const validateRequest =
   ({ body, params, query }: RequestSchemas): RequestHandler =>
   (req, _res, next) => {
@@ -18,7 +31,7 @@ export const validateRequest =
       if (!result.success) {
         details.body = result.error.issues;
       } else {
-        req.body = result.data;
+        setRequestProperty(req, "body", result.data);
       }
     }
 
@@ -27,7 +40,7 @@ export const validateRequest =
       if (!result.success) {
         details.params = result.error.issues;
       } else {
-        req.params = result.data as Record<string, string>;
+        setRequestProperty(req, "params", result.data as Record<string, string>);
       }
     }
 
@@ -36,7 +49,7 @@ export const validateRequest =
       if (!result.success) {
         details.query = result.error.issues;
       } else {
-        req.query = result.data as typeof req.query;
+        setRequestProperty(req, "query", result.data as typeof req.query);
       }
     }
 

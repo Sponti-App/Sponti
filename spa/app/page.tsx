@@ -10,8 +10,9 @@ import { NotificationsPopover } from "@/components/notifications-popover"
 import { useAuth } from "@/components/auth-provider"
 import { AccountAvatar } from "@/components/account-avatar"
 import { Bell, Map, Calendar, Navigation, X } from "lucide-react"
-import { isImminent } from "@/lib/api/events/events"
-import type { EventItem } from "@/lib/api/events/events"
+import { isImminent, isJoined } from "@/lib/events"
+import type { EventItem } from "@/lib/events"
+import { etaToIso, updateMyRsvp } from "@/lib/api/events"
 import { MOCK_NOTIFICATIONS } from "@/lib/notifications"
 
 export default function Home() {
@@ -19,7 +20,7 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const [activeRoute, setActiveRoute] = useState<EventItem | null>(null)
   const [routeEta, setRouteEta] = useState<string | null>(null)
-  const [joinedIds, setJoinedIds] = useState<Set<number>>(() => new Set())
+  const [joinedIds, setJoinedIds] = useState<Set<string>>(() => new Set())
   const [menuOpen, setMenuOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS)
@@ -27,14 +28,33 @@ export default function Home() {
   const unreadCount = notifications.filter((n) => !n.read).length
 
   const handleJoin = (event: EventItem, eta: string | null) => {
+    // Optimistic UI: flip the going-badge immediately. If the PATCH fails we
+    // revert below. `joinedIds` is a local overlay on top of `event.myRsvp`
+    // from the API so the badge survives a refresh once the backend persists.
     setJoinedIds((prev) => {
       const next = new Set(prev)
       next.add(event.id)
       return next
     })
-    if (isImminent(event) && event.position) {
+    // PATCH /events/:id/me — backend writes to EventMember (rsvpStatus +
+    // memberWillArriveAt). The "let host know" ETA chip is the user's
+    // committed arrival time; the Routes API ETA shown in the route pill is
+    // separate (display-only, not persisted).
+    updateMyRsvp(event.id, {
+      rsvpStatus: "going",
+      memberWillArriveAt: etaToIso(eta),
+    }).catch((err) => {
+      // Revert the optimistic add so the UI matches server state.
+      console.error("[Sponti] failed to RSVP going", err)
+      setJoinedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(event.id)
+        return next
+      })
+    })
+    if (isImminent(event) && event.location.coordinates) {
       setActiveRoute(event)
-      setRouteEta(eta)
+      setRouteEta(null) // Routes API will fill this in via onRouteReady
       setView("map")
     }
     setSelectedEvent(null)
@@ -42,15 +62,27 @@ export default function Home() {
 
   const handleSeeRoute = (event: EventItem) => {
     setActiveRoute(event)
+    setRouteEta(null)
     setView("map")
     setSelectedEvent(null)
   }
 
   const handleLeave = (event: EventItem) => {
+    // Optimistic remove. Same revert-on-error pattern as handleJoin.
     setJoinedIds((prev) => {
       const next = new Set(prev)
       next.delete(event.id)
       return next
+    })
+    // PATCH /events/:id/me with declined — backend keeps the EventMember row
+    // but updates rsvpStatus, so any future invite history is preserved.
+    updateMyRsvp(event.id, { rsvpStatus: "declined" }).catch((err) => {
+      console.error("[Sponti] failed to RSVP declined", err)
+      setJoinedIds((prev) => {
+        const next = new Set(prev)
+        next.add(event.id)
+        return next
+      })
     })
     if (activeRoute?.id === event.id) {
       setActiveRoute(null)
@@ -62,6 +94,10 @@ export default function Home() {
   const handleClearRoute = () => {
     setActiveRoute(null)
     setRouteEta(null)
+  }
+
+  const handleRouteReady = (event: EventItem, etaLabel: string) => {
+    if (activeRoute?.id === event.id) setRouteEta(etaLabel)
   }
 
   return (
@@ -139,12 +175,13 @@ export default function Home() {
       />
 
       {/* Content Area — fills all remaining height; nav floats over it */}
-      <div className="relative flex-1 overflow-hidden">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         {view === "map" ? (
           <MapView
             onEventSelect={setSelectedEvent}
             activeRoute={activeRoute}
             joinedIds={joinedIds}
+            onRouteReady={handleRouteReady}
           />
         ) : (
           <CalendarView
@@ -182,7 +219,7 @@ export default function Home() {
         <div className="absolute inset-0 z-50">
           <EventDetailSheet
             event={selectedEvent}
-            joined={joinedIds.has(selectedEvent.id)}
+            joined={isJoined(selectedEvent, joinedIds)}
             onClose={() => setSelectedEvent(null)}
             onJoin={handleJoin}
             onLeave={handleLeave}
