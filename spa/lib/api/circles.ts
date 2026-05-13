@@ -59,12 +59,18 @@ export function adaptApiCircle(circle: ApiCircle): Circle {
   }
 }
 
+/**
+ * Loads the signed-in user's circles for the create-event audience picker.
+ */
 export function fetchMyCircles(signal?: AbortSignal): Promise<Circle[]> {
   return apiFetch<{ data: ApiCircle[] }>("/circles", { signal }).then(
     (response) => response.data.map(adaptApiCircle)
   )
 }
 
+/**
+ * Creates a named circle from the ad-hoc friend picker before event creation.
+ */
 export function createCircle(body: CreateCircleRequest): Promise<Circle> {
   return apiFetch<{ data: ApiCircle }>("/circles", {
     method: "POST",

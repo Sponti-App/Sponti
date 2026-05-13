@@ -30,6 +30,10 @@ function adaptApiConnection(connection: ApiConnection): Connection | null {
   }
 }
 
+/**
+ * Loads accepted friends for the custom invite picker and de-duplicates by
+ * user id because the backend can return either connection direction.
+ */
 export function fetchAcceptedConnections(
   signal?: AbortSignal
 ): Promise<Connection[]> {

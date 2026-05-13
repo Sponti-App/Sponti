@@ -10,6 +10,11 @@ import type {
   Paginated,
 } from "./events.types"
 
+/**
+ * Posts a fully adapted event create payload and returns the backend event
+ * plus EventMember rows. The create form currently awaits this as the API
+ * success signal before writing its temporary local compatibility copy.
+ */
 export function createEvent(
   body: CreateEventRequest
 ): Promise<CreateEventResponse> {
@@ -19,6 +24,10 @@ export function createEvent(
   }).then((response) => response.data)
 }
 
+/**
+ * Loads active nearby events for the home map and converts backend documents
+ * into the frontend EventItem shape.
+ */
 export function fetchMapEvents(params: FetchMapEventsParams) {
   const query = new URLSearchParams({
     lat: String(params.lat),
@@ -31,6 +40,10 @@ export function fetchMapEvents(params: FetchMapEventsParams) {
   }).then((response) => response.data.map(adaptApiEvent))
 }
 
+/**
+ * Loads upcoming events for the calendar view while preserving backend
+ * pagination metadata.
+ */
 export function fetchCalendarEvents(
   params?: FetchCalendarEventsParams
 ): Promise<FetchCalendarEventsResult> {
@@ -47,6 +60,9 @@ export function fetchCalendarEvents(
   }))
 }
 
+/**
+ * Fetches one event and adapts it for detail surfaces that expect EventItem.
+ */
 export function fetchEventById(id: string, signal?: AbortSignal) {
   return apiFetch<{ data: ApiEvent }>(`/events/${id}`, { signal }).then(
     (response) => adaptApiEvent(response.data)
@@ -55,6 +71,10 @@ export function fetchEventById(id: string, signal?: AbortSignal) {
 
 export type RsvpStatus = "going" | "maybe" | "declined"
 
+/**
+ * Persists the current user's RSVP/arrival fields through the event membership
+ * endpoint used by the home event detail sheet.
+ */
 export function updateMyRsvp(
   eventId: string,
   body: { rsvpStatus?: RsvpStatus; memberWillArriveAt?: string | null }

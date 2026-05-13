@@ -71,8 +71,8 @@ const RECURRENCE_OPTIONS: { value: Recurrence; label: string }[] = [
   { value: "weekly", label: "weekly" },
 ]
 
-// Mocked Places autocomplete — swap for a debounced Google Places call
-// once the API key + billing is set up.
+// TODO: Replace this mocked Places autocomplete with a debounced Google
+// Places call once the API key and billing are set up.
 const MOCK_PLACE_RESULTS = [
   { label: "Reuben's Espresso", address: "1247 Fillmore St" },
   { label: "Dolores Park", address: "Mission District" },
