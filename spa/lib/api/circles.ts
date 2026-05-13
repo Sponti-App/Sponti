@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/http"
-import type { Circle, CircleTier, CircleType } from "@/lib/circles"
+import type { Circle, CircleType } from "@/lib/circles"
 
 type ApiUserSummary = {
   _id: string
@@ -34,16 +34,6 @@ export type CreateCircleRequest = {
 }
 
 /**
- * Converts the backend circle type into the visual tier used by the frontend
- * circle stack icon and audience picker ordering.
- */
-function tierFromType(type: CircleType | undefined): CircleTier {
-  if (type === "inner") return 1
-  if (type === "all") return 3
-  return 2
-}
-
-/**
  * Provides the short UI description for known system circle types. Custom or
  * missing types fall back to the default close-friends wording.
  */
@@ -63,7 +53,6 @@ export function adaptApiCircle(circle: ApiCircle): Circle {
     id: circle._id,
     name: circle.name,
     description: descriptionFromType(type),
-    tier: tierFromType(type),
     type,
     color: circle.color ?? null,
     icon: circle.icon ?? null,

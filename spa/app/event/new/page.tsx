@@ -1296,7 +1296,7 @@ function GuestBlock({
           {circles.map((c) => (
             <AudienceCard
               key={c.id}
-              tier={c.tier}
+              type={c.type}
               label={c.name}
               count={c.memberIds.length}
               selected={audience === c.id}
@@ -1610,13 +1610,13 @@ function FriendPicker({
 }
 
 function AudienceCard({
-  tier,
+  type,
   label,
   count,
   selected,
   onClick,
 }: {
-  tier?: Circle["tier"]
+  type?: Circle["type"]
   label: string
   count?: number
   selected: boolean
@@ -1630,9 +1630,9 @@ function AudienceCard({
         selected ? "border-accent bg-accent/5" : "border-border bg-background"
       }`}
     >
-      {tier !== undefined ? (
+      {type !== undefined ? (
         <CircleStackIcon
-          tier={tier}
+          type={type}
           className={`h-5 w-5 shrink-0 ${selected ? "text-accent" : "text-muted-foreground"}`}
         />
       ) : (

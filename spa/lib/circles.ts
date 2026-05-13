@@ -15,18 +15,14 @@ export type ConnectionRequest = {
   createdAt: string
 }
 
-// Tier drives the CircleStackIcon visual — 1 dot is the tightest inner ring,
-// 2 and 3 expand outward. Custom circles default to tier 2.
-export type CircleTier = 1 | 2 | 3
 export type CircleType = "close" | "inner" | "all"
 
 export type Circle = {
   id: string
   name: string
   description: string
-  tier: CircleTier
   memberIds: string[]
-  type?: CircleType
+  type: CircleType
   color?: string | null
   icon?: string | null
 }
@@ -89,7 +85,6 @@ export const MOCK_CIRCLES: Circle[] = [
     id: "inner",
     name: "inner circle",
     description: "your tightest 5",
-    tier: 1,
     type: "inner",
     memberIds: ["maya", "jordan", "sam", "avery", "noah"],
   },
@@ -97,7 +92,6 @@ export const MOCK_CIRCLES: Circle[] = [
     id: "close",
     name: "close friends",
     description: "your tighter group",
-    tier: 2,
     type: "close",
     memberIds: ["maya", "sam", "riley", "lina"],
   },
@@ -105,7 +99,6 @@ export const MOCK_CIRCLES: Circle[] = [
     id: "all",
     name: "all friends",
     description: "everyone you follow",
-    tier: 3,
     type: "all",
     memberIds: MOCK_CONNECTIONS.map((c) => c.id),
   },
