@@ -78,6 +78,7 @@ Table circles {
   ownerId ObjectId [ref: > users._id]
   name string
   color string // optional by now
+  type circleType
 
   createdAt datetime
   updatedAt datetime
@@ -85,6 +86,12 @@ Table circles {
   indexes {
     (ownerId)
   }
+}
+
+Enum circleType {
+  inner
+  close
+  all
 }
 ```
 
