@@ -135,7 +135,7 @@ Table favLocations {
 ```text
 Table events {
   _id ObjectId [pk]
-
+  type eventType
   hostId ObjectId [ref: > users._id]
 
   title string
@@ -144,13 +144,13 @@ Table events {
   startAt datetime
   endAt datetime
 
-  locationName string
-  locationAddress string // optional
-  location Object // GeoJSON Point: { type: "Point", coordinates: [lng, lat] }
+ locationName string
+ locationAddress string // optional
+ location Object // GeoJSON Point: { type: "Point", coordinates: [lng, lat] }
 
   visibility event_visibility
 
-  allowGuestInvites boolean
+  allowGuestInvites guestInvites
   guestInviteLimit number
 
   status event_status
@@ -163,6 +163,24 @@ Table events {
     (startAt)
     (status, startAt)
   }
+}
+
+Enum eventTypeObject{
+  hangout
+  sports
+  drinks
+  food
+}
+
+Enum eventType {
+  eventTypeObject
+  icon
+}
+
+Enum guestInvites {
+  single
+  multiple
+  none
 }
 
 Enum event_visibility {
