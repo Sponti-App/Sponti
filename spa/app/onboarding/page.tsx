@@ -1,11 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { ArrowRight, Clock3, Coffee, Flame, MapPin, Users } from "lucide-react"
-import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
-import { markOnboardingSeen } from "@/lib/onboarding"
 
 const slides = [
   {
@@ -29,16 +27,10 @@ const slides = [
 ]
 
 export default function OnboardingPage() {
-  const { status } = useAuth()
   const [slide, setSlideState] = useState(0)
   const active = slides[slide]
   const isLast = slide === slides.length - 1
-  const primaryHref = status === "authenticated" ? "/" : "/register"
   const ActiveIllustration = active.Illustration
-
-  useEffect(() => {
-    if (slide === slides.length - 1) markOnboardingSeen()
-  }, [slide])
 
   const setSlide = (nextSlide: number) => {
     setSlideState(Math.min(Math.max(nextSlide, 0), slides.length - 1))
@@ -53,10 +45,10 @@ export default function OnboardingPage() {
           <span className="text-[15px] font-semibold tracking-normal">Sponti</span>
         </div>
         <Link
-          href={status === "authenticated" ? "/" : "/login"}
+          href="/login"
           className="min-h-11 px-1 py-3 text-sm font-medium text-muted-foreground hover:text-foreground"
         >
-          {status === "authenticated" ? "Home" : "Sign in"}
+          Sign in
         </Link>
       </header>
 
@@ -90,8 +82,8 @@ export default function OnboardingPage() {
                 onClick={isLast ? undefined : () => setSlide(slide + 1)}
               >
                 {isLast ? (
-                  <Link href={primaryHref} onClick={markOnboardingSeen}>
-                    {status === "authenticated" ? "Go home" : "Create account"}
+                  <Link href="/register">
+                    Create account
                     <ArrowRight className="size-4" />
                   </Link>
                 ) : (
@@ -103,19 +95,13 @@ export default function OnboardingPage() {
               </Button>
 
               {isLast ? (
-                <>
-                  {status !== "authenticated" && (
-                    <Button
-                      asChild
-                      variant="ghost"
-                      className="h-auto rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
-                    >
-                      <Link href="/login" onClick={markOnboardingSeen}>
-                        I have an account
-                      </Link>
-                    </Button>
-                  )}
-                </>
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="h-auto rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+                >
+                  <Link href="/login">I have an account</Link>
+                </Button>
               ) : (
                 <Button
                   type="button"

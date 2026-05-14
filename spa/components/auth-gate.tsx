@@ -3,7 +3,6 @@
 import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
-import { hasSeenOnboarding } from "@/lib/onboarding"
 
 const AUTH_PATHS = [
   "/login",
@@ -11,7 +10,8 @@ const AUTH_PATHS = [
   "/forgot-password",
   "/reset-password",
 ]
-const PUBLIC_PATHS = [...AUTH_PATHS, "/onboarding"]
+const ONBOARDING_PATH = "/onboarding"
+const PUBLIC_PATHS = [...AUTH_PATHS, ONBOARDING_PATH]
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { status } = useAuth()
@@ -20,15 +20,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   const isPublic = PUBLIC_PATHS.includes(pathname)
   const isAuthPage = AUTH_PATHS.includes(pathname)
+  const isOnboardingPage = pathname === ONBOARDING_PATH
 
   useEffect(() => {
     if (status === "loading") return
     if (status === "unauthenticated" && !isPublic) {
-      router.replace(hasSeenOnboarding() ? "/login" : "/onboarding")
-    } else if (status === "authenticated" && isAuthPage) {
+      router.replace("/login")
+    } else if (status === "authenticated" && (isAuthPage || isOnboardingPage)) {
       router.replace("/")
     }
-  }, [status, isPublic, isAuthPage, router])
+  }, [status, isPublic, isAuthPage, isOnboardingPage, router])
 
   if (status === "loading") {
     return (
@@ -39,7 +40,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   if (status === "unauthenticated" && !isPublic) return null
-  if (status === "authenticated" && isAuthPage) return null
+  if (status === "authenticated" && (isAuthPage || isOnboardingPage)) return null
 
   return <>{children}</>
 }
