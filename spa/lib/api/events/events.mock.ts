@@ -20,7 +20,7 @@ export const MOCK_EVENTS: EventItem[] = [
   {
     id: "evt-mira",
     title: "coffee at Reuben's",
-    type: "coffee",
+    type: "drinks",
     startAt: new Date(now - 10 * MIN).toISOString(),
     endAt: new Date(now + 50 * MIN).toISOString(),
     visibility: "public",
@@ -45,7 +45,7 @@ export const MOCK_EVENTS: EventItem[] = [
   {
     id: "evt-sam-patio",
     title: "patio hang",
-    type: "hang",
+    type: "hangout",
     startAt: new Date(now + 4 * HOUR).toISOString(),
     endAt: new Date(now + 7 * HOUR).toISOString(),
     visibility: "private",
@@ -69,7 +69,7 @@ export const MOCK_EVENTS: EventItem[] = [
   {
     id: "evt-run-club",
     title: "run club",
-    type: "run",
+    type: "sports",
     startAt: new Date(now + DAY + 2 * HOUR).toISOString(),
     endAt: new Date(now + DAY + 3 * HOUR).toISOString(),
     visibility: "public",
@@ -90,7 +90,7 @@ export const MOCK_EVENTS: EventItem[] = [
   {
     id: "evt-bookclub",
     title: "book club",
-    type: "hang",
+    type: "hangout",
     startAt: new Date(now + 3 * DAY + 6 * HOUR).toISOString(),
     endAt: new Date(now + 3 * DAY + 8 * HOUR).toISOString(),
     visibility: "private",
