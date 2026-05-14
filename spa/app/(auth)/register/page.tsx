@@ -2,14 +2,17 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { AuthFrame } from "@/components/auth-frame"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { HttpError } from "@/lib/http"
+import { markHomeTourPending } from "@/lib/onboarding"
 
 export default function RegisterPage() {
+  const router = useRouter()
   const { register } = useAuth()
   const [displayName, setDisplayName] = useState("")
   const [username, setUsername] = useState("")
@@ -30,6 +33,8 @@ export default function RegisterPage() {
         email: email.trim(),
         password,
       })
+      markHomeTourPending()
+      router.replace("/")
     } catch (err) {
       if (err instanceof HttpError) {
         setError(err.message)
