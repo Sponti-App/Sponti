@@ -26,8 +26,8 @@ const ETA_OPTIONS = ["5 min", "15 min", "30 min", "1 hr"]
 
 function EventTypeIcon({ type }: { type: EventItem["type"] }) {
   const cls = "w-6 h-6 text-accent"
-  if (type === "coffee") return <Coffee className={cls} />
-  if (type === "run") return <Activity className={cls} />
+  if (type === "drinks") return <Coffee className={cls} />
+  if (type === "sports") return <Activity className={cls} />
   return <Users className={cls} />
 }
 
