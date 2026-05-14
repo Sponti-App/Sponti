@@ -50,14 +50,14 @@ export function useMapEvents(
       setState((s) => ({ ...s, loading: true, error: null }))
     })
     fetchMapEvents({ ...userCoords, radiusKm, signal: ac.signal })
-      .then((items) =>
+      .then((items) => {
         setState({
           events: items,
           loading: false,
           error: null,
           refresh: () => setTick((n) => n + 1),
         })
-      )
+      })
       .catch((err) => {
         if (ac.signal.aborted) return
         // API is configured but unreachable. Fall back to demo data so the map

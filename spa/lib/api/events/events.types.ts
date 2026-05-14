@@ -108,6 +108,7 @@ export type EventCircleInviteRequest = {
 export type CreateEventRequest = {
   title: string
   description?: string | null
+  type: EventType
   startAt: string
   endAt: string
   locationName: string
@@ -137,6 +138,7 @@ export type ApiEvent = {
   hostId: string | { _id: string; displayName?: string; username?: string }
   title: string
   description?: string | null
+  type: EventType
   startAt: string
   endAt: string
   locationName: string
