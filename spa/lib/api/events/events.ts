@@ -12,6 +12,7 @@ import type {
 } from "./events.types"
 
 /**
+ * POST	/events
  * Posts a fully adapted event create payload and returns the backend event
  * plus EventMember rows. The create form currently awaits this as the API
  * success signal before writing its temporary local compatibility copy.
@@ -26,6 +27,7 @@ export function createEvent(
 }
 
 /**
+ * GET /events/map/active
  * Loads active nearby events for the home map and converts backend documents
  * into the frontend EventItem shape.
  */
@@ -42,6 +44,7 @@ export function fetchMapEvents(params: FetchMapEventsParams) {
 }
 
 /**
+ * GET /events/calendar/upcoming
  * Loads upcoming events for the calendar view while preserving backend
  * pagination metadata.
  */
@@ -61,7 +64,7 @@ export function fetchCalendarEvents(
   }))
 }
 
-/**
+/** GET /events/:id
  * Fetches one event and adapts it for detail surfaces that expect EventItem.
  */
 export function fetchEventById(id: string, signal?: AbortSignal) {

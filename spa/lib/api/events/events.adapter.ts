@@ -7,7 +7,6 @@ import type {
   EventGuestInviteMode,
   EventItem,
   EventTimeRange,
-  EventType,
 } from "./events.types"
 
 const MIN = 60_000
@@ -22,19 +21,6 @@ export const TEMP_EVENT_LOCATION_FALLBACK = {
     type: "Point" as const,
     coordinates: [9.9937, 53.5511] as [number, number],
   },
-}
-
-const TYPE_KEYWORDS: Array<{ test: RegExp; type: EventType }> = [
-  {
-    test: /coffee|latte|espresso|brunch|breakfast|food|dinner|lunch/i,
-    type: "drinks",
-  },
-  { test: /run|jog|hike|cycle|ride|sports|gym/i, type: "sports" },
-]
-
-function inferType(title: string): EventType {
-  for (const { test, type } of TYPE_KEYWORDS) if (test.test(title)) return type
-  return "hangout"
 }
 
 export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
@@ -165,7 +151,7 @@ export function adaptApiEvent(api: ApiEvent): EventItem {
   return {
     id: api._id,
     title: api.title,
-    type: inferType(api.title),
+    type: api.type,
     startAt: api.startAt,
     endAt: api.endAt,
     visibility: api.visibility,
@@ -265,6 +251,7 @@ export function createEventRequestFromDraft(
   return {
     title: draft.title.trim() || draft.eventType,
     description: draft.details?.trim() ? draft.details.trim() : null,
+    type: draft.eventType,
     startAt: timeRange.startAt,
     endAt: timeRange.endAt,
     ...locationFromDraft(draft),

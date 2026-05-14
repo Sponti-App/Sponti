@@ -27,6 +27,7 @@ createEvent(createEventRequestFromDraft(draft, eventAudience, timeRange))
 shape:
 
 - title/details -> `title` and nullable `description`
+- event type -> `type`
 - time range -> `startAt` and `endAt`
 - location picker -> `locationName`, `locationAddress`, and GeoJSON `location`
 - visibility and invite toggles -> `visibility` and `allowGuestInvites`

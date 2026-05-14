@@ -182,6 +182,7 @@ export const createEvent = async (hostId: string, input: CreateEventBody) => {
           hostId: hostObjectId,
           title: input.title,
           description: input.description ?? null,
+          type: input.type,
           startAt: input.startAt,
           endAt: input.endAt,
           locationName: input.locationName,
@@ -419,10 +420,22 @@ const attachMyRsvp = async <T extends { _id: unknown }>(
   }));
 };
 
+/**
+ * Returns events that should appear on the home map for the authenticated user.
+ *
+ * The base filter enforces event visibility and block rules, then the map
+ * filter narrows results to active events within the requested radius. Events
+ * whose end time is now or in the past are excluded at the database layer so
+ * clients do not need to decide whether an ended event is still displayable.
+ *
+ * MongoDB expects GeoJSON coordinates in [lng, lat] order and distances in
+ * meters, while the public query uses latitude/longitude and radius in km.
+ */
 export const getActiveMapEvents = async (userId: string, query: ActiveMapEventsQuery) => {
   const baseFilter = await buildAccessibleEventFilter(userId);
   const filter = withConditions(baseFilter, {
     status: "active",
+    endAt: { $gt: new Date() },
     location: {
       $near: {
         $geometry: {
