@@ -47,7 +47,7 @@ export default function ForgotPasswordPage() {
       {sent ? (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-foreground">
-            check your inbox — if that email is registered you'll receive a reset link shortly.
+            check your inbox — if that email is registered you&apos;ll receive a reset link shortly.
           </p>
           <p className="text-xs text-muted-foreground">the link expires in 15 minutes.</p>
         </div>
