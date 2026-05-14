@@ -7,6 +7,7 @@ import { BottomNav } from "@/components/bottom-nav"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
 import { MenuDrawer } from "@/components/menu-drawer"
 import { NotificationsPopover } from "@/components/notifications-popover"
+import { HomeTour } from "@/components/home-tour"
 import { useAuth } from "@/components/auth-provider"
 import { AccountAvatar } from "@/components/account-avatar"
 import { Bell, Map, Calendar, Navigation, X } from "lucide-react"
@@ -240,6 +241,7 @@ export default function Home() {
       </div>
 
       <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <HomeTour user={user} onViewChange={setView} />
     </div>
   )
 }
