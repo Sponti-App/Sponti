@@ -1,4 +1,10 @@
-import { clearSession, getRefreshToken, getToken, getUser, setSession } from "./auth-store"
+import {
+  clearSession,
+  getRefreshToken,
+  getToken,
+  getUser,
+  setSession,
+} from "./auth-store"
 
 export class HttpError extends Error {
   status: number
@@ -20,14 +26,17 @@ type RequestOptions = {
   formData?: boolean
 }
 
-type ErrorBody = {
-  message?: string
-  code?: string
+type ErrorResponse = {
+  error?: {
+    message?: string
+    code?: string
+    details?: unknown
+  }
 }
 
-async function parseError(res: Response): Promise<ErrorBody | null> {
+async function parseError(res: Response): Promise<ErrorResponse | null> {
   try {
-    return (await res.json()) as ErrorBody
+    return (await res.json()) as ErrorResponse
   } catch {
     return null
   }
@@ -57,7 +66,10 @@ async function refreshSession(): Promise<string | null> {
     return null
   }
 
-  const body = (await res.json()) as { accessToken: string; refreshToken: string }
+  const body = (await res.json()) as {
+    accessToken: string
+    refreshToken: string
+  }
   setSession(body.accessToken, body.refreshToken, user)
   return body.accessToken
 }
@@ -66,14 +78,15 @@ async function request<T>(
   baseUrl: string,
   path: string,
   opts: RequestOptions,
-  hasRetried = false,
+  hasRetried = false
 ): Promise<T> {
   if (!baseUrl) {
     throw new HttpError(0, `Missing base URL for request to ${path}`)
   }
 
   const headers: Record<string, string> = {}
-  if (!opts.formData && opts.body !== undefined) headers["Content-Type"] = "application/json"
+  if (!opts.formData && opts.body !== undefined)
+    headers["Content-Type"] = "application/json"
   if (opts.auth) {
     const token = getToken()
     if (token) headers.Authorization = `Bearer ${token}`
@@ -82,12 +95,21 @@ async function request<T>(
   const res = await fetch(`${baseUrl}${path}`, {
     method: opts.method ?? "GET",
     headers,
-    body: opts.formData ? (opts.body as FormData) : opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    body: opts.formData
+      ? (opts.body as FormData)
+      : opts.body !== undefined
+        ? JSON.stringify(opts.body)
+        : undefined,
     signal: opts.signal,
   })
 
   if (!res.ok) {
-    if (opts.auth && res.status === 401 && !hasRetried && path !== "/auth/refresh") {
+    if (
+      opts.auth &&
+      res.status === 401 &&
+      !hasRetried &&
+      path !== "/auth/refresh"
+    ) {
       const nextAccessToken = await refreshSession()
 
       if (nextAccessToken) {
@@ -96,7 +118,11 @@ async function request<T>(
     }
 
     const body = await parseError(res)
-    throw new HttpError(res.status, body?.message ?? res.statusText, body?.code)
+    throw new HttpError(
+      res.status,
+      body?.error?.message ?? res.statusText,
+      body?.error?.code
+    )
   }
 
   if (res.status === 204) return undefined as T
@@ -111,10 +137,19 @@ function withApiVersionPrefix(path: string): string {
   return `/api/v1${path.startsWith("/") ? path : `/${path}`}`
 }
 
-export function authFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+export function authFetch<T>(
+  path: string,
+  opts: RequestOptions = {}
+): Promise<T> {
   return request<T>(AUTH_BASE, path, opts)
 }
 
-export function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  return request<T>(API_BASE, withApiVersionPrefix(path), { auth: true, ...opts })
+export function apiFetch<T>(
+  path: string,
+  opts: RequestOptions = {}
+): Promise<T> {
+  return request<T>(API_BASE, withApiVersionPrefix(path), {
+    auth: true,
+    ...opts,
+  })
 }

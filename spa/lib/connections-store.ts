@@ -20,7 +20,7 @@ export type ConnectionsState = {
   connections: Connection[]
   requests: ConnectionRequest[]
   discoverable: Connection[]
-  sentRequestIds: string[]
+  sentRequests: Connection[]
   blocked: BlockedUser[]
 }
 
@@ -32,7 +32,7 @@ function seed(): ConnectionsState {
     connections: MOCK_CONNECTIONS,
     requests: MOCK_REQUESTS,
     discoverable: MOCK_DISCOVERABLE,
-    sentRequestIds: [],
+    sentRequests: [],
     blocked: MOCK_BLOCKED,
   }
 }
@@ -48,7 +48,10 @@ function readFromStorage(): ConnectionsState {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
       return s
     }
-    return JSON.parse(raw) as ConnectionsState
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    // Migrate old shape that stored sentRequestIds: string[] instead of sentRequests: Connection[]
+    if (!parsed.sentRequests) parsed.sentRequests = []
+    return parsed as unknown as ConnectionsState
   } catch {
     return seed()
   }
@@ -76,7 +79,7 @@ const EMPTY: ConnectionsState = {
   connections: [],
   requests: [],
   discoverable: [],
-  sentRequestIds: [],
+  sentRequests: [],
   blocked: [],
 }
 
@@ -95,22 +98,21 @@ export function sendRequest(target: Connection): void {
   writeAll({
     ...s,
     discoverable: s.discoverable.filter((d) => d.id !== target.id),
-    sentRequestIds: s.sentRequestIds.includes(target.id)
-      ? s.sentRequestIds
-      : [...s.sentRequestIds, target.id],
+    sentRequests: s.sentRequests.find((r) => r.id === target.id)
+      ? s.sentRequests
+      : [...s.sentRequests, target],
   })
 }
 
 export function cancelSentRequest(targetId: string): void {
   const s = snapshot()
-  // Restore to discoverable if we know about them (from the mock pool).
-  const stranger = MOCK_DISCOVERABLE.find((d) => d.id === targetId)
+  const cancelled = s.sentRequests.find((r) => r.id === targetId)
   writeAll({
     ...s,
-    sentRequestIds: s.sentRequestIds.filter((id) => id !== targetId),
+    sentRequests: s.sentRequests.filter((r) => r.id !== targetId),
     discoverable:
-      stranger && !s.discoverable.find((d) => d.id === targetId)
-        ? [...s.discoverable, stranger]
+      cancelled && !s.discoverable.find((d) => d.id === targetId)
+        ? [...s.discoverable, cancelled]
         : s.discoverable,
   })
 }
@@ -119,13 +121,19 @@ export function acceptRequest(reqId: string): void {
   const s = snapshot()
   const req = s.requests.find((r) => r.id === reqId)
   if (!req) return
+  const alreadyConnected = Boolean(s.connections.find((c) => c.id === req.user.id))
   writeAll({
     ...s,
     requests: s.requests.filter((r) => r.id !== reqId),
-    connections: s.connections.find((c) => c.id === req.user.id)
-      ? s.connections
-      : [...s.connections, req.user],
+    connections: alreadyConnected ? s.connections : [...s.connections, req.user],
   })
+  if (!alreadyConnected) {
+    setCircles((prev) =>
+      prev.map((c) =>
+        c.id === "all" ? { ...c, memberIds: [...c.memberIds, req.user.id] } : c,
+      ),
+    )
+  }
 }
 
 export function declineRequest(reqId: string): void {
@@ -156,6 +164,8 @@ export function blockConnection(target: Connection): void {
   writeAll({
     ...s,
     connections: s.connections.filter((c) => c.id !== target.id),
+    discoverable: s.discoverable.filter((d) => d.id !== target.id),
+    sentRequests: s.sentRequests.filter((r) => r.id !== target.id),
     blocked: [
       {
         id: target.id,
@@ -176,8 +186,13 @@ export function blockConnection(target: Connection): void {
 
 export function unblock(targetId: string): void {
   const s = snapshot()
+  const wasDiscoverable = MOCK_DISCOVERABLE.find((d) => d.id === targetId)
   writeAll({
     ...s,
     blocked: s.blocked.filter((b) => b.id !== targetId),
+    discoverable:
+      wasDiscoverable && !s.discoverable.find((d) => d.id === targetId)
+        ? [...s.discoverable, wasDiscoverable]
+        : s.discoverable,
   })
 }

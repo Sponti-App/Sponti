@@ -1,6 +1,7 @@
 import mongoose, { Schema, model, type InferSchemaType, type Model } from "mongoose";
 
 export const MAX_GUEST_INVITE_LIMIT = 100000;
+export const EVENT_GUEST_INVITE_MODES = ["multiple", "single", "none"] as const;
 
 const eventSchema = new Schema(
   {
@@ -66,8 +67,10 @@ const eventSchema = new Schema(
       required: true,
     },
     allowGuestInvites: {
-      type: Boolean,
-      default: false,
+      type: String,
+      enum: EVENT_GUEST_INVITE_MODES,
+      default: "none",
+      required: true,
     },
     guestInviteLimit: {
       type: Number,
@@ -94,6 +97,7 @@ eventSchema.index({ location: "2dsphere" });
 
 export type EventVisibility = "public" | "private";
 export type EventStatus = "active" | "cancelled" | "completed";
+export type EventGuestInviteMode = (typeof EVENT_GUEST_INVITE_MODES)[number];
 export type EventDocument = InferSchemaType<typeof eventSchema>;
 
 export const Event: Model<EventDocument> =
