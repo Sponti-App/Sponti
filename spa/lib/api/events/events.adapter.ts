@@ -1,0 +1,298 @@
+import type {
+  ApiEvent,
+  CreateEventRequest,
+  DraftEvent,
+  EventAudienceTarget,
+  EventCoordinates,
+  EventGuestInviteMode,
+  EventItem,
+  EventTimeRange,
+  EventType,
+} from "./events.types"
+
+const MIN = 60_000
+const DAY = 24 * 60 * MIN
+
+// TODO: Replace this fallback once Places/Maps selection provides real
+// coordinates and addresses from the user's chosen location.
+export const TEMP_EVENT_LOCATION_FALLBACK = {
+  locationName: "Hamburg",
+  locationAddress: "Hamburg, Germany",
+  location: {
+    type: "Point" as const,
+    coordinates: [9.9937, 53.5511] as [number, number],
+  },
+}
+
+const TYPE_KEYWORDS: Array<{ test: RegExp; type: EventType }> = [
+  {
+    test: /coffee|latte|espresso|brunch|breakfast|food|dinner|lunch/i,
+    type: "drinks",
+  },
+  { test: /run|jog|hike|cycle|ride|sports|gym/i, type: "sports" },
+]
+
+function inferType(title: string): EventType {
+  for (const { test, type } of TYPE_KEYWORDS) if (test.test(title)) return type
+  return "hangout"
+}
+
+export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
+  return event.myRsvp === "going" || joinedIds.has(event.id)
+}
+
+export function isImminent(
+  event: EventItem,
+  now: number = Date.now()
+): boolean {
+  const start = new Date(event.startAt).getTime()
+  const end = new Date(event.endAt).getTime()
+  return now >= start - 30 * MIN && now <= end
+}
+
+export function isLive(event: EventItem, now: number = Date.now()): boolean {
+  const start = new Date(event.startAt).getTime()
+  const end = new Date(event.endAt).getTime()
+  return now >= start && now <= end
+}
+
+export function dayKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+
+export function eventDayKey(event: EventItem): string {
+  return dayKey(new Date(event.startAt))
+}
+
+export function formatEventTime(event: EventItem): string {
+  return new Date(event.startAt).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
+export function formatRelativeStatus(
+  event: EventItem,
+  now: number = Date.now()
+): string {
+  const start = new Date(event.startAt).getTime()
+  if (isLive(event, now)) return "happening now"
+  const diffMs = start - now
+  if (diffMs < 0) return "ended"
+  const diffMin = Math.round(diffMs / MIN)
+  if (diffMin < 60) return `in ${diffMin} min`
+  const sameDay = dayKey(new Date(start)) === dayKey(new Date(now))
+  if (sameDay) return formatEventTime(event)
+  const tomorrowKey = dayKey(new Date(now + DAY))
+  if (dayKey(new Date(start)) === tomorrowKey)
+    return `${formatEventTime(event)} tomorrow`
+  return new Date(start).toLocaleString(undefined, {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
+export function avatarText(bgColor: string): string {
+  return bgColor === "bg-accent" || bgColor === "bg-stone-800"
+    ? "text-accent-foreground"
+    : "text-foreground"
+}
+
+const EARTH_RADIUS_M = 6_371_000
+
+function haversineMeters(a: EventCoordinates, b: EventCoordinates): number {
+  const toRad = (v: number) => (v * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2)
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h))
+}
+
+export function distanceFromUser(
+  event: EventItem,
+  user: EventCoordinates | null
+): { meters: number; label: string } | null {
+  if (!user || !event.location.coordinates) return null
+  const [lng, lat] = event.location.coordinates
+  const meters = haversineMeters(user, { lat, lng })
+  return { meters, label: formatDistance(meters) }
+}
+
+export function formatDistance(meters: number): string {
+  const miles = meters / 1609.344
+  if (miles < 0.1) return `${Math.round(meters)} m`
+  if (miles < 10) return `${miles.toFixed(1)} mi`
+  return `${Math.round(miles)} mi`
+}
+
+export function walkTimeLabel(meters: number): string {
+  const minutes = Math.max(1, Math.round(meters / 80))
+  if (minutes < 60) return `${minutes} min walk`
+  const hours = Math.floor(minutes / 60)
+  const rem = minutes % 60
+  return rem === 0 ? `${hours} hr walk` : `${hours}h ${rem}m walk`
+}
+
+export function eventCoords(event: EventItem): EventCoordinates | null {
+  if (!event.location.coordinates) return null
+  const [lng, lat] = event.location.coordinates
+  return { lat, lng }
+}
+
+function hostFromApi(host: ApiEvent["hostId"]): EventItem["host"] {
+  if (typeof host === "string") {
+    return { name: "host", avatar: "?", color: "bg-stone-400", note: "" }
+  }
+  const name = host.displayName || host.username || "host"
+  return {
+    name,
+    avatar: name.charAt(0).toUpperCase(),
+    color: "bg-stone-400",
+    note: "",
+  }
+}
+
+/**
+ * Converts a backend event document into the EventItem shape consumed by the
+ * home map/calendar UI.
+ */
+export function adaptApiEvent(api: ApiEvent): EventItem {
+  return {
+    id: api._id,
+    title: api.title,
+    type: inferType(api.title),
+    startAt: api.startAt,
+    endAt: api.endAt,
+    visibility: api.visibility,
+    myRsvp: api.myRsvp ?? null,
+    host: hostFromApi(api.hostId),
+    location: {
+      name: api.locationName,
+      address: api.locationAddress ?? undefined,
+      coordinates: api.location?.coordinates,
+    },
+    attendees: (api.attendees ?? []).map((a) => {
+      const name = a.displayName || a.username || "guest"
+      return {
+        name,
+        avatar: name.charAt(0).toUpperCase(),
+        color: "bg-stone-300",
+      }
+    }),
+    going: api.goingCount ?? api.attendees?.length ?? 0,
+  }
+}
+
+/**
+ * Maps the create-event sharing toggles to the backend guest-invite mode.
+ */
+export function guestInviteModeFromDraft(
+  draft: DraftEvent
+): EventGuestInviteMode {
+  if (draft.visibility === "public") return "none"
+  if (draft.allowForward) return "multiple"
+  if (draft.allowPlusOne) return "single"
+  return "none"
+}
+
+/**
+ * Resolves the form's current/search/saved location fields into the backend
+ * location payload. Coordinates are temporary until Places/Maps is wired.
+ */
+function locationFromDraft(
+  draft: DraftEvent
+): Pick<CreateEventRequest, "locationName" | "locationAddress" | "location"> {
+  if (draft.whereType === "search" && draft.customWhere?.trim()) {
+    return {
+      ...TEMP_EVENT_LOCATION_FALLBACK,
+      locationName: draft.customWhere.trim(),
+      locationAddress: TEMP_EVENT_LOCATION_FALLBACK.locationAddress,
+    }
+  }
+
+  if (draft.whereType === "saved" && draft.savedPlaceLabel?.trim()) {
+    return {
+      ...TEMP_EVENT_LOCATION_FALLBACK,
+      locationName: draft.savedPlaceLabel.trim(),
+      locationAddress: TEMP_EVENT_LOCATION_FALLBACK.locationAddress,
+    }
+  }
+
+  return TEMP_EVENT_LOCATION_FALLBACK
+}
+
+/**
+ * Derives ISO start/end timestamps from the draft when the caller does not
+ * provide the exact range already computed by the form.
+ */
+export function timeRangeFromDraft(draft: DraftEvent): EventTimeRange {
+  let startMs: number
+
+  if (draft.mode === "now") {
+    startMs =
+      new Date(draft.createdAt).getTime() +
+      (draft.startOffsetMinutes ?? 0) * MIN
+  } else if (draft.startDate && draft.startTime) {
+    startMs = new Date(`${draft.startDate}T${draft.startTime}`).getTime()
+  } else {
+    startMs = new Date(draft.createdAt).getTime()
+  }
+
+  const endMs = startMs + draft.durationMinutes * MIN
+  return {
+    startAt: new Date(startMs).toISOString(),
+    endAt: new Date(endMs).toISOString(),
+  }
+}
+
+/**
+ * Builds the POST /events request body from the create-event draft plus the
+ * resolved audience target.
+ */
+export function createEventRequestFromDraft(
+  draft: DraftEvent,
+  audience: EventAudienceTarget,
+  timeRange: EventTimeRange = timeRangeFromDraft(draft)
+): CreateEventRequest {
+  const isPublic = draft.visibility === "public"
+  const target = isPublic ? { kind: "public" as const } : audience
+
+  return {
+    title: draft.title.trim() || draft.eventType,
+    description: draft.details?.trim() ? draft.details.trim() : null,
+    startAt: timeRange.startAt,
+    endAt: timeRange.endAt,
+    ...locationFromDraft(draft),
+    visibility: draft.visibility,
+    allowGuestInvites: guestInviteModeFromDraft(draft),
+    guestInviteLimit: draft.guestLimit ?? 0,
+    circles:
+      target.kind === "circle"
+        ? [{ circleId: target.circleId, role: "guest" }]
+        : [],
+    members:
+      target.kind === "members"
+        ? target.memberIds.map((userId) => ({ userId, role: "guest" }))
+        : [],
+  }
+}
+
+/**
+ * Converts compact ETA labels from the detail sheet into an ISO arrival time
+ * for the RSVP endpoint.
+ */
+export function etaToIso(eta: string | null): string | null {
+  if (!eta) return null
+  const trimmed = eta.trim().toLowerCase()
+  const match = /^(\d+)\s*(min|hr|hour|hours|h)$/.exec(trimmed)
+  if (!match) return null
+  const value = Number(match[1])
+  const unit = match[2]
+  const minutes = unit === "min" ? value : value * 60
+  return new Date(Date.now() + minutes * MIN).toISOString()
+}

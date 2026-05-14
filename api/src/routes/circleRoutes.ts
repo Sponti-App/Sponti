@@ -6,6 +6,7 @@ import {
   addCircleMemberBodySchema,
   circleIdParamSchema,
   circleMemberParamSchema,
+  createCircleBodySchema,
   updateCircleBodySchema,
 } from "#schemas/index";
 
@@ -14,6 +15,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.get("/", circleController.getMyCircles);
+router.post("/", validateRequest({ body: createCircleBodySchema }), circleController.createCircle);
 router.patch(
   "/:id",
   validateRequest({ params: circleIdParamSchema, body: updateCircleBodySchema }),

@@ -21,8 +21,8 @@ import {
   updateHostedEvent,
   useHostedEvents,
   type HostedEvent,
-} from "@/lib/host-events"
-import type { Recurrence } from "@/lib/draft-events"
+  type Recurrence,
+} from "@/lib/api/events"
 import { MOCK_NOTIFICATIONS, pushEventUpdate, type Notification } from "@/lib/notifications"
 
 const DURATION_OPTIONS = [

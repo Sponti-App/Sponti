@@ -24,14 +24,21 @@ import {
   avatarText,
   distanceFromUser,
   eventCoords,
+  EventType,
   formatRelativeStatus,
   isJoined,
   isLive,
-} from "@/lib/events"
-import type { EventItem } from "@/lib/events"
-import { FALLBACK_COORDS, useGeolocation, type GeoCoords, type GeoStatus } from "@/lib/geolocation"
+  type EventItem,
+} from "@/lib/api/events"
+import {
+  FALLBACK_COORDS,
+  useGeolocation,
+  type GeoCoords,
+  type GeoStatus,
+} from "@/lib/geolocation"
 import { useMapEvents } from "@/lib/use-events"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
+import { EVENT_TYPES } from "@/types/utils"
 
 // Hex equivalent of --accent (oklch 0.55 0.19 25). Google Maps overlays can't
 // read CSS variables, so we mirror the token here. Keep in sync with globals.css.
@@ -78,6 +85,18 @@ function FitBoundsOnce({
   return null
 }
 
+function eventIcon(type: EventType, avatar: string) {
+  const match = EVENT_TYPES.find((t) => t.value === type)
+
+  if (!match) {
+    return <>{avatar}</>
+  }
+
+  const Icon = match.icon
+
+  return <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+}
+
 function StaticMapFallback({
   events,
   onEventSelect,
@@ -90,7 +109,7 @@ function StaticMapFallback({
   user: GeoCoords
 }) {
   return (
-    <div className="w-full h-full bg-[#d5d0c8] relative">
+    <div className="relative h-full w-full bg-[#d5d0c8]">
       <div
         className="absolute inset-0 opacity-30"
         style={{
@@ -102,7 +121,7 @@ function StaticMapFallback({
         }}
       />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-        <div className="w-4 h-4 bg-accent rounded-full border-2 border-background shadow-lg" />
+        <div className="h-4 w-4 rounded-full border-2 border-background bg-accent shadow-lg" />
       </div>
       {events.slice(0, 4).map((event, i) => {
         // Pseudo positions around the center so the static fallback is readable
@@ -119,16 +138,18 @@ function StaticMapFallback({
             key={event.id}
             onClick={() => onEventSelect(event)}
             style={pos}
-            className="absolute flex flex-col items-center cursor-pointer"
+            className="absolute flex cursor-pointer flex-col items-center"
           >
             <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${
-                isJoined(event, joinedIds) ? "ring-2 ring-accent ring-offset-2" : ""
+              className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${
+                isJoined(event, joinedIds)
+                  ? "ring-2 ring-accent ring-offset-2"
+                  : ""
               }`}
             >
-              {event.host.avatar}
+              {eventIcon(event.type, event.host.avatar)}
             </div>
-            <div className="mt-1 px-2 py-1 bg-card rounded text-xs shadow-md text-center">
+            <div className="mt-1 rounded bg-card px-2 py-1 text-center text-xs shadow-md">
               <span className="font-medium">{event.host.name}</span>
               {dist && (
                 <>
@@ -189,10 +210,10 @@ function GoogleMapContent({
       mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_ID}
       disableDefaultUI
       gestureHandling="greedy"
-      className="w-full h-full"
+      className="h-full w-full"
     >
       <AdvancedMarker position={user}>
-        <div className="w-4 h-4 bg-accent rounded-full border-2 border-background shadow-lg" />
+        <div className="h-4 w-4 rounded-full border-2 border-background bg-accent shadow-lg" />
       </AdvancedMarker>
       {events.map((event) => {
         const coords = eventCoords(event)
@@ -203,16 +224,18 @@ function GoogleMapContent({
             position={coords}
             onClick={() => onEventSelect(event)}
           >
-            <div className="flex flex-col items-center cursor-pointer">
+            <div className="flex cursor-pointer flex-col items-center">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${
-                  isJoined(event, joinedIds) ? "ring-2 ring-accent ring-offset-2" : ""
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${
+                  isJoined(event, joinedIds)
+                    ? "ring-2 ring-accent ring-offset-2"
+                    : ""
                 }`}
               >
                 {event.host.avatar}
               </div>
               {isLive(event) && (
-                <div className="mt-1 px-1.5 py-0.5 bg-accent rounded text-[10px] font-medium text-accent-foreground shadow">
+                <div className="mt-1 rounded bg-accent px-1.5 py-0.5 text-[10px] font-medium text-accent-foreground shadow">
                   live
                 </div>
               )}
@@ -236,13 +259,16 @@ const SHEET_PX = { mini: 64, peek: 268 } as const
 // One-shot dev warning: AdvancedMarker silently renders nothing when the map
 // has no mapId. Surfacing this early saves a debugging session.
 let warnedNoMapId = false
-function warnIfMissingMapId(apiKey: string | undefined, mapId: string | undefined): void {
+function warnIfMissingMapId(
+  apiKey: string | undefined,
+  mapId: string | undefined
+): void {
   if (warnedNoMapId) return
   if (apiKey && !mapId && process.env.NODE_ENV !== "production") {
     warnedNoMapId = true
     // eslint-disable-next-line no-console
     console.warn(
-      "[Sponti] NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is set but NEXT_PUBLIC_GOOGLE_MAPS_ID is not — AdvancedMarker will render blank. Add a Map ID in the Google Cloud console.",
+      "[Sponti] NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is set but NEXT_PUBLIC_GOOGLE_MAPS_ID is not — AdvancedMarker will render blank. Add a Map ID in the Google Cloud console."
     )
   }
 }
@@ -275,7 +301,7 @@ export function MapView({
   const map = useMapEvents(geo.coords, 25)
   const mapEvents = useMemo(
     () => map.events.filter((e) => !!e.location.coordinates),
-    [map.events],
+    [map.events]
   )
 
   // ---- Routes API: compute route + ETA when activeRoute changes ----
@@ -283,7 +309,7 @@ export function MapView({
   const [routeError, setRouteError] = useState<string | null>(null)
   const routeDestination = useMemo<GeoCoords | null>(
     () => (activeRoute ? eventCoords(activeRoute) : null),
-    [activeRoute],
+    [activeRoute]
   )
 
   useEffect(() => {
@@ -304,7 +330,7 @@ export function MapView({
           distanceMeters: 0,
           etaLabel: "",
           distanceLabel: "",
-        }),
+        })
       )
       return
     }
@@ -392,8 +418,8 @@ export function MapView({
 
       {/* Route error banner — anchored top-right under the geolocation banner. */}
       {routeError && (
-        <div className="absolute top-14 right-3 z-30 flex items-center gap-1.5 bg-background border border-border text-xs px-2.5 py-1.5 rounded-full shadow">
-          <AlertCircle className="w-3 h-3 text-destructive" />
+        <div className="absolute top-14 right-3 z-30 flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1.5 text-xs shadow">
+          <AlertCircle className="h-3 w-3 text-destructive" />
           <span>Route unavailable</span>
         </div>
       )}
@@ -409,9 +435,9 @@ export function MapView({
           }}
           style={{ bottom: `${fabBottomPx + 64}px` }}
           aria-label="Recenter on my location"
-          className="absolute right-4 z-30 w-11 h-11 rounded-full bg-background border border-border text-foreground flex items-center justify-center shadow-md transition-[bottom] duration-300 ease-out"
+          className="absolute right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md transition-[bottom] duration-300 ease-out"
         >
-          <LocateFixed className="w-5 h-5" />
+          <LocateFixed className="h-5 w-5" />
         </button>
       )}
 
@@ -420,44 +446,44 @@ export function MapView({
         <button
           onClick={() => router.push("/event/new")}
           style={{ bottom: `${fabBottomPx}px` }}
-          className="absolute right-4 z-30 w-14 h-14 rounded-full bg-accent text-accent-foreground flex items-center justify-center shadow-xl transition-[bottom] duration-300 ease-out"
+          className="absolute right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-xl transition-[bottom] duration-300 ease-out"
           aria-label="Light a flare"
         >
-          <Flame className="w-6 h-6" />
+          <Flame className="h-6 w-6" />
         </button>
       )}
 
       {/* Bottom sheet — z-50 when expanded so it covers the nav pill */}
       <div
         style={sheetStyle}
-        className={`absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] transition-all duration-300 ease-out ${
+        className={`absolute right-0 bottom-0 left-0 rounded-t-3xl bg-background shadow-[0_-4px_20px_rgba(0,0,0,0.1)] transition-all duration-300 ease-out ${
           peekState === "expanded" ? "z-50" : "z-20"
         }`}
       >
         <div
-          className="flex justify-center py-3 touch-none cursor-grab active:cursor-grabbing"
+          className="flex cursor-grab touch-none justify-center py-3 active:cursor-grabbing"
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         >
-          <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+          <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
         </div>
 
         {peekState === "mini" ? (
           <button
             onClick={() => setPeekState("peek")}
-            className="flex items-center justify-center gap-2 w-full text-sm text-muted-foreground pb-1"
+            className="flex w-full items-center justify-center gap-2 pb-1 text-sm text-muted-foreground"
           >
-            <ChevronUp className="w-4 h-4" />
+            <ChevronUp className="h-4 w-4" />
             {sheetSummary(map.loading, mapEvents.length, map.error)}
           </button>
         ) : (
           <div
-            className={`px-4 overflow-y-auto h-[calc(100%-44px)] ${
+            className={`h-[calc(100%-44px)] overflow-y-auto px-4 ${
               peekState === "expanded" ? "pb-8" : "pb-24"
             }`}
           >
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-medium">Flares near you</h2>
               <span className="text-sm text-muted-foreground">
                 {map.loading ? "loading…" : `${mapEvents.length} active`}
@@ -494,34 +520,35 @@ function GeolocationBanner({
   status: GeoStatus
   onRetry: () => void
 }) {
-  if (status === "granted" || status === "idle" || status === "requesting") return null
+  if (status === "granted" || status === "idle" || status === "requesting")
+    return null
   const msg =
     status === "denied"
       ? "showing approximate area — enable location to find flares near you"
       : "couldn't get your location — showing approximate area"
   return (
-    <div className="absolute top-3 left-3 right-3 z-30 flex items-center gap-2 bg-background/95 border border-border text-xs px-3 py-2 rounded-xl shadow-md">
-      <MapPin className="w-3.5 h-3.5 text-accent shrink-0" />
+    <div className="absolute top-3 right-3 left-3 z-30 flex items-center gap-2 rounded-xl border border-border bg-background/95 px-3 py-2 text-xs shadow-md">
+      <MapPin className="h-3.5 w-3.5 shrink-0 text-accent" />
       <span className="flex-1">{msg}</span>
-      <button
-        onClick={onRetry}
-        className="font-medium text-accent shrink-0"
-      >
+      <button onClick={onRetry} className="shrink-0 font-medium text-accent">
         retry
       </button>
     </div>
   )
 }
 
-function ErrorPanel({ message, onRetry }: { message: string; onRetry: () => void }) {
+function ErrorPanel({
+  message,
+  onRetry,
+}: {
+  message: string
+  onRetry: () => void
+}) {
   return (
-    <div className="border border-border rounded-xl p-4 text-center">
-      <AlertCircle className="w-5 h-5 text-destructive mx-auto mb-2" />
-      <p className="text-sm text-muted-foreground mb-3">{message}</p>
-      <button
-        onClick={onRetry}
-        className="text-sm font-medium text-accent"
-      >
+    <div className="rounded-xl border border-border p-4 text-center">
+      <AlertCircle className="mx-auto mb-2 h-5 w-5 text-destructive" />
+      <p className="mb-3 text-sm text-muted-foreground">{message}</p>
+      <button onClick={onRetry} className="text-sm font-medium text-accent">
         try again
       </button>
     </div>
@@ -530,21 +557,25 @@ function ErrorPanel({ message, onRetry }: { message: string; onRetry: () => void
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="border border-dashed border-border rounded-xl p-6 text-center">
-      <p className="text-sm text-muted-foreground mb-3">
+    <div className="rounded-xl border border-dashed border-border p-6 text-center">
+      <p className="mb-3 text-sm text-muted-foreground">
         no flares near you right now
       </p>
       <button
         onClick={onCreate}
         className="inline-flex items-center gap-1.5 text-sm font-medium text-accent"
       >
-        <Flame className="w-4 h-4" /> light the first one
+        <Flame className="h-4 w-4" /> light the first one
       </button>
     </div>
   )
 }
 
-function sheetSummary(loading: boolean, count: number, error: string | null): string {
+function sheetSummary(
+  loading: boolean,
+  count: number,
+  error: string | null
+): string {
   if (error) return "tap to retry"
   if (loading) return "loading flares…"
   if (count === 0) return "no flares near you"
@@ -565,33 +596,33 @@ function FlareCard({
   const dist = distanceFromUser(event, user)
   return (
     <Card
-      className={`p-3 flex-row items-center gap-3 border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors ${
+      className={`cursor-pointer flex-row items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/50 ${
         joined ? "border-accent bg-accent/5" : "border-border"
       }`}
       onClick={onClick}
     >
       <div
-        className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${event.host.color} ${avatarText(event.host.color)}`}
+        className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium ${event.host.color} ${avatarText(event.host.color)}`}
       >
-        {event.host.avatar}
+        {eventIcon(event.type, event.host.avatar)}
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <p className="font-medium text-accent truncate">
+          <p className="truncate font-medium text-accent">
             {event.type} · {event.host.name}
           </p>
           {joined && (
-            <span className="flex items-center gap-0.5 text-[10px] font-medium bg-accent/10 text-accent px-1.5 py-0.5 rounded-full shrink-0">
-              <Check className="w-2.5 h-2.5" /> going
+            <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+              <Check className="h-2.5 w-2.5" /> going
             </span>
           )}
         </div>
-        <p className="text-sm text-muted-foreground truncate">
+        <p className="truncate text-sm text-muted-foreground">
           {formatRelativeStatus(event)} · {event.location.name}
           {dist ? ` · ${dist.label}` : ""}
         </p>
       </div>
-      <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0" />
+      <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
     </Card>
   )
 }

@@ -19,8 +19,8 @@ import {
   formatEventTime,
   isJoined,
   isLive,
-} from "@/lib/events"
-import type { EventItem } from "@/lib/events"
+  type EventItem,
+} from "@/lib/api/events"
 import { useCalendarEvents } from "@/lib/use-events"
 
 const MONTH_NAMES = [
@@ -39,11 +39,18 @@ const MONTH_NAMES = [
 ]
 
 // Match the event-creation date strip: short weekday + "today"/"tmrw" alias.
-function formatDayChip(d: Date, today: Date): { weekday: string; date: string } {
-  if (isSameDay(d, today)) return { weekday: "today", date: String(d.getDate()) }
-  if (isSameDay(d, addDays(today, 1))) return { weekday: "tmrw", date: String(d.getDate()) }
+function formatDayChip(
+  d: Date,
+  today: Date
+): { weekday: string; date: string } {
+  if (isSameDay(d, today))
+    return { weekday: "today", date: String(d.getDate()) }
+  if (isSameDay(d, addDays(today, 1)))
+    return { weekday: "tmrw", date: String(d.getDate()) }
   return {
-    weekday: d.toLocaleDateString(undefined, { weekday: "short" }).toLowerCase(),
+    weekday: d
+      .toLocaleDateString(undefined, { weekday: "short" })
+      .toLowerCase(),
     date: String(d.getDate()),
   }
 }
@@ -130,7 +137,7 @@ export function CalendarView({
   const weekStart = useMemo(() => startOfWeek(anchor), [anchor])
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
-    [weekStart],
+    [weekStart]
   )
 
   // Bucket events by their local day key so we can render dots + sections.
@@ -145,7 +152,7 @@ export function CalendarView({
     // Sort each bucket by start time
     for (const bucket of map.values()) {
       bucket.sort(
-        (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+        (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
       )
     }
     return map
@@ -170,7 +177,6 @@ export function CalendarView({
     return list.slice(0, 5)
   }, [events, eventsByDay, selected])
 
-
   const headerLabel = weekHeaderLabel(weekStart)
 
   // Two-week horizon: max selectable day is today + 14d. Disable Next when
@@ -194,107 +200,107 @@ export function CalendarView({
     /* pb-28 leaves room for the floating nav pill */
     <div className="h-full overflow-y-auto px-4 pb-28">
       {/* Sticky header + week strip — stays pinned while the agenda scrolls. */}
-      <div className="sticky top-0 -mx-4 px-4 pt-2 pb-2 bg-background z-10 border-b border-border/60">
-      {/* Week Header with nav */}
-      <div className="flex items-center justify-between mb-4 gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <h2 className="text-xl font-semibold truncate">{headerLabel}</h2>
-          {showTodayPill && (
+      <div className="sticky top-0 z-10 -mx-4 border-b border-border/60 bg-background px-4 pt-2 pb-2">
+        {/* Week Header with nav */}
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-xl font-semibold">{headerLabel}</h2>
+            {showTodayPill && (
+              <button
+                type="button"
+                onClick={goToday}
+                className="shrink-0 rounded-full border border-accent/40 px-2 py-0.5 text-xs font-medium text-accent"
+              >
+                today
+              </button>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
-              onClick={goToday}
-              className="text-xs font-medium text-accent rounded-full border border-accent/40 px-2 py-0.5 shrink-0"
+              onClick={goPrevWeek}
+              aria-label="Previous week"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-secondary active:bg-muted"
             >
-              today
+              <ChevronLeft className="h-4 w-4" />
             </button>
-          )}
+            <button
+              type="button"
+              onClick={goNextWeek}
+              disabled={!canGoNext}
+              aria-label="Next week"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-secondary active:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-background"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={goPrevWeek}
-            aria-label="Previous week"
-            className="h-9 w-9 rounded-full border border-border bg-background flex items-center justify-center hover:bg-secondary active:bg-muted transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={goNextWeek}
-            disabled={!canGoNext}
-            aria-label="Next week"
-            className="h-9 w-9 rounded-full border border-border bg-background flex items-center justify-center hover:bg-secondary active:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-background"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
 
-      {/* Week strip — chip style mirrors the event-creation date strip */}
-      <div className="grid grid-cols-7 gap-1.5 mb-6">
-        {weekDays.map((day) => {
-          const isToday = isSameDay(day, today)
-          const isSelected = isSameDay(day, selected)
-          const hasEvents = (eventsByDay.get(dayKey(day))?.length ?? 0) > 0
-          const beyondHorizon = day.getTime() > maxDate.getTime()
-          const chip = formatDayChip(day, today)
-          return (
-            <button
-              key={day.toISOString()}
-              type="button"
-              onClick={() => {
-                if (beyondHorizon) return
-                setSelected(day)
-              }}
-              disabled={beyondHorizon}
-              aria-pressed={isSelected}
-              aria-label={day.toLocaleDateString(undefined, {
-                weekday: "long",
-                month: "short",
-                day: "numeric",
-              })}
-              className={`rounded-xl border px-1 py-2 flex flex-col items-center transition-colors ${
-                beyondHorizon
-                  ? "border-border/40 bg-background opacity-40 cursor-not-allowed"
-                  : isSelected
-                    ? "border-accent bg-accent/10"
-                    : isToday
-                      ? "border-accent/60 bg-background hover:bg-secondary"
-                      : "border-border bg-background hover:bg-secondary"
-              }`}
-            >
-              <span
-                className={`text-[11px] ${
-                  isSelected
-                    ? "text-accent"
-                    : isToday
+        {/* Week strip — chip style mirrors the event-creation date strip */}
+        <div className="mb-6 grid grid-cols-7 gap-1.5">
+          {weekDays.map((day) => {
+            const isToday = isSameDay(day, today)
+            const isSelected = isSameDay(day, selected)
+            const hasEvents = (eventsByDay.get(dayKey(day))?.length ?? 0) > 0
+            const beyondHorizon = day.getTime() > maxDate.getTime()
+            const chip = formatDayChip(day, today)
+            return (
+              <button
+                key={day.toISOString()}
+                type="button"
+                onClick={() => {
+                  if (beyondHorizon) return
+                  setSelected(day)
+                }}
+                disabled={beyondHorizon}
+                aria-pressed={isSelected}
+                aria-label={day.toLocaleDateString(undefined, {
+                  weekday: "long",
+                  month: "short",
+                  day: "numeric",
+                })}
+                className={`flex flex-col items-center rounded-xl border px-1 py-2 transition-colors ${
+                  beyondHorizon
+                    ? "cursor-not-allowed border-border/40 bg-background opacity-40"
+                    : isSelected
+                      ? "border-accent bg-accent/10"
+                      : isToday
+                        ? "border-accent/60 bg-background hover:bg-secondary"
+                        : "border-border bg-background hover:bg-secondary"
+                }`}
+              >
+                <span
+                  className={`text-[11px] ${
+                    isSelected
                       ? "text-accent"
-                      : "text-muted-foreground"
-                }`}
-              >
-                {chip.weekday}
-              </span>
-              <span
-                className={`text-base font-medium leading-none mt-0.5 ${
-                  isSelected || isToday ? "text-accent" : "text-foreground"
-                }`}
-              >
-                {chip.date}
-              </span>
-              <div
-                className={`w-1 h-1 rounded-full mt-1 ${
-                  hasEvents
-                    ? isSelected || isToday
-                      ? "bg-accent"
-                      : "bg-foreground"
-                    : "bg-transparent"
-                }`}
-                aria-hidden
-              />
-            </button>
-          )
-        })}
-      </div>
+                      : isToday
+                        ? "text-accent"
+                        : "text-muted-foreground"
+                  }`}
+                >
+                  {chip.weekday}
+                </span>
+                <span
+                  className={`mt-0.5 text-base leading-none font-medium ${
+                    isSelected || isToday ? "text-accent" : "text-foreground"
+                  }`}
+                >
+                  {chip.date}
+                </span>
+                <div
+                  className={`mt-1 h-1 w-1 rounded-full ${
+                    hasEvents
+                      ? isSelected || isToday
+                        ? "bg-accent"
+                        : "bg-foreground"
+                      : "bg-transparent"
+                  }`}
+                  aria-hidden
+                />
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <div className="pt-4" />
@@ -309,10 +315,10 @@ export function CalendarView({
           <button
             type="button"
             onClick={() => router.push("/event/new")}
-            className="mt-3 w-full flex items-center gap-3 rounded-xl border-2 border-dashed border-accent/50 bg-accent/5 px-4 py-3 text-left transition-colors hover:bg-accent/10"
+            className="mt-3 flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-accent/50 bg-accent/5 px-4 py-3 text-left transition-colors hover:bg-accent/10"
           >
-            <div className="w-9 h-9 rounded-full bg-accent text-accent-foreground flex items-center justify-center shrink-0">
-              <Flame className="w-4 h-4" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+              <Flame className="h-4 w-4" />
             </div>
             <div>
               <p className="text-sm font-medium text-accent">+ make a plan</p>
@@ -326,14 +332,14 @@ export function CalendarView({
 
       {/* Errors / loading */}
       {loading && events.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-6">
+        <p className="py-6 text-center text-sm text-muted-foreground">
           loading events…
         </p>
       )}
       {error && (
-        <div className="my-4 border border-border rounded-xl p-4 text-center">
-          <AlertCircle className="w-5 h-5 text-destructive mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground mb-3">{error}</p>
+        <div className="my-4 rounded-xl border border-border p-4 text-center">
+          <AlertCircle className="mx-auto mb-2 h-5 w-5 text-destructive" />
+          <p className="mb-3 text-sm text-muted-foreground">{error}</p>
           <button onClick={refresh} className="text-sm font-medium text-accent">
             try again
           </button>
@@ -343,9 +349,9 @@ export function CalendarView({
       {/* Up-next agenda — events after the selected day */}
       {agenda.length > 0 && (
         <div className="mt-6">
-          <div className="flex items-center gap-2 mb-3">
-            <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+          <div className="mb-3 flex items-center gap-2">
+            <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+            <h3 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
               up next
             </h3>
           </div>
@@ -358,7 +364,7 @@ export function CalendarView({
                     setAnchor(day)
                     setSelected(day)
                   }}
-                  className="text-sm font-medium mb-2 hover:text-accent transition-colors"
+                  className="mb-2 text-sm font-medium transition-colors hover:text-accent"
                 >
                   {formatSectionLabel(day, today)}
                   <span className="ml-2 text-xs text-muted-foreground">
@@ -381,9 +387,10 @@ export function CalendarView({
                         setAnchor(day)
                         setSelected(day)
                       }}
-                      className="text-xs text-accent font-medium"
+                      className="text-xs font-medium text-accent"
                     >
-                      + {items.length - 2} more on {formatSectionLabel(day, today)}
+                      + {items.length - 2} more on{" "}
+                      {formatSectionLabel(day, today)}
                     </button>
                   )}
                 </div>
@@ -411,14 +418,14 @@ function DaySection({
 }) {
   return (
     <div className="mb-2">
-      <div className="flex items-center justify-between mb-3">
+      <div className="mb-3 flex items-center justify-between">
         <h3 className="text-lg font-medium">{label}</h3>
         <span className="text-sm text-muted-foreground">
           {events.length} event{events.length === 1 ? "" : "s"}
         </span>
       </div>
       {events.length === 0 ? (
-        <div className="border border-dashed border-border rounded-xl px-4 py-5 text-center">
+        <div className="rounded-xl border border-dashed border-border px-4 py-5 text-center">
           <p className="text-sm text-muted-foreground">nothing on the books</p>
         </div>
       ) : (
@@ -450,39 +457,41 @@ function EventCard({
   const live = isLive(event)
   return (
     <Card
-      className={`p-3 flex-row items-center gap-3 border rounded-xl cursor-pointer hover:bg-muted/50 active:bg-muted transition-colors ${
+      className={`cursor-pointer flex-row items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/50 active:bg-muted ${
         joined ? "border-accent bg-accent/5" : "border-border"
       }`}
       onClick={() => onSelect(event)}
     >
-      <span className="text-sm text-muted-foreground w-12 shrink-0 tabular-nums">
+      <span className="w-12 shrink-0 text-sm text-muted-foreground tabular-nums">
         {formatEventTime(event)}
       </span>
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <p className="text-sm font-medium truncate">{event.title}</p>
+          <p className="truncate text-sm font-medium">{event.title}</p>
           {live && (
-            <span className="text-[10px] font-medium bg-accent text-accent-foreground px-1.5 py-0.5 rounded-full shrink-0">
+            <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-accent-foreground">
               live
             </span>
           )}
           {joined && (
-            <span className="flex items-center gap-0.5 text-[10px] font-medium bg-accent/10 text-accent px-1.5 py-0.5 rounded-full shrink-0">
-              <Check className="w-2.5 h-2.5" /> going
+            <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+              <Check className="h-2.5 w-2.5" /> going
             </span>
           )}
         </div>
-        <p className="text-xs text-muted-foreground truncate">
+        <p className="truncate text-xs text-muted-foreground">
           {event.location.name} · {event.going} going
         </p>
       </div>
-      <div className="flex -space-x-1 shrink-0">
+      <div className="flex shrink-0 -space-x-1">
         {event.attendees.slice(0, 2).map((a, i) => (
           <Avatar
             key={i}
             className={`h-7 w-7 ${a.color !== "bg-accent" ? "border border-border" : ""}`}
           >
-            <AvatarFallback className={`${a.color} ${avatarText(a.color)} text-xs`}>
+            <AvatarFallback
+              className={`${a.color} ${avatarText(a.color)} text-xs`}
+            >
               {a.avatar}
             </AvatarFallback>
           </Avatar>
