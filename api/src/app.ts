@@ -3,9 +3,35 @@ import express from "express";
 import morgan from "morgan";
 import { env } from "#config/env";
 import { connectDB } from "#db/connect";
+import { requireAuth } from "#middleware/auth";
 import { errorHandler } from "#middleware/errorHandler";
 import { notFound } from "#middleware/notFound";
 import { apiRoutes } from "#routes/index";
+
+const defaultDevelopmentOrigins = [
+  "https://sponti-spa.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost",
+  "capacitor://localhost",
+  "ionic://localhost",
+];
+
+function normalizeOrigin(origin: string): string {
+  return origin.trim().replace(/\/+$/, "");
+}
+
+export function getAllowedCorsOrigins(): string[] {
+  const configuredOrigins = env.CORS_ORIGINS
+    ? env.CORS_ORIGINS.split(",")
+    : [env.CLIENT_BASE_URL];
+  const origins =
+    env.NODE_ENV === "development" && !env.CORS_ORIGINS
+      ? [...configuredOrigins, ...defaultDevelopmentOrigins]
+      : configuredOrigins;
+
+  return Array.from(new Set(origins.map(normalizeOrigin).filter(Boolean)));
+}
 
 export const createApp = () => {
   const app = express();
@@ -16,7 +42,7 @@ export const createApp = () => {
 
   app.use(
     cors({
-      origin: env.CLIENT_BASE_URL,
+      origin: getAllowedCorsOrigins(),
       credentials: false,
     })
   );
@@ -30,6 +56,8 @@ export const createApp = () => {
       },
     });
   });
+
+  app.use("/api/v1", requireAuth);
 
   app.use("/api/v1", async (_req, _res, next) => {
     try {

@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { paginationQuerySchema } from "#utils/pagination";
 import { objectIdSchema } from "#utils/objectId";
-import { MAX_GUEST_INVITE_LIMIT } from "#models/Event";
+import { EVENT_GUEST_INVITE_MODES, MAX_GUEST_INVITE_LIMIT } from "#models/Event";
 import { isoDateSchema, optionalIsoDateSchema } from "./commonSchemas.js";
 
 const eventVisibilitySchema = z.enum(["public", "private"]);
 const eventStatusSchema = z.enum(["active", "cancelled", "completed"]);
 const eventRoleInputSchema = z.enum(["admin", "guest"]);
+const eventGuestInviteModeSchema = z.enum(EVENT_GUEST_INVITE_MODES);
 
 const locationSchema = z
   .object({
@@ -24,7 +25,6 @@ const eventMemberInviteSchema = z
   .object({
     userId: objectIdSchema,
     role: eventRoleInputSchema.default("guest"),
-    canInviteGuests: z.boolean().optional(),
   })
   .strict();
 
@@ -32,7 +32,6 @@ const eventCircleInviteSchema = z
   .object({
     circleId: objectIdSchema,
     role: eventRoleInputSchema.default("guest"),
-    canInviteGuests: z.boolean().optional(),
   })
   .strict();
 
@@ -46,7 +45,7 @@ export const createEventBodySchema = z
     locationAddress: z.string().trim().max(240).nullable().optional(),
     location: locationSchema,
     visibility: eventVisibilitySchema.default("private"),
-    allowGuestInvites: z.boolean().default(false),
+    allowGuestInvites: eventGuestInviteModeSchema.default("none"),
     guestInviteLimit: z.coerce.number().int().min(0).max(MAX_GUEST_INVITE_LIMIT).default(0),
     members: z.array(eventMemberInviteSchema).default([]),
     circles: z.array(eventCircleInviteSchema).default([]),
@@ -67,7 +66,7 @@ export const updateEventBodySchema = z
     locationAddress: z.string().trim().max(240).nullable().optional(),
     location: locationSchema.optional(),
     visibility: eventVisibilitySchema.optional(),
-    allowGuestInvites: z.boolean().optional(),
+    allowGuestInvites: eventGuestInviteModeSchema.optional(),
     guestInviteLimit: z.coerce.number().int().min(0).max(MAX_GUEST_INVITE_LIMIT).optional(),
   })
   .strict()

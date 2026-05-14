@@ -1,115 +1,334 @@
 # Data Model
 
-This API owns the business collections below. The `users` collection is owned by `auth-server` and is
-queried read-only for profile summaries.
+This document tracks the broader Sponti data model, including collections owned by `auth-server`,
+collections owned by `api`, and a few planned collections that are not fully implemented yet.
+
+Implementation note:
+
+- `users` and `refresh_tokens` are owned by `auth-server`.
+- Most business collections below are owned by `api`.
+- `favLocations`, `notifyWhen`, and `maxDistanceKm` are documented here as part of the current target
+  schema, even though the API code has not fully implemented them yet.
+
+## users
+
+```text
+Table users {
+  _id ObjectId [pk]
+  username string [unique]
+  displayName string // optional
+  email string [unique]
+  passwordHash string [unique]
+  avatarUrl string // optional
+  avatarPublicId string
+  profileVisibility profile_visibility_status
+  socialBattery number // optional
+  createdAt datetime
+  updatedAt datetime
+}
+
+Enum profile_visibility_status {
+  public
+  private // default
+}
+```
 
 ## connections
 
-- `requesterId` ObjectId ref `User`
-- `receiverId` ObjectId ref `User`
-- `status`: `pending | accepted | rejected`, default `pending`
-- `type`: `qr | shared_invitation | email_invitation`
-- timestamps
+```text
+Table connections {
+  _id ObjectId [pk]
 
-Indexes:
+  requesterId ObjectId [ref: > users._id]
+  receiverId ObjectId [ref: > users._id]
 
-- unique `{ requesterId, receiverId }`
-- `{ receiverId, status }`
-- `{ requesterId, status }`
+  status status_type
+  type connection_type
+  createdAt datetime
+  updatedAt datetime
+
+  indexes {
+    (requesterId, receiverId) [unique]
+    (receiverId, status)
+    (requesterId, status)
+  }
+}
+
+Enum status_type {
+  pending // default
+  accepted
+  rejected
+}
+
+Enum connection_type {
+  qr
+  shared_invitation
+  email_invitation
+}
+```
 
 ## circles
 
-- `ownerId` ObjectId ref `User`
-- `name`
-- `color`
-- timestamps
+For now, in the frontend there will be just 2 circles; no more circles will be created or added.
 
-Index: `{ ownerId }`
+```text
+Table circles {
+  _id ObjectId [pk]
+
+  ownerId ObjectId [ref: > users._id]
+  name string
+  color string // optional by now
+  type circleType
+
+  createdAt datetime
+  updatedAt datetime
+
+  indexes {
+    (ownerId)
+  }
+}
+
+Enum circleType {
+  inner
+  close
+  all
+}
+```
 
 ## circle_members
 
-- `circleId` ObjectId ref `Circle`
-- `ownerId` ObjectId ref `User`
-- `userId` ObjectId ref `User`
-- timestamps
+```text
+Table circle_members {
+  _id ObjectId [pk]
 
-Indexes:
+  circleId ObjectId [ref: > circles._id]
+  ownerId ObjectId [ref: > users._id]
+  userId ObjectId [ref: > users._id]
 
-- unique `{ circleId, userId }`
-- `{ ownerId, userId }`
+  createdAt datetime
+  updatedAt datetime
+
+  indexes {
+    (circleId, userId) [unique]
+    (ownerId, userId)
+  }
+}
+```
+
+## favLocations
+
+Planned collection. Not yet implemented in the current API code.
+
+```text
+Table favLocations {
+  _id ObjectId [pk]
+
+  userId ObjectId [ref: > users._id]
+  locationName string
+  locationAddress string // optional
+  location Object // GeoJSON Point: { type: "Point", coordinates: [lng, lat] }
+}
+```
 
 ## events
 
-- `hostId` ObjectId ref `User`
-- `title`
-- `description`
-- `startAt`
-- `endAt`
-- `locationName`
-- `locationAddress`
-- `location` GeoJSON Point `[lng, lat]`
-- `visibility`: `public | private`, default `private`
-- `allowGuestInvites`, default `false`
-- `guestInviteLimit`, default `0`, max `100000`
-- `status`: `active | cancelled | completed`, default `active`
-- timestamps
+```text
+Table events {
+  _id ObjectId [pk]
+  type eventType
+  hostId ObjectId [ref: > users._id]
 
-Indexes:
+  title string
+  description string
 
-- `{ hostId, startAt }`
-- `{ status, visibility, startAt }`
-- `{ location: "2dsphere" }`
+  startAt datetime
+  endAt datetime
+
+ locationName string
+ locationAddress string // optional
+ location Object // GeoJSON Point: { type: "Point", coordinates: [lng, lat] }
+
+  visibility event_visibility
+
+  allowGuestInvites guestInvites
+  guestInviteLimit number
+
+  status event_status
+
+  createdAt datetime
+  updatedAt datetime
+
+  indexes {
+    (hostId, startAt)
+    (startAt)
+    (status, startAt)
+  }
+}
+
+Enum eventTypeObject{
+  hangout
+  sports
+  drinks
+  food
+}
+
+Enum eventType {
+  eventTypeObject
+  icon
+}
+
+Enum guestInvites {
+  single
+  multiple
+  none
+}
+
+Enum event_visibility {
+  public
+  private // default
+}
+
+Enum event_status {
+  active // default
+  cancelled
+  completed
+}
+```
 
 ## event_members
 
-- `eventId` ObjectId ref `Event`
-- `userId` ObjectId ref `User`
-- `invitedBy` ObjectId ref `User`, nullable
-- `role`: `host | admin | guest`
-- `rsvpStatus`: `invited | going | maybe | declined`, default `invited`
-- `canInviteGuests`, default `false`
-- `memberWillArriveAt`, nullable
-- timestamps
+```text
+Table event_members {
+  _id ObjectId [pk]
 
-Indexes:
+  eventId ObjectId [ref: > events._id]
+  userId ObjectId [ref: > users._id]
 
-- unique `{ eventId, userId }`
-- `{ userId, rsvpStatus }`
+  invitedBy ObjectId [ref: > users._id] // Can be null if it's the host
+
+  role role
+  rsvpStatus rsvpStatus
+
+  memberWillArriveAt datetime // The time, calculate it before (null if it's the host)
+
+  createdAt datetime
+  updatedAt datetime
+
+  indexes {
+    (eventId, userId) [unique]
+    (userId, rsvpStatus)
+  }
+}
+
+Enum rsvpStatus {
+  invited // default
+  going
+  maybe
+  declined
+}
+
+Enum role {
+  host
+  admin
+  guest
+}
+```
 
 ## notification_settings
 
-- `userId` ObjectId ref `User`, unique
-- `quietHoursEnabled`, default `false`
-- `quietHoursStart`, default `22:00`
-- `quietHoursEnd`, default `08:00`
-- `eventReminders`, default `true`
-- `invitationNotifications`, default `true`
-- timestamps
+`notifyWhen` and `maxDistanceKm` are part of the target schema and are not yet fully implemented in
+the current API code.
 
-Index: unique `{ userId }`
+```text
+Table notification_settings {
+  _id ObjectId [pk]
+
+  userId ObjectId [ref: > users._id]
+
+  quietHoursEnabled boolean
+  quietHoursStart string // "22:00"
+  quietHoursEnd string // "08:00"
+
+  eventReminders boolean
+  invitationNotifications boolean // Do you know be notify?
+  notifyWhen notifyWhen
+  maxDistanceKm number // Min: 0, max: 50 default 0 meaning false
+
+  createdAt datetime
+  updatedAt datetime
+
+  indexes {
+    (userId) [unique]
+  }
+}
+
+Enum notifyWhen {
+  any_friend
+  inner_circle // default
+}
+```
 
 ## qr_contact_tokens
 
-Scaffolded only until product behavior is decided.
+```text
+Table qr_contact_tokens {
+  _id ObjectId [pk]
 
-- `userId` ObjectId ref `User`
-- `tokenHash`, unique
-- `expiresAt`
-- `isActive`, default `true`
-- `createdAt`
+  userId ObjectId [ref: > users._id]
 
-Indexes:
+  tokenHash string [unique]
+  expiresAt datetime
+  isActive boolean
 
-- unique `{ tokenHash }`
-- `{ userId }`
+  createdAt datetime
+
+  indexes {
+    (tokenHash)
+    (userId)
+  }
+}
+```
+
+## refresh_tokens
+
+Owned by `auth-server`.
+
+```text
+Table refresh_tokens {
+  _id ObjectId [pk]
+
+  userId ObjectId [ref: > users._id]
+
+  tokenHash string [unique]
+
+  expiresAt datetime
+  revokedAt datetime // optional
+
+  createdAt datetime
+  updatedAt datetime
+
+  indexes {
+    (userId)
+    (tokenHash) [unique]
+    (expiresAt)
+  }
+}
+```
 
 ## blocks
 
-- `blockerId` ObjectId ref `User`
-- `blockedId` ObjectId ref `User`
-- timestamps
+```text
+Table blocks {
+  _id ObjectId [pk]
 
-Indexes:
+  blockerId ObjectId [ref: > users._id]
+  blockedId ObjectId [ref: > users._id]
+  createdAt datetime
+  updatedAt datetime
 
-- unique `{ blockerId, blockedId }`
-- `{ blockerId }`
+  indexes {
+    (blockerId, blockedId) [unique]
+    (blockerId) // retrieve all the users the user has blocked
+  }
+}
+```
