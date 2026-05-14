@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { HttpError } from "@/lib/http"
-import { markHomeTourPending, markOnboardingSeen } from "@/lib/onboarding"
+import { markHomeTourPending } from "@/lib/onboarding"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -57,7 +57,6 @@ export default function RegisterPage() {
         password,
       })
       markHomeTourPending()
-      markOnboardingSeen()
       router.replace("/")
     } catch (err) {
       if (err instanceof HttpError) {
