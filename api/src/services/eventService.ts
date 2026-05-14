@@ -1,5 +1,5 @@
 import { type ClientSession } from "mongoose";
-import { Block, Circle, CircleMember, Event, EventMember } from "#models/index";
+import { Block, Circle, CircleMember, Connection, Event, EventMember } from "#models/index";
 import type {
   ActiveMapEventsQuery,
   CreateEventBody,
@@ -68,6 +68,43 @@ const buildAccessibleEventFilter = async (userId: string): Promise<EventFilter> 
   return { $and: conditions };
 };
 
+const assertAcceptedConnectionInvitees = async (hostId: string, inviteeIds: string[]) => {
+  const uniqueInviteeIds = uniqueObjectIdStrings(inviteeIds);
+
+  if (uniqueInviteeIds.length === 0) {
+    return;
+  }
+
+  const hostObjectId = toObjectId(hostId);
+  const inviteeObjectIds = uniqueInviteeIds.map(toObjectId);
+  const connections = await Connection.find({
+    status: "accepted",
+    $or: [
+      { requesterId: hostObjectId, receiverId: { $in: inviteeObjectIds } },
+      { receiverId: hostObjectId, requesterId: { $in: inviteeObjectIds } },
+    ],
+  })
+    .select("requesterId receiverId")
+    .lean();
+  const acceptedUserIds = new Set<string>();
+
+  for (const connection of connections) {
+    const requesterId = connection.requesterId.toString();
+    const receiverId = connection.receiverId.toString();
+    acceptedUserIds.add(requesterId === hostId ? receiverId : requesterId);
+  }
+
+  const missingInvitee = uniqueInviteeIds.find((inviteeId) => !acceptedUserIds.has(inviteeId));
+
+  if (missingInvitee) {
+    throw new AppError(
+      "Only accepted connections can be invited to private events",
+      403,
+      "EVENT_INVITEE_NOT_ACCEPTED_CONNECTION"
+    );
+  }
+};
+
 const resolveInviteCandidates = async (hostId: string, input: CreateEventBody) => {
   const candidates = new Map<string, InviteCandidate>();
 
@@ -75,7 +112,7 @@ const resolveInviteCandidates = async (hostId: string, input: CreateEventBody) =
     mergeInviteCandidate(candidates, {
       userId: member.userId,
       role: member.role,
-      canInviteGuests: Boolean(input.allowGuestInvites && member.canInviteGuests),
+      canInviteGuests: input.allowGuestInvites !== "none",
     });
   }
 
@@ -112,7 +149,7 @@ const resolveInviteCandidates = async (hostId: string, input: CreateEventBody) =
       mergeInviteCandidate(candidates, {
         userId: circleMember.userId.toString(),
         role: circleInput.role,
-        canInviteGuests: Boolean(input.allowGuestInvites && circleInput.canInviteGuests),
+        canInviteGuests: input.allowGuestInvites !== "none",
       });
     }
   }
@@ -121,16 +158,22 @@ const resolveInviteCandidates = async (hostId: string, input: CreateEventBody) =
 
   const candidateIds = Array.from(candidates.keys());
   const blockedInviteeIds = await getBlockedInviteeIds(hostId, candidateIds);
-
-  return Array.from(candidates.values()).filter(
+  const visibleCandidates = Array.from(candidates.values()).filter(
     (candidate) => !blockedInviteeIds.has(candidate.userId)
   );
+
+  await assertAcceptedConnectionInvitees(
+    hostId,
+    visibleCandidates.map((candidate) => candidate.userId)
+  );
+
+  return visibleCandidates;
 };
 
 export const createEvent = async (hostId: string, input: CreateEventBody) => {
-  const invitees = await resolveInviteCandidates(hostId, input);
+  const invitees =
+    input.visibility === "public" ? [] : await resolveInviteCandidates(hostId, input);
   const hostObjectId = toObjectId(hostId);
-  const guestInviteLimit = input.allowGuestInvites ? input.guestInviteLimit : 0;
 
   const result = await withTransactionFallback(async (session?: ClientSession) => {
     const [event] = await Event.create(
@@ -149,7 +192,7 @@ export const createEvent = async (hostId: string, input: CreateEventBody) => {
           },
           visibility: input.visibility,
           allowGuestInvites: input.allowGuestInvites,
-          guestInviteLimit,
+          guestInviteLimit: input.guestInviteLimit,
           status: "active",
         },
       ],
@@ -266,10 +309,6 @@ export const updateEvent = async (hostId: string, eventId: string, input: Update
   }
 
   Object.assign(event, input);
-
-  if (input.allowGuestInvites === false) {
-    event.guestInviteLimit = 0;
-  }
 
   await event.save();
 

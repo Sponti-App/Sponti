@@ -36,3 +36,49 @@ Notifications are currently represented by:
 - `event_members` with `rsvpStatus = "invited"`
 
 `notificationHookService` contains no-op stubs for future async queue integration.
+
+## API Contract
+
+Base path: `/api/v1`
+
+| Method | Endpoint | Auth | Request | Response | Frontend consumer |
+| --- | --- | --- | --- | --- | --- |
+| `GET` | `/health` | No | none | `{ data: { status, service } }` | deployment/runtime checks |
+| `GET` | `/events/map/active` | Yes | query `lng`, `lat`, optional `radiusKm` | `{ data: Event[] }` | home map |
+| `GET` | `/events/calendar/upcoming` | Yes | query `page`, `limit` | `{ data: Event[], pagination }` | home calendar |
+| `GET` | `/events` | Yes | query `page`, `limit`, `hostId`, `status`, `visibility`, `startAtFrom`, `startAtTo` | `{ data: Event[], pagination }` | host event hub, filtered event lists |
+| `GET` | `/events/:eventId` | Yes | param `eventId` | `{ data: Event }` | event details/edit |
+| `POST` | `/events` | Yes | event create body | `{ data: { event, members } }` | create flare |
+| `PATCH` | `/events/:eventId` | Yes | partial event body | `{ data: Event }` | edit flare |
+| `PATCH` | `/events/:eventId/cancel` | Yes | none | `{ data: Event }` | cancel flare |
+| `PATCH` | `/events/:eventId/me` | Yes | `{ rsvpStatus?, memberWillArriveAt? }` | `{ data: EventMember }` | join/decline/maybe |
+| `GET` | `/circles` | Yes | none | `{ data: CircleWithMembers[] }` | circles page, create-event audience picker |
+| `PATCH` | `/circles/:id` | Yes | `{ name?, color? }` | `{ data: Circle }` | edit circle name/color |
+| `POST` | `/circles/:id/members` | Yes | `{ userId }` | `{ data: CircleMember }` | add friend to circle |
+| `DELETE` | `/circles/:id/members/:userId` | Yes | params | `204` | remove friend from circle |
+| `GET` | `/connections` | Yes | query `page`, `limit`, `status`, `type`, `direction` | `{ data: ConnectionWithOtherUser[], pagination }` | people tab |
+| `POST` | `/connections/request` | Yes | `{ receiverId, type? }` | `{ data: { processed: true } }` | add by handle |
+| `PATCH` | `/connections/:id/respond` | Yes | `{ status: "accepted" \| "rejected" }` | `{ data: Connection }` | respond to connection request |
+| `DELETE` | `/connections/:id` | Yes | param `id` | `204` | remove connection |
+| `GET` | `/blocks` | Yes | none | `{ data: BlockWithBlockedUser[] }` | blocked tab |
+| `POST` | `/blocks/:userId` | Yes | param `userId` | `{ data: Block }` | block user |
+| `DELETE` | `/blocks/:userId` | Yes | param `userId` | `204` | unblock user |
+| `GET` | `/users/search` | Yes | query `q`, optional `limit` | `{ data: UserSummary[] }` | add by handle |
+| `GET` | `/inbox/me` | Yes | none | `{ data: { connectionRequests, eventInvitations } }` | notifications popover |
+| `GET` | `/notification-settings/me` | Yes | none | `{ data: NotificationSettings }` | future settings screen |
+| `PATCH` | `/notification-settings/me` | Yes | settings patch | `{ data: NotificationSettings }` | future settings screen |
+| `POST` | `/qr-contact-tokens` | Yes | `{}` | currently `501` | QR share sheet, not demo-safe yet |
+| `POST` | `/qr-contact-tokens/resolve` | Yes | `{ token }` | currently `501` | QR scan, not demo-safe yet |
+
+Common API errors:
+
+- `400 VALIDATION_ERROR`
+- `400 INVALID_OBJECT_ID`
+- `401 ACCESS_TOKEN_MISSING`
+- `401 ACCESS_TOKEN_INVALID`
+- `401 ACCESS_TOKEN_EXPIRED`
+- `403` authorization errors
+- `404 *_NOT_FOUND`
+- `409 DUPLICATE_RESOURCE` or domain conflict
+- `500 INTERNAL_SERVER_ERROR`
+- `501 QR_TOKENS_NOT_IMPLEMENTED`

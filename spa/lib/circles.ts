@@ -15,16 +15,16 @@ export type ConnectionRequest = {
   createdAt: string
 }
 
-// Tier drives the CircleStackIcon visual — 1 dot is the tightest inner ring,
-// 2 and 3 expand outward. Custom circles default to tier 2.
-export type CircleTier = 1 | 2 | 3
+export type CircleType = "close" | "inner" | "all"
 
 export type Circle = {
   id: string
   name: string
   description: string
-  tier: CircleTier
   memberIds: string[]
+  type: CircleType
+  color?: string | null
+  icon?: string | null
 }
 
 export type BlockedUser = {
@@ -35,14 +35,49 @@ export type BlockedUser = {
 }
 
 export const MOCK_CONNECTIONS: Connection[] = [
-  { id: "maya", displayName: "Maya R.", username: "mayar", note: "coffee, walks, study breaks" },
-  { id: "jordan", displayName: "Jordan T.", username: "jordant", note: "lunch and weekend plans" },
+  {
+    id: "maya",
+    displayName: "Maya R.",
+    username: "mayar",
+    note: "coffee, walks, study breaks",
+  },
+  {
+    id: "jordan",
+    displayName: "Jordan T.",
+    username: "jordant",
+    note: "lunch and weekend plans",
+  },
   { id: "sam", displayName: "Sam K.", username: "samk", note: "classmate" },
-  { id: "avery", displayName: "Avery L.", username: "averyl", note: "nearby evenings" },
-  { id: "noah", displayName: "Noah P.", username: "noahp", note: "board games and food" },
-  { id: "riley", displayName: "Riley M.", username: "rileym", note: "gym, parks, events" },
-  { id: "lina", displayName: "Lina S.", username: "linas", note: "studio crew" },
-  { id: "emil", displayName: "Emil A.", username: "emila", note: "weekend plans" },
+  {
+    id: "avery",
+    displayName: "Avery L.",
+    username: "averyl",
+    note: "nearby evenings",
+  },
+  {
+    id: "noah",
+    displayName: "Noah P.",
+    username: "noahp",
+    note: "board games and food",
+  },
+  {
+    id: "riley",
+    displayName: "Riley M.",
+    username: "rileym",
+    note: "gym, parks, events",
+  },
+  {
+    id: "lina",
+    displayName: "Lina S.",
+    username: "linas",
+    note: "studio crew",
+  },
+  {
+    id: "emil",
+    displayName: "Emil A.",
+    username: "emila",
+    note: "weekend plans",
+  },
 ]
 
 export const MOCK_CIRCLES: Circle[] = [
@@ -50,21 +85,21 @@ export const MOCK_CIRCLES: Circle[] = [
     id: "inner",
     name: "inner circle",
     description: "your tightest 5",
-    tier: 1,
+    type: "inner",
     memberIds: ["maya", "jordan", "sam", "avery", "noah"],
   },
   {
     id: "close",
     name: "close friends",
     description: "your tighter group",
-    tier: 2,
+    type: "close",
     memberIds: ["maya", "sam", "riley", "lina"],
   },
   {
     id: "all",
     name: "all friends",
     description: "everyone you follow",
-    tier: 3,
+    type: "all",
     memberIds: MOCK_CONNECTIONS.map((c) => c.id),
   },
 ]
@@ -76,7 +111,12 @@ const DAY = 24 * HOUR
 export const MOCK_REQUESTS: ConnectionRequest[] = [
   {
     id: "req-kai",
-    user: { id: "kai", displayName: "Kai B.", username: "kaib", note: "met at the studio" },
+    user: {
+      id: "kai",
+      displayName: "Kai B.",
+      username: "kaib",
+      note: "met at the studio",
+    },
     createdAt: new Date(Date.now() - 30 * MIN).toISOString(),
   },
   {

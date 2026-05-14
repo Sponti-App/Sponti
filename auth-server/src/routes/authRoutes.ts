@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { login, logout, me, register, refresh, forgotPassword, resetPassword, updateAvatar } from "#controllers";
+import { login, logout, me, register, refresh, forgotPassword, resetPassword, updateAvatar, updateProfile } from "#controllers";
 import { requireAuth, validateBody, uploadAvatar } from "#middleware";
-import { loginSchema, registerSchema, refreshTokenSchema, logoutSchema, forgotPasswordSchema, resetPasswordSchema } from "#schemas";
+import { loginSchema, registerSchema, refreshTokenSchema, logoutSchema, forgotPasswordSchema, resetPasswordSchema, updateProfileSchema } from "#schemas";
 
 const router = Router();
 
@@ -17,5 +17,9 @@ router.patch("/me/avatar",
     uploadAvatar.single("avatar"),
     updateAvatar
 );
+router.patch("/me/profile",
+    requireAuth,
+    validateBody(updateProfileSchema),
+    updateProfile);
 
 export default router;

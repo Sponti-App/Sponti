@@ -9,6 +9,8 @@ type AccessTokenClaims = JwtPayload & {
 };
 
 export const requireAuth: RequestHandler = (req, _res, next) => {
+  if (req.user) return next();
+
   const authHeader = req.headers.authorization;
 
   if (!authHeader?.startsWith("Bearer ")) {

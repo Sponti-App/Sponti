@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getRefreshToken, getToken, setSession, type AuthUser } from "@/lib/auth-store"
-import { uploadAvatar } from "@/lib/api/auth"
+import { uploadAvatar, updateProfile } from "@/lib/api/auth"
 import {
   buildProfileDraft,
   initialsFromName,
@@ -79,14 +79,15 @@ function ProfileEditPageContent({ user }: { user: AuthUser }) {
       }
       setUploading(false)
     }
-
-    const updatedUser: AuthUser = {
-      ...user,
-      avatarUrl: newAvatarUrl,
+    const { user: updatedProfileUser } = await updateProfile({
       displayName: draft.displayName.trim(),
       username: normalizeUsername(draft.username),
       email: draft.email.trim(),
-      updatedAt: new Date().toISOString(),
+
+    })
+    const updatedUser: AuthUser = {
+      ...updatedProfileUser,
+      avatarUrl: newAvatarUrl,
     }
 
     saveProfileExtras(user.id, {

@@ -1,4 +1,8 @@
-import type { AddCircleMemberBody, UpdateCircleBody } from "#schemas/circleSchemas";
+import type {
+  AddCircleMemberBody,
+  CreateCircleBody,
+  UpdateCircleBody,
+} from "#schemas/circleSchemas";
 import * as circleService from "#services/circleService";
 import { asyncHandler } from "#utils/asyncHandler";
 import { getAuthenticatedUserId, getRouteParam } from "#utils/requestUser";
@@ -7,6 +11,15 @@ export const getMyCircles = asyncHandler(async (req, res) => {
   const data = await circleService.getMyCircles(getAuthenticatedUserId(req));
 
   res.json({ data });
+});
+
+export const createCircle = asyncHandler(async (req, res) => {
+  const data = await circleService.createCircle(
+    getAuthenticatedUserId(req),
+    req.body as CreateCircleBody
+  );
+
+  res.status(201).json({ data });
 });
 
 export const updateCircle = asyncHandler(async (req, res) => {
