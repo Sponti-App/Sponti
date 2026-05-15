@@ -3,10 +3,12 @@
 // /me/circles endpoint when wiring up.
 
 import { useSyncExternalStore } from "react"
-import { MOCK_CIRCLES, type Circle } from "./circles"
+import { MOCK_CIRCLES, type Circle, type CircleType } from "./circles"
 
 const STORAGE_KEY = "sponti.circles.v1"
 const CHANGE_EVENT = "sponti:circles-change"
+
+const SYSTEM_TYPES: CircleType[] = ["inner", "close", "all"]
 
 let cached: Circle[] | null = null
 
@@ -41,20 +43,7 @@ function readFromStorage(): Circle[] {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_CIRCLES))
       return MOCK_CIRCLES
     }
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_CIRCLES))
-      return MOCK_CIRCLES
-    }
-    const normalized = parsed
-      .map(normalizeCircle)
-      .filter((circle): circle is Circle => Boolean(circle))
-    if (normalized.length === 0) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_CIRCLES))
-      return MOCK_CIRCLES
-    }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized))
-    return normalized
+    return ensureSystemCircles(JSON.parse(raw) as Circle[])
   } catch {
     return MOCK_CIRCLES
   }
@@ -67,8 +56,9 @@ function snapshot(): Circle[] {
 
 function writeAll(circles: Circle[]): void {
   if (typeof window === "undefined") return
-  cached = circles
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(circles))
+  const next = ensureSystemCircles(circles)
+  cached = next
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
   window.dispatchEvent(new Event(CHANGE_EVENT))
 }
 
@@ -94,4 +84,59 @@ export function setCircles(
 ): void {
   const value = typeof next === "function" ? next(snapshot()) : next
   writeAll(value)
+}
+
+export function addMemberToCircle(circleId: string, userId: string): void {
+  setCircles((prev) =>
+    prev.map((c) => {
+      if (c.id !== circleId || c.memberIds.includes(userId)) return c
+      return {
+        ...c,
+        memberIds: [...c.memberIds, userId],
+        memberAddedAt: { ...c.memberAddedAt, [userId]: new Date().toISOString() },
+      }
+    }),
+  )
+}
+
+export function removeMemberFromCircle(circleId: string, userId: string): void {
+  setCircles((prev) =>
+    prev.map((c) => {
+      if (c.id !== circleId) return c
+      const { [userId]: _dropped, ...restMeta } = c.memberAddedAt ?? {}
+      return {
+        ...c,
+        memberIds: c.memberIds.filter((id) => id !== userId),
+        memberAddedAt: restMeta,
+      }
+    }),
+  )
+}
+
+export function moveConnectionToCircle(
+  userId: string,
+  fromCircleId: string,
+  toCircleId: string,
+): void {
+  const now = new Date().toISOString()
+  setCircles((prev) =>
+    prev.map((c) => {
+      if (c.id === fromCircleId) {
+        const { [userId]: _dropped, ...restMeta } = c.memberAddedAt ?? {}
+        return {
+          ...c,
+          memberIds: c.memberIds.filter((id) => id !== userId),
+          memberAddedAt: restMeta,
+        }
+      }
+      if (c.id === toCircleId && !c.memberIds.includes(userId)) {
+        return {
+          ...c,
+          memberIds: [...c.memberIds, userId],
+          memberAddedAt: { ...c.memberAddedAt, [userId]: now },
+        }
+      }
+      return c
+    }),
+  )
 }

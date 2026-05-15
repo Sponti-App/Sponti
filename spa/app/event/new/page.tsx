@@ -35,7 +35,7 @@ import {
 } from "@/lib/api/circles"
 import { fetchAcceptedConnections } from "@/lib/api/connections"
 import { type Circle, type Connection } from "@/lib/circles"
-import { setCircles, useCircles } from "@/lib/circles-store"
+import { ensureSystemCircles, setCircles, useCircles } from "@/lib/circles-store"
 import { EVENT_TYPES } from "@/types/utils"
 
 type Mode = "now" | "scheduled"
@@ -162,7 +162,7 @@ export default function NewEventPage() {
   const [connections, setConnections] = useState<Connection[]>([])
   const [audienceLoading, setAudienceLoading] = useState(true)
   const [audienceError, setAudienceError] = useState<string | null>(null)
-  const circles = apiCircles ?? storedCircles
+  const circles = ensureSystemCircles(apiCircles ?? storedCircles)
 
   const [mode, setMode] = useState<Mode>("now")
   const [eventType, setEventType] = useState<EventType>("hangout")
