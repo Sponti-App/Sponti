@@ -15,9 +15,11 @@ import {
   DEMO_MAP_EVENTS,
   MOCK_EVENTS,
   fetchCalendarEvents,
+  fetchMyFlares,
   fetchMapEvents,
   repositionMockEvents,
   type EventsState,
+  type MyFlaresState,
 } from "./api/events"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
@@ -131,6 +133,65 @@ export function useCalendarEvents(): EventsState {
           refresh: () => setTick((n) => n + 1),
         })
       })
+    return () => ac.abort()
+  }, [apiEnabled, tick])
+
+  return {
+    ...state,
+    refresh: () => setTick((n) => n + 1),
+  }
+}
+
+/**
+ * Loads the authenticated user's dashboard flares from the backend, split into
+ * hosted, invited, and recent past-hosted buckets.
+ */
+export function useMyFlares(): MyFlaresState {
+  const apiEnabled = useApiEnabled()
+  const [state, setState] = useState<MyFlaresState>({
+    hostedByMe: [],
+    invited: [],
+    pastHosted: [],
+    loading: apiEnabled,
+    // TODO(demo-mode): Unlike map/calendar, this dashboard intentionally does
+    // not fall back to the old hosted localStorage store because host actions
+    // now have backend side effects: cancel/reactivate notifications, member
+    // counts, and server-side host authorization. If we need offline demos
+    // later, add a separate mock-only fixture here instead of resurrecting
+    // localStorage as a source of truth.
+    error: apiEnabled ? null : "Backend API is not configured",
+    refresh: () => {},
+  })
+  const [tick, setTick] = useState(0)
+
+  useEffect(() => {
+    if (!apiEnabled) return
+    const ac = new AbortController()
+
+    queueMicrotask(() => {
+      if (ac.signal.aborted) return
+      setState((s) => ({ ...s, loading: true, error: null }))
+    })
+
+    fetchMyFlares(ac.signal)
+      .then((result) =>
+        setState({
+          ...result,
+          loading: false,
+          error: null,
+          refresh: () => setTick((n) => n + 1),
+        })
+      )
+      .catch((err) => {
+        if (ac.signal.aborted) return
+        setState((s) => ({
+          ...s,
+          loading: false,
+          error: errMessage(err),
+          refresh: () => setTick((n) => n + 1),
+        }))
+      })
+
     return () => ac.abort()
   }, [apiEnabled, tick])
 

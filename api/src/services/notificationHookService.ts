@@ -21,4 +21,9 @@ export const notificationHooks = {
     // TODO: Replace with async notification dispatch when queues are introduced.
     logDevelopmentHook("event-cancelled", payload);
   },
+
+  async onEventReactivated(payload: NotificationHookPayload) {
+    // TODO: Replace with async notification dispatch when queues are introduced.
+    logDevelopmentHook("event-reactivated", payload);
+  },
 };
