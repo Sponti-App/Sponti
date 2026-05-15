@@ -19,6 +19,8 @@ import {
   LocateFixed,
   MapPin,
   AlertCircle,
+  Calendar as CalendarIcon,
+  Expand,
 } from "lucide-react"
 import {
   avatarText,
@@ -172,6 +174,7 @@ function GoogleMapContent({
   routeDestination,
   joinedIds,
   user,
+  hasUserLocation,
   recenterTick,
 }: {
   events: EventItem[]
@@ -180,10 +183,22 @@ function GoogleMapContent({
   routeDestination: GeoCoords | null
   joinedIds: Set<string>
   user: GeoCoords
+  hasUserLocation: boolean
   recenterTick: number
 }) {
   const status = useApiLoadingStatus()
   const map = useMap()
+  const autoCenteredRef = useRef(false)
+
+  // Auto-center on the user the first time geolocation resolves. The Map's
+  // defaultCenter only applies on first mount; without this, a fallback
+  // location would stay centered until the user pressed the recenter button.
+  useEffect(() => {
+    if (!map || autoCenteredRef.current || !hasUserLocation) return
+    autoCenteredRef.current = true
+    map.panTo(user)
+    if ((map.getZoom() ?? 0) < 14) map.setZoom(15)
+  }, [map, user, hasUserLocation])
 
   // Recenter on explicit user action
   useEffect(() => {
@@ -256,6 +271,11 @@ type PeekState = "mini" | "peek" | "expanded"
 // Fixed pixel heights for mini and peek states
 const SHEET_PX = { mini: 64, peek: 268 } as const
 
+// Vertical room reserved at the bottom for the solid BottomNav bar so the
+// collapsed sheet sits above it. Keep in sync with bottom-nav.tsx — bar is
+// ~64px tall + safe-area inset + a small breathing gap.
+const NAV_RESERVED_PX = 76
+
 // One-shot dev warning: AdvancedMarker silently renders nothing when the map
 // has no mapId. Surfacing this early saves a debugging session.
 let warnedNoMapId = false
@@ -273,16 +293,23 @@ function warnIfMissingMapId(
   }
 }
 
+// Default + widened radii for the empty-state pivot. If 25 km nearby is empty,
+// the user can opt into 50 km. Beyond that, we suggest the calendar view.
+const DEFAULT_RADIUS_KM = 25
+const WIDE_RADIUS_KM = 50
+
 export function MapView({
   onEventSelect,
   activeRoute,
   joinedIds,
   onRouteReady,
+  onSeeCalendar,
 }: {
   onEventSelect: (event: EventItem) => void
   activeRoute: EventItem | null
   joinedIds: Set<string>
   onRouteReady?: (event: EventItem, etaLabel: string) => void
+  onSeeCalendar?: () => void
 }) {
   const router = useRouter()
   const [peekState, setPeekState] = useState<PeekState>("peek")
@@ -298,7 +325,8 @@ export function MapView({
   // The recenter button only makes sense on a real interactive map.
   const hasInteractiveMap = !!apiKey
 
-  const map = useMapEvents(geo.coords, 25)
+  const [searchRadiusKm, setSearchRadiusKm] = useState(DEFAULT_RADIUS_KM)
+  const map = useMapEvents(geo.coords, searchRadiusKm)
   const mapEvents = useMemo(
     () => map.events.filter((e) => !!e.location.coordinates),
     [map.events]
@@ -384,11 +412,15 @@ export function MapView({
 
   const sheetStyle =
     peekState === "expanded"
-      ? { height: "100%" }
-      : { height: `${SHEET_PX[peekState]}px` }
+      ? { height: "100%", bottom: 0 }
+      : peekState === "mini"
+        ? { height: `${SHEET_PX.mini}px`, bottom: `${NAV_RESERVED_PX}px` }
+        : { height: `${SHEET_PX.peek}px`, bottom: 0 }
 
   const fabBottomPx =
-    peekState === "mini" ? SHEET_PX.mini + 12 : SHEET_PX.peek + 12
+    peekState === "mini"
+      ? SHEET_PX.mini + NAV_RESERVED_PX + 12
+      : SHEET_PX.peek + 12
 
   return (
     <div className="absolute inset-0 overflow-hidden">
@@ -401,6 +433,7 @@ export function MapView({
             routeDestination={routeDestination}
             joinedIds={joinedIds}
             user={user}
+            hasUserLocation={!isFallbackLocation}
             recenterTick={recenterTick}
           />
         </APIProvider>
@@ -433,7 +466,7 @@ export function MapView({
             if (isFallbackLocation) geo.request()
             else setRecenterTick((n) => n + 1)
           }}
-          style={{ bottom: `${fabBottomPx + 64}px` }}
+          style={{ bottom: `${fabBottomPx}px` }}
           aria-label="Recenter on my location"
           className="absolute right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md transition-[bottom] duration-300 ease-out"
         >
@@ -441,22 +474,10 @@ export function MapView({
         </button>
       )}
 
-      {/* Floating + flare FAB — hidden when sheet is fully expanded */}
-      {peekState !== "expanded" && (
-        <button
-          onClick={() => router.push("/event/new")}
-          style={{ bottom: `${fabBottomPx}px` }}
-          className="absolute right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-xl transition-[bottom] duration-300 ease-out"
-          aria-label="Light a flare"
-        >
-          <Flame className="h-6 w-6" />
-        </button>
-      )}
-
       {/* Bottom sheet — z-50 when expanded so it covers the nav pill */}
       <div
         style={sheetStyle}
-        className={`absolute right-0 bottom-0 left-0 rounded-t-3xl bg-background shadow-[0_-4px_20px_rgba(0,0,0,0.1)] transition-all duration-300 ease-out ${
+        className={`absolute right-0 left-0 rounded-t-3xl bg-background shadow-[0_-4px_20px_rgba(0,0,0,0.1)] transition-all duration-300 ease-out ${
           peekState === "expanded" ? "z-50" : "z-20"
         }`}
       >
@@ -472,9 +493,10 @@ export function MapView({
         {peekState === "mini" ? (
           <button
             onClick={() => setPeekState("peek")}
-            className="flex w-full items-center justify-center gap-2 pb-1 text-sm text-muted-foreground"
+            aria-label="Expand flares sheet"
+            className="flex h-[calc(100%-44px)] w-full items-center justify-center gap-2 px-4 text-sm font-medium text-muted-foreground active:bg-muted/40"
           >
-            <ChevronUp className="h-4 w-4" />
+            <ChevronUp className="h-5 w-5" />
             {sheetSummary(map.loading, mapEvents.length, map.error)}
           </button>
         ) : (
@@ -492,7 +514,16 @@ export function MapView({
             {map.error ? (
               <ErrorPanel message={map.error} onRetry={map.refresh} />
             ) : mapEvents.length === 0 && !map.loading ? (
-              <EmptyState onCreate={() => router.push("/event/new")} />
+              <EmptyState
+                radiusKm={searchRadiusKm}
+                onWiden={
+                  searchRadiusKm < WIDE_RADIUS_KM
+                    ? () => setSearchRadiusKm(WIDE_RADIUS_KM)
+                    : null
+                }
+                onSeeCalendar={onSeeCalendar}
+                onCreate={() => router.push("/event/new")}
+              />
             ) : (
               <div className="space-y-2">
                 {mapEvents.map((event) => (
@@ -555,18 +586,49 @@ function ErrorPanel({
   )
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({
+  radiusKm,
+  onWiden,
+  onSeeCalendar,
+  onCreate,
+}: {
+  radiusKm: number
+  onWiden: (() => void) | null
+  onSeeCalendar?: () => void
+  onCreate: () => void
+}) {
   return (
-    <div className="rounded-xl border border-dashed border-border p-6 text-center">
-      <p className="mb-3 text-sm text-muted-foreground">
-        no flares near you right now
+    <div className="rounded-xl border border-dashed border-border p-5 text-center">
+      <p className="mb-1 text-sm font-medium">
+        no flares within {radiusKm} km
       </p>
-      <button
-        onClick={onCreate}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-accent"
-      >
-        <Flame className="h-4 w-4" /> light the first one
-      </button>
+      <p className="mb-4 text-xs text-muted-foreground">
+        quiet around here right now — try one of these
+      </p>
+      <div className="flex flex-col gap-2">
+        {onWiden && (
+          <button
+            onClick={onWiden}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary"
+          >
+            <Expand className="h-4 w-4" /> search within {WIDE_RADIUS_KM} km
+          </button>
+        )}
+        {onSeeCalendar && (
+          <button
+            onClick={onSeeCalendar}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary"
+          >
+            <CalendarIcon className="h-4 w-4" /> see what&apos;s planned
+          </button>
+        )}
+        <button
+          onClick={onCreate}
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
+        >
+          <Flame className="h-4 w-4" /> light the first one
+        </button>
+      </div>
     </div>
   )
 }
