@@ -12,23 +12,27 @@ const SYSTEM_TYPES: CircleType[] = ["inner", "close", "all"]
 
 let cached: Circle[] | null = null
 
-// The three pre-defined circles (inner/close/all) are tier-level identity in
-// the UX and must always be present. The backend may not seed them yet, and a
-// fetched-then-written empty list would otherwise wipe them locally. We match
-// by `type` so backend ObjectIds still resolve correctly once wired up.
-export function ensureSystemCircles(circles: Circle[]): Circle[] {
-  const head: Circle[] = []
-  for (const sysType of SYSTEM_TYPES) {
-    const existing = circles.find((c) => c.type === sysType)
-    if (existing) {
-      head.push(existing)
-      continue
-    }
-    const fallback = MOCK_CIRCLES.find((c) => c.type === sysType)
-    if (fallback) head.push(fallback)
+function isCircleType(value: unknown): value is Circle["type"] {
+  return value === "close" || value === "inner" || value === "all"
+}
+
+function normalizeCircle(value: unknown): Circle | null {
+  if (!value || typeof value !== "object") return null
+  const raw = value as Record<string, unknown>
+  if (typeof raw.id !== "string" || typeof raw.name !== "string") return null
+  const type = isCircleType(raw.type) ? raw.type : "close"
+  return {
+    id: raw.id,
+    name: raw.name,
+    description:
+      typeof raw.description === "string" ? raw.description : "custom circle",
+    type,
+    memberIds: Array.isArray(raw.memberIds)
+      ? raw.memberIds.filter((id): id is string => typeof id === "string")
+      : [],
+    color: typeof raw.color === "string" ? raw.color : null,
+    icon: typeof raw.icon === "string" ? raw.icon : null,
   }
-  const rest = circles.filter((c) => !SYSTEM_TYPES.includes(c.type))
-  return [...head, ...rest]
 }
 
 function readFromStorage(): Circle[] {
@@ -76,7 +80,7 @@ export function getCirclesSnapshot(): Circle[] {
 
 // Mirrors useState's setter — accepts a value or an updater function.
 export function setCircles(
-  next: Circle[] | ((prev: Circle[]) => Circle[]),
+  next: Circle[] | ((prev: Circle[]) => Circle[])
 ): void {
   const value = typeof next === "function" ? next(snapshot()) : next
   writeAll(value)

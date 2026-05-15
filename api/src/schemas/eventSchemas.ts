@@ -9,6 +9,7 @@ const eventStatusSchema = z.enum(["active", "cancelled", "completed"]);
 const eventTypeSchema = z.enum(EVENT_TYPES);
 const eventRoleInputSchema = z.enum(["admin", "guest"]);
 const eventGuestInviteModeSchema = z.enum(EVENT_GUEST_INVITE_MODES);
+const booleanQuerySchema = z.enum(["true", "false"]).transform((value) => value === "true");
 
 const locationSchema = z
   .object({
@@ -103,10 +104,19 @@ export const updateMyEventMembershipBodySchema = z
 export const getEventsQuerySchema = paginationQuerySchema
   .extend({
     hostId: objectIdSchema.optional(),
+    hostedByMe: booleanQuerySchema.optional(),
     status: eventStatusSchema.optional(),
     visibility: eventVisibilitySchema.optional(),
     startAtFrom: optionalIsoDateSchema,
     startAtTo: optionalIsoDateSchema,
+    endAtFrom: optionalIsoDateSchema,
+    endAtTo: optionalIsoDateSchema,
+  })
+  .strict();
+
+export const myUpcomingEventsQuerySchema = z
+  .object({
+    endAtFrom: optionalIsoDateSchema,
   })
   .strict();
 
@@ -124,5 +134,6 @@ export type CreateEventBody = z.infer<typeof createEventBodySchema>;
 export type UpdateEventBody = z.infer<typeof updateEventBodySchema>;
 export type UpdateMyEventMembershipBody = z.infer<typeof updateMyEventMembershipBodySchema>;
 export type GetEventsQuery = z.infer<typeof getEventsQuerySchema>;
+export type MyUpcomingEventsQuery = z.infer<typeof myUpcomingEventsQuerySchema>;
 export type ActiveMapEventsQuery = z.infer<typeof activeMapEventsQuerySchema>;
 export type UpcomingCalendarEventsQuery = z.infer<typeof upcomingCalendarEventsQuerySchema>;
