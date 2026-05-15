@@ -10,6 +10,29 @@ const CHANGE_EVENT = "sponti:circles-change"
 
 let cached: Circle[] | null = null
 
+function isCircleType(value: unknown): value is Circle["type"] {
+  return value === "close" || value === "inner" || value === "all"
+}
+
+function normalizeCircle(value: unknown): Circle | null {
+  if (!value || typeof value !== "object") return null
+  const raw = value as Record<string, unknown>
+  if (typeof raw.id !== "string" || typeof raw.name !== "string") return null
+  const type = isCircleType(raw.type) ? raw.type : "close"
+  return {
+    id: raw.id,
+    name: raw.name,
+    description:
+      typeof raw.description === "string" ? raw.description : "custom circle",
+    type,
+    memberIds: Array.isArray(raw.memberIds)
+      ? raw.memberIds.filter((id): id is string => typeof id === "string")
+      : [],
+    color: typeof raw.color === "string" ? raw.color : null,
+    icon: typeof raw.icon === "string" ? raw.icon : null,
+  }
+}
+
 function readFromStorage(): Circle[] {
   if (typeof window === "undefined") return MOCK_CIRCLES
   try {
@@ -18,7 +41,20 @@ function readFromStorage(): Circle[] {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_CIRCLES))
       return MOCK_CIRCLES
     }
-    return JSON.parse(raw) as Circle[]
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_CIRCLES))
+      return MOCK_CIRCLES
+    }
+    const normalized = parsed
+      .map(normalizeCircle)
+      .filter((circle): circle is Circle => Boolean(circle))
+    if (normalized.length === 0) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_CIRCLES))
+      return MOCK_CIRCLES
+    }
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized))
+    return normalized
   } catch {
     return MOCK_CIRCLES
   }
@@ -54,7 +90,7 @@ export function getCirclesSnapshot(): Circle[] {
 
 // Mirrors useState's setter — accepts a value or an updater function.
 export function setCircles(
-  next: Circle[] | ((prev: Circle[]) => Circle[]),
+  next: Circle[] | ((prev: Circle[]) => Circle[])
 ): void {
   const value = typeof next === "function" ? next(snapshot()) : next
   writeAll(value)
