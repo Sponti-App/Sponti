@@ -107,7 +107,7 @@ export function NotificationsPopover({
       />
 
       <div
-        className={`absolute top-[88px] right-3 z-50 w-[320px] bg-card text-card-foreground border border-border rounded-2xl shadow-lg overflow-hidden transition-all duration-200 origin-top-right ${
+        className={`absolute right-3 bottom-22 left-3 z-50 mx-auto max-w-90 origin-bottom overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-lg transition-all duration-200 ${
           open ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"
         }`}
         role="dialog"

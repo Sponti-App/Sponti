@@ -39,6 +39,47 @@ function seed(): ConnectionsState {
 
 let cached: ConnectionsState | null = null
 
+function isConnection(value: unknown): value is Connection {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    typeof (value as Connection).id === "string" &&
+    typeof (value as Connection).displayName === "string" &&
+    typeof (value as Connection).username === "string"
+  )
+}
+
+function connectionArray(value: unknown): Connection[] {
+  return Array.isArray(value) ? value.filter(isConnection) : []
+}
+
+function requestArray(value: unknown): ConnectionRequest[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is ConnectionRequest =>
+          Boolean(item) &&
+          typeof item === "object" &&
+          typeof (item as ConnectionRequest).id === "string" &&
+          typeof (item as ConnectionRequest).createdAt === "string" &&
+          isConnection((item as ConnectionRequest).user)
+      )
+    : []
+}
+
+function blockedArray(value: unknown): BlockedUser[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is BlockedUser =>
+          Boolean(item) &&
+          typeof item === "object" &&
+          typeof (item as BlockedUser).id === "string" &&
+          typeof (item as BlockedUser).displayName === "string" &&
+          typeof (item as BlockedUser).username === "string" &&
+          typeof (item as BlockedUser).blockedAt === "string"
+      )
+    : []
+}
+
 function readFromStorage(): ConnectionsState {
   if (typeof window === "undefined") return seed()
   try {
@@ -49,9 +90,15 @@ function readFromStorage(): ConnectionsState {
       return s
     }
     const parsed = JSON.parse(raw) as Record<string, unknown>
-    // Migrate old shape that stored sentRequestIds: string[] instead of sentRequests: Connection[]
-    if (!parsed.sentRequests) parsed.sentRequests = []
-    return parsed as unknown as ConnectionsState
+    const normalized = {
+      connections: connectionArray(parsed.connections),
+      requests: requestArray(parsed.requests),
+      discoverable: connectionArray(parsed.discoverable),
+      sentRequests: connectionArray(parsed.sentRequests),
+      blocked: blockedArray(parsed.blocked),
+    }
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized))
+    return normalized
   } catch {
     return seed()
   }
@@ -121,17 +168,21 @@ export function acceptRequest(reqId: string): void {
   const s = snapshot()
   const req = s.requests.find((r) => r.id === reqId)
   if (!req) return
-  const alreadyConnected = Boolean(s.connections.find((c) => c.id === req.user.id))
+  const alreadyConnected = Boolean(
+    s.connections.find((c) => c.id === req.user.id)
+  )
   writeAll({
     ...s,
     requests: s.requests.filter((r) => r.id !== reqId),
-    connections: alreadyConnected ? s.connections : [...s.connections, req.user],
+    connections: alreadyConnected
+      ? s.connections
+      : [...s.connections, req.user],
   })
   if (!alreadyConnected) {
     setCircles((prev) =>
       prev.map((c) =>
-        c.id === "all" ? { ...c, memberIds: [...c.memberIds, req.user.id] } : c,
-      ),
+        c.id === "all" ? { ...c, memberIds: [...c.memberIds, req.user.id] } : c
+      )
     )
   }
 }
@@ -155,7 +206,7 @@ export function removeConnection(targetId: string): void {
     prev.map((c) => ({
       ...c,
       memberIds: c.memberIds.filter((id) => id !== targetId),
-    })),
+    }))
   )
 }
 
@@ -180,7 +231,7 @@ export function blockConnection(target: Connection): void {
     prev.map((c) => ({
       ...c,
       memberIds: c.memberIds.filter((id) => id !== target.id),
-    })),
+    }))
   )
 }
 

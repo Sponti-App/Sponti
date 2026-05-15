@@ -13,6 +13,11 @@ const PATTERNS: Record<CircleType, { cx: number; cy: number; r: number }[]> = {
     { cx: 8.5, cy: 14.5, r: 3.5 },
     { cx: 15.5, cy: 14.5, r: 3.5 },
   ],
+  custom: [
+    { cx: 12, cy: 8.5, r: 3.5 },
+    { cx: 8.5, cy: 14.5, r: 3.5 },
+    { cx: 15.5, cy: 14.5, r: 3.5 },
+  ],
 }
 
 export function CircleStackIcon({

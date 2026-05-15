@@ -25,11 +25,9 @@ import { Switch } from "@/components/ui/switch"
 import {
   createEvent,
   createEventRequestFromDraft,
-  pushDraftAsHosted,
   type Audience,
   type DraftEvent,
   type EventType,
-  type Recurrence,
 } from "@/lib/api/events"
 import {
   createCircle as createCircleRequest,
@@ -37,7 +35,7 @@ import {
 } from "@/lib/api/circles"
 import { fetchAcceptedConnections } from "@/lib/api/connections"
 import { type Circle, type Connection } from "@/lib/circles"
-import { setCircles, useCircles } from "@/lib/circles-store"
+import { ensureSystemCircles, setCircles, useCircles } from "@/lib/circles-store"
 import { EVENT_TYPES } from "@/types/utils"
 
 type Mode = "now" | "scheduled"
@@ -51,12 +49,6 @@ const MIN_DURATION_MIN = 15 // duration ≥ 15min
 const SCHEDULED_MAX_DAYS = 14
 const SCHEDULED_DAY_START_MIN = 6 * 60 // 06:00
 const SCHEDULED_DAY_END_MIN = 26 * 60 // 02:00 next-day
-
-const RECURRENCE_OPTIONS: { value: Recurrence; label: string }[] = [
-  { value: "none", label: "no repeat" },
-  { value: "daily", label: "daily" },
-  { value: "weekly", label: "weekly" },
-]
 
 // TODO: Replace this mocked Places autocomplete with a debounced Google
 // Places call once the API key and billing are set up.
@@ -170,7 +162,7 @@ export default function NewEventPage() {
   const [connections, setConnections] = useState<Connection[]>([])
   const [audienceLoading, setAudienceLoading] = useState(true)
   const [audienceError, setAudienceError] = useState<string | null>(null)
-  const circles = apiCircles ?? storedCircles
+  const circles = ensureSystemCircles(apiCircles ?? storedCircles)
 
   const [mode, setMode] = useState<Mode>("now")
   const [eventType, setEventType] = useState<EventType>("hangout")
@@ -185,7 +177,6 @@ export default function NewEventPage() {
   const [startDate, setStartDate] = useState(formatDateInput(new Date()))
   const [startTimeMin, setStartTimeMin] = useState(19 * 60) // 7pm
   const [endTimeMin, setEndTimeMin] = useState(20 * 60) // 8pm
-  const [recurrence, setRecurrence] = useState<Recurrence>("none")
 
   // WHERE
   const [whereType, setWhereType] = useState<WhereType>("current")
@@ -485,7 +476,6 @@ export default function NewEventPage() {
           mode === "scheduled"
             ? `${String(scheduledStart.getHours()).padStart(2, "0")}:${String(scheduledStart.getMinutes()).padStart(2, "0")}`
             : undefined,
-        recurrence: mode === "scheduled" ? recurrence : undefined,
         whereType,
         customWhere:
           whereType === "search"
@@ -524,9 +514,6 @@ export default function NewEventPage() {
         createEventRequestFromDraft(draft, eventAudience, timeRange)
       )
 
-      // TODO: remove this compatibility write once /event reads hosted events
-      // from the backend instead of the local hosted-event store.
-      pushDraftAsHosted(draft)
       router.push("/event")
     } catch (error) {
       setSubmitError(getErrorMessage(error))

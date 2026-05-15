@@ -15,7 +15,7 @@ export type ConnectionRequest = {
   createdAt: string
 }
 
-export type CircleType = "close" | "inner" | "all"
+export type CircleType = "close" | "inner" | "all" | "custom"
 
 export type Circle = {
   id: string
@@ -23,8 +23,7 @@ export type Circle = {
   description: string
   memberIds: string[]
   type: CircleType
-  color?: string | null
-  icon?: string | null
+  memberAddedAt?: Record<string, string>
 }
 
 export type BlockedUser = {
@@ -87,6 +86,13 @@ export const MOCK_CIRCLES: Circle[] = [
     description: "your tightest 5",
     type: "inner",
     memberIds: ["maya", "jordan", "sam", "avery", "noah"],
+    memberAddedAt: {
+      maya:   "2026-04-10T10:00:00.000Z",
+      jordan: "2026-04-20T14:00:00.000Z",
+      sam:    "2026-04-28T09:00:00.000Z",
+      avery:  "2026-05-05T17:00:00.000Z",
+      noah:   "2026-05-12T11:00:00.000Z",
+    },
   },
   {
     id: "close",
@@ -94,6 +100,12 @@ export const MOCK_CIRCLES: Circle[] = [
     description: "your tighter group",
     type: "close",
     memberIds: ["maya", "sam", "riley", "lina"],
+    memberAddedAt: {
+      maya:  "2026-03-15T10:00:00.000Z",
+      sam:   "2026-04-01T09:00:00.000Z",
+      riley: "2026-05-01T13:00:00.000Z",
+      lina:  "2026-05-13T16:00:00.000Z",
+    },
   },
   {
     id: "all",
@@ -101,6 +113,16 @@ export const MOCK_CIRCLES: Circle[] = [
     description: "everyone you follow",
     type: "all",
     memberIds: MOCK_CONNECTIONS.map((c) => c.id),
+    memberAddedAt: {
+      maya:   "2026-03-10T10:00:00.000Z",
+      jordan: "2026-04-01T14:00:00.000Z",
+      sam:    "2026-04-15T09:00:00.000Z",
+      avery:  "2026-04-20T17:00:00.000Z",
+      noah:   "2026-04-28T11:00:00.000Z",
+      riley:  "2026-05-01T13:00:00.000Z",
+      lina:   "2026-05-13T16:00:00.000Z",
+      emil:   "2026-05-14T08:00:00.000Z",
+    },
   },
 ]
 
