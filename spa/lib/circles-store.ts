@@ -35,6 +35,25 @@ function normalizeCircle(value: unknown): Circle | null {
   }
 }
 
+// The three pre-defined circles (inner/close/all) are tier-level identity in
+// the UX and must always be present. The backend may not seed them yet, and a
+// fetched-then-written empty list would otherwise wipe them locally. We match
+// by `type` so backend ObjectIds still resolve correctly once wired up.
+export function ensureSystemCircles(circles: Circle[]): Circle[] {
+  const head: Circle[] = []
+  for (const sysType of SYSTEM_TYPES) {
+    const existing = circles.find((c) => c.type === sysType)
+    if (existing) {
+      head.push(existing)
+      continue
+    }
+    const fallback = MOCK_CIRCLES.find((c) => c.type === sysType)
+    if (fallback) head.push(fallback)
+  }
+  const rest = circles.filter((c) => !SYSTEM_TYPES.includes(c.type))
+  return [...head, ...rest]
+}
+
 function readFromStorage(): Circle[] {
   if (typeof window === "undefined") return MOCK_CIRCLES
   try {
