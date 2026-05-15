@@ -9,8 +9,8 @@ import { MenuDrawer } from "@/components/menu-drawer"
 import { NotificationsPopover } from "@/components/notifications-popover"
 import { HomeTour } from "@/components/home-tour"
 import { useAuth } from "@/components/auth-provider"
-import { AccountAvatar } from "@/components/account-avatar"
-import { Bell, Map, Calendar, Navigation, X } from "lucide-react"
+import { Menu, Settings, Map, Calendar, Navigation, X } from "lucide-react"
+import { useRouter } from "next/navigation"
 import {
   etaToIso,
   isImminent,
@@ -21,6 +21,7 @@ import {
 import { MOCK_NOTIFICATIONS } from "@/lib/notifications"
 
 export default function Home() {
+  const router = useRouter()
   const [view, setView] = useState<"map" | "calendar">("map")
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const [activeRoute, setActiveRoute] = useState<EventItem | null>(null)
@@ -31,6 +32,16 @@ export default function Home() {
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS)
   const { user } = useAuth()
   const unreadCount = notifications.filter((n) => !n.read).length
+
+  const handleOpenNotifications = () => {
+    setNotificationsOpen((v) => {
+      const next = !v
+      if (next) {
+        setNotifications((curr) => curr.map((n) => ({ ...n, read: true })))
+      }
+      return next
+    })
+  }
 
   const handleJoin = (event: EventItem, eta: string | null) => {
     // Optimistic UI: flip the going-badge immediately. If the PATCH fails we
@@ -113,14 +124,10 @@ export default function Home() {
           type="button"
           aria-label={menuOpen ? "Close menu" : "Open menu"}
           aria-expanded={menuOpen}
-          className="relative z-30 rounded-full focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="relative z-30 flex h-9 w-9 items-center justify-center rounded-full border border-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
           onClick={() => setMenuOpen((open) => !open)}
         >
-          <AccountAvatar
-            user={user}
-            className="h-9 w-9"
-            fallbackClassName="bg-accent text-sm font-medium text-accent-foreground"
-          />
+          <Menu className="h-4 w-4" />
         </button>
 
         {/* Toggle */}
@@ -146,30 +153,11 @@ export default function Home() {
         </div>
 
         <button
-          onClick={() => {
-            setNotificationsOpen((v) => {
-              const next = !v
-              if (next) {
-                setNotifications((curr) =>
-                  curr.map((n) => ({ ...n, read: true }))
-                )
-              }
-              return next
-            })
-          }}
-          aria-label="Notifications"
-          aria-expanded={notificationsOpen}
+          onClick={() => router.push("/settings")}
+          aria-label="Settings"
           className="relative flex h-9 w-9 items-center justify-center rounded-full border border-foreground"
         >
-          <Bell className="h-4 w-4" />
-          {unreadCount > 0 && (
-            <span
-              aria-label={`${unreadCount} unread`}
-              className="absolute -top-0.5 -right-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-accent-foreground"
-            >
-              {unreadCount}
-            </span>
-          )}
+          <Settings className="h-4 w-4" />
         </button>
       </div>
 
@@ -187,6 +175,7 @@ export default function Home() {
             activeRoute={activeRoute}
             joinedIds={joinedIds}
             onRouteReady={handleRouteReady}
+            onSeeCalendar={() => setView("calendar")}
           />
         ) : (
           <CalendarView
@@ -233,11 +222,12 @@ export default function Home() {
         </div>
       )}
 
-      {/* Bottom Nav — floats over content (z-40) */}
-      <div className="pointer-events-none absolute right-0 bottom-6 left-0 z-40">
-        <div className="pointer-events-auto">
-          <BottomNav />
-        </div>
+      {/* Bottom Nav — solid bar anchored to bottom (z-40) */}
+      <div className="absolute right-0 bottom-0 left-0 z-40">
+        <BottomNav
+          onOpenNotifications={handleOpenNotifications}
+          notificationsUnread={unreadCount}
+        />
       </div>
 
       <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
