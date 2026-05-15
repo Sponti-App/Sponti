@@ -357,6 +357,7 @@ Table notifications {
 }
 
 Enum NotificationType {
+  event_reactivated // A cancelled event was reactivated
   event_cancelled // An event was cancelled
   connection_request // Someone sent a connection request to me
   event_rsvp_change // Someone changed the rsvpStatus for the event I'm hosting
