@@ -35,9 +35,9 @@ shape:
 - audience -> `circles` or `members`; public events send no invite targets
 
 The backend responds with `{ event, members }` inside the API `data` envelope.
-`createEvent()` unwraps that response correctly. The create form currently uses
-the resolved promise as a success signal and does not render the returned event
-because `/event` is still backed by the local hosted-event store.
+`createEvent()` unwraps that response correctly. The create form uses the
+resolved promise as the success signal, then routes to `/event`, where hosted
+and invited flares are loaded from backend event APIs.
 
 ## Why Adapters Exist
 
@@ -52,14 +52,5 @@ defaults, invite modes, and backend payload structure.
 - The place search in `page.tsx` still uses `MOCK_PLACE_RESULTS`.
 - `TEMP_EVENT_LOCATION_FALLBACK` supplies fixed coordinates until Places/Maps
   provides real selected-location data.
-- After a successful API create, `pushDraftAsHosted(draft)` writes a local copy
-  so the existing `/event` host dashboard can show the new event.
-- The old draft localStorage helpers were removed; this flow posts directly to
-  the API and only keeps the hosted-event compatibility copy below.
-
-## Remove When `/event` Uses Backend Events
-
-Once `/event` reads host events from the API, remove the
-`pushDraftAsHosted(draft)` compatibility write from `page.tsx`. At the same time,
-remove the hosted-event compatibility helpers in `events.mock.ts` that only
-exist to mirror created events into localStorage.
+- `/event` uses `GET /api/v1/events/mine/upcoming` for the "your flares"
+  dashboard. The local hosted-event store has been removed.
