@@ -25,7 +25,7 @@ function ProfileOverview({ user }: { user: Pick<AuthUser, "displayName" | "usern
     <div className="min-h-screen w-full bg-background relative overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-border">
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push("/")}
           aria-label="Back"
           className="h-9 w-9 rounded-full border border-border flex items-center justify-center"
         >
