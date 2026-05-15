@@ -11,7 +11,8 @@ const AUTH_PATHS = [
   "/reset-password",
 ]
 const ONBOARDING_PATH = "/onboarding"
-const PUBLIC_PATHS = [...AUTH_PATHS, ONBOARDING_PATH]
+const LEGAL_PATHS = ["/menu/terms", "/menu/privacy"]
+const PUBLIC_PATHS = [...AUTH_PATHS, ONBOARDING_PATH, ...LEGAL_PATHS]
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { status } = useAuth()
