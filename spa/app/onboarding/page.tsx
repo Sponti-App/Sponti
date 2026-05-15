@@ -112,6 +112,26 @@ export default function OnboardingPage() {
                   Skip
                 </Button>
               )}
+
+              {isLast && (
+                <p className="pt-1 text-center text-[11.5px] leading-5 text-muted-foreground">
+                  By continuing, you agree to Sponti&apos;s{" "}
+                  <Link
+                    href="/menu/terms"
+                    className="text-foreground underline underline-offset-2"
+                  >
+                    Terms
+                  </Link>{" "}
+                  and{" "}
+                  <Link
+                    href="/menu/privacy"
+                    className="text-foreground underline underline-offset-2"
+                  >
+                    Privacy
+                  </Link>
+                  .
+                </p>
+              )}
             </div>
           </div>
         </div>
