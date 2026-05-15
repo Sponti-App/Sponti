@@ -54,8 +54,6 @@ export function adaptApiCircle(circle: ApiCircle): Circle {
     name: circle.name,
     description: descriptionFromType(type),
     type,
-    color: circle.color ?? null,
-    icon: circle.icon ?? null,
     memberIds: (circle.members ?? []).map((member) => member.userId),
   }
 }
