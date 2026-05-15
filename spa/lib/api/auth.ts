@@ -5,6 +5,7 @@ type AuthResponse = {
   accessToken: string
   refreshToken: string
   user: AuthUser
+  isNewUser?: boolean
 }
 
 export type RegisterPayload = {
@@ -30,18 +31,36 @@ export type UpdateProfilePayload = {
 }
 
 export function register(payload: RegisterPayload): Promise<AuthResponse> {
-  return authFetch<AuthResponse>("/auth/register", { method: "POST", body: payload })
-}
-
-export function login(payload: LoginPayload): Promise<AuthResponse> {
-  return authFetch<AuthResponse>("/auth/login", { method: "POST", body: payload })
-}
-
-export function refresh(payload: RefreshPayload): Promise<Pick<AuthResponse, "accessToken" | "refreshToken">> {
-  return authFetch<Pick<AuthResponse, "accessToken" | "refreshToken">>("/auth/refresh", {
+  return authFetch<AuthResponse>("/auth/register", {
     method: "POST",
     body: payload,
   })
+}
+
+export function login(payload: LoginPayload): Promise<AuthResponse> {
+  return authFetch<AuthResponse>("/auth/login", {
+    method: "POST",
+    body: payload,
+  })
+}
+
+export function googleLogin(credential: string): Promise<AuthResponse> {
+  return authFetch<AuthResponse>("/auth/google", {
+    method: "POST",
+    body: { credential },
+  })
+}
+
+export function refresh(
+  payload: RefreshPayload
+): Promise<Pick<AuthResponse, "accessToken" | "refreshToken">> {
+  return authFetch<Pick<AuthResponse, "accessToken" | "refreshToken">>(
+    "/auth/refresh",
+    {
+      method: "POST",
+      body: payload,
+    }
+  )
 }
 
 export function logout(refreshToken: string): Promise<{ success: true }> {
@@ -66,7 +85,9 @@ export function uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
     body: formData,
   })
 }
-export function updateProfile(payload: UpdateProfilePayload): Promise<{ user: AuthUser }> {
+export function updateProfile(
+  payload: UpdateProfilePayload
+): Promise<{ user: AuthUser }> {
   return authFetch<{ user: AuthUser }>("/auth/me/profile", {
     method: "PATCH",
     auth: true,
@@ -75,9 +96,18 @@ export function updateProfile(payload: UpdateProfilePayload): Promise<{ user: Au
 }
 
 export function forgotPassword(email: string): Promise<{ message: string }> {
-  return authFetch<{ message: string }>("/auth/forgot-password", { method: "POST", body: { email } })
+  return authFetch<{ message: string }>("/auth/forgot-password", {
+    method: "POST",
+    body: { email },
+  })
 }
 
-export function resetPassword(token: string, password: string): Promise<{ message: string }> {
-  return authFetch<{ message: string }>("/auth/reset-password", { method: "POST", body: { token, password } })
+export function resetPassword(
+  token: string,
+  password: string
+): Promise<{ message: string }> {
+  return authFetch<{ message: string }>("/auth/reset-password", {
+    method: "POST",
+    body: { token, password },
+  })
 }
