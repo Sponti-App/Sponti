@@ -2,24 +2,10 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import {
-  Check,
-  Clock,
-  Copy,
-  MapPin,
-  Pencil,
-  Repeat,
-  Users,
-  X,
-} from "lucide-react"
+import { Check, Clock, MapPin, Pencil, RotateCcw, Users, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  type HostedEvent,
-  type EventStatus,
-  setLocation,
-  shiftStart,
-} from "@/lib/api/events"
+import { type HostedEvent, type EventStatus } from "@/lib/api/events"
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -55,7 +41,11 @@ function formatStart(iso: string): string {
   const mm = String(d.getMinutes()).padStart(2, "0")
   if (sameDay) return `today · ${hh}:${mm}`
   if (isTomorrow) return `tomorrow · ${hh}:${mm}`
-  const day = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+  const day = d.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  })
   return `${day} · ${hh}:${mm}`
 }
 
@@ -72,50 +62,87 @@ function timeRemaining(iso: string): string {
 export function EventHostCard({
   event,
   status,
+  canManage = false,
   onChange,
   onCancelRequest,
-  onDuplicate,
+  onReactivate,
+  onLocationChange,
+  onTimeShift,
 }: {
   event: HostedEvent
   status: EventStatus
-  // Called after any local mutation so the parent can fan out a notification.
-  onChange: (kind: "time" | "location", detail: string) => void
-  // Parent owns the destructive flow (modal, undo).
-  onCancelRequest: () => void
-  onDuplicate: () => void
+  canManage?: boolean
+  onChange?: (kind: "time" | "location", detail: string) => void
+  onCancelRequest?: () => void
+  onReactivate?: () => void
+  onLocationChange?: (
+    locationLabel: string,
+    locationDetail?: string
+  ) => Promise<void> | void
+  onTimeShift?: (deltaMs: number, label: string) => Promise<void> | void
 }) {
   const router = useRouter()
   const [pane, setPane] = useState<null | "location" | "time">(null)
   const [locInput, setLocInput] = useState("")
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   const isLive = status === "live"
   const isPast = status === "past"
   const isCancelled = status === "cancelled"
 
-  const goingCount = event.attendingIds.length
-  const inviteCount = event.attendeeIds.length
+  const goingCount = event.attendingCount
+  const inviteCount = event.attendeeCount
 
   const togglePane = (next: "location" | "time"): void => {
     setPane((curr) => (curr === next ? null : next))
     setLocInput("")
   }
 
-  const commitLocation = (label: string, detail?: string): void => {
-    setLocation(event.id, label, detail)
-    onChange("location", label)
-    setPane(null)
-    setLocInput("")
+  const commitLocation = async (
+    label: string,
+    detail?: string
+  ): Promise<void> => {
+    if (!onLocationChange) return
+    try {
+      setActionError(null)
+      setIsSaving(true)
+      await onLocationChange(label, detail)
+      onChange?.("location", label)
+      setPane(null)
+      setLocInput("")
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Could not update location"
+      )
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const commitTimeShift = (delta: number, label: string): void => {
-    shiftStart(event.id, delta)
-    onChange("time", label)
-    setPane(null)
+  const commitTimeShift = async (
+    delta: number,
+    label: string
+  ): Promise<void> => {
+    if (!onTimeShift) return
+    try {
+      setActionError(null)
+      setIsSaving(true)
+      await onTimeShift(delta, label)
+      onChange?.("time", label)
+      setPane(null)
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Could not update time"
+      )
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
     <article
-      className={`rounded-xl border p-3 flex flex-col gap-2 ${
+      className={`flex flex-col gap-2 rounded-xl border p-3 ${
         isCancelled
           ? "border-border bg-secondary/40 text-muted-foreground"
           : isLive
@@ -124,23 +151,20 @@ export function EventHostCard({
       }`}
     >
       <div className="flex items-start gap-2">
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3
-              className={`text-sm font-semibold truncate ${isCancelled ? "line-through" : ""}`}
+              className={`truncate text-sm font-semibold ${isCancelled ? "line-through" : ""}`}
             >
               {event.title}
             </h3>
-            {event.recurrence !== "none" && (
-              <Repeat className="h-3 w-3 text-muted-foreground shrink-0" aria-label="recurring" />
-            )}
             {isLive && (
-              <span className="text-[10px] font-semibold uppercase tracking-wide bg-accent text-accent-foreground rounded-full px-1.5 py-0.5">
+              <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-accent-foreground uppercase">
                 live
               </span>
             )}
             {isCancelled && (
-              <span className="text-[10px] font-semibold uppercase tracking-wide bg-destructive/15 text-destructive rounded-full px-1.5 py-0.5">
+              <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-destructive uppercase">
                 cancelled
               </span>
             )}
@@ -167,13 +191,17 @@ export function EventHostCard({
         </div>
       </div>
 
-      {/* Quick action row */}
-      {!isPast && !isCancelled && (
-        <div className="flex items-center gap-1.5 pt-1 border-t border-border/60">
+      {actionError && (
+        <p className="text-[11px] text-destructive">{actionError}</p>
+      )}
+
+      {canManage && !isPast && !isCancelled && (
+        <div className="flex items-center gap-1.5 border-t border-border/60 pt-1">
           <QuickActionButton
             icon={MapPin}
             label="location"
             active={pane === "location"}
+            disabled={isSaving}
             onClick={() => togglePane("location")}
           />
           {!isLive && (
@@ -181,12 +209,14 @@ export function EventHostCard({
               icon={Clock}
               label="time"
               active={pane === "time"}
+              disabled={isSaving}
               onClick={() => togglePane("time")}
             />
           )}
           <QuickActionButton
             icon={Pencil}
             label="edit"
+            disabled={isSaving}
             onClick={() => router.push(`/event/${event.id}/edit`)}
           />
           <div className="flex-1" />
@@ -194,26 +224,33 @@ export function EventHostCard({
             icon={X}
             label="cancel"
             destructive
-            onClick={onCancelRequest}
+            disabled={isSaving}
+            onClick={() => onCancelRequest?.()}
           />
         </div>
       )}
 
-      {(isPast || isCancelled) && (
-        <div className="flex items-center gap-1.5 pt-1 border-t border-border/60">
-          <QuickActionButton icon={Copy} label="duplicate" onClick={onDuplicate} />
+      {canManage && isCancelled && !isPast && (
+        <div className="flex items-center gap-1.5 border-t border-border/60 pt-1">
+          <QuickActionButton
+            icon={RotateCcw}
+            label="reactivate"
+            disabled={isSaving}
+            onClick={() => onReactivate?.()}
+          />
         </div>
       )}
 
       {/* Inline location editor */}
       {pane === "location" && (
-        <div className="rounded-lg border border-accent/30 bg-background p-2 flex flex-col gap-2">
+        <div className="flex flex-col gap-2 rounded-lg border border-accent/30 bg-background p-2">
           <Input
             placeholder="search a place…"
             value={locInput}
             onChange={(e) => setLocInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && locInput.trim()) commitLocation(locInput.trim())
+              if (e.key === "Enter" && locInput.trim())
+                void commitLocation(locInput.trim())
             }}
           />
           <div className="flex flex-col gap-0.5">
@@ -221,13 +258,17 @@ export function EventHostCard({
               <button
                 key={p.label}
                 type="button"
-                onClick={() => commitLocation(p.label, p.detail || undefined)}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary text-left"
+                onClick={() =>
+                  void commitLocation(p.label, p.detail || undefined)
+                }
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-secondary"
               >
-                <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
+                <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
                 <span className="text-xs">{p.label}</span>
                 {p.detail && (
-                  <span className="text-[10px] text-muted-foreground truncate">{p.detail}</span>
+                  <span className="truncate text-[10px] text-muted-foreground">
+                    {p.detail}
+                  </span>
                 )}
               </button>
             ))}
@@ -237,14 +278,14 @@ export function EventHostCard({
 
       {/* Inline time shifter */}
       {pane === "time" && (
-        <div className="rounded-lg border border-accent/30 bg-background p-2 flex flex-col gap-2">
+        <div className="flex flex-col gap-2 rounded-lg border border-accent/30 bg-background p-2">
           <div className="flex flex-wrap gap-1.5">
             {TIME_NUDGES.map((n) => (
               <button
                 key={n.label}
                 type="button"
-                onClick={() => commitTimeShift(n.delta, n.label)}
-                className="px-3 py-1.5 rounded-full border border-border bg-background text-xs hover:bg-secondary"
+                onClick={() => void commitTimeShift(n.delta, n.label)}
+                className="rounded-full border border-border bg-background px-3 py-1.5 text-xs hover:bg-secondary"
               >
                 {n.label}
               </button>
@@ -252,14 +293,11 @@ export function EventHostCard({
             <button
               type="button"
               onClick={() => router.push(`/event/${event.id}/edit`)}
-              className="px-3 py-1.5 rounded-full text-xs text-muted-foreground hover:text-foreground"
+              className="rounded-full px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
             >
               set new time…
             </button>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            attendees get notified about the shift
-          </p>
         </div>
       )}
     </article>
@@ -271,12 +309,14 @@ function QuickActionButton({
   label,
   active,
   destructive,
+  disabled,
   onClick,
 }: {
   icon: typeof MapPin
   label: string
   active?: boolean
   destructive?: boolean
+  disabled?: boolean
   onClick: () => void
 }) {
   return (
@@ -284,8 +324,9 @@ function QuickActionButton({
       type="button"
       variant="ghost"
       size="sm"
+      disabled={disabled}
       onClick={onClick}
-      className={`h-8 px-2.5 rounded-full text-xs ${
+      className={`h-8 rounded-full px-2.5 text-xs ${
         active ? "bg-accent/10 text-accent" : ""
       } ${destructive ? "text-destructive hover:text-destructive" : ""}`}
     >

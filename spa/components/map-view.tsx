@@ -94,7 +94,7 @@ function eventIcon(type: EventType, avatar: string) {
 
   const Icon = match.icon
 
-  return <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+  return <Icon className="h-5 w-5 shrink-0 text-white dark:text-white" />
 }
 
 function StaticMapFallback({
@@ -150,7 +150,7 @@ function StaticMapFallback({
               {eventIcon(event.type, event.host.avatar)}
             </div>
             <div className="mt-1 rounded bg-card px-2 py-1 text-center text-xs shadow-md">
-              <span className="font-medium">{event.host.name}</span>
+              <span className="font-medium">{event.title.split("·", 2)}</span>
               {dist && (
                 <>
                   <br />
@@ -609,7 +609,7 @@ function FlareCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <p className="truncate font-medium text-accent">
-            {event.type} · {event.host.name}
+            {event.title.split("·", 2)}
           </p>
           {joined && (
             <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
