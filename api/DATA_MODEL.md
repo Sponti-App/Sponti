@@ -332,3 +332,39 @@ Table blocks {
   }
 }
 ```
+
+## notifications
+
+```text
+Table notifications {
+  _id ObjectId [pk]
+  userId ObjectId [ref: > users._id] // required
+  actorId ObjectId [ref: > users._id] // Optional. User who triggered the notification
+
+  type NotificationType
+  targetType NotificationTargetType // What object this notification points to
+  targetId ObjectId // Id of the event, user or connection
+
+  title string
+  message string
+
+  readAt Date [null] // null means unread and date means already read
+
+  metadata object //optional
+
+  createdAt datetime
+  updatedAt datetime
+}
+
+Enum NotificationType {
+  event_cancelled // An event was cancelled
+  connection_request // Someone sent a connection request to me
+  event_rsvp_change // Someone changed the rsvpStatus for the event I'm hosting
+}
+
+Enum NotificationTargetType {
+  event
+  connection
+  user
+}
+```
