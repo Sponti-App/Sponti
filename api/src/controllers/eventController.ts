@@ -2,6 +2,7 @@ import type {
   ActiveMapEventsQuery,
   CreateEventBody,
   GetEventsQuery,
+  MyUpcomingEventsQuery,
   UpcomingCalendarEventsQuery,
   UpdateEventBody,
   UpdateMyEventMembershipBody,
@@ -37,6 +38,15 @@ export const getEventById = asyncHandler(async (req, res) => {
   res.json({ data });
 });
 
+export const getMyUpcomingEvents = asyncHandler(async (req, res) => {
+  const data = await eventService.getMyUpcomingEvents(
+    getAuthenticatedUserId(req),
+    req.query as unknown as MyUpcomingEventsQuery
+  );
+
+  res.json({ data });
+});
+
 export const updateEvent = asyncHandler(async (req, res) => {
   const data = await eventService.updateEvent(
     getAuthenticatedUserId(req),
@@ -49,6 +59,15 @@ export const updateEvent = asyncHandler(async (req, res) => {
 
 export const cancelEvent = asyncHandler(async (req, res) => {
   const data = await eventService.cancelEvent(
+    getAuthenticatedUserId(req),
+    getRouteParam(req, "eventId")
+  );
+
+  res.json({ data });
+});
+
+export const reactivateEvent = asyncHandler(async (req, res) => {
+  const data = await eventService.reactivateEvent(
     getAuthenticatedUserId(req),
     getRouteParam(req, "eventId")
   );

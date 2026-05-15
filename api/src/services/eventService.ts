@@ -1,9 +1,19 @@
 import { type ClientSession } from "mongoose";
-import { Block, Circle, CircleMember, Connection, Event, EventMember } from "#models/index";
+import {
+  Block,
+  Circle,
+  CircleMember,
+  Connection,
+  Event,
+  EventMember,
+  Notification,
+  type NotificationType,
+} from "#models/index";
 import type {
   ActiveMapEventsQuery,
   CreateEventBody,
   GetEventsQuery,
+  MyUpcomingEventsQuery,
   UpcomingCalendarEventsQuery,
   UpdateEventBody,
   UpdateMyEventMembershipBody,
@@ -21,6 +31,17 @@ type InviteCandidate = {
   userId: string;
   role: InviteRole;
   canInviteGuests: boolean;
+};
+type EventWithMemberStats<T> = T & {
+  memberCount: number;
+  goingCount: number;
+};
+type EventStatusNotificationInput = {
+  eventId: string;
+  hostId: string;
+  eventTitle: string;
+  type: Extract<NotificationType, "event_cancelled" | "event_reactivated">;
+  session?: ClientSession;
 };
 
 const roleRank: Record<InviteRole, number> = {
@@ -66,6 +87,80 @@ const buildAccessibleEventFilter = async (userId: string): Promise<EventFilter> 
   }
 
   return { $and: conditions };
+};
+
+const attachMemberStats = async <T extends { _id: unknown }>(
+  events: T[]
+): Promise<Array<EventWithMemberStats<T>>> => {
+  if (events.length === 0) {
+    return [];
+  }
+
+  const eventIds = events.map((event) => toObjectId(String(event._id)));
+  const members = await EventMember.find({ eventId: { $in: eventIds } })
+    .select("eventId rsvpStatus")
+    .lean();
+  const statsByEventId = new Map<string, { memberCount: number; goingCount: number }>();
+
+  for (const member of members) {
+    const eventId = String(member.eventId);
+    const stats = statsByEventId.get(eventId) ?? { memberCount: 0, goingCount: 0 };
+    stats.memberCount += 1;
+
+    if (member.rsvpStatus === "going") {
+      stats.goingCount += 1;
+    }
+
+    statsByEventId.set(eventId, stats);
+  }
+
+  return events.map((event) => ({
+    ...event,
+    memberCount: statsByEventId.get(String(event._id))?.memberCount ?? 0,
+    goingCount: statsByEventId.get(String(event._id))?.goingCount ?? 0,
+  }));
+};
+
+const createEventStatusNotifications = async ({
+  eventId,
+  hostId,
+  eventTitle,
+  type,
+  session,
+}: EventStatusNotificationInput) => {
+  const eventObjectId = toObjectId(eventId);
+  const hostObjectId = toObjectId(hostId);
+  const members = await EventMember.find({ eventId: eventObjectId })
+    .select("userId")
+    .session(session ?? null)
+    .lean();
+  const recipients = members.filter((member) => String(member.userId) !== hostId);
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  const isCancellation = type === "event_cancelled";
+  const title = isCancellation ? "Event cancelled" : "Event reactivated";
+  const message = isCancellation
+    ? `${eventTitle} was cancelled.`
+    : `${eventTitle} was reactivated.`;
+
+  await Notification.create(
+    recipients.map((member) => ({
+      userId: member.userId,
+      actorId: hostObjectId,
+      type,
+      targetType: "event" as const,
+      targetId: eventObjectId,
+      title,
+      message,
+      metadata: {
+        eventTitle,
+      },
+    })),
+    { session }
+  );
 };
 
 const assertAcceptedConnectionInvitees = async (hostId: string, inviteeIds: string[]) => {
@@ -244,7 +339,15 @@ export const getEvents = async (userId: string, query: GetEventsQuery) => {
   const baseFilter = await buildAccessibleEventFilter(userId);
   const conditions: EventFilter[] = [];
 
-  if (query.hostId) {
+  // TODO(api-cleanup): `/events/mine/upcoming` is now the frontend dashboard
+  // source of truth because it returns the split hosted/invited/past buckets.
+  // Keep `hostedByMe=true` here only as a generic-list compatibility path for
+  // older clients, scripts, or manual API checks. Once no caller uses it,
+  // remove `hostedByMe` from the query schema and this server-side branch so
+  // hosted filtering lives in exactly one endpoint.
+  if (query.hostedByMe) {
+    conditions.push({ hostId: toObjectId(userId) });
+  } else if (query.hostId) {
     conditions.push({ hostId: toObjectId(query.hostId) });
   }
 
@@ -270,6 +373,20 @@ export const getEvents = async (userId: string, query: GetEventsQuery) => {
     conditions.push({ startAt });
   }
 
+  if (query.endAtFrom || query.endAtTo) {
+    const endAt: Record<string, Date> = {};
+
+    if (query.endAtFrom) {
+      endAt.$gt = query.endAtFrom;
+    }
+
+    if (query.endAtTo) {
+      endAt.$lte = query.endAtTo;
+    }
+
+    conditions.push({ endAt });
+  }
+
   const filter = conditions.length > 0 ? withConditions(baseFilter, ...conditions) : baseFilter;
   const [events, total] = await Promise.all([
     Event.find(filter).sort({ startAt: 1 }).skip(skip).limit(limit).lean(),
@@ -282,6 +399,10 @@ export const getEvents = async (userId: string, query: GetEventsQuery) => {
   };
 };
 
+/**
+ * Returns a single event visible to the authenticated user, enriched with the
+ * caller's RSVP and member counts for frontend detail/edit surfaces.
+ */
 export const getEventById = async (userId: string, eventId: string) => {
   const baseFilter = await buildAccessibleEventFilter(userId);
   const event = await Event.findOne(
@@ -292,7 +413,67 @@ export const getEventById = async (userId: string, eventId: string) => {
     throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  return event;
+  const withStats = await attachMemberStats([event]);
+  const withRsvp = await attachMyRsvp(userId, withStats);
+
+  return withRsvp[0] ?? event;
+};
+
+/**
+ * Returns the "your flares" dashboard data: upcoming hosted events, upcoming
+ * invited events, and hosted events that ended within the last two weeks.
+ */
+export const getMyUpcomingEvents = async (userId: string, query: MyUpcomingEventsQuery) => {
+  const userObjectId = toObjectId(userId);
+  const now = query.endAtFrom ?? new Date();
+  const pastFrom = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+  const [memberEventIds, blockedUserIds] = await Promise.all([
+    EventMember.distinct("eventId", { userId: userObjectId }),
+    getBlockedRelationshipUserIds(userId),
+  ]);
+  const blockedObjectIds = blockedUserIds.map(toObjectId);
+
+  const [hostedByMe, invited, pastHosted] = await Promise.all([
+    Event.find({
+      hostId: userObjectId,
+      status: { $in: ["active", "cancelled"] },
+      endAt: { $gt: now },
+    })
+      .sort({ startAt: 1 })
+      .lean(),
+    Event.find({
+      _id: { $in: memberEventIds },
+      hostId: { $ne: userObjectId, $nin: blockedObjectIds },
+      status: "active",
+      endAt: { $gt: now },
+    })
+      .sort({ startAt: 1 })
+      .lean(),
+    Event.find({
+      hostId: userObjectId,
+      endAt: { $lte: now, $gte: pastFrom },
+    })
+      .sort({ startAt: -1 })
+      .lean(),
+  ]);
+
+  const [hostedWithStats, invitedWithStats, pastWithStats] = await Promise.all([
+    attachMemberStats(hostedByMe),
+    attachMemberStats(invited),
+    attachMemberStats(pastHosted),
+  ]);
+
+  const [hostedWithRsvp, invitedWithRsvp, pastWithRsvp] = await Promise.all([
+    attachMyRsvp(userId, hostedWithStats),
+    attachMyRsvp(userId, invitedWithStats),
+    attachMyRsvp(userId, pastWithStats),
+  ]);
+
+  return {
+    hostedByMe: hostedWithRsvp,
+    invited: invitedWithRsvp,
+    pastHosted: pastWithRsvp,
+  };
 };
 
 export const updateEvent = async (hostId: string, eventId: string, input: UpdateEventBody) => {
@@ -316,38 +497,102 @@ export const updateEvent = async (hostId: string, eventId: string, input: Update
   return event;
 };
 
+/**
+ * Cancels an event if the authenticated user is the host, keeps member RSVP
+ * values unchanged, and notifies invited members exactly once.
+ */
 export const cancelEvent = async (hostId: string, eventId: string) => {
-  const hostObjectId = toObjectId(hostId);
   const eventObjectId = toObjectId(eventId);
 
   const result = await withTransactionFallback(async (session?: ClientSession) => {
-    const event = await Event.findOne({ _id: eventObjectId, hostId: hostObjectId }).session(
-      session ?? null
-    );
+    const event = await Event.findOne({ _id: eventObjectId }).session(session ?? null);
 
     if (!event) {
       throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
     }
 
+    if (String(event.hostId) !== hostId) {
+      throw new AppError(
+        "Only the event host can cancel this event",
+        403,
+        "EVENT_CANCEL_FORBIDDEN"
+      );
+    }
+
     if (event.status === "cancelled") {
-      throw new AppError("Event is already cancelled", 409, "EVENT_ALREADY_CANCELLED");
+      return { event, changed: false };
     }
 
     event.status = "cancelled";
     await event.save({ session });
 
-    await EventMember.updateMany(
-      { eventId: event._id },
-      { $set: { rsvpStatus: "invited" } },
-      { session }
-    );
+    await createEventStatusNotifications({
+      eventId: String(event._id),
+      hostId,
+      eventTitle: event.title,
+      type: "event_cancelled",
+      session,
+    });
 
-    return event;
+    return { event, changed: true };
   });
 
-  await notificationHooks.onEventCancelled({ eventId, hostId });
+  if (result.changed) {
+    await notificationHooks.onEventCancelled({ eventId, hostId });
+  }
 
-  return result;
+  return result.event;
+};
+
+export const reactivateEvent = async (hostId: string, eventId: string) => {
+  const eventObjectId = toObjectId(eventId);
+
+  const result = await withTransactionFallback(async (session?: ClientSession) => {
+    const event = await Event.findOne({ _id: eventObjectId }).session(session ?? null);
+
+    if (!event) {
+      throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
+    }
+
+    if (String(event.hostId) !== hostId) {
+      throw new AppError(
+        "Only the event host can reactivate this event",
+        403,
+        "EVENT_REACTIVATE_FORBIDDEN"
+      );
+    }
+
+    if (event.status === "active") {
+      return { event, changed: false };
+    }
+
+    if (event.status !== "cancelled") {
+      throw new AppError("Event cannot be reactivated", 409, "EVENT_NOT_REACTIVATABLE");
+    }
+
+    if (event.endAt.getTime() <= Date.now()) {
+      throw new AppError("Past events cannot be reactivated", 409, "EVENT_NOT_REACTIVATABLE");
+    }
+
+    event.status = "active";
+    await event.save({ session });
+
+    await createEventStatusNotifications({
+      eventId: String(event._id),
+      hostId,
+      eventTitle: event.title,
+      type: "event_reactivated",
+      session,
+    });
+
+    return { event, changed: true };
+  });
+
+  if (result.changed) {
+    await notificationHooks.onEventReactivated({ eventId, hostId });
+  }
+
+  return result.event;
 };
 
 export const updateMyEventMembership = async (
