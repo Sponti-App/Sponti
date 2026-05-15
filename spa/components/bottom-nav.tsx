@@ -2,6 +2,7 @@
 
 import { Home, User, Users, Bell, Flame } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
+import { useMyFlares } from "@/lib/use-events"
 
 type NavItem =
   | {
@@ -30,6 +31,13 @@ export function BottomNav({
 }) {
   const router = useRouter()
   const pathname = usePathname()
+  const { hostedByMe } = useMyFlares()
+  // An "active" flare = hosted by the user and not cancelled. fetchMyFlares
+  // already filters out past events, so a non-empty list here means the user
+  // has live/upcoming flares to land on. In that case the center button is a
+  // shortcut to the flares hub instead of a fresh create flow.
+  const hasActiveFlare = hostedByMe.some((e) => e.apiStatus !== "cancelled")
+  const flareHref = hasActiveFlare ? "/event" : "/event/new"
 
   const items: NavItem[] = [
     { kind: "route", icon: Home, label: "Home", href: "/" },
@@ -44,7 +52,7 @@ export function BottomNav({
       kind: "route",
       icon: Flame,
       label: "Light a flare",
-      href: "/event/new",
+      href: flareHref,
       center: true,
     },
     { kind: "route", icon: Users, label: "Circles", href: "/circles" },
