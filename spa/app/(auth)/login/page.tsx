@@ -1,31 +1,37 @@
 "use client"
 
-import { Suspense, useState } from "react"
+import { Suspense, useCallback, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { AuthFrame } from "@/components/auth-frame"
+import { GoogleAuthButton } from "@/components/google-auth-button"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { HttpError } from "@/lib/http"
+import { markHomeTourPending } from "@/lib/onboarding"
 
 function ResetSuccessBanner() {
   const searchParams = useSearchParams()
   if (searchParams.get("reset") !== "1") return null
   return (
-    <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2" role="status">
+    <p
+      className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-600"
+      role="status"
+    >
       password updated — sign in with your new password.
     </p>
   )
 }
 
 export default function LoginPage() {
-  const { login } = useAuth()
+  const { login, loginWithGoogle } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [googleSubmitting, setGoogleSubmitting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -44,6 +50,26 @@ export default function LoginPage() {
     }
   }
 
+  const handleGoogleCredential = useCallback(
+    async (credential: string) => {
+      if (googleSubmitting) return
+      setError(null)
+      setGoogleSubmitting(true)
+      try {
+        const { isNewUser } = await loginWithGoogle(credential)
+        if (isNewUser) markHomeTourPending()
+      } catch (err) {
+        if (err instanceof HttpError) {
+          setError(err.message)
+        } else {
+          setError("Something went wrong. Try again.")
+        }
+        setGoogleSubmitting(false)
+      }
+    },
+    [googleSubmitting, loginWithGoogle]
+  )
+
   return (
     <AuthFrame
       title="welcome back"
@@ -51,7 +77,7 @@ export default function LoginPage() {
       footer={
         <span className="text-muted-foreground">
           no account?{" "}
-          <Link href="/register" className="text-accent font-medium">
+          <Link href="/register" className="font-medium text-accent">
             register
           </Link>
         </span>
@@ -104,10 +130,21 @@ export default function LoginPage() {
         <Button
           type="submit"
           disabled={submitting || !email || !password}
-          className="w-full rounded-full py-6 text-base bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-40 mt-2"
+          className="mt-2 w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
         >
           {submitting ? "signing in…" : "sign in"}
         </Button>
+
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />
+          or
+          <span className="h-px flex-1 bg-border" />
+        </div>
+
+        <GoogleAuthButton
+          disabled={submitting || googleSubmitting}
+          onCredential={handleGoogleCredential}
+        />
       </form>
     </AuthFrame>
   )

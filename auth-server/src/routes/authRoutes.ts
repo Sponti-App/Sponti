@@ -1,12 +1,13 @@
 import { Router } from "express";
-import { login, logout, me, register, refresh, forgotPassword, resetPassword, updateAvatar, updateProfile } from "#controllers";
+import { googleLogin, login, logout, me, register, refresh, forgotPassword, resetPassword, updateAvatar, updateProfile } from "#controllers";
 import { requireAuth, validateBody, uploadAvatar } from "#middleware";
-import { loginSchema, registerSchema, refreshTokenSchema, logoutSchema, forgotPasswordSchema, resetPasswordSchema, updateProfileSchema } from "#schemas";
+import { googleLoginSchema, loginSchema, registerSchema, refreshTokenSchema, logoutSchema, forgotPasswordSchema, resetPasswordSchema, updateProfileSchema } from "#schemas";
 
 const router = Router();
 
 router.post("/register", validateBody(registerSchema), register);
 router.post("/login", validateBody(loginSchema), login);
+router.post("/google", validateBody(googleLoginSchema), googleLogin);
 router.post("/refresh", validateBody(refreshTokenSchema), refresh);
 router.post("/logout", requireAuth, validateBody(logoutSchema), logout);
 router.get("/me", requireAuth, me);

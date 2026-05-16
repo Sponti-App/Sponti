@@ -21,7 +21,12 @@ const userSchema = new Schema({
     },
     passwordHash: {
         type: String,
-        required: true
+        default: null
+    },
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true
     },
     avatarUrl: {
         type: String,
