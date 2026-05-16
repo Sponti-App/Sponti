@@ -514,7 +514,9 @@ export default function NewEventPage() {
         createEventRequestFromDraft(draft, eventAudience, timeRange)
       )
 
-      router.push("/event")
+      // Land back on the map — viewing your own flare lives in the navbar
+      // "my flares" entry so creation doesn't tack on an extra step.
+      router.push("/")
     } catch (error) {
       setSubmitError(getErrorMessage(error))
     } finally {
