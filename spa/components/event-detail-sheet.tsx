@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -34,6 +35,7 @@ function EventTypeIcon({ type }: { type: EventItem["type"] }) {
 interface Props {
   event: EventItem
   joined: boolean
+  isHost?: boolean
   onClose: () => void
   onJoin: (event: EventItem, eta: string | null) => void
   onLeave: (event: EventItem) => void
@@ -43,11 +45,13 @@ interface Props {
 export function EventDetailSheet({
   event,
   joined,
+  isHost = false,
   onClose,
   onJoin,
   onLeave,
   onSeeRoute,
 }: Props) {
+  const router = useRouter()
   const [selectedEta, setSelectedEta] = useState<string | null>(null)
   const dragStartY = useRef<number | null>(null)
   const imminent = isImminent(event)
@@ -174,8 +178,8 @@ export function EventDetailSheet({
             </div>
           </div>
 
-          {/* ETA Selection — imminent + not yet joined */}
-          {imminent && !joined && (
+          {/* ETA Selection — imminent + not yet joined + not host */}
+          {imminent && !joined && !isHost && (
             <div className="mb-6">
               <span className="mb-2 block text-xs tracking-wide text-muted-foreground uppercase">
                 Let host know
@@ -201,7 +205,14 @@ export function EventDetailSheet({
           )}
 
           {/* CTAs */}
-          {joined ? (
+          {isHost ? (
+            <Button
+              className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
+              onClick={() => router.push(`/event/${event.id}/edit`)}
+            >
+              edit flare
+            </Button>
+          ) : joined ? (
             <div className="space-y-2">
               {imminent && eventCoords(event) && (
                 <Button
