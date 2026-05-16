@@ -86,7 +86,9 @@ export type EventCoordinates = {
 
 export type EventAudienceTarget =
   | { kind: "public" }
-  | { kind: "circle"; circleId: string }
+  // `extraMemberIds` rides along on top of the circle invite — used when the
+  // user picks "all friends" and also taps specific people to invite directly.
+  | { kind: "circle"; circleId: string; extraMemberIds?: string[] }
   | { kind: "members"; memberIds: string[] }
 
 export type EventTimeRange = {

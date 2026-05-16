@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -124,7 +124,7 @@ export function CalendarView({
   onEventSelect: (event: EventItem) => void
   joinedIds: Set<string>
 }) {
-  const router = useRouter()
+  const { openDrawer } = useNewEventDrawer()
   const today = useMemo(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -314,7 +314,7 @@ export function CalendarView({
         emptyAction={
           <button
             type="button"
-            onClick={() => router.push("/event/new")}
+            onClick={openDrawer}
             className="mt-3 flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-accent/50 bg-accent/5 px-4 py-3 text-left transition-colors hover:bg-accent/10"
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
