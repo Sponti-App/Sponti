@@ -214,6 +214,7 @@ export default function Home() {
           <EventDetailSheet
             event={selectedEvent}
             joined={isJoined(selectedEvent, joinedIds)}
+            isHost={!!user && selectedEvent.hostId === user.id}
             onClose={() => setSelectedEvent(null)}
             onJoin={handleJoin}
             onLeave={handleLeave}

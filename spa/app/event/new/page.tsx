@@ -1,20 +1,21 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { Drawer } from "vaul"
 import {
-  ArrowLeft,
   Check,
+  ChevronRight,
   MapPin,
   Minus,
-  Pencil,
   Plus,
   Search,
+  Share2,
   Sparkles,
   UserPlus,
+  Users,
   X,
 } from "lucide-react"
-import { BottomNav } from "@/components/bottom-nav"
 import { CircleStackIcon } from "@/components/circle-stack-icon"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -39,26 +40,18 @@ import { ensureSystemCircles, setCircles, useCircles } from "@/lib/circles-store
 import { EVENT_TYPES } from "@/types/utils"
 
 type Mode = "now" | "scheduled"
-type WhereType = "current" | "search" | "saved"
-type SavedPlace = { id: string; label: string; address: string }
+type WhereType = "current" | "search"
+type PlaceSuggestion = { label: string; address: string }
 
 const STEP_MIN = 15
-const NOW_MAX_OFFSET_MIN = 360 // start ≤ now + 6h
-const MAX_DURATION_MIN = 240 // duration ≤ 4h
-const MIN_DURATION_MIN = 15 // duration ≥ 15min
+const NOW_MAX_OFFSET_MIN = 360
+const MAX_DURATION_MIN = 240
+const MIN_DURATION_MIN = 15
 const SCHEDULED_MAX_DAYS = 14
-const SCHEDULED_DAY_START_MIN = 6 * 60 // 06:00
-const SCHEDULED_DAY_END_MIN = 26 * 60 // 02:00 next-day
-
-// TODO: Replace this mocked Places autocomplete with a debounced Google
-// Places call once the API key and billing are set up.
-const MOCK_PLACE_RESULTS = [
-  { label: "Reuben's Espresso", address: "1247 Fillmore St" },
-  { label: "Dolores Park", address: "Mission District" },
-  { label: "The Annex", address: "rooftop bar · downtown" },
-  { label: "Courtyard", address: "23 Allenby St" },
-  { label: "North Park", address: "south entrance" },
-]
+const SCHEDULED_DAY_START_MIN = 6 * 60
+const SCHEDULED_DAY_END_MIN = 26 * 60
+const OPEN_ENDED = -1
+const OPEN_ENDED_FALLBACK_MIN = 8 * 60
 
 function formatDateInput(d: Date): string {
   const yyyy = d.getFullYear()
@@ -97,7 +90,7 @@ function formatDayChip(d: Date): { weekday: string; date: string } {
   const target = new Date(d)
   target.setHours(0, 0, 0, 0)
   const diffDays = Math.round(
-    (target.getTime() - today.getTime()) / (24 * 3600 * 1000)
+    (target.getTime() - today.getTime()) / (24 * 3600 * 1000),
   )
   if (diffDays === 0) return { weekday: "today", date: String(d.getDate()) }
   if (diffDays === 1) return { weekday: "tmrw", date: String(d.getDate()) }
@@ -107,21 +100,6 @@ function formatDayChip(d: Date): { weekday: string; date: string } {
       .toLowerCase(),
     date: String(d.getDate()),
   }
-}
-
-function composeTitle(args: {
-  eventType: EventType
-  hostName: string
-  whereLabel: string | null
-  whenLabel: string
-  override: string
-}): string {
-  const trimmed = args.override.trim()
-  if (trimmed) return trimmed
-  const parts = [args.eventType, args.hostName]
-  if (args.whereLabel) parts.push(args.whereLabel)
-  parts.push(args.whenLabel)
-  return parts.join(" · ")
 }
 
 function getErrorMessage(error: unknown): string {
@@ -135,10 +113,9 @@ function buildTimeRange(args: {
   startOffsetMin: number
   startDate: string
   startTimeMin: number
-  durationMin: number
+  durationMin: number | null
 }): { startAt: string; endAt: string } {
   let startMs: number
-
   if (args.mode === "now") {
     startMs = new Date(args.createdAt).getTime() + args.startOffsetMin * 60_000
   } else {
@@ -146,10 +123,11 @@ function buildTimeRange(args: {
     start.setMinutes(start.getMinutes() + args.startTimeMin)
     startMs = start.getTime()
   }
-
+  const dur =
+    args.durationMin !== null ? args.durationMin : OPEN_ENDED_FALLBACK_MIN
   return {
     startAt: new Date(startMs).toISOString(),
-    endAt: new Date(startMs + args.durationMin * 60_000).toISOString(),
+    endAt: new Date(startMs + dur * 60_000).toISOString(),
   }
 }
 
@@ -164,43 +142,59 @@ export default function NewEventPage() {
   const [audienceError, setAudienceError] = useState<string | null>(null)
   const circles = ensureSystemCircles(apiCircles ?? storedCircles)
 
-  const [mode, setMode] = useState<Mode>("now")
-  const [eventType, setEventType] = useState<EventType>("hangout")
-  const [titleOverride, setTitleOverride] = useState("")
-  const [titleEditing, setTitleEditing] = useState(false)
+  // Drawer
+  const [drawerOpen, setDrawerOpen] = useState(true)
+  const [activeSnapPoint, setActiveSnapPoint] = useState<number | string | null>(0.6)
+  const handleClose = () => {
+    setDrawerOpen(false)
+    router.push("/")
+  }
 
-  // NOW mode: offsets from "now" in minutes
+  // Mode
+  const [mode, setMode] = useState<Mode>("now")
+  const handleModeChange = (v: string) => {
+    const next = v as Mode
+    setMode(next)
+    setActiveSnapPoint(next === "scheduled" ? 0.95 : 0.6)
+  }
+
+  // Event type (null = skipped by user)
+  const [eventType, setEventType] = useState<EventType | null>(null)
+
+  // What
+  const [title, setTitle] = useState("")
+  const [detailsExpanded, setDetailsExpanded] = useState(false)
+  const [details, setDetails] = useState("")
+
+  // NOW mode — base clock time captured at mount so wheel labels stay consistent
+  const mountMinutes = useMemo(() => minutesNow(), [])
   const [startOffsetMin, setStartOffsetMin] = useState(0)
   const [endOffsetMin, setEndOffsetMin] = useState(60)
 
-  // SCHEDULED mode: absolute time-of-day (allowed to wrap past 24h)
+  // SCHEDULED mode
   const [startDate, setStartDate] = useState(formatDateInput(new Date()))
-  const [startTimeMin, setStartTimeMin] = useState(19 * 60) // 7pm
-  const [endTimeMin, setEndTimeMin] = useState(20 * 60) // 8pm
+  const [startTimeMin, setStartTimeMin] = useState(19 * 60)
+  const [endTimeMin, setEndTimeMin] = useState(20 * 60)
 
   // WHERE
   const [whereType, setWhereType] = useState<WhereType>("current")
   const [searchQuery, setSearchQuery] = useState("")
   const [pickedSearchAddress, setPickedSearchAddress] = useState("")
-  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([])
-  const [savedPlaceId, setSavedPlaceId] = useState<string | null>(null)
-  const [adding, setAdding] = useState(false)
-  const [draftLabel, setDraftLabel] = useState("")
-  const [draftAddress, setDraftAddress] = useState("")
+  const [placeResults, setPlaceResults] = useState<PlaceSuggestion[]>([])
+  const [placesLoading, setPlacesLoading] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // GUESTS
   const [isOpen, setIsOpen] = useState(false)
   const [guestLimit, setGuestLimit] = useState(10)
   const [audience, setAudience] = useState<Audience>("")
-  // SSR/hydration: circles may be empty on the first render. If the chosen
-  // audience id no longer exists, fall back to the first available circle.
   const defaultAudience = useMemo(
     () =>
       circles.find((c) => c.type === "close")?.id ??
       circles.find((c) => c.name.toLowerCase() === "close friends")?.id ??
       circles[0]?.id ??
       "custom",
-    [circles]
+    [circles],
   )
   const effectiveAudience =
     audience === "custom" || circles.some((c) => c.id === audience)
@@ -214,12 +208,8 @@ export default function NewEventPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // DETAILS
-  const [details, setDetails] = useState("")
-
   useEffect(() => {
     const controller = new AbortController()
-
     Promise.all([
       fetchAcceptedConnections(controller.signal),
       fetchMyCircles(controller.signal),
@@ -236,14 +226,13 @@ export default function NewEventPage() {
         setAudienceError(getErrorMessage(error))
         setAudienceLoading(false)
       })
-
     return () => controller.abort()
   }, [])
 
-  // Snap end ≥ start+15m and ≤ start+4h atomically when start moves.
   const handleStartOffset = (next: number): void => {
     setStartOffsetMin(next)
     setEndOffsetMin((prev) => {
+      if (prev === OPEN_ENDED) return OPEN_ENDED
       const min = next + MIN_DURATION_MIN
       const max = next + MAX_DURATION_MIN
       if (prev < min) return min
@@ -263,24 +252,59 @@ export default function NewEventPage() {
     })
   }
 
-  // ------ Derived: time wheel options ------
+  // Google Places search via /api/places proxy
+  const searchPlaces = useCallback(async (query: string) => {
+    if (query.trim().length < 2) {
+      setPlaceResults([])
+      setPlacesLoading(false)
+      return
+    }
+    setPlacesLoading(true)
+    try {
+      const resp = await fetch(
+        `/api/places?input=${encodeURIComponent(query.trim())}`,
+      )
+      if (!resp.ok) throw new Error("places error")
+      const data = (await resp.json()) as { suggestions: PlaceSuggestion[] }
+      setPlaceResults(data.suggestions)
+    } catch {
+      setPlaceResults([])
+    } finally {
+      setPlacesLoading(false)
+    }
+  }, [])
+
+  const handleSearchQuery = (v: string): void => {
+    setSearchQuery(v)
+    setPickedSearchAddress("")
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      void searchPlaces(v)
+    }, 350)
+  }
+
+  // Now-mode wheel options use absolute clock-time labels so the user sees
+  // "9:30pm" instead of "+30m", matching the scheduled-mode wheel behaviour.
   const nowStartOptions = useMemo(() => {
     const out: { value: number; label: string }[] = []
     for (let m = 0; m <= NOW_MAX_OFFSET_MIN; m += STEP_MIN) {
-      out.push({ value: m, label: m === 0 ? "now" : `+${formatRelative(m)}` })
+      const wallMin = ((mountMinutes + m) % 1440 + 1440) % 1440
+      out.push({ value: m, label: m === 0 ? "now" : formatTimeOfDay(wallMin) })
     }
     return out
-  }, [])
+  }, [mountMinutes])
 
   const nowEndOptions = useMemo(() => {
     const out: { value: number; label: string }[] = []
     const min = startOffsetMin + MIN_DURATION_MIN
     const max = startOffsetMin + MAX_DURATION_MIN
     for (let m = min; m <= max; m += STEP_MIN) {
-      out.push({ value: m, label: `+${formatRelative(m)}` })
+      const wallMin = ((mountMinutes + m) % 1440 + 1440) % 1440
+      out.push({ value: m, label: formatTimeOfDay(wallMin) })
     }
+    out.push({ value: OPEN_ENDED, label: "open" })
     return out
-  }, [startOffsetMin])
+  }, [startOffsetMin, mountMinutes])
 
   const scheduledStartOptions = useMemo(() => {
     const out: { value: number; label: string }[] = []
@@ -304,15 +328,21 @@ export default function NewEventPage() {
     return out
   }, [startTimeMin])
 
-  // ------ Derived labels ------
-  const durationMin =
-    mode === "now" ? endOffsetMin - startOffsetMin : endTimeMin - startTimeMin
+  const durationMin = useMemo<number | null>(() => {
+    if (mode === "now") {
+      return endOffsetMin === OPEN_ENDED ? null : endOffsetMin - startOffsetMin
+    }
+    return endTimeMin - startTimeMin
+  }, [mode, endOffsetMin, startOffsetMin, endTimeMin, startTimeMin])
 
   const wallTimeForNow = useMemo(() => {
-    const startMin = minutesNow() + startOffsetMin
-    const endMin = startMin + durationMin
+    const startMin = ((mountMinutes + startOffsetMin) % 1440 + 1440) % 1440
+    const endMin =
+      endOffsetMin === OPEN_ENDED
+        ? null
+        : ((mountMinutes + endOffsetMin) % 1440 + 1440) % 1440
     return { startMin, endMin }
-  }, [startOffsetMin, durationMin])
+  }, [mountMinutes, startOffsetMin, endOffsetMin])
 
   const whereLabel = useMemo<string | null>(() => {
     if (whereType === "current") return "current loc"
@@ -320,33 +350,18 @@ export default function NewEventPage() {
       const v = pickedSearchAddress || searchQuery.trim()
       return v || null
     }
-    if (whereType === "saved" && savedPlaceId) {
-      const p = savedPlaces.find((x) => x.id === savedPlaceId)
-      return p?.label ?? null
-    }
     return null
-  }, [whereType, pickedSearchAddress, searchQuery, savedPlaceId, savedPlaces])
+  }, [whereType, pickedSearchAddress, searchQuery])
 
   const whenLabel = useMemo(() => {
     if (mode === "now") {
-      const startTxt =
-        startOffsetMin === 0 ? "now" : `in ${formatRelative(startOffsetMin)}`
-      return startTxt
+      return startOffsetMin === 0 ? "now" : `in ${formatRelative(startOffsetMin)}`
     }
     const d = new Date(startDate + "T00:00:00")
     const chip = formatDayChip(d)
     return `${chip.weekday} ${formatTimeOfDay(startTimeMin)}`
   }, [mode, startOffsetMin, startDate, startTimeMin])
 
-  const composedTitle = composeTitle({
-    eventType,
-    hostName,
-    whereLabel,
-    whenLabel,
-    override: titleOverride,
-  })
-
-  // ------ Date strip (scheduled) ------
   const dateStripDays = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -357,45 +372,26 @@ export default function NewEventPage() {
     })
   }, [])
 
-  // ------ Headcount summary ------
   const inviteeCount = useMemo(() => {
     if (isOpen) return 0
     if (effectiveAudience === "custom") return selectedFriendIds.length
-    return (
-      circles.find((c) => c.id === effectiveAudience)?.memberIds.length ?? 0
-    )
+    return circles.find((c) => c.id === effectiveAudience)?.memberIds.length ?? 0
   }, [circles, effectiveAudience, isOpen, selectedFriendIds.length])
 
   const duplicateCustomCircleName = useMemo(() => {
     const name = customListName.trim().toLowerCase()
     if (!name || effectiveAudience !== "custom") return false
-    return circles.some((circle) => circle.name.trim().toLowerCase() === name)
+    return circles.some((c) => c.name.trim().toLowerCase() === name)
   }, [circles, customListName, effectiveAudience])
 
-  const headcountWarning = useMemo(() => {
-    if (isOpen) return null
-    if (inviteeCount > guestLimit) {
-      return `you are inviting ${inviteeCount} people, but the event limit is ${guestLimit}.`
-    }
-    const possibleWithPlusOnes = allowPlusOne ? inviteeCount * 2 : inviteeCount
-    if (allowPlusOne && possibleWithPlusOnes > guestLimit) {
-      return `the event limit is ${guestLimit}, but up to ${possibleWithPlusOnes} people could come with +1s.`
-    }
-    return null
-  }, [allowPlusOne, guestLimit, inviteeCount, isOpen])
+  const isOverLimit = !isOpen && inviteeCount > guestLimit
 
-  const headcountSummary = useMemo(() => {
-    if (isOpen) return `visible on the public map Â· up to ${guestLimit}`
-    const base = guestLimit
-    const cap = allowPlusOne ? base * 2 : base
-    const plusOneNote = allowPlusOne ? ` (up to ${cap} with +1s)` : ""
-    if (allowForward) {
-      return `up to ${base}${plusOneNote} · reshares past the limit show as full`
-    }
-    return `up to ${base}${plusOneNote}`
-  }, [isOpen, guestLimit, allowPlusOne, allowForward])
+  const headcountLabel = isOpen
+    ? `public · up to ${guestLimit}`
+    : inviteeCount === 0
+      ? `up to ${guestLimit} guests`
+      : `${inviteeCount} ${inviteeCount === 1 ? "person" : "people"} will see this`
 
-  // ------ Submit ------
   const handleSubmit = async (): Promise<void> => {
     if (isSubmitting) return
     setSubmitError(null)
@@ -404,19 +400,16 @@ export default function NewEventPage() {
       setSubmitError("Still loading your circles and friends.")
       return
     }
-
     if (!isOpen && audienceError) {
       setSubmitError(
-        "Load your circles and friends before creating a private event."
+        "Load your circles and friends before creating a private event.",
       )
       return
     }
-
     if (!isOpen && duplicateCustomCircleName) {
       setSubmitError("You already have a circle with that name.")
       return
     }
-
     if (
       !isOpen &&
       effectiveAudience === "custom" &&
@@ -437,7 +430,6 @@ export default function NewEventPage() {
     try {
       if (!isOpen && effectiveAudience === "custom") {
         const name = customListName.trim()
-
         if (name) {
           const createdCircle = await createCircleRequest({
             name,
@@ -460,15 +452,24 @@ export default function NewEventPage() {
         eventAudience = { kind: "circle", circleId: effectiveAudience }
       }
 
+      const effectiveType = eventType ?? "hangout"
+      const effectiveDuration =
+        durationMin !== null ? durationMin : OPEN_ENDED_FALLBACK_MIN
+      const finalTitle =
+        title.trim() ||
+        [effectiveType, hostName, whereLabel, whenLabel]
+          .filter(Boolean)
+          .join(" · ")
+
       const scheduledStart = new Date(`${startDate}T00:00:00`)
       scheduledStart.setMinutes(scheduledStart.getMinutes() + startTimeMin)
 
       const draft: DraftEvent = {
         mode,
-        eventType,
-        title: composedTitle,
+        eventType: effectiveType,
+        title: finalTitle,
         details: details.trim() || undefined,
-        durationMinutes: durationMin,
+        durationMinutes: effectiveDuration,
         startOffsetMinutes: mode === "now" ? startOffsetMin : undefined,
         startDate:
           mode === "scheduled" ? formatDateInput(scheduledStart) : undefined,
@@ -480,10 +481,6 @@ export default function NewEventPage() {
         customWhere:
           whereType === "search"
             ? pickedSearchAddress || searchQuery.trim() || undefined
-            : undefined,
-        savedPlaceLabel:
-          whereType === "saved" && savedPlaceId
-            ? savedPlaces.find((p) => p.id === savedPlaceId)?.label
             : undefined,
         guestLimit,
         audience: isOpen
@@ -511,11 +508,8 @@ export default function NewEventPage() {
       })
 
       await createEvent(
-        createEventRequestFromDraft(draft, eventAudience, timeRange)
+        createEventRequestFromDraft(draft, eventAudience, timeRange),
       )
-
-      // Land back on the map — viewing your own flare lives in the navbar
-      // "my flares" entry so creation doesn't tack on an extra step.
       router.push("/")
     } catch (error) {
       setSubmitError(getErrorMessage(error))
@@ -525,238 +519,242 @@ export default function NewEventPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background">
-      <div className="flex shrink-0 items-center justify-between px-4 py-3">
-        <button
-          onClick={() => router.push("/")}
-          aria-label="Back"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <div className="flex items-center gap-1.5 text-base font-semibold">
-          <Sparkles className="h-4 w-4" />
-          <span>light a flare</span>
-        </div>
-        <div className="h-9 w-9" aria-hidden />
-      </div>
+    <>
+      <div className="fixed inset-0 bg-background" />
 
-      <div className="flex-1 overflow-y-auto px-4 pb-56">
-        <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
-          <TabsList className="w-full">
-            <TabsTrigger value="now">right now</TabsTrigger>
-            <TabsTrigger value="scheduled">pick a time</TabsTrigger>
-          </TabsList>
+      <Drawer.Root
+        open={drawerOpen}
+        onClose={handleClose}
+        snapPoints={[0.6, 0.95]}
+        activeSnapPoint={activeSnapPoint}
+        setActiveSnapPoint={setActiveSnapPoint}
+        dismissible
+      >
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 z-50 bg-foreground/25" />
+          <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex h-[95svh] flex-col rounded-t-3xl border-t border-border bg-card">
+            {/* Drag handle */}
+            <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
 
-          {/* EVENT TYPE */}
-          <Section label="event type">
-            <EventTypeGrid value={eventType} onChange={setEventType} />
-          </Section>
+            {/* Header */}
+            <div className="flex shrink-0 items-center justify-between px-4 py-3">
+              <button
+                type="button"
+                onClick={handleClose}
+                aria-label="Close"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-secondary"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <div className="flex items-center gap-1.5 text-base font-semibold">
+                <Sparkles className="h-4 w-4" />
+                <span>light a flare</span>
+              </div>
+              <div className="h-9 w-9" aria-hidden />
+            </div>
 
-          {/* WHEN */}
-          <TabsContent value="now" className="m-0">
-            <Section label="when">
-              <TimeRange
-                startOptions={nowStartOptions}
-                endOptions={nowEndOptions}
-                startValue={startOffsetMin}
-                endValue={endOffsetMin}
-                onStart={handleStartOffset}
-                onEnd={setEndOffsetMin}
-              />
-              <p className="mt-2 text-xs text-muted-foreground">
-                {startOffsetMin === 0
-                  ? "starts now"
-                  : `starts in ${formatRelative(startOffsetMin)}`}
-                {" · "}
-                runs {formatRelative(durationMin)} · ends{" "}
-                {formatTimeOfDay(wallTimeForNow.endMin)}
-              </p>
-            </Section>
-          </TabsContent>
+            {/* Scrollable form — CTA sticks to the bottom of the visible scroll area */}
+            <div className="flex-1 overflow-y-auto">
+              <Tabs value={mode} onValueChange={handleModeChange}>
+                <div className="px-4 pb-1">
+                  <TabsList className="w-full">
+                    <TabsTrigger value="now">right now</TabsTrigger>
+                    <TabsTrigger value="scheduled">pick a time</TabsTrigger>
+                  </TabsList>
+                </div>
 
-          <TabsContent value="scheduled" className="m-0">
-            <Section label="date">
-              <DateStrip
-                days={dateStripDays}
-                value={startDate}
-                onChange={setStartDate}
-              />
-            </Section>
-            <Section label="when">
-              <TimeRange
-                startOptions={scheduledStartOptions}
-                endOptions={scheduledEndOptions}
-                startValue={startTimeMin}
-                endValue={endTimeMin}
-                onStart={handleStartTime}
-                onEnd={setEndTimeMin}
-              />
-              <p className="mt-2 text-xs text-muted-foreground">
-                runs {formatRelative(durationMin)} · ends{" "}
-                {formatTimeOfDay(endTimeMin)}
-              </p>
-            </Section>
-            {/* TODO: V2 add recurring events */}
-            {/* <Section label="repeat">
-              <ChipRow>
-                {RECURRENCE_OPTIONS.map((r) => (
-                  <Chip
-                    key={r.value}
-                    selected={recurrence === r.value}
-                    onClick={() => setRecurrence(r.value)}
+                <div className="px-4">
+                  {/* 1. Event type */}
+                  <Section label="what do you feel like?">
+                    <EventTypePills value={eventType} onChange={setEventType} />
+                  </Section>
+
+                  {/* 2. What */}
+                  <Section label="what's the plan?">
+                    <Input
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value.slice(0, 80))}
+                      placeholder="let's get drinks after work"
+                    />
+                    {title.length > 60 && (
+                      <p className="mt-1 text-right text-[11px] text-muted-foreground">
+                        {80 - title.length} left
+                      </p>
+                    )}
+                    {detailsExpanded ? (
+                      <textarea
+                        value={details}
+                        onChange={(e) =>
+                          setDetails(e.target.value.slice(0, 200))
+                        }
+                        placeholder="dress code, what to bring, vibe…"
+                        rows={3}
+                        autoFocus
+                        className="mt-2 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDetailsExpanded(true)}
+                        className="mt-2 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        + add a note
+                      </button>
+                    )}
+                    {detailsExpanded && details.length > 160 && (
+                      <p className="mt-1 text-right text-[11px] text-muted-foreground">
+                        {200 - details.length} left
+                      </p>
+                    )}
+                  </Section>
+
+                  {/* 3. When */}
+                  <TabsContent value="now" className="m-0">
+                    <Section label="how long should it last?">
+                      <TimeRange
+                        startOptions={nowStartOptions}
+                        endOptions={nowEndOptions}
+                        startValue={startOffsetMin}
+                        endValue={endOffsetMin}
+                        onStart={handleStartOffset}
+                        onEnd={setEndOffsetMin}
+                      />
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {startOffsetMin === 0
+                          ? "starts now"
+                          : `starts in ${formatRelative(startOffsetMin)}`}
+                        {endOffsetMin === OPEN_ENDED
+                          ? " · open-ended"
+                          : durationMin !== null
+                            ? ` · ${formatRelative(durationMin)}`
+                            : ""}
+                      </p>
+                    </Section>
+                  </TabsContent>
+
+                  <TabsContent value="scheduled" className="m-0">
+                    <Section label="date">
+                      <DateStrip
+                        days={dateStripDays}
+                        value={startDate}
+                        onChange={setStartDate}
+                      />
+                    </Section>
+                    <Section label="how long should it last?">
+                      <TimeRange
+                        startOptions={scheduledStartOptions}
+                        endOptions={scheduledEndOptions}
+                        startValue={startTimeMin}
+                        endValue={endTimeMin}
+                        onStart={handleStartTime}
+                        onEnd={setEndTimeMin}
+                      />
+                      {durationMin !== null && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          lasts {formatRelative(durationMin)}
+                        </p>
+                      )}
+                    </Section>
+                  </TabsContent>
+
+                  {/* 4. Where */}
+                  <Section label="where do you want to meet?">
+                    <WherePicker
+                      whereType={whereType}
+                      onWhereType={setWhereType}
+                      searchQuery={searchQuery}
+                      onSearchQuery={handleSearchQuery}
+                      pickedSearchAddress={pickedSearchAddress}
+                      onPickSearch={(v) => {
+                        setPickedSearchAddress(v)
+                        setSearchQuery(v)
+                        setPlaceResults([])
+                      }}
+                      placeResults={placeResults}
+                      placesLoading={placesLoading}
+                    />
+                  </Section>
+
+                  {/* 5. Who */}
+                  <Section label="who's gonna see your flare?">
+                    {audienceLoading && (
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        loading your circles and friends…
+                      </p>
+                    )}
+                    {audienceError && (
+                      <p
+                        className="mb-2 text-xs text-destructive"
+                        role="alert"
+                      >
+                        {audienceError}
+                      </p>
+                    )}
+                    <WhoBlock
+                      isOpen={isOpen}
+                      onOpen={setIsOpen}
+                      guestLimit={guestLimit}
+                      onGuestLimit={setGuestLimit}
+                      circles={circles}
+                      audience={effectiveAudience}
+                      selectedFriendIds={selectedFriendIds}
+                      customListName={customListName}
+                      onOpenPicker={() => {
+                        setAudience("custom")
+                        setPickerOpen(true)
+                      }}
+                      allowForward={allowForward}
+                      onAllowForward={setAllowForward}
+                      allowPlusOne={allowPlusOne}
+                      onAllowPlusOne={setAllowPlusOne}
+                    />
+                    {duplicateCustomCircleName && (
+                      <p className="mt-2 text-xs text-destructive" role="alert">
+                        you already have a circle with that name
+                      </p>
+                    )}
+                  </Section>
+                </div>
+              </Tabs>
+
+              {/* Sticky CTA — sticks to the bottom of the scroll viewport */}
+              <div className="sticky bottom-0 z-10 border-t border-border bg-card px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+                <div
+                  className={`mb-2 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    isOverLimit
+                      ? "border-destructive/40 bg-destructive/10 text-destructive"
+                      : "border-border text-foreground"
+                  }`}
+                >
+                  <Users className="h-3 w-3 shrink-0" />
+                  <span>{headcountLabel}</span>
+                </div>
+                {submitError && (
+                  <p
+                    className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                    role="alert"
                   >
-                    {r.label}
-                  </Chip>
-                ))}
-              </ChipRow>
-            </Section> */}
-          </TabsContent>
+                    {submitError}
+                  </p>
+                )}
+                <Button
+                  onClick={handleSubmit}
+                  disabled={
+                    isSubmitting ||
+                    duplicateCustomCircleName ||
+                    (!isOpen && (audienceLoading || Boolean(audienceError)))
+                  }
+                  className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
+                >
+                  {isSubmitting ? "lighting…" : "light a flare"}
+                </Button>
+              </div>
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
 
-          {/* WHERE */}
-          <Section label="where">
-            <WherePicker
-              whereType={whereType}
-              onWhereType={setWhereType}
-              searchQuery={searchQuery}
-              onSearchQuery={(v) => {
-                setSearchQuery(v)
-                setPickedSearchAddress("")
-              }}
-              pickedSearchAddress={pickedSearchAddress}
-              onPickSearch={(v) => {
-                setPickedSearchAddress(v)
-                setSearchQuery(v)
-              }}
-              savedPlaces={savedPlaces}
-              savedPlaceId={savedPlaceId}
-              onPickSaved={(id) => {
-                setSavedPlaceId(id)
-                setWhereType("saved")
-              }}
-              adding={adding}
-              onAdd={() => setAdding(true)}
-              draftLabel={draftLabel}
-              draftAddress={draftAddress}
-              onDraftLabel={setDraftLabel}
-              onDraftAddress={setDraftAddress}
-              onCancelAdd={() => {
-                setAdding(false)
-                setDraftLabel("")
-                setDraftAddress("")
-              }}
-              onConfirmAdd={() => {
-                const label = draftLabel.trim()
-                const address = draftAddress.trim()
-                if (!label || !address) return
-                const id = `place-${Date.now()}`
-                setSavedPlaces((prev) => [...prev, { id, label, address }])
-                setSavedPlaceId(id)
-                setWhereType("saved")
-                setAdding(false)
-                setDraftLabel("")
-                setDraftAddress("")
-              }}
-            />
-          </Section>
-
-          {/* GUESTS */}
-          <Section label="guests">
-            {audienceLoading && (
-              <p className="mb-2 text-xs text-muted-foreground">
-                loading your circles and friends...
-              </p>
-            )}
-            {audienceError && (
-              <p className="mb-2 text-xs text-destructive" role="alert">
-                {audienceError}
-              </p>
-            )}
-            <GuestBlock
-              isOpen={isOpen}
-              onOpen={setIsOpen}
-              guestLimit={guestLimit}
-              onGuestLimit={setGuestLimit}
-              circles={circles}
-              audience={effectiveAudience}
-              onAudience={setAudience}
-              selectedFriendIds={selectedFriendIds}
-              customListName={customListName}
-              onOpenPicker={() => {
-                setAudience("custom")
-                setPickerOpen(true)
-              }}
-              allowForward={allowForward}
-              onAllowForward={setAllowForward}
-              allowPlusOne={allowPlusOne}
-              onAllowPlusOne={setAllowPlusOne}
-              summary={headcountSummary}
-            />
-            {duplicateCustomCircleName && (
-              <p className="mt-2 text-xs text-destructive" role="alert">
-                you already have a circle with that name
-              </p>
-            )}
-          </Section>
-
-          {/* DETAILS */}
-          <Section label="add details (optional)">
-            <textarea
-              value={details}
-              onChange={(e) => setDetails(e.target.value.slice(0, 200))}
-              placeholder="anything else? dress code, what to bring, vibe…"
-              rows={3}
-              className="w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-            {details.length > 160 && (
-              <p className="mt-1 text-right text-[11px] text-muted-foreground">
-                {200 - details.length} left
-              </p>
-            )}
-          </Section>
-        </Tabs>
-      </div>
-
-      <div className="absolute right-0 bottom-24 left-0 z-20 flex flex-col gap-2 px-4">
-        <PreviewPill
-          title={composedTitle}
-          editing={titleEditing}
-          override={titleOverride}
-          onToggle={() => setTitleEditing((v) => !v)}
-          onOverrideChange={setTitleOverride}
-        />
-        {headcountWarning && (
-          <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground">
-            {headcountWarning}
-          </p>
-        )}
-        {submitError && (
-          <p
-            className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-            role="alert"
-          >
-            {submitError}
-          </p>
-        )}
-        <Button
-          onClick={handleSubmit}
-          disabled={
-            isSubmitting ||
-            duplicateCustomCircleName ||
-            (!isOpen && (audienceLoading || Boolean(audienceError)))
-          }
-          className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
-        >
-          {isSubmitting ? "lighting..." : "light a flare"}
-        </Button>
-      </div>
-
-      <div className="pointer-events-none absolute right-0 bottom-6 left-0 z-10">
-        <div className="pointer-events-auto">
-          <BottomNav />
-        </div>
-      </div>
-
+      {/* Friend picker — rendered above the drawer */}
       {pickerOpen && (
         <FriendPicker
           connections={connections}
@@ -774,107 +772,49 @@ export default function NewEventPage() {
           onConfirm={() => setPickerOpen(false)}
         />
       )}
-    </div>
+    </>
   )
 }
 
-// ----- preview pill -----
+// ----- Event type pills -----
 
-function PreviewPill({
-  title,
-  editing,
-  override,
-  onToggle,
-  onOverrideChange,
-}: {
-  title: string
-  editing: boolean
-  override: string
-  onToggle: () => void
-  onOverrideChange: (v: string) => void
-}) {
-  return (
-    <div className="mt-4 rounded-2xl border border-accent/30 bg-accent/5 px-3 py-2.5">
-      {editing ? (
-        <div className="flex items-center gap-2">
-          <Input
-            autoFocus
-            value={override}
-            onChange={(e) => onOverrideChange(e.target.value)}
-            placeholder={title}
-            maxLength={60}
-            className="flex-1 border-0 bg-transparent px-0 text-sm focus-visible:ring-0"
-          />
-          <button
-            type="button"
-            onClick={onToggle}
-            className="shrink-0 text-xs font-medium text-accent"
-          >
-            done
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent" />
-          <span className="flex-1 truncate text-sm text-foreground">
-            {title}
-          </span>
-          <button
-            type="button"
-            onClick={onToggle}
-            className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-            aria-label="edit title"
-          >
-            <Pencil className="h-3 w-3" />
-            edit
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ----- event type grid -----
-
-function EventTypeGrid({
+function EventTypePills({
   value,
   onChange,
 }: {
-  value: EventType
-  onChange: (v: EventType) => void
+  value: EventType | null
+  onChange: (v: EventType | null) => void
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2">
-      {EVENT_TYPES.map((t) => {
-        const selected = value === t.value
-        const Icon = t.icon
-        return (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => onChange(t.value)}
-            className={`flex items-center gap-2.5 rounded-xl border px-3 py-3 text-left transition-colors ${
-              selected
-                ? "border-accent bg-accent/10"
-                : "border-border bg-background hover:bg-secondary"
-            }`}
-          >
-            <Icon
-              className={`h-5 w-5 shrink-0 ${selected ? "text-accent" : "text-muted-foreground"}`}
-            />
-            <span
-              className={`text-sm ${selected ? "font-medium text-accent" : ""}`}
+    <div className="-mx-4 no-scrollbar overflow-x-auto px-4">
+      <div className="flex gap-2 pb-0.5">
+        {EVENT_TYPES.map((t) => {
+          const selected = value === t.value
+          const Icon = t.icon
+          return (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => onChange(selected ? null : t.value)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 transition-colors ${
+                selected
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-border text-muted-foreground hover:bg-secondary"
+              }`}
             >
-              {t.label}
-            </span>
-          </button>
-        )
-      })}
+              <Icon className="h-4 w-4 shrink-0" />
+              {selected && (
+                <span className="text-sm font-medium">{t.label}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
 
-// ----- time wheels -----
+// ----- Time wheels -----
 
 function TimeRange({
   startOptions,
@@ -938,7 +878,6 @@ function TimeWheel({
   const ref = useRef<HTMLDivElement>(null)
   const timer = useRef<number | null>(null)
 
-  // Keep scroll synced when value changes externally (e.g. start moves end).
   useEffect(() => {
     const idx = options.findIndex((o) => o.value === value)
     if (idx < 0 || !ref.current) return
@@ -1008,7 +947,7 @@ function TimeWheel({
   )
 }
 
-// ----- date strip -----
+// ----- Date strip -----
 
 function DateStrip({
   days,
@@ -1055,7 +994,7 @@ function DateStrip({
   )
 }
 
-// ----- where picker -----
+// ----- Where picker -----
 
 function WherePicker({
   whereType,
@@ -1064,17 +1003,8 @@ function WherePicker({
   onSearchQuery,
   pickedSearchAddress,
   onPickSearch,
-  savedPlaces,
-  savedPlaceId,
-  onPickSaved,
-  adding,
-  onAdd,
-  draftLabel,
-  draftAddress,
-  onDraftLabel,
-  onDraftAddress,
-  onCancelAdd,
-  onConfirmAdd,
+  placeResults,
+  placesLoading,
 }: {
   whereType: WhereType
   onWhereType: (v: WhereType) => void
@@ -1082,27 +1012,9 @@ function WherePicker({
   onSearchQuery: (v: string) => void
   pickedSearchAddress: string
   onPickSearch: (v: string) => void
-  savedPlaces: SavedPlace[]
-  savedPlaceId: string | null
-  onPickSaved: (id: string) => void
-  adding: boolean
-  onAdd: () => void
-  draftLabel: string
-  draftAddress: string
-  onDraftLabel: (v: string) => void
-  onDraftAddress: (v: string) => void
-  onCancelAdd: () => void
-  onConfirmAdd: () => void
+  placeResults: PlaceSuggestion[]
+  placesLoading: boolean
 }) {
-  const results = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    if (!q || pickedSearchAddress) return []
-    return MOCK_PLACE_RESULTS.filter(
-      (r) =>
-        r.label.toLowerCase().includes(q) || r.address.toLowerCase().includes(q)
-    ).slice(0, 5)
-  }, [searchQuery, pickedSearchAddress])
-
   return (
     <div className="flex flex-col gap-2">
       <ChipRow>
@@ -1120,36 +1032,21 @@ function WherePicker({
           <Search className="h-3.5 w-3.5" />
           search
         </Chip>
-        {savedPlaces.map((p) => (
-          <Chip
-            key={p.id}
-            selected={whereType === "saved" && savedPlaceId === p.id}
-            onClick={() => onPickSaved(p.id)}
-          >
-            <MapPin className="h-3.5 w-3.5" />
-            {p.label}
-          </Chip>
-        ))}
-        <button
-          type="button"
-          onClick={onAdd}
-          className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary"
-        >
-          <Plus className="h-3 w-3" />
-          add place
-        </button>
       </ChipRow>
 
       {whereType === "search" && (
         <div className="mt-1">
           <Input
-            placeholder="search address or place"
+            placeholder="search for a place"
             value={searchQuery}
             onChange={(e) => onSearchQuery(e.target.value)}
           />
-          {results.length > 0 && (
+          {placesLoading && (
+            <p className="mt-1.5 text-xs text-muted-foreground">searching…</p>
+          )}
+          {!placesLoading && !pickedSearchAddress && placeResults.length > 0 && (
             <ul className="mt-1.5 overflow-hidden rounded-lg border border-border bg-card">
-              {results.map((r) => (
+              {placeResults.map((r) => (
                 <li key={`${r.label}-${r.address}`}>
                   <button
                     type="button"
@@ -1170,54 +1067,19 @@ function WherePicker({
           )}
         </div>
       )}
-
-      {adding && (
-        <div className="mt-1 flex flex-col gap-2 rounded-xl border border-border p-3">
-          <Label className="text-xs font-medium text-muted-foreground">
-            new quick place
-          </Label>
-          <Input
-            placeholder="label (e.g. home, gym)"
-            value={draftLabel}
-            onChange={(e) => onDraftLabel(e.target.value.slice(0, 30))}
-          />
-          <Input
-            placeholder="address"
-            value={draftAddress}
-            onChange={(e) => onDraftAddress(e.target.value.slice(0, 100))}
-          />
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={onCancelAdd}
-              className="flex-1 rounded-full"
-            >
-              cancel
-            </Button>
-            <Button
-              onClick={onConfirmAdd}
-              disabled={!draftLabel.trim() || !draftAddress.trim()}
-              className="flex-1 rounded-full bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
-            >
-              save
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
 
-// ----- guests -----
+// ----- Who block -----
 
-function GuestBlock({
+function WhoBlock({
   isOpen,
   onOpen,
   guestLimit,
   onGuestLimit,
   circles,
   audience,
-  onAudience,
   selectedFriendIds,
   customListName,
   onOpenPicker,
@@ -1225,7 +1087,6 @@ function GuestBlock({
   onAllowForward,
   allowPlusOne,
   onAllowPlusOne,
-  summary,
 }: {
   isOpen: boolean
   onOpen: (v: boolean) => void
@@ -1233,7 +1094,6 @@ function GuestBlock({
   onGuestLimit: (v: number) => void
   circles: Circle[]
   audience: Audience
-  onAudience: (v: Audience) => void
   selectedFriendIds: string[]
   customListName: string
   onOpenPicker: () => void
@@ -1241,76 +1101,131 @@ function GuestBlock({
   onAllowForward: (v: boolean) => void
   allowPlusOne: boolean
   onAllowPlusOne: (v: boolean) => void
-  summary: string
 }) {
   return (
     <div className="flex flex-col gap-3">
-      {/* OPEN toggle */}
       <div
-        className={`flex items-start justify-between gap-4 rounded-xl border p-3 transition-colors ${
+        className={`flex items-center justify-between gap-4 rounded-xl border p-3 transition-colors ${
           isOpen ? "border-accent bg-accent/5" : "border-border"
         }`}
       >
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-medium">open event</span>
           <span className="text-xs text-muted-foreground">
-            anyone with the link can join — appears on the public map
+            appears on the public map
           </span>
         </div>
         <Switch checked={isOpen} onCheckedChange={onOpen} />
       </div>
 
-      {/* Limit stepper */}
       <Stepper value={guestLimit} onChange={onGuestLimit} min={1} max={200} />
 
-      {/* Audience picker — hidden when open */}
       {!isOpen && (
-        <div className="flex flex-col gap-2">
-          <Label className="text-xs font-medium text-muted-foreground">
-            broadcast to
-          </Label>
-          {circles.map((c) => (
-            <AudienceCard
-              key={c.id}
-              type={c.type}
-              label={c.name}
-              count={c.memberIds.length}
-              selected={audience === c.id}
-              onClick={() => onAudience(c.id)}
-            />
-          ))}
-          <AudienceCard
-            label={customListName.trim() || "pick friends"}
-            count={audience === "custom" ? selectedFriendIds.length : undefined}
-            selected={audience === "custom"}
-            onClick={onOpenPicker}
-          />
-        </div>
-      )}
-
-      {/* Guest controls */}
-      {!isOpen && (
-        <ToggleRow
-          label="let guests bring +1"
-          description="adds a single guest each — doubles your max headcount"
-          checked={allowPlusOne}
-          onCheckedChange={onAllowPlusOne}
-        />
-      )}
-      {!isOpen && (
-        <ToggleRow
-          label="let guests forward invite"
-          description="friends-of-friends can find it — invites past your limit show as full"
-          checked={allowForward}
-          onCheckedChange={onAllowForward}
+        <BroadcastRow
+          circles={circles}
+          audience={audience}
+          selectedFriendIds={selectedFriendIds}
+          customListName={customListName}
+          onOpen={onOpenPicker}
         />
       )}
 
-      {/* Summary */}
-      <div className="px-1 text-xs text-muted-foreground">{summary}</div>
+      {!isOpen && (
+        <InviteToggles
+          allowPlusOne={allowPlusOne}
+          onPlusOne={onAllowPlusOne}
+          allowForward={allowForward}
+          onForward={onAllowForward}
+        />
+      )}
     </div>
   )
 }
+
+function BroadcastRow({
+  circles,
+  audience,
+  selectedFriendIds,
+  customListName,
+  onOpen,
+}: {
+  circles: Circle[]
+  audience: Audience
+  selectedFriendIds: string[]
+  customListName: string
+  onOpen: () => void
+}) {
+  const selectedCircle = circles.find((c) => c.id === audience)
+  const label =
+    audience === "custom"
+      ? customListName.trim() || "custom selection"
+      : (selectedCircle?.name ?? "friends")
+  const count =
+    audience === "custom"
+      ? selectedFriendIds.length
+      : (selectedCircle?.memberIds.length ?? 0)
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-left hover:bg-secondary"
+    >
+      <CircleStackIcon
+        type={selectedCircle?.type ?? "close"}
+        className="h-5 w-5 shrink-0 text-muted-foreground"
+      />
+      <span className="flex-1 truncate text-sm font-medium">{label}</span>
+      {count > 0 && (
+        <span className="shrink-0 text-xs text-muted-foreground">{count}</span>
+      )}
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+    </button>
+  )
+}
+
+function InviteToggles({
+  allowPlusOne,
+  onPlusOne,
+  allowForward,
+  onForward,
+}: {
+  allowPlusOne: boolean
+  onPlusOne: (v: boolean) => void
+  allowForward: boolean
+  onForward: (v: boolean) => void
+}) {
+  return (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={() => onPlusOne(!allowPlusOne)}
+        className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-sm transition-colors ${
+          allowPlusOne
+            ? "border-accent bg-accent/10 text-accent"
+            : "border-border text-muted-foreground hover:bg-secondary"
+        }`}
+      >
+        <UserPlus className="h-3.5 w-3.5 shrink-0" />
+        +1 allowed
+      </button>
+      <button
+        type="button"
+        onClick={() => onForward(!allowForward)}
+        className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-sm transition-colors ${
+          allowForward
+            ? "border-accent bg-accent/10 text-accent"
+            : "border-border text-muted-foreground hover:bg-secondary"
+        }`}
+      >
+        <Share2 className="h-3.5 w-3.5 shrink-0" />
+        friends can re-share
+      </button>
+    </div>
+  )
+}
+
+// ----- Guest limit stepper -----
 
 function Stepper({
   value,
@@ -1372,7 +1287,7 @@ function Stepper({
   )
 }
 
-// ----- friend picker (unchanged structure) -----
+// ----- Friend picker -----
 
 function setsEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false
@@ -1407,7 +1322,7 @@ function FriendPicker({
     return connections.filter(
       (c) =>
         c.displayName.toLowerCase().includes(q) ||
-        c.username.toLowerCase().includes(q)
+        c.username.toLowerCase().includes(q),
     )
   }, [connections, query])
 
@@ -1419,7 +1334,7 @@ function FriendPicker({
     onSelectionChange(
       selectedIds.includes(id)
         ? selectedIds.filter((x) => x !== id)
-        : [...selectedIds, id]
+        : [...selectedIds, id],
     )
   }
 
@@ -1441,7 +1356,7 @@ function FriendPicker({
         : `invite ${count} ${count === 1 ? "person" : "people"}`
 
   return (
-    <div className="absolute inset-0 z-30 flex flex-col">
+    <div className="fixed inset-0 z-[60] flex flex-col">
       <button
         type="button"
         aria-label="Close"
@@ -1585,49 +1500,7 @@ function FriendPicker({
   )
 }
 
-function AudienceCard({
-  type,
-  label,
-  count,
-  selected,
-  onClick,
-}: {
-  type?: Circle["type"]
-  label: string
-  count?: number
-  selected: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
-        selected ? "border-accent bg-accent/5" : "border-border bg-background"
-      }`}
-    >
-      {type !== undefined ? (
-        <CircleStackIcon
-          type={type}
-          className={`h-5 w-5 shrink-0 ${selected ? "text-accent" : "text-muted-foreground"}`}
-        />
-      ) : (
-        <UserPlus
-          className={`h-4 w-4 shrink-0 ${selected ? "text-accent" : "text-muted-foreground"}`}
-        />
-      )}
-      <span
-        className={`flex-1 truncate text-sm font-medium ${selected ? "text-accent" : ""}`}
-      >
-        {label}
-      </span>
-      {count !== undefined && (
-        <span className="shrink-0 text-xs text-muted-foreground">{count}</span>
-      )}
-      {selected && <Check className="h-4 w-4 shrink-0 text-accent" />}
-    </button>
-  )
-}
+// ----- Shared primitives -----
 
 function Section({
   label,
@@ -1671,27 +1544,5 @@ function Chip({
     >
       {children}
     </button>
-  )
-}
-
-function ToggleRow({
-  label,
-  description,
-  checked,
-  onCheckedChange,
-}: {
-  label: string
-  description: string
-  checked: boolean
-  onCheckedChange: (v: boolean) => void
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-xl border border-border p-3">
-      <div className="flex flex-col gap-0.5">
-        <span className="text-sm font-medium">{label}</span>
-        <span className="text-xs text-muted-foreground">{description}</span>
-      </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
-    </div>
   )
 }
