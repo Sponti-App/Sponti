@@ -271,10 +271,11 @@ type PeekState = "mini" | "peek" | "expanded"
 // Fixed pixel heights for mini and peek states
 const SHEET_PX = { mini: 64, peek: 268 } as const
 
-// Vertical room reserved at the bottom for the solid BottomNav bar so the
-// collapsed sheet sits above it. Keep in sync with bottom-nav.tsx — bar is
-// ~64px tall + safe-area inset + a small breathing gap.
-const NAV_RESERVED_PX = 76
+// The collapsed sheet and FAB sit above the BottomNav. BottomNav writes its
+// actual rendered height (incl. safe-area inset) to --sponti-nav-h so we get
+// a pixel-perfect anchor on every device. Fallback covers the first paint
+// before the ResizeObserver fires.
+const NAV_RESERVED_CSS = "var(--sponti-nav-h, 64px)"
 
 // One-shot dev warning: AdvancedMarker silently renders nothing when the map
 // has no mapId. Surfacing this early saves a debugging session.
@@ -410,17 +411,17 @@ export function MapView({
     }
   }
 
-  const sheetStyle =
+  const sheetStyle: React.CSSProperties =
     peekState === "expanded"
       ? { height: "100%", bottom: 0 }
       : peekState === "mini"
-        ? { height: `${SHEET_PX.mini}px`, bottom: `${NAV_RESERVED_PX}px` }
+        ? { height: `${SHEET_PX.mini}px`, bottom: NAV_RESERVED_CSS }
         : { height: `${SHEET_PX.peek}px`, bottom: 0 }
 
-  const fabBottomPx =
+  const fabBottomStyle: React.CSSProperties =
     peekState === "mini"
-      ? SHEET_PX.mini + NAV_RESERVED_PX + 12
-      : SHEET_PX.peek + 12
+      ? { bottom: `calc(${NAV_RESERVED_CSS} + ${SHEET_PX.mini + 12}px)` }
+      : { bottom: `${SHEET_PX.peek + 12}px` }
 
   return (
     <div className="absolute inset-0 overflow-hidden">
@@ -466,7 +467,7 @@ export function MapView({
             if (isFallbackLocation) geo.request()
             else setRecenterTick((n) => n + 1)
           }}
-          style={{ bottom: `${fabBottomPx}px` }}
+          style={fabBottomStyle}
           aria-label="Recenter on my location"
           className="absolute right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md transition-[bottom] duration-300 ease-out"
         >
