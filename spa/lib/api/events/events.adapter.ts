@@ -345,7 +345,12 @@ export function createEventRequestFromDraft(
     members:
       target.kind === "members"
         ? target.memberIds.map((userId) => ({ userId, role: "guest" }))
-        : [],
+        : target.kind === "circle" && target.extraMemberIds
+          ? target.extraMemberIds.map((userId) => ({
+              userId,
+              role: "guest" as const,
+            }))
+          : [],
   }
 }
 

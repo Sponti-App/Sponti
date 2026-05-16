@@ -8,22 +8,46 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ suggestions: [] })
   }
 
-  let data: Record<string, unknown>
+  if (!API_KEY) {
+    console.error("[places] NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not set")
+    return NextResponse.json(
+      { suggestions: [], error: "missing API key" },
+      { status: 500 },
+    )
+  }
+
+  let resp: Response
   try {
-    const resp = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": API_KEY,
-        "X-Goog-FieldMask":
-          "suggestions.placePrediction.structuredFormat,suggestions.placePrediction.text",
+    resp = await fetch(
+      "https://places.googleapis.com/v1/places:autocomplete",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": API_KEY,
+          "X-Goog-FieldMask":
+            "suggestions.placePrediction.structuredFormat,suggestions.placePrediction.text",
+        },
+        body: JSON.stringify({ input: input.trim() }),
       },
-      body: JSON.stringify({ input: input.trim() }),
-    })
-    if (!resp.ok) return NextResponse.json({ suggestions: [] })
-    data = await resp.json()
-  } catch {
-    return NextResponse.json({ suggestions: [] })
+    )
+  } catch (err) {
+    console.error("[places] fetch failed", err)
+    return NextResponse.json(
+      { suggestions: [], error: "fetch failed" },
+      { status: 502 },
+    )
+  }
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "<unreadable>")
+    console.error(
+      `[places] Google API ${resp.status} ${resp.statusText}: ${body}`,
+    )
+    return NextResponse.json(
+      { suggestions: [], error: `google ${resp.status}`, detail: body },
+      { status: resp.status },
+    )
   }
 
   type Prediction = {
@@ -36,7 +60,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const suggestions = ((data.suggestions as Prediction[] | undefined) ?? [])
+  const data = (await resp.json()) as { suggestions?: Prediction[] }
+  const suggestions = (data.suggestions ?? [])
     .slice(0, 5)
     .map((s) => ({
       label:

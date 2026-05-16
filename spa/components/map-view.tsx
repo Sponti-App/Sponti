@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
 import {
   APIProvider,
   Map,
@@ -39,6 +38,7 @@ import {
   type GeoStatus,
 } from "@/lib/geolocation"
 import { useMapEvents } from "@/lib/use-events"
+import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
 import { EVENT_TYPES } from "@/types/utils"
 
@@ -312,7 +312,7 @@ export function MapView({
   onRouteReady?: (event: EventItem, etaLabel: string) => void
   onSeeCalendar?: () => void
 }) {
-  const router = useRouter()
+  const { openDrawer } = useNewEventDrawer()
   const [peekState, setPeekState] = useState<PeekState>("peek")
   const dragStartY = useRef<number | null>(null)
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
@@ -523,7 +523,7 @@ export function MapView({
                     : null
                 }
                 onSeeCalendar={onSeeCalendar}
-                onCreate={() => router.push("/event/new")}
+                onCreate={openDrawer}
               />
             ) : (
               <div className="space-y-2">
