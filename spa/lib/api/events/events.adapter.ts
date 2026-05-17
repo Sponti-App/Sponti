@@ -154,8 +154,11 @@ function hostFromApi(host: ApiEvent["hostId"]): EventItem["host"] {
  * home map/calendar UI.
  */
 export function adaptApiEvent(api: ApiEvent): EventItem {
+  const hostId =
+    typeof api.hostId === "string" ? api.hostId : api.hostId?._id
   return {
     id: api._id,
+    hostId,
     title: api.title,
     type: api.type,
     startAt: api.startAt,
@@ -342,7 +345,12 @@ export function createEventRequestFromDraft(
     members:
       target.kind === "members"
         ? target.memberIds.map((userId) => ({ userId, role: "guest" }))
-        : [],
+        : target.kind === "circle" && target.extraMemberIds
+          ? target.extraMemberIds.map((userId) => ({
+              userId,
+              role: "guest" as const,
+            }))
+          : [],
   }
 }
 

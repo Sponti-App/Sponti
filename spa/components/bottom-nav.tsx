@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react"
 import { Home, Inbox, Users, Bell, Flame } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useMyFlares } from "@/lib/use-events"
+import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 
 type NavItem =
   | {
@@ -19,6 +20,7 @@ type NavItem =
       icon: typeof Home
       label: string
       onClick: () => void
+      center?: boolean
       badge?: number
     }
 
@@ -33,6 +35,7 @@ export function BottomNav({
 }) {
   const router = useRouter()
   const pathname = usePathname()
+  const { openDrawer } = useNewEventDrawer()
   const { hostedByMe, invited } = useMyFlares()
   const activeHosted = hostedByMe.filter((e) => e.apiStatus !== "cancelled")
   // Badge counts hosted-by-me + invited so users see a heads-up when there's
@@ -49,10 +52,10 @@ export function BottomNav({
       badge: notificationsUnread,
     },
     {
-      kind: "route",
+      kind: "action",
       icon: Flame,
       label: "Light a flare",
-      href: "/event/new",
+      onClick: openDrawer,
       center: true,
     },
     { kind: "route", icon: Users, label: "Circles", href: "/circles" },
@@ -95,12 +98,16 @@ export function BottomNav({
       {items.map((item) => {
         const Icon = item.icon
 
-        if (item.kind === "route" && item.center) {
+        if (item.center) {
+          const centerClick =
+            item.kind === "route"
+              ? () => router.push(item.href)
+              : item.onClick
           return (
             <button
               key={item.label}
               type="button"
-              onClick={() => router.push(item.href)}
+              onClick={centerClick}
               aria-label={item.label}
               className="-mt-6 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg ring-4 ring-background transition-transform active:scale-95"
             >
