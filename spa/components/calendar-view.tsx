@@ -212,9 +212,10 @@ export function CalendarView({
 
   return (
     /* pb-28 leaves room for the floating nav pill */
-    <div className="h-full overflow-y-auto px-4 pb-28">
-      {/* Sticky header + week strip — stays pinned while the agenda scrolls. */}
-      <div className="sticky top-0 z-10 -mx-4 border-b border-border/60 bg-background px-4 pt-2 pb-2">
+    <div className="h-full overflow-y-auto px-4 pt-14 pb-28">
+      {/* Sticky header + week strip — stays pinned while the agenda scrolls.
+          top-14 clears the floating header chip row (~56px). */}
+      <div className="sticky top-14 z-10 -mx-4 border-b border-border/60 bg-background px-4 pt-2 pb-2">
         {/* Calendar header with navigation */}
         <div className="mb-4 flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
