@@ -7,6 +7,7 @@ import {
   createEventBodySchema,
   eventIdParamSchema,
   getEventsQuerySchema,
+  myUpcomingEventsQuerySchema,
   updateEventBodySchema,
   updateMyEventMembershipBodySchema,
   upcomingCalendarEventsQuerySchema,
@@ -29,6 +30,11 @@ router.get(
 router.post("/", validateRequest({ body: createEventBodySchema }), eventController.createEvent);
 router.get("/", validateRequest({ query: getEventsQuerySchema }), eventController.getEvents);
 router.get(
+  "/mine/upcoming",
+  validateRequest({ query: myUpcomingEventsQuerySchema }),
+  eventController.getMyUpcomingEvents
+);
+router.get(
   "/:eventId",
   validateRequest({ params: eventIdParamSchema }),
   eventController.getEventById
@@ -42,6 +48,11 @@ router.patch(
   "/:eventId/cancel",
   validateRequest({ params: eventIdParamSchema }),
   eventController.cancelEvent
+);
+router.patch(
+  "/:eventId/reactivate",
+  validateRequest({ params: eventIdParamSchema }),
+  eventController.reactivateEvent
 );
 router.patch(
   "/:eventId/me",

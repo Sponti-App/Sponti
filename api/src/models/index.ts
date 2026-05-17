@@ -4,5 +4,6 @@ export * from "./CircleMember.js";
 export * from "./Connection.js";
 export * from "./Event.js";
 export * from "./EventMember.js";
+export * from "./Notification.js";
 export * from "./NotificationSettings.js";
 export * from "./QrContactToken.js";

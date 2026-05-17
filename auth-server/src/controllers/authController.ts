@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import type { Request, Response } from "express";
+import { OAuth2Client, type LoginTicket } from "google-auth-library";
 import {
   User,
   Circle,
@@ -18,6 +19,8 @@ import {
 } from "#lib/tokens";
 import cloudinary from "#lib/cloudinary";
 import streamfier from "streamifier";
+
+const googleClient = new OAuth2Client();
 
 const toUserResponse = (user: InstanceType<typeof User>) => ({
   id: user._id.toString(),
@@ -52,6 +55,70 @@ const saveRefreshToken = async (userId: string, refreshToken: string) => {
   });
 };
 
+const createDefaultUserRecords = async (userId: string) => {
+  await Circle.create([
+    {
+      ownerId: userId,
+      name: "close friends",
+      color: "#00FF00", // Green
+      type: "close",
+    },
+    {
+      ownerId: userId,
+      name: "all friends",
+      color: "#FF0000", // Red
+      type: "all",
+    },
+    {
+      ownerId: userId,
+      name: "inner circle",
+      color: "#FF0000", // Red
+      type: "inner",
+    },
+  ]);
+  await NotificationSettings.create({
+    userId,
+  });
+};
+
+const createSessionResponse = async (user: InstanceType<typeof User>) => {
+  const userId = user._id.toString();
+  const accessToken = createAccessToken(userId);
+  const refreshToken = createRefreshToken(userId);
+  await deleteExpiredRefreshTokens(userId);
+  await saveRefreshToken(userId, refreshToken);
+
+  return {
+    accessToken,
+    refreshToken,
+    user: toUserResponse(user),
+  };
+};
+
+const normalizeUsernameBase = (value: string) => {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "")
+    .slice(0, 24);
+
+  return normalized.length >= 3 ? normalized : "user";
+};
+
+const generateUsername = async (email: string, displayName: string) => {
+  const [emailName = ""] = email.split("@");
+  const base = normalizeUsernameBase(emailName || displayName);
+
+  for (let index = 0; index < 100; index += 1) {
+    const suffix = index === 0 ? "" : String(index + 1);
+    const username = `${base.slice(0, 30 - suffix.length)}${suffix}`;
+    const exists = await User.exists({ username });
+
+    if (!exists) return username;
+  }
+
+  throw new Error("Could not generate a username", { cause: { status: 500 } });
+};
+
 export const register = async (req: Request, res: Response) => {
   const { username, displayName, email, password } = req.body;
 
@@ -77,38 +144,12 @@ export const register = async (req: Request, res: Response) => {
     email: normalizedEmail,
     passwordHash,
   });
-  await Circle.create([
-    {
-      ownerId: user._id,
-      name: "close friends",
-      color: "#00FF00", // Green
-      type: "close",
-    },
-    {
-      ownerId: user._id,
-      name: "all friends",
-      color: "#FF0000", // Red
-      type: "all",
-    },
-    {
-      ownerId: user._id,
-      name: "inner circle",
-      color: "#FF0000", // Red
-      type: "inner",
-    },
-  ]);
-  await NotificationSettings.create({
-    userId: user._id,
-  });
+  await createDefaultUserRecords(user._id.toString());
 
-  const accessToken = createAccessToken(user._id.toString());
-  const refreshToken = createRefreshToken(user._id.toString());
-  await saveRefreshToken(user._id.toString(), refreshToken);
+  const session = await createSessionResponse(user);
 
   res.status(201).json({
-    accessToken,
-    refreshToken,
-    user: toUserResponse(user),
+    ...session,
   });
 };
 
@@ -121,21 +162,84 @@ export const login = async (req: Request, res: Response) => {
     throw new Error("Invalid email or password", { cause: { status: 401 } });
   }
 
+  if (!user.passwordHash) {
+    throw new Error("Invalid email or password", { cause: { status: 401 } });
+  }
+
   const passwordMatches = await bcrypt.compare(password, user.passwordHash);
 
   if (!passwordMatches) {
     throw new Error("Invalid email or password", { cause: { status: 401 } });
   }
 
-  const accessToken = createAccessToken(user._id.toString());
-  const refreshToken = createRefreshToken(user._id.toString());
-  await deleteExpiredRefreshTokens(user._id.toString());
-  await saveRefreshToken(user._id.toString(), refreshToken);
+  const session = await createSessionResponse(user);
 
   res.json({
-    accessToken,
-    refreshToken,
-    user: toUserResponse(user),
+    ...session,
+  });
+};
+
+export const googleLogin = async (req: Request, res: Response) => {
+  const { credential } = req.body as { credential: string };
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+
+  if (!clientId) {
+    throw new Error("GOOGLE_CLIENT_ID is not configured", {
+      cause: { status: 500 },
+    });
+  }
+
+  let ticket: LoginTicket;
+
+  try {
+    ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: clientId,
+    });
+  } catch {
+    throw new Error("Invalid Google credential", { cause: { status: 401 } });
+  }
+  const payload = ticket.getPayload();
+
+  if (!payload?.sub || !payload.email) {
+    throw new Error("Invalid Google credential", { cause: { status: 401 } });
+  }
+
+  if (!payload.email_verified) {
+    throw new Error("Google email is not verified", { cause: { status: 401 } });
+  }
+
+  const normalizedEmail = payload.email.toLowerCase();
+  let user = await User.findOne({
+    $or: [{ googleId: payload.sub }, { email: normalizedEmail }],
+  });
+  let isNewUser = false;
+
+  if (user) {
+    if (!user.googleId) user.googleId = payload.sub;
+    if (!user.avatarUrl && payload.picture) user.avatarUrl = payload.picture;
+    await user.save();
+  } else {
+    isNewUser = true;
+    const displayName =
+      payload.name?.trim() || normalizedEmail.split("@")[0] || "Sponti user";
+    const username = await generateUsername(normalizedEmail, displayName);
+
+    user = await User.create({
+      username,
+      displayName,
+      email: normalizedEmail,
+      googleId: payload.sub,
+      avatarUrl: payload.picture ?? null,
+    });
+    await createDefaultUserRecords(user._id.toString());
+  }
+
+  const session = await createSessionResponse(user);
+
+  res.json({
+    ...session,
+    isNewUser,
   });
 };
 

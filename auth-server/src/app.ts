@@ -12,7 +12,9 @@ const defaultOrigins = [
     "https://sponti-spa.vercel.app",
     "http://localhost:3000",
     "http://localhost:3001",
+    "http://localhost:3002",
     "http://localhost",
+    "http://192.168.178.185:3000",
     "capacitor://localhost",
     "ionic://localhost",
 ];

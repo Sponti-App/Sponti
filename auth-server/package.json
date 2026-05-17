@@ -5,7 +5,7 @@
   "main": "app.ts",
   "scripts": {
     "dev": "node --watch --conditions=development --env-file=.env src/app.ts",
-    "prebuild": "rm -rf dist",
+    "prebuild": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
     "build": "tsc",
     "prestart": "npm run build",
     "start": "node dist/app.js"
@@ -67,6 +67,7 @@
     "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "google-auth-library": "^10.6.2",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.6.1",
     "multer": "^2.1.1",

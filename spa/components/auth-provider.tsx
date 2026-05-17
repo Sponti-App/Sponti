@@ -24,6 +24,7 @@ type AuthContextValue = {
   status: Status
   user: AuthUser | null
   login: (email: string, password: string) => Promise<void>
+  loginWithGoogle: (credential: string) => Promise<{ isNewUser: boolean }>
   register: (payload: authApi.RegisterPayload) => Promise<void>
   logout: () => Promise<void>
 }
@@ -31,7 +32,11 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const session = useSyncExternalStore(subscribeSession, readSession, readServerSession)
+  const session = useSyncExternalStore(
+    subscribeSession,
+    readSession,
+    readServerSession
+  )
   // Tracks which token has been confirmed against /auth/me. Until that check
   // resolves the session is "loading" — guards against stale or revoked tokens.
   const [revalidatedFor, setRevalidatedFor] = useState<string | null>(null)
@@ -70,16 +75,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       : "loading"
 
   const handleLogin = useCallback(async (email: string, password: string) => {
-    const { accessToken, refreshToken, user: nextUser } = await authApi.login({ email, password })
+    const {
+      accessToken,
+      refreshToken,
+      user: nextUser,
+    } = await authApi.login({ email, password })
     setSession(accessToken, refreshToken, nextUser)
     setRevalidatedFor(accessToken)
   }, [])
 
-  const handleRegister = useCallback(async (payload: authApi.RegisterPayload) => {
-    const { accessToken, refreshToken, user: nextUser } = await authApi.register(payload)
+  const handleGoogleLogin = useCallback(async (credential: string) => {
+    const {
+      accessToken,
+      refreshToken,
+      user: nextUser,
+      isNewUser,
+    } = await authApi.googleLogin(credential)
     setSession(accessToken, refreshToken, nextUser)
     setRevalidatedFor(accessToken)
+    return { isNewUser: Boolean(isNewUser) }
   }, [])
+
+  const handleRegister = useCallback(
+    async (payload: authApi.RegisterPayload) => {
+      const {
+        accessToken,
+        refreshToken,
+        user: nextUser,
+      } = await authApi.register(payload)
+      setSession(accessToken, refreshToken, nextUser)
+      setRevalidatedFor(accessToken)
+    },
+    []
+  )
 
   const handleLogout = useCallback(async () => {
     const refreshToken = readSession().refreshToken
@@ -101,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status,
         user: session.user,
         login: handleLogin,
+        loginWithGoogle: handleGoogleLogin,
         register: handleRegister,
         logout: handleLogout,
       }}
