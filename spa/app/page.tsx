@@ -117,7 +117,7 @@ export default function Home() {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background">
+    <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
         <button

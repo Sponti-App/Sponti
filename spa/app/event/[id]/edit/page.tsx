@@ -182,7 +182,7 @@ export default function EventEditPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background">
+    <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
       <div className="flex shrink-0 items-center justify-between px-4 py-3">
         <button
           onClick={() => router.push("/event")}
@@ -431,7 +431,7 @@ function FrameMessage({
   onBack: () => void
 }) {
   return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background px-6 text-center">
+    <div className="flex min-h-dvh w-full flex-col items-center justify-center bg-background px-6 text-center">
       <p className="text-sm font-semibold">{title}</p>
       <Button
         onClick={onBack}
@@ -451,7 +451,7 @@ function FrameMissing({
   onBack: () => void
 }) {
   return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background px-6 text-center">
+    <div className="flex min-h-dvh w-full flex-col items-center justify-center bg-background px-6 text-center">
       <p className="text-sm font-semibold">flare not found</p>
       <p className="mt-1 mb-4 text-xs text-muted-foreground">{message}</p>
       <Button
