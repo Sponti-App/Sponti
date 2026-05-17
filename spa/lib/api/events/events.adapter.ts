@@ -6,15 +6,20 @@ import type {
   EventCoordinates,
   EventGuestInviteMode,
   EventItem,
+  EventStatus,
   EventTimeRange,
-  EventType,
+  HostedEvent,
 } from "./events.types"
 
 const MIN = 60_000
 const DAY = 24 * 60 * MIN
 
-// TODO: Replace this fallback once Places/Maps selection provides real
-// coordinates and addresses from the user's chosen location.
+// TODO(places): Replace this fallback once the location picker returns a real
+// place payload: display name, formatted address, and GeoJSON [lng, lat]
+// coordinates. The backend already requires coordinates for every event, so
+// this keeps create-event requests valid during the UI/backend integration
+// phase. Until this is removed, ad-hoc searched/saved locations will be saved
+// with their typed label but Hamburg fallback coordinates.
 export const TEMP_EVENT_LOCATION_FALLBACK = {
   locationName: "Hamburg",
   locationAddress: "Hamburg, Germany",
@@ -22,19 +27,6 @@ export const TEMP_EVENT_LOCATION_FALLBACK = {
     type: "Point" as const,
     coordinates: [9.9937, 53.5511] as [number, number],
   },
-}
-
-const TYPE_KEYWORDS: Array<{ test: RegExp; type: EventType }> = [
-  {
-    test: /coffee|latte|espresso|brunch|breakfast|food|dinner|lunch/i,
-    type: "drinks",
-  },
-  { test: /run|jog|hike|cycle|ride|sports|gym/i, type: "sports" },
-]
-
-function inferType(title: string): EventType {
-  for (const { test, type } of TYPE_KEYWORDS) if (test.test(title)) return type
-  return "hangout"
 }
 
 export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
@@ -162,10 +154,13 @@ function hostFromApi(host: ApiEvent["hostId"]): EventItem["host"] {
  * home map/calendar UI.
  */
 export function adaptApiEvent(api: ApiEvent): EventItem {
+  const hostId =
+    typeof api.hostId === "string" ? api.hostId : api.hostId?._id
   return {
     id: api._id,
+    hostId,
     title: api.title,
-    type: inferType(api.title),
+    type: api.type,
     startAt: api.startAt,
     endAt: api.endAt,
     visibility: api.visibility,
@@ -185,6 +180,77 @@ export function adaptApiEvent(api: ApiEvent): EventItem {
       }
     }),
     going: api.goingCount ?? api.attendees?.length ?? 0,
+  }
+}
+
+/**
+ * Converts a backend event into the hosted-dashboard shape used by /event and
+ * /event/[id]/edit, including member counts and backend status.
+ */
+export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
+  return {
+    id: api._id,
+    title: api.title,
+    description: api.description ?? undefined,
+    startAt: api.startAt,
+    endAt: api.endAt,
+    locationLabel: api.locationName,
+    locationDetail: api.locationAddress ?? undefined,
+    audienceLabel: api.visibility,
+    attendeeCount: api.memberCount ?? api.attendees?.length ?? 0,
+    attendingCount: api.goingCount ?? 0,
+    visibility: api.visibility,
+    recurrence: "none",
+    apiStatus: api.status,
+    updatedAt: api.updatedAt ?? api.startAt,
+  }
+}
+
+/**
+ * Derives the UI display bucket from event time and backend status.
+ */
+export function deriveStatus(
+  event: HostedEvent,
+  currentTime: number = Date.now()
+): EventStatus {
+  if (event.apiStatus === "cancelled") return "cancelled"
+  const start = new Date(event.startAt).getTime()
+  const end = new Date(event.endAt).getTime()
+  if (currentTime >= start && currentTime <= end) return "live"
+  if (currentTime < start) return "upcoming"
+  return "past"
+}
+
+/**
+ * Infers the edit form's date/time inputs from a hosted event's ISO range.
+ */
+export function inferEventStartShape(event: HostedEvent): {
+  mode: "now" | "scheduled"
+  startOffsetMinutes?: number
+  startDate?: string
+  startTime?: string
+  durationMinutes: number
+} {
+  const start = new Date(event.startAt)
+  const end = new Date(event.endAt)
+  const durationMinutes = Math.round((end.getTime() - start.getTime()) / MIN)
+  const diffMin = Math.round((start.getTime() - Date.now()) / MIN)
+
+  if (diffMin >= 0 && diffMin <= 360) {
+    return { mode: "now", startOffsetMinutes: diffMin, durationMinutes }
+  }
+
+  const yyyy = start.getFullYear()
+  const mm = String(start.getMonth() + 1).padStart(2, "0")
+  const dd = String(start.getDate()).padStart(2, "0")
+  const hh = String(start.getHours()).padStart(2, "0")
+  const mi = String(start.getMinutes()).padStart(2, "0")
+
+  return {
+    mode: "scheduled",
+    startDate: `${yyyy}-${mm}-${dd}`,
+    startTime: `${hh}:${mi}`,
+    durationMinutes,
   }
 }
 
@@ -265,6 +331,7 @@ export function createEventRequestFromDraft(
   return {
     title: draft.title.trim() || draft.eventType,
     description: draft.details?.trim() ? draft.details.trim() : null,
+    type: draft.eventType,
     startAt: timeRange.startAt,
     endAt: timeRange.endAt,
     ...locationFromDraft(draft),
@@ -278,7 +345,12 @@ export function createEventRequestFromDraft(
     members:
       target.kind === "members"
         ? target.memberIds.map((userId) => ({ userId, role: "guest" }))
-        : [],
+        : target.kind === "circle" && target.extraMemberIds
+          ? target.extraMemberIds.map((userId) => ({
+              userId,
+              role: "guest" as const,
+            }))
+          : [],
   }
 }
 

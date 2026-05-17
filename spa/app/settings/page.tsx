@@ -1,9 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Bell, Clock, Lock, MapPin, Shield, User } from "lucide-react"
+import {
+  ArrowLeft,
+  Bell,
+  Camera,
+  Clock,
+  Link2,
+  Lock,
+  LogOut,
+  MapPin,
+  Shield,
+  Upload,
+  User,
+} from "lucide-react"
 import { BottomNav } from "@/components/bottom-nav"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,6 +24,20 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/components/auth-provider"
+import { updateProfile, uploadAvatar } from "@/lib/api/auth"
+import {
+  getRefreshToken,
+  getToken,
+  setSession,
+  type AuthUser,
+} from "@/lib/auth-store"
+import {
+  initialsFromName,
+  normalizeUsername,
+  readFileAsDataUrl,
+  readProfileExtras,
+  saveProfileExtras,
+} from "@/lib/profile"
 
 // ─── Types mirroring the DB schemas exactly ────────────────────────────────
 //
@@ -24,6 +51,8 @@ type AccountDraft = {
   username: string           // users.username
   email: string              // users.email
   profileVisibility: ProfileVisibility  // users.profileVisibility
+  instagram: string          // client-only extras (localStorage)
+  telegram: string           // client-only extras (localStorage)
 }
 
 // Notification fields come from the `notification_settings` collection (one doc per user).
@@ -65,16 +94,49 @@ const VISIBILITY_OPTIONS: { value: ProfileVisibility; label: string; sublabel: s
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
-  const router = useRouter()
   const { user } = useAuth()
+  if (!user) return null
+  return <SettingsPageContent key={`${user.id}:${user.updatedAt}`} user={user} />
+}
+
+function SettingsPageContent({ user }: { user: AuthUser }) {
+  const router = useRouter()
+  const { logout } = useAuth()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const extras = readProfileExtras(user.id)
 
   // Account draft — seeded from auth session; replace with API response when wired
   const [account, setAccount] = useState<AccountDraft>({
-    displayName: user?.displayName ?? "",
-    username: user?.username ?? "",
-    email: user?.email ?? "",
+    displayName: user.displayName ?? "",
+    username: user.username ?? "",
+    email: user.email ?? "",
     profileVisibility: "connections_only",
+    instagram: extras.instagram,
+    telegram: extras.telegram,
   })
+
+  const [avatarPreview, setAvatarPreview] = useState<string>(user.avatarUrl ?? "")
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [savingAccount, setSavingAccount] = useState(false)
+
+  const avatarInitials = useMemo(
+    () => initialsFromName(account.displayName),
+    [account.displayName],
+  )
+
+  const handleAvatarPick = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    try {
+      const nextAvatar = await readFileAsDataUrl(file)
+      setAvatarPreview(nextAvatar)
+      setPendingAvatarFile(file)
+      setUploadError(null)
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Could not read file")
+    }
+  }
 
   // Notification draft — replace initial values with API response when wired
   const [notif, setNotif] = useState<NotificationDraft>({
@@ -100,10 +162,42 @@ export default function SettingsPage() {
     setNotif((prev) => ({ ...prev, ...partial }))
 
   // ── Submit handlers — swap TODO bodies for real fetch calls ───────────────
-  const handleSaveAccount = () => {
-    // TODO: PATCH /api/users/me
-    // const { displayName, username, email, profileVisibility, socialBattery } = account
-    // await apiFetch("/api/users/me", { method: "PATCH", body: JSON.stringify({ displayName, username, email, profileVisibility, socialBattery }) })
+  const handleSaveAccount = async () => {
+    if (savingAccount) return
+    setSavingAccount(true)
+    setUploadError(null)
+
+    let nextAvatarUrl: string | null = user.avatarUrl ?? null
+
+    try {
+      if (pendingAvatarFile) {
+        const { avatarUrl } = await uploadAvatar(pendingAvatarFile)
+        nextAvatarUrl = avatarUrl
+        setPendingAvatarFile(null)
+      }
+
+      const { user: updatedUser } = await updateProfile({
+        displayName: account.displayName.trim(),
+        username: normalizeUsername(account.username),
+        email: account.email.trim(),
+      })
+
+      const mergedUser: AuthUser = { ...updatedUser, avatarUrl: nextAvatarUrl }
+      const token = getToken()
+      const refreshToken = getRefreshToken()
+      if (token && refreshToken) setSession(token, refreshToken, mergedUser)
+
+      saveProfileExtras(user.id, {
+        instagram: account.instagram.trim(),
+        telegram: account.telegram.trim(),
+      })
+
+      // TODO: PATCH /api/users/me for profileVisibility once backend lands
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Could not save profile")
+    } finally {
+      setSavingAccount(false)
+    }
   }
 
   const handleChangePassword = () => {
@@ -125,7 +219,7 @@ export default function SettingsPage() {
     password.newPassword === password.confirmPassword
 
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col relative">
+    <div className="min-h-dvh w-full bg-background flex flex-col relative">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-border">
         <button
@@ -157,6 +251,47 @@ export default function SettingsPage() {
 
           {/* ────────────────── Account tab ────────────────── */}
           <TabsContent value="account" className="px-4 pt-5 space-y-6">
+
+            {/* Avatar — users.avatarUrl, uploaded via POST /auth/me/avatar */}
+            <Section icon={Camera} label="Profile picture">
+              <div className="flex items-start gap-4">
+                <Avatar className="h-20 w-20 ring-1 ring-border bg-muted">
+                  <AvatarImage
+                    src={avatarPreview || undefined}
+                    alt={account.displayName}
+                  />
+                  <AvatarFallback className="bg-accent/10 text-base font-semibold text-accent">
+                    {avatarInitials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Upload a photo from your device. Saved when you press “Save changes”.
+                  </p>
+                  {uploadError && (
+                    <p className="text-xs leading-relaxed text-destructive">
+                      {uploadError}
+                    </p>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-full"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4" />
+                    upload photo
+                  </Button>
+                  <Input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarPick}
+                  />
+                </div>
+              </div>
+            </Section>
 
             {/* Profile — users: displayName, username, email */}
             <Section icon={User} label="Profile">
@@ -217,11 +352,40 @@ export default function SettingsPage() {
               </RadioGroup>
             </Section>
 
+            {/* Social links — client-only extras stored in localStorage */}
+            <Section icon={Link2} label="Social links">
+              <div className="space-y-3">
+                <Field label="Instagram">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm select-none">@</span>
+                    <Input
+                      value={account.instagram}
+                      onChange={(e) => patchAccount({ instagram: e.target.value })}
+                      placeholder="yourhandle"
+                      className="pl-7"
+                    />
+                  </div>
+                </Field>
+                <Field label="Telegram">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm select-none">@</span>
+                    <Input
+                      value={account.telegram}
+                      onChange={(e) => patchAccount({ telegram: e.target.value })}
+                      placeholder="yourhandle"
+                      className="pl-7"
+                    />
+                  </div>
+                </Field>
+              </div>
+            </Section>
+
             <Button
               className="w-full rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
-              onClick={handleSaveAccount}
+              disabled={savingAccount}
+              onClick={() => void handleSaveAccount()}
             >
-              Save changes
+              {savingAccount ? "Saving..." : "Save changes"}
             </Button>
 
             {/* Password — POST /auth/change-password (not in users schema directly) */}
@@ -261,6 +425,18 @@ export default function SettingsPage() {
                 </Button>
               </div>
             </Section>
+
+            <div className="flex justify-end pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => logout()}
+                className="rounded-full border-destructive/20 text-destructive hover:bg-destructive/10"
+              >
+                <LogOut className="h-4 w-4" />
+                sign out
+              </Button>
+            </div>
           </TabsContent>
 
           {/* ────────────────── Notifications tab ────────────────── */}

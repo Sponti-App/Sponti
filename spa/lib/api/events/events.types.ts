@@ -1,6 +1,6 @@
 export type EventVisibility = "public" | "private"
 export type EventRsvp = "invited" | "going" | "maybe" | "declined"
-export type EventType = "food" | "drinks" | "sports" | "hangout"
+export type EventType = "food" | "drinks" | "sports" | "hangout" | "party" | "culture" | "hobby"
 export type RsvpStatus = Extract<EventRsvp, "going" | "maybe" | "declined">
 export type EventGuestInviteMode = "multiple" | "single" | "none"
 export type EventInviteRole = "admin" | "guest"
@@ -8,6 +8,7 @@ export type ApiEventStatus = "active" | "cancelled" | "completed"
 
 export interface EventItem {
   id: string
+  hostId?: string
   title: string
   type: EventType
   startAt: string
@@ -71,13 +72,11 @@ export type HostedEvent = {
   locationLabel: string
   locationDetail?: string
   audienceLabel: string
-  // Resolved member ids — backed by event_members.userId on the server.
-  attendeeIds: string[]
-  // Subset who said yes (rsvpStatus === "yes").
-  attendingIds: string[]
+  attendeeCount: number
+  attendingCount: number
   visibility: EventVisibility
   recurrence: Recurrence
-  cancelledAt?: string
+  apiStatus: ApiEventStatus
   updatedAt: string
 }
 
@@ -88,7 +87,9 @@ export type EventCoordinates = {
 
 export type EventAudienceTarget =
   | { kind: "public" }
-  | { kind: "circle"; circleId: string }
+  // `extraMemberIds` rides along on top of the circle invite — used when the
+  // user picks "all friends" and also taps specific people to invite directly.
+  | { kind: "circle"; circleId: string; extraMemberIds?: string[] }
   | { kind: "members"; memberIds: string[] }
 
 export type EventTimeRange = {
@@ -109,6 +110,7 @@ export type EventCircleInviteRequest = {
 export type CreateEventRequest = {
   title: string
   description?: string | null
+  type: EventType
   startAt: string
   endAt: string
   locationName: string
@@ -124,6 +126,23 @@ export type CreateEventRequest = {
   circles?: EventCircleInviteRequest[]
 }
 
+export type UpdateEventRequest = Partial<
+  Pick<
+    CreateEventRequest,
+    | "title"
+    | "description"
+    | "type"
+    | "startAt"
+    | "endAt"
+    | "locationName"
+    | "locationAddress"
+    | "location"
+    | "visibility"
+    | "allowGuestInvites"
+    | "guestInviteLimit"
+  >
+>
+
 export type ApiEventMember = {
   _id: string
   eventId: string
@@ -138,6 +157,7 @@ export type ApiEvent = {
   hostId: string | { _id: string; displayName?: string; username?: string }
   title: string
   description?: string | null
+  type: EventType
   startAt: string
   endAt: string
   locationName: string
@@ -148,8 +168,11 @@ export type ApiEvent = {
   guestInviteLimit: number
   status: ApiEventStatus
   myRsvp?: EventRsvp | null
+  memberCount?: number
   goingCount?: number
   attendees?: Array<{ _id: string; displayName?: string; username?: string }>
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type CreateEventResponse = {
@@ -178,6 +201,18 @@ export type FetchCalendarEventsParams = {
 export type FetchCalendarEventsResult = {
   items: EventItem[]
   pagination: Paginated<unknown>["pagination"]
+}
+
+export type MyFlaresResult = {
+  hostedByMe: HostedEvent[]
+  invited: HostedEvent[]
+  pastHosted: HostedEvent[]
+}
+
+export type MyFlaresState = MyFlaresResult & {
+  loading: boolean
+  error: string | null
+  refresh: () => void
 }
 
 export type EventsState = {

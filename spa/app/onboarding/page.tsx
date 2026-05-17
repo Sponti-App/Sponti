@@ -37,7 +37,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <main className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background text-foreground">
+    <main className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background text-foreground">
       <OnboardingStyles />
       <header className="flex h-[58px] shrink-0 items-center justify-between px-6 pt-2">
         <div className="flex items-center gap-2.5">
@@ -111,6 +111,26 @@ export default function OnboardingPage() {
                 >
                   Skip
                 </Button>
+              )}
+
+              {isLast && (
+                <p className="pt-1 text-center text-[11.5px] leading-5 text-muted-foreground">
+                  By continuing, you agree to Sponti&apos;s{" "}
+                  <Link
+                    href="/menu/terms"
+                    className="text-foreground underline underline-offset-2"
+                  >
+                    Terms
+                  </Link>{" "}
+                  and{" "}
+                  <Link
+                    href="/menu/privacy"
+                    className="text-foreground underline underline-offset-2"
+                  >
+                    Privacy
+                  </Link>
+                  .
+                </p>
               )}
             </div>
           </div>

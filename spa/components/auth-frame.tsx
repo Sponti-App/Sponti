@@ -12,7 +12,7 @@ export function AuthFrame({
   footer?: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen w-full bg-background relative overflow-hidden flex flex-col">
+    <div className="min-h-dvh w-full bg-background relative overflow-hidden flex flex-col">
       <div className="flex-1 flex flex-col px-6 pt-8 pb-10 overflow-y-auto">
         <div className="flex items-center gap-2 mb-8">
           <div className="h-9 w-9 rounded-full bg-accent text-accent-foreground flex items-center justify-center">

@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/http"
-import { adaptApiEvent } from "./events.adapter"
+import { adaptApiEvent, adaptApiHostedEvent } from "./events.adapter"
 import type {
   ApiEvent,
   CreateEventRequest,
@@ -7,11 +7,14 @@ import type {
   FetchCalendarEventsParams,
   FetchCalendarEventsResult,
   FetchMapEventsParams,
+  MyFlaresResult,
   Paginated,
   RsvpStatus,
+  UpdateEventRequest,
 } from "./events.types"
 
 /**
+ * POST	/events
  * Posts a fully adapted event create payload and returns the backend event
  * plus EventMember rows. The create form currently awaits this as the API
  * success signal before writing its temporary local compatibility copy.
@@ -26,6 +29,7 @@ export function createEvent(
 }
 
 /**
+ * GET /events/map/active
  * Loads active nearby events for the home map and converts backend documents
  * into the frontend EventItem shape.
  */
@@ -42,6 +46,7 @@ export function fetchMapEvents(params: FetchMapEventsParams) {
 }
 
 /**
+ * GET /events/calendar/upcoming
  * Loads upcoming events for the calendar view while preserving backend
  * pagination metadata.
  */
@@ -61,13 +66,62 @@ export function fetchCalendarEvents(
   }))
 }
 
-/**
+/** GET /events/:id
  * Fetches one event and adapts it for detail surfaces that expect EventItem.
  */
 export function fetchEventById(id: string, signal?: AbortSignal) {
   return apiFetch<{ data: ApiEvent }>(`/events/${id}`, { signal }).then(
     (response) => adaptApiEvent(response.data)
   )
+}
+
+export function fetchMyHostedEvents(
+  signal?: AbortSignal
+): Promise<MyFlaresResult["hostedByMe"]> {
+  return fetchMyFlares(signal).then((result) => result.hostedByMe)
+}
+
+export function fetchMyFlares(signal?: AbortSignal): Promise<MyFlaresResult> {
+  const query = new URLSearchParams({
+    endAtFrom: new Date().toISOString(),
+  })
+
+  return apiFetch<{
+    data: {
+      hostedByMe: ApiEvent[]
+      invited: ApiEvent[]
+      pastHosted?: ApiEvent[]
+    }
+  }>(`/events/mine/upcoming?${query}`, { signal }).then((response) => ({
+    hostedByMe: response.data.hostedByMe.map(adaptApiHostedEvent),
+    invited: response.data.invited.map(adaptApiHostedEvent),
+    pastHosted: (response.data.pastHosted ?? []).map(adaptApiHostedEvent),
+  }))
+}
+
+export function fetchHostedEventById(id: string, signal?: AbortSignal) {
+  return apiFetch<{ data: ApiEvent }>(`/events/${id}`, { signal }).then(
+    (response) => adaptApiHostedEvent(response.data)
+  )
+}
+
+export function updateEvent(id: string, body: UpdateEventRequest) {
+  return apiFetch<{ data: ApiEvent }>(`/events/${id}`, {
+    method: "PATCH",
+    body,
+  }).then((response) => adaptApiHostedEvent(response.data))
+}
+
+export function cancelEvent(id: string) {
+  return apiFetch<{ data: ApiEvent }>(`/events/${id}/cancel`, {
+    method: "PATCH",
+  }).then((response) => adaptApiHostedEvent(response.data))
+}
+
+export function reactivateEvent(id: string) {
+  return apiFetch<{ data: ApiEvent }>(`/events/${id}/reactivate`, {
+    method: "PATCH",
+  }).then((response) => adaptApiHostedEvent(response.data))
 }
 
 /**
