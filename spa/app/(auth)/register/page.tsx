@@ -89,7 +89,7 @@ export default function RegisterPage() {
   )
 
   return (
-    <main className="flex min-h-screen w-full flex-col overflow-hidden bg-background text-foreground">
+    <main className="flex min-h-dvh w-full flex-col overflow-hidden bg-background text-foreground">
       <style>{`
         .sponti-register-mark::after {
           content: "";

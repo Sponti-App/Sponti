@@ -117,7 +117,7 @@ export default function Home() {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background">
+    <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
         <button
@@ -208,20 +208,17 @@ export default function Home() {
         )}
       </div>
 
-      {/* Event Detail Sheet — covers content + nav when open (z-50) */}
-      {selectedEvent && (
-        <div className="absolute inset-0 z-50">
-          <EventDetailSheet
-            event={selectedEvent}
-            joined={isJoined(selectedEvent, joinedIds)}
-            isHost={!!user && selectedEvent.hostId === user.id}
-            onClose={() => setSelectedEvent(null)}
-            onJoin={handleJoin}
-            onLeave={handleLeave}
-            onSeeRoute={handleSeeRoute}
-          />
-        </div>
-      )}
+      {/* Event Detail Sheet — vaul drawer, portal-rendered at z-50 */}
+      <EventDetailSheet
+        open={!!selectedEvent}
+        event={selectedEvent}
+        joined={selectedEvent ? isJoined(selectedEvent, joinedIds) : false}
+        isHost={!!user && !!selectedEvent && selectedEvent.hostId === user.id}
+        onClose={() => setSelectedEvent(null)}
+        onJoin={handleJoin}
+        onLeave={handleLeave}
+        onSeeRoute={handleSeeRoute}
+      />
 
       {/* Bottom Nav — solid bar anchored to bottom (z-40) */}
       <div className="absolute right-0 bottom-0 left-0 z-40">
