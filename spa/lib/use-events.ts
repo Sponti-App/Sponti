@@ -23,6 +23,25 @@ import {
 } from "./api/events"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
+type EventsChangedListener = () => void
+
+// Avoids duplicates, easy add and remove.
+const eventsChangedListeners = new Set<EventsChangedListener>()
+
+export function emitEventsChanged(): void {
+  for (const listener of eventsChangedListeners) {
+    listener()
+  }
+}
+
+export function subscribeToEventsChanged(
+  listener: EventsChangedListener
+): () => void {
+  eventsChangedListeners.add(listener)
+  return () => {
+    eventsChangedListeners.delete(listener)
+  }
+}
 
 function useApiEnabled() {
   return API_BASE.length > 0
@@ -40,6 +59,11 @@ export function useMapEvents(
     refresh: () => {},
   })
   const [tick, setTick] = useState(0)
+
+  useEffect(() => {
+    if (!apiEnabled) return
+    return subscribeToEventsChanged(() => setTick((n) => n + 1))
+  }, [apiEnabled])
 
   useEffect(() => {
     if (!apiEnabled) return
@@ -105,6 +129,11 @@ export function useCalendarEvents(): EventsState {
 
   useEffect(() => {
     if (!apiEnabled) return
+    return subscribeToEventsChanged(() => setTick((n) => n + 1))
+  }, [apiEnabled])
+
+  useEffect(() => {
+    if (!apiEnabled) return
     const ac = new AbortController()
     queueMicrotask(() => {
       if (ac.signal.aborted) return
@@ -163,6 +192,11 @@ export function useMyFlares(): MyFlaresState {
     refresh: () => {},
   })
   const [tick, setTick] = useState(0)
+
+  useEffect(() => {
+    if (!apiEnabled) return
+    return subscribeToEventsChanged(() => setTick((n) => n + 1))
+  }, [apiEnabled])
 
   useEffect(() => {
     if (!apiEnabled) return
