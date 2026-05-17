@@ -285,6 +285,7 @@ Table qr_contact_tokens {
   indexes {
     (tokenHash)
     (userId)
+    (expiresAt)
   }
 }
 ```

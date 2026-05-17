@@ -67,7 +67,10 @@ Authenticated `/api/v1`:
 - `GET /inbox/me`
 - `GET /users/search?q=<username-or-display-name>`
 
-QR token routes currently return `501` until the frontend contract is finalized.
+QR contact tokens are hashed at rest, expire after 15 minutes, and resolve to a
+confirmation payload. Multiple unexpired tokens can remain valid so a refreshed
+QR does not break an in-flight scan. Passing `connect: true` to
+`/qr-contact-tokens/resolve` sends or accepts a QR connection request.
 
 ## Notes
 

@@ -32,6 +32,7 @@ const qrContactTokenSchema = new Schema(
 );
 
 qrContactTokenSchema.index({ userId: 1 });
+qrContactTokenSchema.index({ expiresAt: 1 });
 
 export type QrContactTokenDocument = InferSchemaType<typeof qrContactTokenSchema>;
 
