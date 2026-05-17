@@ -67,8 +67,8 @@ Base path: `/api/v1`
 | `GET` | `/inbox/me` | Yes | none | `{ data: { connectionRequests, eventInvitations } }` | notifications popover |
 | `GET` | `/notification-settings/me` | Yes | none | `{ data: NotificationSettings }` | future settings screen |
 | `PATCH` | `/notification-settings/me` | Yes | settings patch | `{ data: NotificationSettings }` | future settings screen |
-| `POST` | `/qr-contact-tokens` | Yes | `{}` | currently `501` | QR share sheet, not demo-safe yet |
-| `POST` | `/qr-contact-tokens/resolve` | Yes | `{ token }` | currently `501` | QR scan, not demo-safe yet |
+| `POST` | `/qr-contact-tokens` | Yes | `{}` | `{ data: { token, expiresAt, expiresInSeconds } }` | QR share sheet |
+| `POST` | `/qr-contact-tokens/resolve` | Yes | `{ token, connect? }` | `{ data: { profile, relationship, canConnect, expiresAt, connection } }` | QR scan confirmation / connect |
 
 Common API errors:
 
@@ -81,4 +81,4 @@ Common API errors:
 - `404 *_NOT_FOUND`
 - `409 DUPLICATE_RESOURCE` or domain conflict
 - `500 INTERNAL_SERVER_ERROR`
-- `501 QR_TOKENS_NOT_IMPLEMENTED`
+- `410 QR_CONTACT_TOKEN_EXPIRED`
