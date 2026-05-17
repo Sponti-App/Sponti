@@ -37,7 +37,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <main className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background text-foreground">
+    <main className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background text-foreground">
       <OnboardingStyles />
       <header className="flex h-[58px] shrink-0 items-center justify-between px-6 pt-2">
         <div className="flex items-center gap-2.5">

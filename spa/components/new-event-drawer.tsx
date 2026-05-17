@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Drawer } from "vaul"
+import { haptic } from "@/lib/haptics"
 import {
   Check,
   MapPin,
@@ -762,7 +763,7 @@ export function NewEventDrawer({
         }
         throw err
       }
-      created = true
+      haptic("success")
       onClose()
     } catch (error) {
       setSubmitError(formatSubmitError(error))
@@ -777,11 +778,15 @@ export function NewEventDrawer({
       <Drawer.Root
         open={open}
         onOpenChange={(next) => {
-          if (!next) onClose()
+          if (next) haptic("medium")
+          else { haptic("light"); onClose() }
         }}
         snapPoints={[0.55, 0.8, 0.95]}
         activeSnapPoint={activeSnapPoint}
-        setActiveSnapPoint={setActiveSnapPoint}
+        setActiveSnapPoint={(snap) => {
+          haptic("selection")
+          setActiveSnapPoint(snap)
+        }}
         dismissible
       >
         <Drawer.Portal>

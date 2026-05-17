@@ -34,14 +34,22 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="flex min-h-dvh items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
       </div>
     )
   }
 
-  if (status === "unauthenticated" && !isPublic) return null
-  if (status === "authenticated" && (isAuthPage || isOnboardingPage)) return null
+  if (status === "unauthenticated" && !isPublic) return (
+    <div className="flex min-h-dvh items-center justify-center bg-background">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+    </div>
+  )
+  if (status === "authenticated" && (isAuthPage || isOnboardingPage)) return (
+    <div className="flex min-h-dvh items-center justify-center bg-background">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+    </div>
+  )
 
   return <>{children}</>
 }

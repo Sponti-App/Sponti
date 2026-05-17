@@ -143,7 +143,7 @@ export default function CirclesPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background">
+    <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between px-4 py-3">
         <button
