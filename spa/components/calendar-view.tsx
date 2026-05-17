@@ -4,6 +4,8 @@ import { useMemo, useState } from "react"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { useAuth } from "@/components/auth-provider"
+import MonthCalendar from "@/components/month-calendar"
 import {
   Check,
   ChevronLeft,
@@ -55,9 +57,6 @@ function formatDayChip(
   }
 }
 
-// Calendar horizon — we cap visibility two weeks past today.
-const MAX_DAYS_AHEAD = 14
-
 function startOfWeek(date: Date): Date {
   // Monday-based week
   const d = new Date(date)
@@ -73,11 +72,16 @@ function addDays(date: Date, n: number): Date {
   d.setDate(d.getDate() + n)
   return d
 }
-
+function addMonths(date: Date, n: number): Date {
+  return new Date(date.getFullYear(), date.getMonth() + n, 1)
+}
+function endOfNextMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth() + 2, 0)
+}
 function isSameDay(a: Date, b: Date): boolean {
   return dayKey(a) === dayKey(b)
 }
-
+// Week-view formatting helpers
 function ordinal(n: number): string {
   const v = n % 100
   if (v >= 11 && v <= 13) return `${n}th`
@@ -95,6 +99,7 @@ function ordinal(n: number): string {
 
 // ISO-style: a week "belongs to" the month containing its Thursday.
 // Returns e.g. "1st week of May 2026".
+// Week-view formatting helpers
 function weekHeaderLabel(weekStart: Date): string {
   const thursday = addDays(weekStart, 3)
   const month = thursday.getMonth()
@@ -130,8 +135,9 @@ export function CalendarView({
     d.setHours(0, 0, 0, 0)
     return d
   }, [])
-  const [anchor, setAnchor] = useState<Date>(today) // controls visible week
+  const [anchor, setAnchor] = useState<Date>(today) // controls visible week/month
   const [selected, setSelected] = useState<Date>(today)
+  const [viewMode, setViewMode] = useState<"week" | "month">("week")
   const { events, loading, error, refresh } = useCalendarEvents()
 
   const weekStart = useMemo(() => startOfWeek(anchor), [anchor])
@@ -162,7 +168,7 @@ export function CalendarView({
   // Upcoming (after the selected day) — show as agenda below the selection
   const agenda = useMemo(() => {
     const selKey = dayKey(selected)
-    const horizonKey = dayKey(addDays(new Date(), MAX_DAYS_AHEAD))
+    const horizonKey = dayKey(endOfNextMonth(today)) // far future cutoff to prevent runaway lists
     const list: Array<{ day: Date; items: EventItem[] }> = []
     const seen = new Set<string>()
     for (const event of events) {
@@ -175,26 +181,34 @@ export function CalendarView({
       list.push({ day: new Date(`${key}T00:00:00`), items })
     }
     return list.slice(0, 5)
-  }, [events, eventsByDay, selected])
+  }, [events, eventsByDay, selected, today])
 
-  const headerLabel = weekHeaderLabel(weekStart)
-
-  // Two-week horizon: max selectable day is today + 14d. Disable Next when
-  // the entire next week sits past that cap.
-  const maxDate = useMemo(() => addDays(today, MAX_DAYS_AHEAD), [today])
+  // Navigation horizon — limit planning to the current and next month.
+  const maxDate = useMemo(() => endOfNextMonth(today), [today])
   const nextWeekStart = useMemo(() => addDays(weekStart, 7), [weekStart])
-  const canGoNext = nextWeekStart.getTime() <= maxDate.getTime()
-  const showTodayPill = !isSameDay(weekStart, startOfWeek(today))
+  const canGoNext =
+    viewMode === "month"
+      ? anchor.getFullYear() < today.getFullYear() ||
+      anchor.getMonth() < today.getMonth() + 1
+      : nextWeekStart.getTime() <= maxDate.getTime()
+  const showTodayPill =
+    viewMode === "month"
+      ? anchor.getMonth() !== today.getMonth() ||
+      anchor.getFullYear() !== today.getFullYear()
+      : !isSameDay(weekStart, startOfWeek(today))
 
-  const goPrevWeek = () => setAnchor((d) => addDays(d, -7))
-  const goNextWeek = () => {
-    if (!canGoNext) return
-    setAnchor((d) => addDays(d, 7))
-  }
   const goToday = () => {
     setAnchor(today)
     setSelected(today)
   }
+
+  const goPrev = () => {
+    setAnchor((d) => (viewMode === "month" ? addMonths(d, -1) : addDays(d, -7)))
+  }
+  const goNext = () => {
+    setAnchor((d) => (viewMode === "month" ? addMonths(d, 1) : addDays(d, 7)))
+  }
+
 
   return (
     /* pb-28 leaves room for the floating nav pill */
@@ -202,10 +216,19 @@ export function CalendarView({
       {/* Sticky header + week strip — stays pinned while the agenda scrolls.
           top-14 clears the floating header chip row (~56px). */}
       <div className="sticky top-14 z-10 -mx-4 border-b border-border/60 bg-background px-4 pt-2 pb-2">
-        {/* Week Header with nav */}
+        {/* Calendar header with navigation */}
         <div className="mb-4 flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 className="truncate text-xl font-semibold">{headerLabel}</h2>
+            <h2 className="truncate text-xl font-semibold">
+              {anchor.getMonth() !== undefined && (
+                <>
+                  {MONTH_NAMES[anchor.getMonth()]}{" "}
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {anchor.getFullYear()}
+                  </span>
+                </>
+              )}
+            </h2>
             {showTodayPill && (
               <button
                 type="button"
@@ -216,20 +239,39 @@ export function CalendarView({
               </button>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
+        </div>
+
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={goPrevWeek}
-              aria-label="Previous week"
+              onClick={() => setViewMode("week")}
+              className={`rounded-full px-2 py-1 text-sm font-medium transition-colors ${viewMode === "week" ? "bg-accent text-accent-foreground" : "text-foreground"}`}
+            >
+              week
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("month")}
+              className={`rounded-full px-2 py-1 text-sm font-medium transition-colors ${viewMode === "month" ? "bg-accent text-accent-foreground" : "text-foreground"}`}
+            >
+              month
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={goPrev}
+              aria-label="Previous"
               className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-secondary active:bg-muted"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <button
               type="button"
-              onClick={goNextWeek}
+              onClick={goNext}
               disabled={!canGoNext}
-              aria-label="Next week"
+              aria-label="Next"
               className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-secondary active:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-background"
             >
               <ChevronRight className="h-4 w-4" />
@@ -237,71 +279,81 @@ export function CalendarView({
           </div>
         </div>
 
-        {/* Week strip — chip style mirrors the event-creation date strip */}
-        <div className="mb-6 grid grid-cols-7 gap-1.5">
-          {weekDays.map((day) => {
-            const isToday = isSameDay(day, today)
-            const isSelected = isSameDay(day, selected)
-            const hasEvents = (eventsByDay.get(dayKey(day))?.length ?? 0) > 0
-            const beyondHorizon = day.getTime() > maxDate.getTime()
-            const chip = formatDayChip(day, today)
-            return (
-              <button
-                key={day.toISOString()}
-                type="button"
-                onClick={() => {
-                  if (beyondHorizon) return
-                  setSelected(day)
-                }}
-                disabled={beyondHorizon}
-                aria-pressed={isSelected}
-                aria-label={day.toLocaleDateString(undefined, {
-                  weekday: "long",
-                  month: "short",
-                  day: "numeric",
-                })}
-                className={`flex flex-col items-center rounded-xl border px-1 py-2 transition-colors ${
-                  beyondHorizon
+        {viewMode === "week" ? (
+          <div className="mb-6 grid grid-cols-7 gap-1.5">
+            {weekDays.map((day) => {
+              const isToday = isSameDay(day, today)
+              const isSelected = isSameDay(day, selected)
+              const hasEvents = (eventsByDay.get(dayKey(day))?.length ?? 0) > 0
+              const beyondHorizon = day.getTime() > maxDate.getTime()
+              const chip = formatDayChip(day, today)
+              return (
+                <button
+                  key={day.toISOString()}
+                  type="button"
+                  onClick={() => {
+                    if (beyondHorizon) return
+                    setSelected(day)
+                  }}
+                  disabled={beyondHorizon}
+                  aria-pressed={isSelected}
+                  aria-label={day.toLocaleDateString(undefined, {
+                    weekday: "long",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                  className={`flex flex-col items-center rounded-xl border px-1 py-2 transition-colors ${beyondHorizon
                     ? "cursor-not-allowed border-border/40 bg-background opacity-40"
                     : isSelected
                       ? "border-accent bg-accent/10"
                       : isToday
                         ? "border-accent/60 bg-background hover:bg-secondary"
                         : "border-border bg-background hover:bg-secondary"
-                }`}
-              >
-                <span
-                  className={`text-[11px] ${
-                    isSelected
+                    }`}
+                >
+                  <span
+                    className={`text-[11px] ${isSelected
                       ? "text-accent"
                       : isToday
                         ? "text-accent"
                         : "text-muted-foreground"
-                  }`}
-                >
-                  {chip.weekday}
-                </span>
-                <span
-                  className={`mt-0.5 text-base leading-none font-medium ${
-                    isSelected || isToday ? "text-accent" : "text-foreground"
-                  }`}
-                >
-                  {chip.date}
-                </span>
-                <div
-                  className={`mt-1 h-1 w-1 rounded-full ${
-                    hasEvents
+                      }`}
+                  >
+                    {chip.weekday}
+                  </span>
+                  <span
+                    className={`mt-0.5 text-base leading-none font-medium ${isSelected || isToday ? "text-accent" : "text-foreground"
+                      }`}
+                  >
+                    {chip.date}
+                  </span>
+                  <div
+                    className={`mt-1 h-1 w-1 rounded-full ${hasEvents
                       ? isSelected || isToday
                         ? "bg-accent"
                         : "bg-foreground"
                       : "bg-transparent"
-                  }`}
-                  aria-hidden
-                />
-              </button>
-            )
-          })}
-        </div>
+                      }`}
+                    aria-hidden
+                  />
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <MonthCalendar
+            anchorMonth={anchor}
+            selected={selected}
+            today={today}
+            eventsByDay={eventsByDay}
+            onSelectDay={(d: Date) => {
+              setAnchor(d)
+              setSelected(d)
+            }}
+            onEventSelect={onEventSelect}
+            joinedIds={joinedIds}
+          />
+        )}
       </div>
 
       <div className="pt-4" />
@@ -337,7 +389,7 @@ export function CalendarView({
           loading events…
         </p>
       )}
-      {error && (
+      {error && events.length === 0 && (
         <div className="my-4 rounded-xl border border-border p-4 text-center">
           <AlertCircle className="mx-auto mb-2 h-5 w-5 text-destructive" />
           <p className="mb-3 text-sm text-muted-foreground">{error}</p>
@@ -458,9 +510,8 @@ function EventCard({
   const live = isLive(event)
   return (
     <Card
-      className={`cursor-pointer flex-row items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/50 active:bg-muted ${
-        joined ? "border-accent bg-accent/5" : "border-border"
-      }`}
+      className={`cursor-pointer flex-row items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/50 active:bg-muted ${joined ? "border-accent bg-accent/5" : "border-border"
+        }`}
       onClick={() => onSelect(event)}
     >
       <span className="w-12 shrink-0 text-sm text-muted-foreground tabular-nums">
