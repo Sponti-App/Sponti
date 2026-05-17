@@ -1,43 +1,10 @@
 "use client"
 
-import { useMemo } from "react"
-import { Share2, X } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import QRCode from "qrcode"
+import { Check, Loader2, RefreshCw, Share2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-
-// Deterministic QR-shaped pattern keyed on the handle. Real codes will come
-// from qr_contact_tokens once the backend issues them — this is the placeholder.
-function buildCells(value: string): boolean[][] {
-  const SIZE = 21
-  let seed = 0
-  for (let i = 0; i < value.length; i++) seed = (seed * 31 + value.charCodeAt(i)) >>> 0
-
-  const next = (): number => {
-    seed = (seed * 1103515245 + 12345) >>> 0
-    return (seed >>> 16) & 1
-  }
-
-  const grid: boolean[][] = []
-  for (let r = 0; r < SIZE; r++) {
-    const row: boolean[] = []
-    for (let c = 0; c < SIZE; c++) {
-      const inFinder =
-        (r < 7 && c < 7) ||
-        (r < 7 && c >= SIZE - 7) ||
-        (r >= SIZE - 7 && c < 7)
-      if (inFinder) {
-        const lr = r < 7 ? r : r - (SIZE - 7)
-        const lc = c < 7 ? c : c - (SIZE - 7)
-        const outer = lr === 0 || lr === 6 || lc === 0 || lc === 6
-        const inner = lr >= 2 && lr <= 4 && lc >= 2 && lc <= 4
-        row.push(outer || inner)
-      } else {
-        row.push(next() === 1)
-      }
-    }
-    grid.push(row)
-  }
-  return grid
-}
+import { createQrContactToken } from "@/lib/api/qr-contact-tokens"
 
 export function QrShareSheet({
   displayName,
@@ -48,7 +15,74 @@ export function QrShareSheet({
   handle: string
   onClose: () => void
 }) {
-  const cells = useMemo(() => buildCells(`sponti:${handle}`), [handle])
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [refreshing, setRefreshing] = useState(true)
+  const [refreshCount, setRefreshCount] = useState(0)
+
+  const expiresLabel = useMemo(() => {
+    if (!expiresAt) return null
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(expiresAt))
+  }, [expiresAt])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function loadQr() {
+      try {
+        setError(null)
+        const token = await createQrContactToken(controller.signal)
+        const url = `${window.location.origin}/qr/${encodeURIComponent(token.token)}`
+        const dataUrl = await QRCode.toDataURL(url, {
+          width: 240,
+          margin: 2,
+          color: {
+            dark: "#171717",
+            light: "#ffffff",
+          },
+        })
+        if (controller.signal.aborted) return
+        setShareUrl(url)
+        setQrDataUrl(dataUrl)
+        setExpiresAt(token.expiresAt)
+      } catch {
+        if (!controller.signal.aborted) {
+          setError("QR is unavailable right now.")
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setRefreshing(false)
+        }
+      }
+    }
+
+    loadQr()
+
+    return () => controller.abort()
+  }, [refreshCount])
+
+  const shareQr = async () => {
+    if (!shareUrl) return
+    const text = `Add ${displayName} on Sponti: ${shareUrl}`
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Add me on Sponti", text, url: shareUrl })
+      } else {
+        await navigator.clipboard.writeText(shareUrl)
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 1600)
+      }
+    } catch {
+      // Share cancellation should not surface as an error.
+    }
+  }
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col">
@@ -77,37 +111,57 @@ export function QrShareSheet({
           <div className="text-xl font-semibold">{displayName}</div>
           <div className="text-sm font-medium text-accent">@{handle}</div>
 
-          <div className="bg-background p-4 rounded-2xl border border-border">
-            <svg
-              viewBox="0 0 21 21"
-              className="w-44 h-44 text-foreground"
-              aria-hidden="true"
-            >
-              {cells.flatMap((row, r) =>
-                row.map((on, c) =>
-                  on ? (
-                    <rect
-                      key={`${r}-${c}`}
-                      x={c}
-                      y={r}
-                      width="1"
-                      height="1"
-                      fill="currentColor"
-                    />
-                  ) : null,
-                ),
-              )}
-            </svg>
+          <div className="flex h-60 w-60 items-center justify-center rounded-2xl border border-border bg-background p-4">
+            {qrDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={qrDataUrl}
+                alt={`QR code for @${handle}`}
+                className="h-full w-full"
+              />
+            ) : error ? (
+              <p className="max-w-36 text-center text-sm text-muted-foreground">
+                {error}
+              </p>
+            ) : (
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            )}
           </div>
 
           <p className="text-xs text-muted-foreground text-center max-w-[260px]">
-            scan to add me on sponti — or tap share to send your handle.
+            scan to preview my profile and send a friend request
+            {expiresLabel ? ` before ${expiresLabel}.` : "."}
           </p>
 
-          <Button className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90 px-6">
-            <Share2 className="h-4 w-4 mr-2" />
-            share handle
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button
+              onClick={shareQr}
+              disabled={!shareUrl || refreshing}
+              className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90 px-5 disabled:opacity-60"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 mr-2" />
+              ) : (
+                <Share2 className="h-4 w-4 mr-2" />
+              )}
+              {copied ? "copied link" : "share QR link"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={refreshing}
+              onClick={() => {
+                setRefreshing(true)
+                setRefreshCount((count) => count + 1)
+              }}
+              className="rounded-full px-5"
+            >
+              <RefreshCw
+                className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+              />
+              refresh
+            </Button>
+          </div>
         </div>
       </div>
     </div>
