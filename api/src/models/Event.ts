@@ -1,7 +1,15 @@
 import mongoose, { Schema, model, type InferSchemaType, type Model } from "mongoose";
 
 export const MAX_GUEST_INVITE_LIMIT = 100000;
-export const EVENT_TYPES = ["food", "drinks", "sports", "hangout"] as const;
+export const EVENT_TYPES = [
+  "food",
+  "drinks",
+  "sports",
+  "hangout",
+  "party",
+  "culture",
+  "hobby",
+] as const;
 export const EVENT_GUEST_INVITE_MODES = ["multiple", "single", "none"] as const;
 
 const eventSchema = new Schema(

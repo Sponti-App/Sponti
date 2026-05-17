@@ -23,6 +23,8 @@ export type Circle = {
   description: string
   memberIds: string[]
   type: CircleType
+  color?: string | null
+  icon?: string | null
   memberAddedAt?: Record<string, string>
 }
 

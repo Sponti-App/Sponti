@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowRight, Flame } from "lucide-react"
+import { GoogleAuthButton } from "@/components/google-auth-button"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,13 +14,14 @@ import { markHomeTourPending } from "@/lib/onboarding"
 
 export default function RegisterPage() {
   const router = useRouter()
-  const { register } = useAuth()
+  const { register, loginWithGoogle } = useAuth()
   const [displayName, setDisplayName] = useState("")
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [googleSubmitting, setGoogleSubmitting] = useState(false)
 
   const usernameValid = /^[a-zA-Z0-9_-]{3,30}$/.test(username)
   const usernameError =
@@ -31,10 +33,7 @@ export default function RegisterPage() {
   const passwordError =
     password && password.length < 8 ? "Use at least 8 characters." : null
   const canSubmit = Boolean(
-    displayName.trim() &&
-      usernameValid &&
-      email.trim() &&
-      password.length >= 8
+    displayName.trim() && usernameValid && email.trim() && password.length >= 8
   )
   const missingRequirements = canSubmit
     ? "Create account"
@@ -68,6 +67,27 @@ export default function RegisterPage() {
     }
   }
 
+  const handleGoogleCredential = useCallback(
+    async (credential: string) => {
+      if (googleSubmitting) return
+      setError(null)
+      setGoogleSubmitting(true)
+      try {
+        const { isNewUser } = await loginWithGoogle(credential)
+        if (isNewUser) markHomeTourPending()
+        router.replace("/")
+      } catch (err) {
+        if (err instanceof HttpError) {
+          setError(err.message)
+        } else {
+          setError("Something went wrong. Try again.")
+        }
+        setGoogleSubmitting(false)
+      }
+    },
+    [googleSubmitting, loginWithGoogle, router]
+  )
+
   return (
     <main className="flex min-h-dvh w-full flex-col overflow-hidden bg-background text-foreground">
       <style>{`
@@ -99,7 +119,9 @@ export default function RegisterPage() {
             <span className="sponti-register-mark relative flex size-7 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm">
               <Flame className="size-3.5" />
             </span>
-            <span className="text-sm font-semibold tracking-normal">Sponti</span>
+            <span className="text-sm font-semibold tracking-normal">
+              Sponti
+            </span>
           </div>
           <div className="mb-4 inline-flex items-center gap-2 text-xs font-medium tracking-normal text-accent">
             <span className="h-px w-3.5 bg-accent" />
@@ -200,13 +222,30 @@ export default function RegisterPage() {
               {!submitting && <ArrowRight className="size-4" />}
             </Button>
 
+            <div className="my-4 flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />
+              or
+              <span className="h-px flex-1 bg-border" />
+            </div>
+
+            <GoogleAuthButton
+              disabled={submitting || googleSubmitting}
+              onCredential={handleGoogleCredential}
+            />
+
             <p className="mt-4 text-center text-[11.5px] leading-5 text-muted-foreground">
               By continuing, you agree to Sponti&apos;s{" "}
-              <Link href="/menu/terms" className="text-foreground underline underline-offset-2">
+              <Link
+                href="/menu/terms"
+                className="text-foreground underline underline-offset-2"
+              >
                 Terms
               </Link>{" "}
               and{" "}
-              <Link href="/menu/privacy" className="text-foreground underline underline-offset-2">
+              <Link
+                href="/menu/privacy"
+                className="text-foreground underline underline-offset-2"
+              >
                 Privacy
               </Link>
               .
