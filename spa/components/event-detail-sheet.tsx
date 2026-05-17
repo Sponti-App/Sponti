@@ -68,8 +68,10 @@ export function EventDetailSheet({
   const [displayEvent, setDisplayEvent] = useState<EventItem | null>(event)
   useEffect(() => {
     if (event) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDisplayEvent(event)
-      setSelectedEta(null) // reset ETA picker each time a new event opens
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedEta(null)
     }
   }, [event])
 
