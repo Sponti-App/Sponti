@@ -9,12 +9,14 @@ import {
 export class HttpError extends Error {
   status: number
   code?: string
+  details?: unknown
 
-  constructor(status: number, message: string, code?: string) {
+  constructor(status: number, message: string, code?: string, details?: unknown) {
     super(message)
     this.name = "HttpError"
     this.status = status
     this.code = code
+    this.details = details
   }
 }
 
@@ -121,7 +123,8 @@ async function request<T>(
     throw new HttpError(
       res.status,
       body?.error?.message ?? res.statusText,
-      body?.error?.code
+      body?.error?.code,
+      body?.error?.details,
     )
   }
 

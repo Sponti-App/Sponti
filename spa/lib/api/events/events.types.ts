@@ -1,6 +1,6 @@
 export type EventVisibility = "public" | "private"
 export type EventRsvp = "invited" | "going" | "maybe" | "declined"
-export type EventType = "food" | "drinks" | "sports" | "hangout"
+export type EventType = "food" | "drinks" | "sports" | "hangout" | "party" | "culture" | "hobby"
 export type RsvpStatus = Extract<EventRsvp, "going" | "maybe" | "declined">
 export type EventGuestInviteMode = "multiple" | "single" | "none"
 export type EventInviteRole = "admin" | "guest"
@@ -8,6 +8,7 @@ export type ApiEventStatus = "active" | "cancelled" | "completed"
 
 export interface EventItem {
   id: string
+  hostId?: string
   title: string
   type: EventType
   startAt: string
@@ -85,7 +86,9 @@ export type EventCoordinates = {
 
 export type EventAudienceTarget =
   | { kind: "public" }
-  | { kind: "circle"; circleId: string }
+  // `extraMemberIds` rides along on top of the circle invite — used when the
+  // user picks "all friends" and also taps specific people to invite directly.
+  | { kind: "circle"; circleId: string; extraMemberIds?: string[] }
   | { kind: "members"; memberIds: string[] }
 
 export type EventTimeRange = {
