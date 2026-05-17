@@ -5,6 +5,7 @@ import { Home, Inbox, Users, Bell, Flame } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useMyFlares } from "@/lib/use-events"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
+import { haptic } from "@/lib/haptics"
 
 type NavItem =
   | {
@@ -101,8 +102,8 @@ export function BottomNav({
         if (item.center) {
           const centerClick =
             item.kind === "route"
-              ? () => router.push(item.href)
-              : item.onClick
+              ? () => { haptic("medium"); router.push(item.href) }
+              : () => { haptic("medium"); item.onClick() }
           return (
             <button
               key={item.label}
@@ -119,8 +120,8 @@ export function BottomNav({
         const active = item.kind === "route" && isActive(item.href)
         const handleClick =
           item.kind === "route"
-            ? () => router.push(item.href)
-            : item.onClick
+            ? () => { haptic("selection"); router.push(item.href) }
+            : () => { haptic("selection"); item.onClick() }
 
         return (
           <button

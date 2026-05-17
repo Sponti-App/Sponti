@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   APIProvider,
   Map,
@@ -38,6 +38,7 @@ import {
   type GeoStatus,
 } from "@/lib/geolocation"
 import { useMapEvents } from "@/lib/use-events"
+import { haptic } from "@/lib/haptics"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
 import { EVENT_TYPES } from "@/types/utils"
@@ -315,6 +316,7 @@ export function MapView({
   const { openDrawer } = useNewEventDrawer()
   const [peekState, setPeekState] = useState<PeekState>("peek")
   const dragStartY = useRef<number | null>(null)
+  const dragStartTime = useRef<number | null>(null)
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_ID
   warnIfMissingMapId(apiKey, mapId)
@@ -388,26 +390,44 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoute?.id, routeDestination?.lat, routeDestination?.lng, apiKey])
 
+  // Velocity-aware snap: a fast flick overrides the distance threshold.
+  // Velocity is measured in px/ms; anything above 0.4 is considered a throw.
+  const FLICK_VX = 0.4
+  const DELTA_PX = 50
+
+  const snap = useCallback((next: PeekState) => {
+    if (next === peekState) return
+    setPeekState(next)
+    haptic("selection")
+  }, [peekState])
+
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     dragStartY.current = e.clientY
+    dragStartTime.current = performance.now()
     e.currentTarget.setPointerCapture(e.pointerId)
   }
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragStartY.current === null) return
+    if (dragStartY.current === null || dragStartTime.current === null) return
     const delta = e.clientY - dragStartY.current
+    const elapsed = performance.now() - dragStartTime.current
+    const velocity = Math.abs(delta) / Math.max(elapsed, 1)
     dragStartY.current = null
+    dragStartTime.current = null
     try {
       e.currentTarget.releasePointerCapture(e.pointerId)
     } catch {
       /* already released */
     }
-    if (delta > 60) {
-      if (peekState === "expanded") setPeekState("peek")
-      else if (peekState === "peek") setPeekState("mini")
-    } else if (delta < -60) {
-      if (peekState === "mini") setPeekState("peek")
-      else if (peekState === "peek") setPeekState("expanded")
+    const isFlick = velocity > FLICK_VX
+    const goDown = delta > DELTA_PX || (isFlick && delta > 0)
+    const goUp   = delta < -DELTA_PX || (isFlick && delta < 0)
+    if (goDown) {
+      if (peekState === "expanded") snap("peek")
+      else if (peekState === "peek") snap("mini")
+    } else if (goUp) {
+      if (peekState === "mini") snap("peek")
+      else if (peekState === "peek") snap("expanded")
     }
   }
 
@@ -464,6 +484,7 @@ export function MapView({
         <button
           type="button"
           onClick={() => {
+            haptic("light")
             if (isFallbackLocation) geo.request()
             else setRecenterTick((n) => n + 1)
           }}
