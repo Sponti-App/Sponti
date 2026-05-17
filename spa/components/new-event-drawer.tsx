@@ -31,6 +31,7 @@ import {
 import { fetchMyCircles } from "@/lib/api/circles"
 import { fetchAcceptedConnections } from "@/lib/api/connections"
 import { HttpError } from "@/lib/http"
+import { emitEventsChanged } from "@/lib/use-events"
 import { type Circle, type Connection } from "@/lib/circles"
 import {
   addMemberToCircle,
@@ -749,6 +750,7 @@ export function NewEventDrawer({
       )
       try {
         await createEvent(requestBody)
+        emitEventsChanged()
       } catch (err) {
         if (err instanceof HttpError) {
           console.error(
