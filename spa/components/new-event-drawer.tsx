@@ -92,7 +92,7 @@ function formatDayChip(d: Date): { weekday: string; date: string } {
   const target = new Date(d)
   target.setHours(0, 0, 0, 0)
   const diffDays = Math.round(
-    (target.getTime() - today.getTime()) / (24 * 3600 * 1000),
+    (target.getTime() - today.getTime()) / (24 * 3600 * 1000)
   )
   if (diffDays === 0) return { weekday: "today", date: String(d.getDate()) }
   if (diffDays === 1) return { weekday: "tmrw", date: String(d.getDate()) }
@@ -161,7 +161,7 @@ function inferEventType(title: string): EventType | null {
 // pick wins, then the title-inferred type, then "hangout" as final fallback.
 function resolveEventType(
   manual: EventType | null,
-  inferred: EventType | null,
+  inferred: EventType | null
 ): EventType {
   return manual ?? inferred ?? "hangout"
 }
@@ -244,7 +244,9 @@ export function NewEventDrawer({
   const whereRef = useRef<HTMLDivElement>(null)
   const whoRef = useRef<HTMLDivElement>(null)
 
-  const focusSection = (target: React.RefObject<HTMLDivElement | null>): void => {
+  const focusSection = (
+    target: React.RefObject<HTMLDivElement | null>
+  ): void => {
     setActiveSnapPoint(0.95)
     // Wait for the snap animation to start so the section actually exists
     // in the visible viewport before we scroll. Two frames covers the
@@ -282,7 +284,7 @@ export function NewEventDrawer({
   // (e.g. 4:26 → 4:30 instead of 4:26).
   const mountMinutes = useMemo(
     () => Math.round(minutesNow() / STEP_MIN) * STEP_MIN,
-    [],
+    []
   )
   const [startOffsetMin, setStartOffsetMin] = useState(0)
   const [endOffsetMin, setEndOffsetMin] = useState(60)
@@ -310,7 +312,7 @@ export function NewEventDrawer({
       circles.find((c) => c.name.toLowerCase() === "close friends")?.id ??
       circles[0]?.id ??
       "",
-    [circles],
+    [circles]
   )
   const effectiveAudience = circles.some((c) => c.id === audience)
     ? audience
@@ -388,7 +390,7 @@ export function NewEventDrawer({
     setPlacesLoading(true)
     try {
       const resp = await fetch(
-        `/api/places?input=${encodeURIComponent(query.trim())}`,
+        `/api/places?input=${encodeURIComponent(query.trim())}`
       )
       if (!resp.ok) throw new Error("places error")
       const data = (await resp.json()) as { suggestions: PlaceSuggestion[] }
@@ -414,7 +416,7 @@ export function NewEventDrawer({
   const nowStartOptions = useMemo(() => {
     const out: { value: number; label: string }[] = []
     for (let m = 0; m <= NOW_MAX_OFFSET_MIN; m += STEP_MIN) {
-      const wallMin = ((mountMinutes + m) % 1440 + 1440) % 1440
+      const wallMin = (((mountMinutes + m) % 1440) + 1440) % 1440
       out.push({ value: m, label: m === 0 ? "now" : formatTimeOfDay(wallMin) })
     }
     return out
@@ -425,7 +427,7 @@ export function NewEventDrawer({
     const min = startOffsetMin + MIN_DURATION_MIN
     const max = startOffsetMin + MAX_DURATION_MIN
     for (let m = min; m <= max; m += STEP_MIN) {
-      const wallMin = ((mountMinutes + m) % 1440 + 1440) % 1440
+      const wallMin = (((mountMinutes + m) % 1440) + 1440) % 1440
       out.push({ value: m, label: formatTimeOfDay(wallMin) })
     }
     out.push({ value: OPEN_ENDED, label: "open" })
@@ -462,11 +464,11 @@ export function NewEventDrawer({
   }, [mode, endOffsetMin, startOffsetMin, endTimeMin, startTimeMin])
 
   const wallTimeForNow = useMemo(() => {
-    const startMin = ((mountMinutes + startOffsetMin) % 1440 + 1440) % 1440
+    const startMin = (((mountMinutes + startOffsetMin) % 1440) + 1440) % 1440
     const endMin =
       endOffsetMin === OPEN_ENDED
         ? null
-        : ((mountMinutes + endOffsetMin) % 1440 + 1440) % 1440
+        : (((mountMinutes + endOffsetMin) % 1440) + 1440) % 1440
     return { startMin, endMin }
   }, [mountMinutes, startOffsetMin, endOffsetMin])
 
@@ -536,7 +538,7 @@ export function NewEventDrawer({
     }
     if (!isOpen && audienceError) {
       setSubmitError(
-        "Load your circles and friends before creating a private event.",
+        "Load your circles and friends before creating a private event."
       )
       return
     }
@@ -609,9 +611,8 @@ export function NewEventDrawer({
       const requestBody = createEventRequestFromDraft(
         draft,
         eventAudience,
-        timeRange,
+        timeRange
       )
-      console.log("[Sponti] POST /events payload", requestBody)
       try {
         await createEvent(requestBody)
       } catch (err) {
@@ -620,7 +621,7 @@ export function NewEventDrawer({
             "[Sponti] POST /events failed",
             err.status,
             err.code,
-            err.details,
+            err.details
           )
         }
         throw err
@@ -677,8 +678,7 @@ export function NewEventDrawer({
               ref={scrollRef}
               className="min-h-0 flex-1 overflow-y-auto"
               style={{
-                paddingBottom:
-                  "calc(var(--snap-point-height, 0px) + 160px)",
+                paddingBottom: "calc(var(--snap-point-height, 0px) + 160px)",
               }}
               data-vaul-no-drag
             >
@@ -720,9 +720,7 @@ export function NewEventDrawer({
                       manualType={eventType}
                       isInferred={eventType === null && inferredType !== null}
                       overrideOpen={typeOverrideOpen}
-                      onToggleOverride={() =>
-                        setTypeOverrideOpen((v) => !v)
-                      }
+                      onToggleOverride={() => setTypeOverrideOpen((v) => !v)}
                       onPick={(t) => {
                         setEventType(t)
                         setTypeOverrideOpen(false)
@@ -831,46 +829,46 @@ export function NewEventDrawer({
 
                   {/* 5. Who */}
                   <div ref={whoRef} className="scroll-mt-2">
-                  <Section label="who's gonna see your flare?">
-                    {audienceLoading && (
-                      <p className="mb-2 text-xs text-muted-foreground">
-                        loading your circles and friends…
-                      </p>
-                    )}
-                    {audienceError && (
-                      <p
-                        className="mb-2 text-xs text-destructive"
-                        role="alert"
-                      >
-                        {audienceError}
-                      </p>
-                    )}
-                    <WhoBlock
-                      isOpen={isOpen}
-                      onOpen={setIsOpen}
-                      guestLimit={guestLimit}
-                      onGuestLimit={setGuestLimit}
-                      circles={circles}
-                      audience={effectiveAudience}
-                      onSelectAudience={setAudience}
-                      connections={connections}
-                      editingCircleId={editingCircleId}
-                      onStartEditingCircle={setEditingCircleId}
-                      onCloseEditingCircle={() => setEditingCircleId(null)}
-                      directlyInvitedIds={directlyInvitedIds}
-                      onToggleDirectInvite={(id) =>
-                        setDirectlyInvitedIds((prev) =>
-                          prev.includes(id)
-                            ? prev.filter((x) => x !== id)
-                            : [...prev, id],
-                        )
-                      }
-                      allowForward={allowForward}
-                      onAllowForward={setAllowForward}
-                      allowPlusOne={allowPlusOne}
-                      onAllowPlusOne={setAllowPlusOne}
-                    />
-                  </Section>
+                    <Section label="who's gonna see your flare?">
+                      {audienceLoading && (
+                        <p className="mb-2 text-xs text-muted-foreground">
+                          loading your circles and friends…
+                        </p>
+                      )}
+                      {audienceError && (
+                        <p
+                          className="mb-2 text-xs text-destructive"
+                          role="alert"
+                        >
+                          {audienceError}
+                        </p>
+                      )}
+                      <WhoBlock
+                        isOpen={isOpen}
+                        onOpen={setIsOpen}
+                        guestLimit={guestLimit}
+                        onGuestLimit={setGuestLimit}
+                        circles={circles}
+                        audience={effectiveAudience}
+                        onSelectAudience={setAudience}
+                        connections={connections}
+                        editingCircleId={editingCircleId}
+                        onStartEditingCircle={setEditingCircleId}
+                        onCloseEditingCircle={() => setEditingCircleId(null)}
+                        directlyInvitedIds={directlyInvitedIds}
+                        onToggleDirectInvite={(id) =>
+                          setDirectlyInvitedIds((prev) =>
+                            prev.includes(id)
+                              ? prev.filter((x) => x !== id)
+                              : [...prev, id]
+                          )
+                        }
+                        allowForward={allowForward}
+                        onAllowForward={setAllowForward}
+                        allowPlusOne={allowPlusOne}
+                        onAllowPlusOne={setAllowPlusOne}
+                      />
+                    </Section>
                   </div>
                 </div>
               </Tabs>
@@ -1382,27 +1380,29 @@ function WherePicker({
           {placesLoading && (
             <p className="mt-1.5 text-xs text-muted-foreground">searching…</p>
           )}
-          {!placesLoading && !pickedSearchAddress && placeResults.length > 0 && (
-            <ul className="mt-1.5 overflow-hidden rounded-lg border border-border bg-card">
-              {placeResults.map((r) => (
-                <li key={`${r.label}-${r.address}`}>
-                  <button
-                    type="button"
-                    onClick={() => onPickSearch(r.label)}
-                    className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
-                  >
-                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm">{r.label}</div>
-                      <div className="truncate text-[11px] text-muted-foreground">
-                        {r.address}
+          {!placesLoading &&
+            !pickedSearchAddress &&
+            placeResults.length > 0 && (
+              <ul className="mt-1.5 overflow-hidden rounded-lg border border-border bg-card">
+                {placeResults.map((r) => (
+                  <li key={`${r.label}-${r.address}`}>
+                    <button
+                      type="button"
+                      onClick={() => onPickSearch(r.label)}
+                      className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
+                    >
+                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm">{r.label}</div>
+                        <div className="truncate text-[11px] text-muted-foreground">
+                          {r.address}
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
         </div>
       )}
     </div>
@@ -1624,7 +1624,7 @@ function CircleCards({
   onEdit: (circleId: string) => void
 }) {
   const systemCircles = circles.filter(
-    (c) => c.type === "inner" || c.type === "close" || c.type === "all",
+    (c) => c.type === "inner" || c.type === "close" || c.type === "all"
   )
   return (
     <div className="grid grid-cols-3 gap-2">
@@ -1666,15 +1666,13 @@ function CircleChip({
   // Editable chips (inner/close) get hover + press scale — the visual hint
   // that there's more interaction available. Holding past the long-press
   // threshold then fires onEdit. "All friends" stays flat (no edit path).
-  const scaleClasses = editable
-    ? "hover:scale-[1.03] active:scale-[1.06]"
-    : ""
+  const scaleClasses = editable ? "hover:scale-[1.03] active:scale-[1.06]" : ""
 
   return (
     <button
       type="button"
       {...buttonHandlers}
-      className={`relative flex touch-none select-none items-center gap-1.5 overflow-hidden rounded-xl border px-2.5 py-2 transition-transform duration-150 ${scaleClasses} ${
+      className={`relative flex touch-none items-center gap-1.5 overflow-hidden rounded-xl border px-2.5 py-2 transition-transform duration-150 select-none ${scaleClasses} ${
         selected
           ? "border-accent bg-accent/10"
           : "border-border hover:bg-secondary"
@@ -1837,7 +1835,7 @@ function FriendList({
     return connections.filter(
       (c) =>
         c.displayName.toLowerCase().includes(q) ||
-        c.username.toLowerCase().includes(q),
+        c.username.toLowerCase().includes(q)
     )
   }, [connections, query])
 
@@ -1909,7 +1907,7 @@ function InviteToggles({
       <button
         type="button"
         onClick={() => onPlusOne(!allowPlusOne)}
-        className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs transition-colors ${
+        className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors ${
           allowPlusOne
             ? "border-accent bg-accent/10 text-accent"
             : "border-border text-muted-foreground hover:bg-secondary"
@@ -1921,7 +1919,7 @@ function InviteToggles({
       <button
         type="button"
         onClick={() => onForward(!allowForward)}
-        className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs transition-colors ${
+        className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors ${
           allowForward
             ? "border-accent bg-accent/10 text-accent"
             : "border-border text-muted-foreground hover:bg-secondary"
@@ -1994,7 +1992,6 @@ function Stepper({
     </div>
   )
 }
-
 
 // ----- Shared primitives -----
 
