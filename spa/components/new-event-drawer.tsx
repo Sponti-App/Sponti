@@ -11,7 +11,6 @@ import {
   Share2,
   Sparkles,
   UserPlus,
-  Users,
   X,
 } from "lucide-react"
 import { CircleStackIcon } from "@/components/circle-stack-icon"
@@ -110,6 +109,63 @@ function getErrorMessage(error: unknown): string {
   return "Something went wrong. Try again."
 }
 
+// Cheap keyword inference so the user doesn't have to pick a type explicitly
+// for the common cases. Ordered most-specific first — "coffee" wins as food
+// before "hang" wins as hangout, etc. If nothing matches we don't return a
+// guess (UI just defaults to "hangout" at submit time).
+const TYPE_KEYWORDS: { type: EventType; pattern: RegExp }[] = [
+  {
+    type: "drinks",
+    pattern:
+      /\b(drinks?|beers?|wine|cocktails?|bar|pub|pints?|whiskey|gin|tequila|mezcal|aperol|spritz|happy hour)\b/i,
+  },
+  {
+    type: "food",
+    pattern:
+      /\b(dinner|lunch|brunch|breakfast|food|eat|restaurant|pizza|burgers?|sushi|ramen|tacos?|coffee|cafe|café|bakery|bites)\b/i,
+  },
+  {
+    type: "party",
+    pattern: /\b(party|rager|club|clubbing|dance|nightlife|rave|warehouse)\b/i,
+  },
+  {
+    type: "sports",
+    pattern:
+      /\b(hike|hiking|run|running|soccer|football|tennis|gym|yoga|workout|climb|climbing|swim|swimming|ride|bike|cycling|skate)\b/i,
+  },
+  {
+    type: "culture",
+    pattern:
+      /\b(museum|exhibit|exhibition|movie|cinema|film|concert|show|theater|theatre|art|gallery|opera|gig|reading)\b/i,
+  },
+  {
+    type: "hobby",
+    pattern:
+      /\b(knit|knitting|book club|chess|board game|boardgames?|craft|crafts|paint|painting|pottery|sketching|drawing)\b/i,
+  },
+  {
+    type: "hangout",
+    pattern: /\b(hang|hangout|chill|catch up|stroll|walk|picnic|park)\b/i,
+  },
+]
+
+function inferEventType(title: string): EventType | null {
+  if (!title.trim()) return null
+  for (const { type, pattern } of TYPE_KEYWORDS) {
+    if (pattern.test(title)) return type
+  }
+  return null
+}
+
+// Computes the event type that will actually be submitted: the user's manual
+// pick wins, then the title-inferred type, then "hangout" as final fallback.
+function resolveEventType(
+  manual: EventType | null,
+  inferred: EventType | null,
+): EventType {
+  return manual ?? inferred ?? "hangout"
+}
+
 // Surfaces Zod validation details from the backend so the UI tells the user
 // which field is wrong instead of a generic "Validation failed".
 function formatSubmitError(error: unknown): string {
@@ -169,26 +225,58 @@ export function NewEventDrawer({
   const circles = ensureSystemCircles(apiCircles ?? storedCircles)
 
   // Drawer
+  // Three snaps so the spontaneous flow can sit at a 0.55 "peek" (title +
+  // summary chips + CTA above the fold), 0.8 for normal customization, and
+  // 0.95 for full edit. 0.55 is the floor that fits chrome + title input +
+  // summary chips + CTA stack on small viewports without clipping. Scheduled
+  // mode jumps straight to 0.95 — there's no useful peek state when a
+  // date/time picker is the whole point.
   const [activeSnapPoint, setActiveSnapPoint] = useState<
     number | string | null
-  >(0.6)
+  >(0.55)
   const handleClose = onClose
+
+  // Section refs let the summary-chip row scroll the form to the relevant
+  // section when the user taps a chip. Also gates the expand-then-scroll
+  // sequence on the next frame so the drawer has time to settle at 0.95.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const whenRef = useRef<HTMLDivElement>(null)
+  const whereRef = useRef<HTMLDivElement>(null)
+  const whoRef = useRef<HTMLDivElement>(null)
+
+  const focusSection = (target: React.RefObject<HTMLDivElement | null>): void => {
+    setActiveSnapPoint(0.95)
+    // Wait for the snap animation to start so the section actually exists
+    // in the visible viewport before we scroll. Two frames covers the
+    // initial layout flush + snap transition kick-off.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        target.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+      })
+    })
+  }
 
   // Mode
   const [mode, setMode] = useState<Mode>("now")
   const handleModeChange = (v: string) => {
     const next = v as Mode
     setMode(next)
-    setActiveSnapPoint(next === "scheduled" ? 0.95 : 0.6)
+    setActiveSnapPoint(next === "scheduled" ? 0.95 : 0.55)
   }
 
-  // Event type (null = skipped by user)
+  // Event type — `eventType` holds the user's MANUAL pick (null = not picked
+  // yet). The inferred type is derived from the title via keyword match.
+  // `resolveEventType(manual, inferred)` decides what actually ships at submit.
   const [eventType, setEventType] = useState<EventType | null>(null)
+  const [typeOverrideOpen, setTypeOverrideOpen] = useState(false)
 
   // What
   const [title, setTitle] = useState("")
   const [detailsExpanded, setDetailsExpanded] = useState(false)
   const [details, setDetails] = useState("")
+
+  const inferredType = useMemo(() => inferEventType(title), [title])
+  const effectiveType = resolveEventType(eventType, inferredType)
 
   // Round to nearest STEP_MIN so every wheel label lands on a clean interval
   // (e.g. 4:26 → 4:30 instead of 4:26).
@@ -393,12 +481,16 @@ export function NewEventDrawer({
 
   const whenLabel = useMemo(() => {
     if (mode === "now") {
-      return startOffsetMin === 0 ? "now" : `in ${formatRelative(startOffsetMin)}`
+      if (endOffsetMin === OPEN_ENDED) return "now · open-ended"
+      const dur = endOffsetMin - startOffsetMin
+      return startOffsetMin === 0
+        ? `now · ${formatRelative(dur)}`
+        : `in ${formatRelative(startOffsetMin)} · ${formatRelative(dur)}`
     }
     const d = new Date(startDate + "T00:00:00")
     const chip = formatDayChip(d)
     return `${chip.weekday} ${formatTimeOfDay(startTimeMin)}`
-  }, [mode, startOffsetMin, startDate, startTimeMin])
+  }, [mode, startOffsetMin, endOffsetMin, startDate, startTimeMin])
 
   const dateStripDays = useMemo(() => {
     const today = new Date()
@@ -423,11 +515,16 @@ export function NewEventDrawer({
 
   const isOverLimit = !isOpen && inviteeCount > guestLimit
 
-  const headcountLabel = isOpen
-    ? `public · up to ${guestLimit}`
-    : inviteeCount === 0
-      ? `up to ${guestLimit} guests`
-      : `${inviteeCount} ${inviteeCount === 1 ? "person" : "people"} will see this`
+  // Compact audience label for the summary chip — folds headcount in so the
+  // standalone "X people will see this" line can be dropped. Public events
+  // show the cap instead of the current count (cap is the meaningful number
+  // when anyone can join).
+  const whoLabel = useMemo(() => {
+    if (isOpen) return `public · up to ${guestLimit}`
+    const circle = circles.find((c) => c.id === effectiveAudience)
+    const baseName = circle?.name.toLowerCase() ?? "friends"
+    return `${baseName} · ${inviteeCount}`
+  }, [isOpen, circles, effectiveAudience, inviteeCount, guestLimit])
 
   const handleSubmit = async (): Promise<void> => {
     if (isSubmitting) return
@@ -461,7 +558,6 @@ export function NewEventDrawer({
         }
       }
 
-      const effectiveType = eventType ?? "hangout"
       const effectiveDuration =
         durationMin !== null ? durationMin : OPEN_ENDED_FALLBACK_MIN
       const finalTitle =
@@ -544,7 +640,7 @@ export function NewEventDrawer({
         onOpenChange={(next) => {
           if (!next) onClose()
         }}
-        snapPoints={[0.6, 0.95]}
+        snapPoints={[0.55, 0.8, 0.95]}
         activeSnapPoint={activeSnapPoint}
         setActiveSnapPoint={setActiveSnapPoint}
         dismissible
@@ -578,7 +674,8 @@ export function NewEventDrawer({
                 (the drawer's translateY at the current snap) plus space for the
                 CTA, so the last form field doesn't hide under the pinned CTA. */}
             <div
-              className="flex-1 overflow-y-auto"
+              ref={scrollRef}
+              className="min-h-0 flex-1 overflow-y-auto"
               style={{
                 paddingBottom:
                   "calc(var(--snap-point-height, 0px) + 160px)",
@@ -593,13 +690,20 @@ export function NewEventDrawer({
                   </TabsList>
                 </div>
 
-                <div className="px-4">
-                  {/* 1. Event type */}
-                  <Section label="what do you feel like?">
-                    <EventTypePills value={eventType} onChange={setEventType} />
-                  </Section>
+                <SummaryRow
+                  whenLabel={whenLabel}
+                  whereLabel={whereLabel ?? "current loc"}
+                  whoLabel={whoLabel}
+                  whoOverLimit={isOverLimit}
+                  onTapWhen={() => focusSection(whenRef)}
+                  onTapWhere={() => focusSection(whereRef)}
+                  onTapWho={() => focusSection(whoRef)}
+                />
 
-                  {/* 2. What */}
+                <div className="px-4">
+                  {/* 1. What — Title is the hero of the form. Type sits
+                       inline below it as a small inferred-from-keywords hint
+                       that can be overridden. */}
                   <Section label="what's the plan?">
                     <Input
                       value={title}
@@ -611,6 +715,23 @@ export function NewEventDrawer({
                         {80 - title.length} left
                       </p>
                     )}
+                    <TypeInlineIndicator
+                      effectiveType={effectiveType}
+                      manualType={eventType}
+                      isInferred={eventType === null && inferredType !== null}
+                      overrideOpen={typeOverrideOpen}
+                      onToggleOverride={() =>
+                        setTypeOverrideOpen((v) => !v)
+                      }
+                      onPick={(t) => {
+                        setEventType(t)
+                        setTypeOverrideOpen(false)
+                      }}
+                      onClearManual={() => {
+                        setEventType(null)
+                        setTypeOverrideOpen(false)
+                      }}
+                    />
                     {detailsExpanded ? (
                       <textarea
                         value={details}
@@ -639,73 +760,77 @@ export function NewEventDrawer({
                   </Section>
 
                   {/* 3. When */}
-                  <TabsContent value="now" className="m-0">
-                    <Section label="how long should it last?">
-                      <TimeRange
-                        startOptions={nowStartOptions}
-                        endOptions={nowEndOptions}
-                        startValue={startOffsetMin}
-                        endValue={endOffsetMin}
-                        onStart={handleStartOffset}
-                        onEnd={setEndOffsetMin}
-                      />
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {startOffsetMin === 0
-                          ? "starts now"
-                          : `starts in ${formatRelative(startOffsetMin)}`}
-                        {endOffsetMin === OPEN_ENDED
-                          ? " · open-ended"
-                          : durationMin !== null
-                            ? ` · ${formatRelative(durationMin)}`
-                            : ""}
-                      </p>
-                    </Section>
-                  </TabsContent>
-
-                  <TabsContent value="scheduled" className="m-0">
-                    <Section label="date">
-                      <DateStrip
-                        days={dateStripDays}
-                        value={startDate}
-                        onChange={setStartDate}
-                      />
-                    </Section>
-                    <Section label="how long should it last?">
-                      <TimeRange
-                        startOptions={scheduledStartOptions}
-                        endOptions={scheduledEndOptions}
-                        startValue={startTimeMin}
-                        endValue={endTimeMin}
-                        onStart={handleStartTime}
-                        onEnd={setEndTimeMin}
-                      />
-                      {durationMin !== null && (
+                  <div ref={whenRef} className="scroll-mt-2">
+                    <TabsContent value="now" className="m-0">
+                      <Section label="how long should it last?">
+                        {/* Right Now assumes start = now. Picking a duration
+                            chip sets endOffsetMin directly (since
+                            startOffsetMin is forced to 0). Horizontal scroll
+                            handles overflow on narrow viewports. */}
+                        <NowDurationChips
+                          value={endOffsetMin}
+                          onChange={(v) => {
+                            setStartOffsetMin(0)
+                            setEndOffsetMin(v)
+                          }}
+                        />
                         <p className="mt-2 text-xs text-muted-foreground">
-                          lasts {formatRelative(durationMin)}
+                          starts now
+                          {endOffsetMin === OPEN_ENDED
+                            ? " · open-ended"
+                            : ` · ${formatRelative(endOffsetMin)}`}
                         </p>
-                      )}
-                    </Section>
-                  </TabsContent>
+                      </Section>
+                    </TabsContent>
+
+                    <TabsContent value="scheduled" className="m-0">
+                      <Section label="date">
+                        <DateStrip
+                          days={dateStripDays}
+                          value={startDate}
+                          onChange={setStartDate}
+                        />
+                      </Section>
+                      <Section label="how long should it last?">
+                        <TimeRange
+                          startOptions={scheduledStartOptions}
+                          endOptions={scheduledEndOptions}
+                          startValue={startTimeMin}
+                          endValue={endTimeMin}
+                          onStart={handleStartTime}
+                          onEnd={setEndTimeMin}
+                        />
+                        {durationMin !== null && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            lasts {formatRelative(durationMin)}
+                          </p>
+                        )}
+                      </Section>
+                    </TabsContent>
+                  </div>
 
                   {/* 4. Where */}
-                  <Section label="where do you want to meet?">
-                    <WherePicker
-                      whereType={whereType}
-                      onWhereType={setWhereType}
-                      searchQuery={searchQuery}
-                      onSearchQuery={handleSearchQuery}
-                      pickedSearchAddress={pickedSearchAddress}
-                      onPickSearch={(v) => {
-                        setPickedSearchAddress(v)
-                        setSearchQuery(v)
-                        setPlaceResults([])
-                      }}
-                      placeResults={placeResults}
-                      placesLoading={placesLoading}
-                    />
-                  </Section>
+                  <div ref={whereRef} className="scroll-mt-2">
+                    <Section label="where do you want to meet?">
+                      <WherePicker
+                        whereType={whereType}
+                        onWhereType={setWhereType}
+                        searchQuery={searchQuery}
+                        onSearchQuery={handleSearchQuery}
+                        pickedSearchAddress={pickedSearchAddress}
+                        onPickSearch={(v) => {
+                          setPickedSearchAddress(v)
+                          setSearchQuery(v)
+                          setPlaceResults([])
+                        }}
+                        placeResults={placeResults}
+                        placesLoading={placesLoading}
+                      />
+                    </Section>
+                  </div>
 
                   {/* 5. Who */}
+                  <div ref={whoRef} className="scroll-mt-2">
                   <Section label="who's gonna see your flare?">
                     {audienceLoading && (
                       <p className="mb-2 text-xs text-muted-foreground">
@@ -746,6 +871,7 @@ export function NewEventDrawer({
                       onAllowPlusOne={setAllowPlusOne}
                     />
                   </Section>
+                  </div>
                 </div>
               </Tabs>
             </div>
@@ -761,16 +887,6 @@ export function NewEventDrawer({
                 transition: "bottom 0.5s cubic-bezier(.32,.72,0,1)",
               }}
             >
-              <div
-                className={`mb-2 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
-                  isOverLimit
-                    ? "border-destructive/40 bg-destructive/10 text-destructive"
-                    : "border-border text-foreground"
-                }`}
-              >
-                <Users className="h-3 w-3 shrink-0" />
-                <span>{headcountLabel}</span>
-              </div>
               {submitError && (
                 <p
                   className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
@@ -794,6 +910,131 @@ export function NewEventDrawer({
         </Drawer.Portal>
       </Drawer.Root>
     </>
+  )
+}
+
+// ----- Summary chip row -----
+
+// Sits between the mode tabs and the form sections. Surfaces the three
+// implicit defaults (when, where, who) so the user knows exactly what'll
+// ship from the 0.55 peek snap — no scrolling needed. Each chip is a
+// shortcut: tap to expand the drawer to 0.95 and scroll to that section.
+function SummaryRow({
+  whenLabel,
+  whereLabel,
+  whoLabel,
+  whoOverLimit,
+  onTapWhen,
+  onTapWhere,
+  onTapWho,
+}: {
+  whenLabel: string
+  whereLabel: string
+  whoLabel: string
+  whoOverLimit: boolean
+  onTapWhen: () => void
+  onTapWhere: () => void
+  onTapWho: () => void
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5 px-4 pt-2 pb-1">
+      <SummaryChip label={whenLabel} onClick={onTapWhen} />
+      <SummaryChip label={whereLabel} onClick={onTapWhere} />
+      <SummaryChip
+        label={whoLabel}
+        onClick={onTapWho}
+        tone={whoOverLimit ? "destructive" : "default"}
+      />
+    </div>
+  )
+}
+
+function SummaryChip({
+  label,
+  onClick,
+  tone = "default",
+}: {
+  label: string
+  onClick: () => void
+  tone?: "default" | "destructive"
+}) {
+  const toneClasses =
+    tone === "destructive"
+      ? "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/15"
+      : "border-border bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground"
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`shrink-0 truncate rounded-full border px-2.5 py-1 text-[11px] transition-colors ${toneClasses}`}
+    >
+      {label}
+    </button>
+  )
+}
+
+// ----- Event type -----
+
+// Tiny inline indicator that lives under the title. Shows the type that will
+// actually ship (inferred from title keywords, or user-picked). Tap "change"
+// to expand the full pill row; pick or clear collapses it back.
+function TypeInlineIndicator({
+  effectiveType,
+  manualType,
+  isInferred,
+  overrideOpen,
+  onToggleOverride,
+  onPick,
+  onClearManual,
+}: {
+  effectiveType: EventType
+  manualType: EventType | null
+  isInferred: boolean
+  overrideOpen: boolean
+  onToggleOverride: () => void
+  onPick: (t: EventType) => void
+  onClearManual: () => void
+}) {
+  const meta = EVENT_TYPES.find((t) => t.value === effectiveType)
+  if (!meta) return null
+  const Icon = meta.icon
+
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Icon className="h-3 w-3 shrink-0" />
+        <span>type · {meta.label}</span>
+        {isInferred && (
+          <span className="text-[10px] text-muted-foreground/60">(auto)</span>
+        )}
+        <button
+          type="button"
+          onClick={onToggleOverride}
+          className="text-accent hover:underline"
+        >
+          {overrideOpen ? "done" : "change"}
+        </button>
+        {manualType !== null && !overrideOpen && (
+          <button
+            type="button"
+            onClick={onClearManual}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            · reset
+          </button>
+        )}
+      </div>
+      {overrideOpen && (
+        <EventTypePills
+          value={manualType ?? effectiveType}
+          onChange={(t) => {
+            // Tapping the same pill toggles it off — reset to inference.
+            if (t === null) onClearManual()
+            else onPick(t)
+          }}
+        />
+      )}
+    </div>
   )
 }
 
@@ -827,6 +1068,53 @@ function EventTypePills({
               {selected && (
                 <span className="text-sm font-medium">{t.label}</span>
               )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ----- Right Now duration chips -----
+
+// Compact horizontal scrollable chip row for the spontaneous flow. Replaces
+// the twin scroll wheels which trapped vertical-scroll gestures in a narrow
+// drawer. Start is always "now" in this mode — if the user needs a delayed
+// start they should switch to "pick a time".
+const NOW_DURATION_PRESETS: { value: number; label: string }[] = [
+  { value: 30, label: "30m" },
+  { value: 60, label: "1h" },
+  { value: 120, label: "2h" },
+  { value: 180, label: "3h" },
+  { value: 240, label: "4h" },
+  { value: OPEN_ENDED, label: "open" },
+]
+
+function NowDurationChips({
+  value,
+  onChange,
+}: {
+  value: number
+  onChange: (v: number) => void
+}) {
+  return (
+    <div className="-mx-4 no-scrollbar overflow-x-auto px-4">
+      <div className="flex gap-2">
+        {NOW_DURATION_PRESETS.map((p) => {
+          const selected = value === p.value
+          return (
+            <button
+              key={p.value}
+              type="button"
+              onClick={() => onChange(p.value)}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                selected
+                  ? "border-accent bg-accent/10 font-medium text-accent"
+                  : "border-border text-foreground hover:bg-secondary"
+              }`}
+            >
+              {p.label}
             </button>
           )
         })}
@@ -1017,6 +1305,11 @@ function DateStrip({
 
 // ----- Where picker -----
 
+// "current loc" is the default; the search field hides behind a magnifier
+// icon to reclaim vertical space. Tapping the icon expands the input inline
+// and focuses it; tapping the X collapses back to "current loc". Picking a
+// place from the autocomplete list keeps the field open so the user can see
+// what was picked.
 function WherePicker({
   whereType,
   onWhereType,
@@ -1036,32 +1329,56 @@ function WherePicker({
   placeResults: PlaceSuggestion[]
   placesLoading: boolean
 }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const expanded = whereType === "search"
+
+  const expand = (): void => {
+    onWhereType("search")
+    // Focus the input on the next frame, after the input mounts.
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+  const collapse = (): void => {
+    onWhereType("current")
+    onSearchQuery("")
+  }
+
   return (
     <div className="flex flex-col gap-2">
-      <ChipRow>
-        <Chip
-          selected={whereType === "current"}
-          onClick={() => onWhereType("current")}
-        >
-          <MapPin className="h-3.5 w-3.5" />
-          current loc
-        </Chip>
-        <Chip
-          selected={whereType === "search"}
-          onClick={() => onWhereType("search")}
-        >
-          <Search className="h-3.5 w-3.5" />
-          search
-        </Chip>
-      </ChipRow>
-
-      {whereType === "search" && (
-        <div className="mt-1">
-          <Input
-            placeholder="search for a place"
-            value={searchQuery}
-            onChange={(e) => onSearchQuery(e.target.value)}
-          />
+      {!expanded ? (
+        <div className="flex items-center gap-2">
+          <Chip selected onClick={() => undefined}>
+            <MapPin className="h-3.5 w-3.5" />
+            current loc
+          </Chip>
+          <button
+            type="button"
+            onClick={expand}
+            aria-label="Search for a place"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-secondary"
+          >
+            <Search className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : (
+        <div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={inputRef}
+              placeholder="search for a place"
+              value={searchQuery}
+              onChange={(e) => onSearchQuery(e.target.value)}
+              className="pr-9 pl-9"
+            />
+            <button
+              type="button"
+              onClick={collapse}
+              aria-label="Use current location instead"
+              className="absolute top-1/2 right-2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
           {placesLoading && (
             <p className="mt-1.5 text-xs text-muted-foreground">searching…</p>
           )}
@@ -1135,11 +1452,17 @@ function WhoBlock({
     ? (circles.find((c) => c.id === editingCircleId) ?? null)
     : null
 
+  // The cap only matters when the headcount isn't already bounded by a
+  // curated list. Public events need a cap (anyone can join) and "all
+  // friends" can be sizeable. Inner/Close are already capped by membership.
+  const allCircleId = circles.find((c) => c.type === "all")?.id ?? ""
+  const showLimit = isOpen || audience === allCircleId
+
   return (
     <div className="flex flex-col gap-3">
-      {/* Combined row: open-event toggle on the left, guest-limit stepper on
-          the right. Splits one card into two columns so privacy + capacity
-          live on a single line. */}
+      {/* Public toggle + (conditional) guest-limit stepper. Limit only
+          renders when it's meaningful: public events or "all friends" — for
+          inner/close, the audience IS the cap. */}
       <div
         className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${
           isOpen ? "border-accent bg-accent/5" : "border-border"
@@ -1149,9 +1472,20 @@ function WhoBlock({
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           public
         </span>
-        <div className="h-7 w-px shrink-0 bg-border" />
-        <span className="shrink-0 text-xs text-muted-foreground">limit</span>
-        <Stepper value={guestLimit} onChange={onGuestLimit} min={1} max={200} />
+        {showLimit && (
+          <>
+            <div className="h-7 w-px shrink-0 bg-border" />
+            <span className="shrink-0 text-xs text-muted-foreground">
+              limit
+            </span>
+            <Stepper
+              value={guestLimit}
+              onChange={onGuestLimit}
+              min={1}
+              max={200}
+            />
+          </>
+        )}
       </div>
 
       {!isOpen && editingCircle && (
@@ -1379,7 +1713,7 @@ function CircleEditor({
   onClose: () => void
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-accent bg-accent/5 p-3">
+    <div className="flex min-h-0 flex-col gap-2 rounded-xl border border-accent bg-accent/5 p-3">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-accent">
           editing {circle.name}
@@ -1413,9 +1747,11 @@ function CircleEditor({
   )
 }
 
-// Shown only when audience is "all friends" — lets the user amplify the
-// broadcast by directly inviting specific people on top of it (Instagram
-// "tag in story" pattern).
+// Optional amplifier on top of whatever circle is the audience — pick a few
+// specific people to invite directly for this one event. Collapsed by default
+// so it doesn't eat ~200px when the user has no extras to add. The trigger
+// shows a running count when non-zero, so the user can still see at a glance
+// who's coming along.
 function DirectInviteSearch({
   connections,
   directlyInvitedIds,
@@ -1425,16 +1761,47 @@ function DirectInviteSearch({
   directlyInvitedIds: string[]
   onToggle: (id: string) => void
 }) {
+  // Keep expanded once the user adds anyone — collapsing with people selected
+  // would hide state from the user and feel like a bug.
+  const hasSelection = directlyInvitedIds.length > 0
+  const [expanded, setExpanded] = useState(false)
+  const isOpen = expanded || hasSelection
+
+  if (!isOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-2.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+      >
+        <UserPlus className="h-3.5 w-3.5" />
+        also invite specific friends
+      </button>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
-      <span className="text-xs text-muted-foreground">
-        also invite specifically
-        {directlyInvitedIds.length > 0 && (
-          <span className="ml-1 text-accent">
-            · {directlyInvitedIds.length} selected
-          </span>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          also invite specifically
+          {hasSelection && (
+            <span className="ml-1 text-accent">
+              · {directlyInvitedIds.length} selected
+            </span>
+          )}
+        </span>
+        {!hasSelection && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            aria-label="Collapse direct invites"
+            className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
+          >
+            <X className="h-3 w-3" />
+          </button>
         )}
-      </span>
+      </div>
       <FriendList
         connections={connections}
         selectedIds={directlyInvitedIds}
@@ -1475,13 +1842,16 @@ function FriendList({
   }, [connections, query])
 
   return (
-    <>
+    <div className="flex min-h-0 flex-col gap-2">
       <Input
         placeholder={searchPlaceholder}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <ul className="-mx-1 max-h-48 overflow-y-auto">
+      <ul
+        className="-mx-1 max-h-48 overflow-y-auto overscroll-contain"
+        data-vaul-no-drag
+      >
         {filtered.length === 0 ? (
           <li className="px-2 py-3 text-xs text-muted-foreground">
             {emptyHint}
@@ -1519,7 +1889,7 @@ function FriendList({
           })
         )}
       </ul>
-    </>
+    </div>
   )
 }
 
