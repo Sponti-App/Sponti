@@ -15,6 +15,7 @@ export interface EventItem {
   visibility: EventVisibility
   myRsvp?: EventRsvp | null
   host: {
+    id: string
     name: string
     avatar: string
     color: string
