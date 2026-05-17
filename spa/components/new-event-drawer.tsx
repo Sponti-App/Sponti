@@ -208,6 +208,65 @@ function buildTimeRange(args: {
   }
 }
 
+type EventDraftStateDefaults = {
+  activeSnapPoint: number | string | null
+  mode: Mode
+  eventType: EventType | null
+  typeOverrideOpen: boolean
+  title: string
+  detailsExpanded: boolean
+  details: string
+  startOffsetMin: number
+  endOffsetMin: number
+  startDate: string
+  startTimeMin: number
+  endTimeMin: number
+  whereType: WhereType
+  searchQuery: string
+  pickedSearchAddress: string
+  placeResults: PlaceSuggestion[]
+  placesLoading: boolean
+  isOpen: boolean
+  guestLimit: number
+  audience: Audience
+  directlyInvitedIds: string[]
+  editingCircleId: string | null
+  allowForward: boolean
+  allowPlusOne: boolean
+  submitError: string | null
+}
+
+function getInitialEventDraftState(): EventDraftStateDefaults {
+  // Keep wall-clock defaults in a factory so reset uses "today" at reset time.
+  return {
+    activeSnapPoint: 0.55,
+    mode: "now",
+    eventType: null,
+    typeOverrideOpen: false,
+    title: "",
+    detailsExpanded: false,
+    details: "",
+    startOffsetMin: 0,
+    endOffsetMin: 60,
+    startDate: formatDateInput(new Date()),
+    startTimeMin: 19 * 60,
+    endTimeMin: 20 * 60,
+    whereType: "current",
+    searchQuery: "",
+    pickedSearchAddress: "",
+    placeResults: [],
+    placesLoading: false,
+    isOpen: false,
+    guestLimit: 10,
+    audience: "",
+    directlyInvitedIds: [],
+    editingCircleId: null,
+    allowForward: false,
+    allowPlusOne: false,
+    submitError: null,
+  }
+}
+
 export function NewEventDrawer({
   open,
   onClose,
@@ -231,9 +290,10 @@ export function NewEventDrawer({
   // summary chips + CTA stack on small viewports without clipping. Scheduled
   // mode jumps straight to 0.95 — there's no useful peek state when a
   // date/time picker is the whole point.
+  const initialEventDraftState = useMemo(() => getInitialEventDraftState(), [])
   const [activeSnapPoint, setActiveSnapPoint] = useState<
     number | string | null
-  >(0.55)
+  >(initialEventDraftState.activeSnapPoint)
   const handleClose = onClose
 
   // Section refs let the summary-chip row scroll the form to the relevant
@@ -259,7 +319,7 @@ export function NewEventDrawer({
   }
 
   // Mode
-  const [mode, setMode] = useState<Mode>("now")
+  const [mode, setMode] = useState<Mode>(initialEventDraftState.mode)
   const handleModeChange = (v: string) => {
     const next = v as Mode
     setMode(next)
@@ -269,13 +329,19 @@ export function NewEventDrawer({
   // Event type — `eventType` holds the user's MANUAL pick (null = not picked
   // yet). The inferred type is derived from the title via keyword match.
   // `resolveEventType(manual, inferred)` decides what actually ships at submit.
-  const [eventType, setEventType] = useState<EventType | null>(null)
-  const [typeOverrideOpen, setTypeOverrideOpen] = useState(false)
+  const [eventType, setEventType] = useState<EventType | null>(
+    initialEventDraftState.eventType
+  )
+  const [typeOverrideOpen, setTypeOverrideOpen] = useState(
+    initialEventDraftState.typeOverrideOpen
+  )
 
   // What
-  const [title, setTitle] = useState("")
-  const [detailsExpanded, setDetailsExpanded] = useState(false)
-  const [details, setDetails] = useState("")
+  const [title, setTitle] = useState(initialEventDraftState.title)
+  const [detailsExpanded, setDetailsExpanded] = useState(
+    initialEventDraftState.detailsExpanded
+  )
+  const [details, setDetails] = useState(initialEventDraftState.details)
 
   const inferredType = useMemo(() => inferEventType(title), [title])
   const effectiveType = resolveEventType(eventType, inferredType)
@@ -286,26 +352,48 @@ export function NewEventDrawer({
     () => Math.round(minutesNow() / STEP_MIN) * STEP_MIN,
     []
   )
-  const [startOffsetMin, setStartOffsetMin] = useState(0)
-  const [endOffsetMin, setEndOffsetMin] = useState(60)
+  const [startOffsetMin, setStartOffsetMin] = useState(
+    initialEventDraftState.startOffsetMin
+  )
+  const [endOffsetMin, setEndOffsetMin] = useState(
+    initialEventDraftState.endOffsetMin
+  )
 
   // SCHEDULED mode
-  const [startDate, setStartDate] = useState(formatDateInput(new Date()))
-  const [startTimeMin, setStartTimeMin] = useState(19 * 60)
-  const [endTimeMin, setEndTimeMin] = useState(20 * 60)
+  const [startDate, setStartDate] = useState(initialEventDraftState.startDate)
+  const [startTimeMin, setStartTimeMin] = useState(
+    initialEventDraftState.startTimeMin
+  )
+  const [endTimeMin, setEndTimeMin] = useState(
+    initialEventDraftState.endTimeMin
+  )
 
   // WHERE
-  const [whereType, setWhereType] = useState<WhereType>("current")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [pickedSearchAddress, setPickedSearchAddress] = useState("")
-  const [placeResults, setPlaceResults] = useState<PlaceSuggestion[]>([])
-  const [placesLoading, setPlacesLoading] = useState(false)
+  const [whereType, setWhereType] = useState<WhereType>(
+    initialEventDraftState.whereType
+  )
+  const [searchQuery, setSearchQuery] = useState(
+    initialEventDraftState.searchQuery
+  )
+  const [pickedSearchAddress, setPickedSearchAddress] = useState(
+    initialEventDraftState.pickedSearchAddress
+  )
+  const [placeResults, setPlaceResults] = useState<PlaceSuggestion[]>(
+    initialEventDraftState.placeResults
+  )
+  const [placesLoading, setPlacesLoading] = useState(
+    initialEventDraftState.placesLoading
+  )
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // GUESTS
-  const [isOpen, setIsOpen] = useState(false)
-  const [guestLimit, setGuestLimit] = useState(10)
-  const [audience, setAudience] = useState<Audience>("")
+  const [isOpen, setIsOpen] = useState(initialEventDraftState.isOpen)
+  const [guestLimit, setGuestLimit] = useState(
+    initialEventDraftState.guestLimit
+  )
+  const [audience, setAudience] = useState<Audience>(
+    initialEventDraftState.audience
+  )
   const defaultAudience = useMemo(
     () =>
       circles.find((c) => c.type === "close")?.id ??
@@ -320,14 +408,58 @@ export function NewEventDrawer({
   // Direct invites are extras on top of whatever circle is selected — they
   // become `members` on the create-event request alongside `circles`. Lets
   // the user pick inner + add a couple more people for this one event.
-  const [directlyInvitedIds, setDirectlyInvitedIds] = useState<string[]>([])
+  const [directlyInvitedIds, setDirectlyInvitedIds] = useState<string[]>(
+    initialEventDraftState.directlyInvitedIds
+  )
   // Inner/Close are editable inline via long-press. This holds the id of the
   // circle currently being edited; null when no edit panel is open.
-  const [editingCircleId, setEditingCircleId] = useState<string | null>(null)
-  const [allowForward, setAllowForward] = useState(false)
-  const [allowPlusOne, setAllowPlusOne] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [editingCircleId, setEditingCircleId] = useState<string | null>(
+    initialEventDraftState.editingCircleId
+  )
+  const [allowForward, setAllowForward] = useState(
+    initialEventDraftState.allowForward
+  )
+  const [allowPlusOne, setAllowPlusOne] = useState(
+    initialEventDraftState.allowPlusOne
+  )
+  const [submitError, setSubmitError] = useState<string | null>(
+    initialEventDraftState.submitError
+  )
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const resetEventDraft = useCallback((): void => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+
+    const initialState = getInitialEventDraftState()
+    setActiveSnapPoint(initialState.activeSnapPoint)
+    setMode(initialState.mode)
+    setEventType(initialState.eventType)
+    setTypeOverrideOpen(initialState.typeOverrideOpen)
+    setTitle(initialState.title)
+    setDetailsExpanded(initialState.detailsExpanded)
+    setDetails(initialState.details)
+    setStartOffsetMin(initialState.startOffsetMin)
+    setEndOffsetMin(initialState.endOffsetMin)
+    setStartDate(initialState.startDate)
+    setStartTimeMin(initialState.startTimeMin)
+    setEndTimeMin(initialState.endTimeMin)
+    setWhereType(initialState.whereType)
+    setSearchQuery(initialState.searchQuery)
+    setPickedSearchAddress(initialState.pickedSearchAddress)
+    setPlaceResults(initialState.placeResults)
+    setPlacesLoading(initialState.placesLoading)
+    setIsOpen(initialState.isOpen)
+    setGuestLimit(initialState.guestLimit)
+    setAudience(initialState.audience)
+    setDirectlyInvitedIds(initialState.directlyInvitedIds)
+    setEditingCircleId(initialState.editingCircleId)
+    setAllowForward(initialState.allowForward)
+    setAllowPlusOne(initialState.allowPlusOne)
+    setSubmitError(initialState.submitError)
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -354,7 +486,8 @@ export function NewEventDrawer({
   // circle is being edited inline) would leak across open/close. Reset it
   // whenever the drawer is closed so reopening starts fresh.
   useEffect(() => {
-    if (!open) setEditingCircleId(null)
+    if (open) return
+    queueMicrotask(() => setEditingCircleId(null))
   }, [open])
 
   const handleStartOffset = (next: number): void => {
@@ -412,7 +545,7 @@ export function NewEventDrawer({
   }
 
   // Now-mode wheel options use absolute clock-time labels so the user sees
-  // "9:30pm" instead of "+30m", matching the scheduled-mode wheel behaviour.
+  // "9:30pm" instead of "+30m", matching the scheduled-mode wheel behavior.
   const nowStartOptions = useMemo(() => {
     const out: { value: number; label: string }[] = []
     for (let m = 0; m <= NOW_MAX_OFFSET_MIN; m += STEP_MIN) {
@@ -543,6 +676,7 @@ export function NewEventDrawer({
       return
     }
     setIsSubmitting(true)
+    let created = false
     const createdAt = new Date().toISOString()
     const finalAudience: Audience = effectiveAudience
     let eventAudience: EventAudienceTarget = { kind: "public" }
@@ -626,11 +760,13 @@ export function NewEventDrawer({
         }
         throw err
       }
+      created = true
       onClose()
     } catch (error) {
       setSubmitError(formatSubmitError(error))
     } finally {
       setIsSubmitting(false)
+      if (created) resetEventDraft()
     }
   }
 
