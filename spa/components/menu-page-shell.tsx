@@ -15,7 +15,7 @@ export function MenuPageShell({
   children: ReactNode
 }) {
   return (
-    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background">
+    <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
         <header className="flex items-center justify-between px-4 pt-3 pb-5">
           <Link
             href={backHref}

@@ -219,7 +219,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
     password.newPassword === password.confirmPassword
 
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col relative">
+    <div className="min-h-dvh w-full bg-background flex flex-col relative">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-border">
         <button
