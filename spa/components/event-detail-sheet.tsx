@@ -14,6 +14,9 @@ import {
   Check,
   Navigation,
   X,
+  Landmark,
+  Palette,
+  PartyPopper,
 } from "lucide-react"
 import {
   avatarText,
@@ -31,6 +34,9 @@ function EventTypeIcon({ type }: { type: EventItem["type"] }) {
   const cls = "w-6 h-6 text-accent"
   if (type === "drinks") return <Coffee className={cls} />
   if (type === "sports") return <Activity className={cls} />
+  if (type === "culture") return <Landmark className={cls} />
+  if (type === "hobby") return <Palette className={cls} />
+  if (type === "party") return <PartyPopper className={cls} />
   return <Users className={cls} />
 }
 
