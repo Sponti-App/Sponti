@@ -751,6 +751,7 @@ export function NewEventDrawer({
       )
       try {
         await createEvent(requestBody)
+        created = true
         emitEventsChanged()
       } catch (err) {
         if (err instanceof HttpError) {
@@ -779,7 +780,10 @@ export function NewEventDrawer({
         open={open}
         onOpenChange={(next) => {
           if (next) haptic("medium")
-          else { haptic("light"); onClose() }
+          else {
+            haptic("light")
+            onClose()
+          }
         }}
         snapPoints={[0.55, 0.8, 0.95]}
         activeSnapPoint={activeSnapPoint}
