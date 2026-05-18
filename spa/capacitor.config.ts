@@ -8,9 +8,9 @@ const config: CapacitorConfig = {
   webDir: 'out',
   // In dev, point to the Next.js dev server for live reload
   server: isDev ? {
-    url: 'http://192.168.178.185:3000',
-    cleartext: true,
-  } : undefined,
+  url: process.env.NEXT_PUBLIC_DEV_SERVER_URL ?? 'http://localhost:3000',
+  cleartext: true,
+} : undefined,
   plugins: {
     SplashScreen: {
       launchShowDuration: 1000,
@@ -25,3 +25,5 @@ const config: CapacitorConfig = {
 };
 
 export default config;
+
+

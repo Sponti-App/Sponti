@@ -63,9 +63,18 @@ When A blocks B:
 - Do not remove B from events.
 - Filter B's events from A's map/calendar/inbox results.
 
+## QR Contact Tokens
+
+- QR tokens are random bearer secrets; store only `tokenHash`.
+- Tokens expire after 15 minutes and can be reused until expiry.
+- Creating a new token does not deactivate older unexpired tokens, so an in-flight
+  scan does not break if the owner refreshes or reopens the QR sheet.
+- Resolving a token returns a confirmation payload. It creates a connection only
+  when the caller passes `connect: true`.
+- If either user blocked the other, resolving returns a generic not-found error.
+
 ## TODO Areas
 
 - Connection retry behavior after rejection.
-- QR contact token expiry/reuse/hash contract.
 - Future pagination for inbox.
 - Future custom index/migration strategy.

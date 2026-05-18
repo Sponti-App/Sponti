@@ -10,7 +10,6 @@ import {
   Plus,
   QrCode,
   Search,
-  ShieldOff,
   UserPlus,
   X,
 } from "lucide-react"
@@ -24,6 +23,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -54,7 +56,7 @@ import {
   useConnectionsState,
 } from "@/lib/connections-store"
 
-type Tab = "circles" | "people" | "blocked"
+type Tab = "circles" | "people"
 
 export default function CirclesPage() {
   const router = useRouter()
@@ -62,17 +64,26 @@ export default function CirclesPage() {
   const [tab, setTab] = useState<Tab>("circles")
   const [qrOpen, setQrOpen] = useState(false)
 
-  const [searchQuery, setSearchQuery] = useState("")
+  // People tab search
+  const [peopleQuery, setPeopleQuery] = useState("")
+
   const { connections, requests, blocked, discoverable, sentRequests } =
     useConnectionsState()
   const circles = useCircles()
+
+  // Circles tab state
   const [expandedCircleId, setExpandedCircleId] = useState<string | null>(null)
   const [circleSort, setCircleSort] = useState<Record<string, "alpha" | "recent">>({})
   const [memberQuery, setMemberQuery] = useState("")
   const [newCircleOpen, setNewCircleOpen] = useState(false)
   const [newCircleName, setNewCircleName] = useState("")
-  const [pendingBlock, setPendingBlock] = useState<Connection | null>(null)
   const [newCircleMemberIds, setNewCircleMemberIds] = useState<string[]>([])
+
+  // Block confirmation
+  const [pendingBlock, setPendingBlock] = useState<Connection | null>(null)
+
+  // After accepting a request, briefly surface an inline circle-picker on that row
+  const [justAcceptedId, setJustAcceptedId] = useState<string | null>(null)
 
   const connectionsById = useMemo(() => {
     const map = new Map<string, Connection>()
@@ -81,24 +92,25 @@ export default function CirclesPage() {
   }, [connections])
 
   const matchingDiscoverable = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase().replace(/^@/, "")
+    const q = peopleQuery.trim().toLowerCase().replace(/^@/, "")
     if (!q) return [] as Connection[]
     return discoverable.filter(
       (d) =>
         d.username.toLowerCase().includes(q) ||
-        d.displayName.toLowerCase().includes(q)
+        d.displayName.toLowerCase().includes(q),
     )
-  }, [searchQuery, discoverable])
+  }, [peopleQuery, discoverable])
 
   // ----- handlers -----
 
   const sendRequest = (target: Connection): void => {
     sendRequestAction(target)
-    setSearchQuery("")
+    setPeopleQuery("")
   }
 
   const acceptRequest = (req: ConnectionRequest): void => {
     acceptRequestAction(req.id)
+    setJustAcceptedId(req.user.id)
   }
 
   const declineRequest = (req: ConnectionRequest): void => {
@@ -107,6 +119,7 @@ export default function CirclesPage() {
 
   const blockConnection = (target: Connection): void => {
     blockConnectionAction(target)
+    setPendingBlock(null)
   }
 
   const cancelSentRequest = (targetId: string): void => {
@@ -119,7 +132,7 @@ export default function CirclesPage() {
 
   const toggleNewCircleMember = (id: string): void => {
     setNewCircleMemberIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
   }
 
@@ -142,144 +155,69 @@ export default function CirclesPage() {
     setNewCircleOpen(false)
   }
 
+  // Circles the user can still add a connection to (excludes "all" and circles they're already in)
+  const addableCircles = (connectionId: string): Circle[] =>
+    circles.filter((c) => c.id !== "all" && !c.memberIds.includes(connectionId))
+
   return (
-    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background">
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between px-4 py-3">
-        <button
-          onClick={() => router.push("/")}
-          aria-label="Back"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <span className="text-base font-semibold">circles</span>
-        <button
-          onClick={() => setQrOpen(true)}
-          aria-label="Show your QR"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground"
-        >
-          <QrCode className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Add by handle */}
-      <div className="shrink-0 px-4 pb-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="add by @handle"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        {searchQuery.trim() && (
-          <div className="mt-2 overflow-hidden rounded-xl border border-border bg-card">
-            {matchingDiscoverable.length === 0 ? (
-              <p className="px-3 py-2.5 text-xs text-muted-foreground">
-                no matches for &ldquo;{searchQuery}&rdquo;
-              </p>
-            ) : (
-              <ul className="divide-y divide-border">
-                {matchingDiscoverable.map((d) => (
-                  <li key={d.id} className="flex items-center gap-3 px-3 py-2">
-                    <Avatar name={d.displayName} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {d.displayName}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        @{d.username}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => sendRequest(d)}
-                      className="h-8 rounded-full bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
-                    >
-                      <UserPlus className="mr-1 h-3.5 w-3.5" />
-                      add
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-        {sentRequests.length > 0 && !searchQuery.trim() && (
-          <div className="mt-2 overflow-hidden rounded-xl border border-border bg-card">
-            <p className="px-3 pt-2.5 pb-1 text-[11px] tracking-wide text-muted-foreground uppercase">
-              pending
-            </p>
-            <ul className="divide-y divide-border">
-              {sentRequests.map((r) => (
-                <li key={r.id} className="flex items-center gap-3 px-3 py-2">
-                  <Avatar name={r.displayName} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {r.displayName}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      @{r.username}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => cancelSentRequest(r.id)}
-                    className="h-8 shrink-0 rounded-full px-3 text-xs"
-                  >
-                    cancel
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {/* Tabs */}
+    <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
       <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as Tab)}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <div className="shrink-0 px-4">
-          <TabsList className="w-full">
-            <TabsTrigger value="circles">circles</TabsTrigger>
-            <TabsTrigger value="people">
-              people
-              {requests.length > 0 && (
-                <span className="ml-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-foreground">
-                  {requests.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="blocked">blocked</TabsTrigger>
-          </TabsList>
+        {/* Sticky header + tab bar */}
+        <div className="shrink-0 sticky top-0 z-10 bg-background">
+          <div className="flex items-center justify-between px-4 py-3">
+            <button
+              onClick={() => router.push("/")}
+              aria-label="Back"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <span className="text-base font-semibold">circles</span>
+            <button
+              onClick={() => setQrOpen(true)}
+              aria-label="Show your QR"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground"
+            >
+              <QrCode className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="border-b border-border/60 px-4 pb-3">
+            <TabsList className="w-full">
+              <TabsTrigger value="circles">circles</TabsTrigger>
+              <TabsTrigger value="people">
+                connections
+                {requests.length > 0 && (
+                  <span className="ml-1.5 rounded-full bg-accent px-1.5 py-0.5 text-xs font-semibold text-accent-foreground">
+                    {requests.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </div>
         </div>
 
-        <div className="mt-3 flex-1 overflow-y-auto px-4 pb-32">
-          {/* CIRCLES TAB */}
-          <TabsContent value="circles" className="m-0 flex flex-col gap-3">
-            {circles.map((circle) => {
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-4 pb-32">
+          {/* ── CIRCLES TAB ── */}
+          <TabsContent value="circles" className="m-0 mt-3 flex flex-col gap-3">
+            {circles.filter((c) => c.id !== "all").map((circle) => {
               const isExpanded = expandedCircleId === circle.id
-              const isAllFriends = circle.id === "all"
               const sort = circleSort[circle.id] ?? "recent"
 
-              const memberCount = isAllFriends ? connections.length : circle.memberIds.length
+              const memberCount = circle.memberIds.length
               const previewNames = circle.memberIds
                 .slice(0, 3)
                 .map((id) => connectionsById.get(id)?.displayName)
                 .filter(Boolean)
                 .join(", ")
 
-              const rawMembers = isAllFriends
-                ? connections
-                : circle.memberIds
-                    .map((id) => connectionsById.get(id))
-                    .filter((c): c is Connection => Boolean(c))
+              const rawMembers = circle.memberIds
+                .map((id) => connectionsById.get(id))
+                .filter((c): c is Connection => Boolean(c))
 
               const sortedMembers = [...rawMembers].sort((a, b) => {
                 if (sort === "alpha") return a.displayName.localeCompare(b.displayName)
@@ -303,10 +241,11 @@ export default function CirclesPage() {
                 <div
                   key={circle.id}
                   className={`overflow-hidden rounded-xl border transition-colors ${
-                    isExpanded ? "border-accent bg-card" : "border-border bg-background"
+                    isExpanded
+                      ? "border-accent bg-card"
+                      : "border-border bg-background"
                   }`}
                 >
-                  {/* Accordion header */}
                   <button
                     type="button"
                     onClick={() => {
@@ -338,7 +277,6 @@ export default function CirclesPage() {
                     />
                   </button>
 
-                  {/* Accordion body — CSS grid trick for smooth height animation */}
                   <div
                     style={{
                       display: "grid",
@@ -348,27 +286,23 @@ export default function CirclesPage() {
                   >
                     <div className="overflow-hidden">
                       <div className="flex flex-col gap-3 border-t border-border px-3 pt-3 pb-3">
-                        {/* Editable name (not for "all") */}
-                        {!isAllFriends && (
-                          <Input
-                            value={circle.name}
-                            onChange={(e) =>
-                              setCircles((prev) =>
-                                prev.map((c) =>
-                                  c.id === circle.id
-                                    ? { ...c, name: e.target.value }
-                                    : c,
-                                ),
+                        <Input
+                          value={circle.name}
+                          onChange={(e) =>
+                            setCircles((prev) =>
+                              prev.map((c) =>
+                                c.id === circle.id
+                                  ? { ...c, name: e.target.value }
+                                  : c,
                               )
-                            }
-                            aria-label="circle name"
-                            className="font-medium"
-                          />
-                        )}
+                            )
+                          }
+                          aria-label="circle name"
+                          className="font-medium"
+                        />
 
-                        {/* Sort pills */}
                         <div className="flex items-center gap-1.5">
-                          <p className="mr-1 text-[11px] tracking-wide text-muted-foreground uppercase">
+                          <p className="mr-1 text-xs text-muted-foreground uppercase tracking-wide">
                             sort
                           </p>
                           {(["recent", "alpha"] as const).map((s) => (
@@ -381,7 +315,7 @@ export default function CirclesPage() {
                                   [circle.id]: s,
                                 }))
                               }
-                              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                                 sort === s
                                   ? "bg-foreground text-background"
                                   : "bg-secondary text-muted-foreground hover:text-foreground"
@@ -392,7 +326,6 @@ export default function CirclesPage() {
                           ))}
                         </div>
 
-                        {/* Member list */}
                         {sortedMembers.length === 0 ? (
                           <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
                             this circle is empty.
@@ -403,13 +336,12 @@ export default function CirclesPage() {
                             style={{ maxHeight: "220px" }}
                           >
                             {sortedMembers.map((m) => {
-                              const movableCircles = isAllFriends
-                                ? []
-                                : circles.filter(
-                                    (c) =>
-                                      c.id !== circle.id &&
-                                      !c.memberIds.includes(m.id),
-                                  )
+                              const movableCircles = circles.filter(
+                                (c) =>
+                                  c.id !== circle.id &&
+                                  c.id !== "all" &&
+                                  !c.memberIds.includes(m.id),
+                              )
                               return (
                                 <li
                                   key={m.id}
@@ -432,8 +364,7 @@ export default function CirclesPage() {
                                       </p>
                                     </div>
                                   </button>
-                                  {!isAllFriends && (
-                                    <DropdownMenu>
+                                  <DropdownMenu>
                                       <DropdownMenuTrigger asChild>
                                         <button
                                           type="button"
@@ -474,16 +405,13 @@ export default function CirclesPage() {
                                         </DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </DropdownMenu>
-                                  )}
                                 </li>
                               )
                             })}
                           </ul>
                         )}
 
-                        {/* Add member search (not for "all") */}
-                        {!isAllFriends && (
-                          <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-1.5">
                             <div className="relative">
                               <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                               <Input
@@ -527,8 +455,7 @@ export default function CirclesPage() {
                                 )}
                               </ul>
                             )}
-                          </div>
-                        )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -536,7 +463,6 @@ export default function CirclesPage() {
               )
             })}
 
-            {/* Create custom circle */}
             <button
               type="button"
               onClick={() => setNewCircleOpen((v) => !v)}
@@ -626,11 +552,58 @@ export default function CirclesPage() {
             )}
           </TabsContent>
 
-          {/* PEOPLE TAB */}
-          <TabsContent value="people" className="m-0 flex flex-col gap-4">
+          {/* ── PEOPLE TAB ── */}
+          <TabsContent value="people" className="m-0 flex flex-col">
+            {/* Search — owns the discover + send-request flow */}
+            <div className="pt-4 pb-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="add by @handle"
+                  value={peopleQuery}
+                  onChange={(e) => setPeopleQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {peopleQuery.trim() && (
+                <div className="mt-2 overflow-hidden rounded-xl border border-border bg-card">
+                  {matchingDiscoverable.length === 0 ? (
+                    <p className="px-3 py-2.5 text-xs text-muted-foreground">
+                      no matches for &ldquo;{peopleQuery}&rdquo;
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {matchingDiscoverable.map((d) => (
+                        <li key={d.id} className="flex items-center gap-3 px-3 py-2">
+                          <Avatar name={d.displayName} />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">
+                              {d.displayName}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              @{d.username}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => sendRequest(d)}
+                            className="h-8 rounded-full bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
+                          >
+                            <UserPlus className="mr-1 h-3.5 w-3.5" />
+                            add
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Received requests */}
             {requests.length > 0 && (
-              <section>
-                <p className="mb-2 text-[11px] tracking-wide text-muted-foreground uppercase">
+              <section className="mt-4">
+                <p className="mb-2 text-xs font-medium text-foreground">
                   requests
                 </p>
                 <ul className="flex flex-col gap-2">
@@ -680,115 +653,222 @@ export default function CirclesPage() {
               </section>
             )}
 
-            <section>
+            {/* Sent (pending) requests */}
+            {sentRequests.length > 0 && (
+              <section className="mt-6">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-medium text-foreground">pending</p>
+                  <span className="text-xs text-muted-foreground">
+                    {sentRequests.length}
+                  </span>
+                </div>
+                <ul className="flex flex-col">
+                  {sentRequests.map((r) => (
+                    <li
+                      key={r.id}
+                      className="flex items-center gap-3 border-b border-border px-1 py-2 last:border-b-0"
+                    >
+                      <Avatar name={r.displayName} muted />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-muted-foreground">
+                          {r.displayName}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          @{r.username}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => cancelSentRequest(r.id)}
+                        className="h-8 shrink-0 rounded-full px-3 text-xs"
+                      >
+                        cancel
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* Your people — active connections + blocked at bottom */}
+            <section className="mt-6">
               <div className="mb-2 flex items-center justify-between">
-                <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
-                  your people
-                </p>
-                <span className="text-[11px] text-muted-foreground">
+                <p className="text-xs font-medium text-foreground">connections</p>
+                <span className="text-xs text-muted-foreground">
                   {connections.length}
                 </span>
               </div>
-              {connections.length === 0 ? (
+
+              {connections.length === 0 && blocked.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
                   add friends with their @handle or QR code.
                 </p>
               ) : (
                 <ul className="flex flex-col">
-                  {connections.map((c) => (
-                    <li
-                      key={c.id}
-                      className="flex items-center gap-3 border-b border-border px-1 py-2 last:border-b-0"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/profile/${c.username}`)}
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  {connections.map((c) => {
+                    const circlesToAdd = addableCircles(c.id)
+                    const isJustAccepted = justAcceptedId === c.id
+                    return (
+                      <li
+                        key={c.id}
+                        className="flex flex-col border-b border-border last:border-b-0"
                       >
-                        <Avatar name={c.displayName} />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">
-                            {c.displayName}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            @{c.username}
-                          </p>
-                        </div>
-                      </button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                        <div className="flex items-center gap-3 px-1 py-2">
                           <button
                             type="button"
-                            aria-label={`options for ${c.displayName}`}
-                            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
+                            onClick={() => router.push(`/profile/${c.username}`)}
+                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
                           >
-                            <MoreHorizontal className="h-4 w-4" />
+                            <Avatar name={c.displayName} />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">
+                                {c.displayName}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                @{c.username}
+                              </p>
+                            </div>
                           </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() =>
-                              router.push(`/profile/${c.username}`)
-                            }
-                          >
-                            view profile
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setPendingBlock(c)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            block
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </li>
-                  ))}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label={`options for ${c.displayName}`}
+                                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  router.push(`/profile/${c.username}`)
+                                }
+                              >
+                                view profile
+                              </DropdownMenuItem>
+                              {circlesToAdd.length > 0 && (
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger>
+                                    add to circle
+                                  </DropdownMenuSubTrigger>
+                                  <DropdownMenuSubContent>
+                                    {circlesToAdd.map((circle) => (
+                                      <DropdownMenuItem
+                                        key={circle.id}
+                                        onClick={() =>
+                                          addMemberToCircle(circle.id, c.id)
+                                        }
+                                      >
+                                        {circle.name}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => setPendingBlock(c)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                block
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+
+                        {/* Post-accept circle picker */}
+                        {isJustAccepted && (
+                          <div className="flex flex-wrap items-center gap-2 px-1 pb-2.5 pl-12">
+                            <span className="text-xs text-muted-foreground">
+                              add to circle:
+                            </span>
+                            {circles
+                              .filter((ci) => ci.id !== "all")
+                              .map((ci) => {
+                                const inCircle = ci.memberIds.includes(c.id)
+                                return (
+                                  <button
+                                    key={ci.id}
+                                    type="button"
+                                    disabled={inCircle}
+                                    onClick={() => addMemberToCircle(ci.id, c.id)}
+                                    className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                                      inCircle
+                                        ? "bg-accent/15 text-accent"
+                                        : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+                                    }`}
+                                  >
+                                    {inCircle && <Check className="h-3 w-3" />}
+                                    {ci.name}
+                                  </button>
+                                )
+                              })}
+                            <button
+                              type="button"
+                              onClick={() => setJustAcceptedId(null)}
+                              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                            >
+                              done
+                            </button>
+                          </div>
+                        )}
+                      </li>
+                    )
+                  })}
+
+                  {/* Blocked users — demoted to bottom with a seam */}
+                  {blocked.length > 0 && (
+                    <>
+                      {connections.length > 0 && (
+                        <li className="list-none">
+                          <div className="flex items-center gap-2 py-2">
+                            <div className="h-px flex-1 bg-border/60" />
+                            <span className="text-xs text-muted-foreground/70">
+                              blocked ({blocked.length})
+                            </span>
+                            <div className="h-px flex-1 bg-border/60" />
+                          </div>
+                        </li>
+                      )}
+                      {blocked.map((b) => (
+                        <li
+                          key={b.id}
+                          className="flex items-center gap-3 border-b border-border px-1 py-2 last:border-b-0 opacity-50"
+                        >
+                          <Avatar name={b.displayName} muted />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">
+                              {b.displayName}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              @{b.username} · blocked {formatBlockedAt(b.blockedAt)}
+                            </p>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label={`options for ${b.displayName}`}
+                                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => unblock(b)}>
+                                unblock
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </li>
+                      ))}
+                    </>
+                  )}
                 </ul>
               )}
             </section>
-          </TabsContent>
-
-          {/* BLOCKED TAB */}
-          <TabsContent value="blocked" className="m-0">
-            {blocked.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-                no one is blocked.
-              </p>
-            ) : (
-              <ul className="flex flex-col">
-                {blocked.map((b) => (
-                  <li
-                    key={b.id}
-                    className="flex items-center gap-3 border-b border-border px-1 py-2 last:border-b-0"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/profile/${b.username}`)}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                    >
-                      <Avatar name={b.displayName} muted />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                          {b.displayName}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          @{b.username} · blocked {formatBlockedAt(b.blockedAt)}
-                        </p>
-                      </div>
-                    </button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => unblock(b)}
-                      className="h-8 rounded-full px-3 text-xs"
-                    >
-                      <ShieldOff className="mr-1 h-3.5 w-3.5" />
-                      unblock
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </TabsContent>
         </div>
       </Tabs>
@@ -810,7 +890,7 @@ export default function CirclesPage() {
 
       {pendingBlock && (
         <div
-          className="absolute inset-0 z-20 flex items-end bg-black/40"
+          className="absolute inset-0 z-20 flex items-end bg-(--scrim)"
           onClick={() => setPendingBlock(null)}
         >
           <div
@@ -823,16 +903,13 @@ export default function CirclesPage() {
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 They won&apos;t appear in your circles or see your flares. You
-                can unblock them later from the blocked tab.
+                can unblock them from your people list.
               </p>
             </div>
             <div className="flex flex-col gap-2">
               <Button
-                onClick={() => {
-                  blockConnection(pendingBlock)
-                  setPendingBlock(null)
-                }}
-                className="w-full rounded-full bg-destructive text-white hover:bg-destructive/90"
+                onClick={() => blockConnection(pendingBlock)}
+                className="w-full rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 block
               </Button>

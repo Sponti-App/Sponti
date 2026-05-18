@@ -138,10 +138,11 @@ export function eventCoords(event: EventItem): EventCoordinates | null {
 
 function hostFromApi(host: ApiEvent["hostId"]): EventItem["host"] {
   if (typeof host === "string") {
-    return { name: "host", avatar: "?", color: "bg-stone-400", note: "" }
+    return { id: host, name: "host", avatar: "?", color: "bg-stone-400", note: "" }
   }
   const name = host.displayName || host.username || "host"
   return {
+    id: host._id,
     name,
     avatar: name.charAt(0).toUpperCase(),
     color: "bg-stone-400",
@@ -154,8 +155,11 @@ function hostFromApi(host: ApiEvent["hostId"]): EventItem["host"] {
  * home map/calendar UI.
  */
 export function adaptApiEvent(api: ApiEvent): EventItem {
+  const hostId =
+    typeof api.hostId === "string" ? api.hostId : api.hostId?._id
   return {
     id: api._id,
+    hostId,
     title: api.title,
     type: api.type,
     startAt: api.startAt,
@@ -342,7 +346,12 @@ export function createEventRequestFromDraft(
     members:
       target.kind === "members"
         ? target.memberIds.map((userId) => ({ userId, role: "guest" }))
-        : [],
+        : target.kind === "circle" && target.extraMemberIds
+          ? target.extraMemberIds.map((userId) => ({
+            userId,
+            role: "guest" as const,
+          }))
+          : [],
   }
 }
 

@@ -13,6 +13,7 @@ import { BottomNav } from "@/components/bottom-nav"
 import { Button } from "@/components/ui/button"
 import { CancelEventDialog } from "@/components/cancel-event-dialog"
 import { EventHostCard } from "@/components/event-host-card"
+import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import {
   cancelEvent,
   deriveStatus,
@@ -26,6 +27,7 @@ const UNDO_WINDOW_MS = 5_000
 
 export default function EventHubPage() {
   const router = useRouter()
+  const { openDrawer } = useNewEventDrawer()
   const { hostedByMe, invited, pastHosted, loading, error, refresh } =
     useMyFlares()
   const cancelTimers = useRef(new Map<string, number>())
@@ -174,7 +176,7 @@ export default function EventHubPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background">
+    <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
       <div className="flex shrink-0 items-center justify-between px-4 py-3">
         <button
           onClick={() => router.push("/")}
@@ -192,7 +194,7 @@ export default function EventHubPage() {
 
       <div className="shrink-0 px-4 pb-3">
         <Button
-          onClick={() => router.push("/event/new")}
+          onClick={openDrawer}
           className="w-full rounded-full bg-accent py-5 text-sm text-accent-foreground hover:bg-accent/90"
         >
           <Plus className="mr-1 h-4 w-4" />

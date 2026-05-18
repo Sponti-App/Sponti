@@ -3,6 +3,7 @@ import { Figtree } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/components/auth-provider'
 import { AuthGate } from '@/components/auth-gate'
+import { NewEventDrawerProvider } from '@/components/new-event-drawer-provider'
 
 const figtree = Figtree({
   subsets: ['latin'],
@@ -48,7 +49,9 @@ export default function RootLayout({
     <html lang="en" className={figtree.variable}>
       <body className="font-sans antialiased" suppressHydrationWarning>
         <AuthProvider>
-          <AuthGate>{children}</AuthGate>
+          <AuthGate>
+            <NewEventDrawerProvider>{children}</NewEventDrawerProvider>
+          </AuthGate>
         </AuthProvider>
       </body>
     </html>

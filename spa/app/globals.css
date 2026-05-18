@@ -72,6 +72,12 @@
     --chart-4: oklch(0.828 0.189 84.429);
     --chart-5: oklch(0.769 0.188 70.08);
     --radius: 0.625rem;
+    /* Shadow tokens — use these instead of rgba(0,0,0,...) for theme portability */
+    --shadow-card: 0 6px 24px -8px oklch(0 0 0 / 12%), 0 2px 6px oklch(0 0 0 / 4%);
+    --shadow-elevated: 0 6px 14px -4px oklch(0 0 0 / 25%);
+    --shadow-sheet: 0 -4px 20px oklch(0 0 0 / 10%);
+    /* Scrim — modal/sheet backdrop overlay */
+    --scrim: oklch(0 0 0 / 40%);
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.205 0 0);
@@ -114,6 +120,10 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    --shadow-card: 0 6px 24px -8px oklch(0 0 0 / 30%), 0 2px 6px oklch(0 0 0 / 15%);
+    --shadow-elevated: 0 6px 14px -4px oklch(0 0 0 / 40%);
+    --shadow-sheet: 0 -4px 20px oklch(0 0 0 / 25%);
+    --scrim: oklch(0 0 0 / 55%);
 }
 
 @layer base {
@@ -130,4 +140,14 @@
   html {
     @apply font-sans;
     }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(1);    opacity: 0.6; }
+  70%  { transform: scale(1.9);  opacity: 0;   }
+  100% { transform: scale(1.9);  opacity: 0;   }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
 }

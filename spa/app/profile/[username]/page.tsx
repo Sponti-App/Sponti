@@ -45,7 +45,7 @@ export default function PublicProfilePage({
         : "stranger"
 
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col relative">
+    <div className="min-h-dvh w-full bg-background flex flex-col relative">
       <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-border">
         <button
           onClick={() => router.back()}
@@ -127,7 +127,7 @@ export default function PublicProfilePage({
 
       {showBlockConfirm && connection && (
         <div
-          className="absolute inset-0 z-20 flex items-end bg-black/40"
+          className="absolute inset-0 z-20 flex items-end bg-(--scrim)"
           onClick={() => setShowBlockConfirm(false)}
         >
           <div
@@ -147,7 +147,7 @@ export default function PublicProfilePage({
                   blockConnectionAction(connection)
                   router.back()
                 }}
-                className="rounded-full bg-destructive text-white hover:bg-destructive/90 w-full"
+                className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full"
               >
                 block
               </Button>

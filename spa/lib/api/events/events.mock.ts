@@ -16,6 +16,7 @@ export const MOCK_EVENTS: EventItem[] = [
     endAt: new Date(now + 50 * MIN).toISOString(),
     visibility: "public",
     host: {
+      id: "mira-id",
       name: "Mira",
       avatar: "M",
       color: "bg-accent",
@@ -41,6 +42,7 @@ export const MOCK_EVENTS: EventItem[] = [
     endAt: new Date(now + 7 * HOUR).toISOString(),
     visibility: "private",
     host: {
+      id: "sam-id",
       name: "Sam",
       avatar: "S",
       color: "bg-stone-800",
@@ -65,6 +67,7 @@ export const MOCK_EVENTS: EventItem[] = [
     endAt: new Date(now + DAY + 3 * HOUR).toISOString(),
     visibility: "public",
     host: {
+      id: "j-id",
       name: "J",
       avatar: "J",
       color: "bg-stone-400",
@@ -86,6 +89,7 @@ export const MOCK_EVENTS: EventItem[] = [
     endAt: new Date(now + 3 * DAY + 8 * HOUR).toISOString(),
     visibility: "private",
     host: {
+      id: "lina-id",
       name: "Lina",
       avatar: "L",
       color: "bg-stone-500",

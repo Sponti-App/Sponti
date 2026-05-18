@@ -17,7 +17,7 @@ function ResetSuccessBanner() {
   if (searchParams.get("reset") !== "1") return null
   return (
     <p
-      className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-600"
+      className="rounded-lg border border-border bg-secondary px-3 py-2 text-xs text-foreground"
       role="status"
     >
       password updated — sign in with your new password.
