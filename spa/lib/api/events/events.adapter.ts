@@ -14,21 +14,6 @@ import type {
 const MIN = 60_000
 const DAY = 24 * 60 * MIN
 
-// TODO(places): Replace this fallback once the location picker returns a real
-// place payload: display name, formatted address, and GeoJSON [lng, lat]
-// coordinates. The backend already requires coordinates for every event, so
-// this keeps create-event requests valid during the UI/backend integration
-// phase. Until this is removed, ad-hoc searched/saved locations will be saved
-// with their typed label but Hamburg fallback coordinates.
-export const TEMP_EVENT_LOCATION_FALLBACK = {
-  locationName: "Hamburg",
-  locationAddress: "Hamburg, Germany",
-  location: {
-    type: "Point" as const,
-    coordinates: [9.9937, 53.5511] as [number, number],
-  },
-}
-
 export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
   return event.myRsvp === "going" || joinedIds.has(event.id)
 }
@@ -138,7 +123,13 @@ export function eventCoords(event: EventItem): EventCoordinates | null {
 
 function hostFromApi(host: ApiEvent["hostId"]): EventItem["host"] {
   if (typeof host === "string") {
-    return { id: host, name: "host", avatar: "?", color: "bg-stone-400", note: "" }
+    return {
+      id: host,
+      name: "host",
+      avatar: "?",
+      color: "bg-stone-400",
+      note: "",
+    }
   }
   const name = host.displayName || host.username || "host"
   return {
@@ -155,8 +146,7 @@ function hostFromApi(host: ApiEvent["hostId"]): EventItem["host"] {
  * home map/calendar UI.
  */
 export function adaptApiEvent(api: ApiEvent): EventItem {
-  const hostId =
-    typeof api.hostId === "string" ? api.hostId : api.hostId?._id
+  const hostId = typeof api.hostId === "string" ? api.hostId : api.hostId?._id
   return {
     id: api._id,
     hostId,
@@ -267,30 +257,43 @@ export function guestInviteModeFromDraft(
   return "none"
 }
 
-/**
- * Resolves the form's current/search/saved location fields into the backend
- * location payload. Coordinates are temporary until Places/Maps is wired.
- */
 function locationFromDraft(
   draft: DraftEvent
 ): Pick<CreateEventRequest, "locationName" | "locationAddress" | "location"> {
-  if (draft.whereType === "search" && draft.customWhere?.trim()) {
-    return {
-      ...TEMP_EVENT_LOCATION_FALLBACK,
-      locationName: draft.customWhere.trim(),
-      locationAddress: TEMP_EVENT_LOCATION_FALLBACK.locationAddress,
-    }
+  const location = draft.location
+  if (!location) {
+    throw new Error("Event location must be resolved before creating an event.")
   }
 
-  if (draft.whereType === "saved" && draft.savedPlaceLabel?.trim()) {
-    return {
-      ...TEMP_EVENT_LOCATION_FALLBACK,
-      locationName: draft.savedPlaceLabel.trim(),
-      locationAddress: TEMP_EVENT_LOCATION_FALLBACK.locationAddress,
-    }
+  const name = location.name.trim()
+  if (!name) {
+    throw new Error(
+      "Event location name must be resolved before creating an event."
+    )
   }
 
-  return TEMP_EVENT_LOCATION_FALLBACK
+  const [lng, lat] = location.coordinates
+  if (
+    !Number.isFinite(lng) ||
+    !Number.isFinite(lat) ||
+    lng < -180 ||
+    lng > 180 ||
+    lat < -90 ||
+    lat > 90
+  ) {
+    throw new Error(
+      "Event location coordinates must be valid [lng, lat] values."
+    )
+  }
+
+  return {
+    locationName: name,
+    locationAddress: location.address ?? null,
+    location: {
+      type: "Point",
+      coordinates: [lng, lat],
+    },
+  }
 }
 
 /**
@@ -348,9 +351,9 @@ export function createEventRequestFromDraft(
         ? target.memberIds.map((userId) => ({ userId, role: "guest" }))
         : target.kind === "circle" && target.extraMemberIds
           ? target.extraMemberIds.map((userId) => ({
-            userId,
-            role: "guest" as const,
-          }))
+              userId,
+              role: "guest" as const,
+            }))
           : [],
   }
 }
