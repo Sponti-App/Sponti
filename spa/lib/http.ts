@@ -132,8 +132,16 @@ async function request<T>(
   return (await res.json()) as T
 }
 
-const AUTH_BASE = process.env.NEXT_PUBLIC_AUTH_BASE_URL ?? ""
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
+function normalizeBaseUrl(value: string): string {
+  return value.replace(/\/+$/, "")
+}
+
+function normalizeApiBaseUrl(value: string): string {
+  return normalizeBaseUrl(value).replace(/\/api\/v1$/, "")
+}
+
+const AUTH_BASE = normalizeBaseUrl(process.env.NEXT_PUBLIC_AUTH_BASE_URL ?? "")
+const API_BASE = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
 
 function withApiVersionPrefix(path: string): string {
   if (path.startsWith("/api/v1")) return path
