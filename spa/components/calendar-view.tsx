@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -139,6 +139,8 @@ export function CalendarView({
   const [selected, setSelected] = useState<Date>(today)
   const [viewMode, setViewMode] = useState<"week" | "month">("week")
   const { events, loading, error, refresh } = useCalendarEvents()
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const daySectionRef = useRef<HTMLDivElement | null>(null)
 
   const weekStart = useMemo(() => startOfWeek(anchor), [anchor])
   const weekDays = useMemo(
@@ -211,15 +213,17 @@ export function CalendarView({
 
 
   return (
-    /* pb-28 leaves room for the floating nav pill */
-    <div className="h-full overflow-y-auto px-4 pt-14 pb-28">
-      {/* Sticky header + week strip — stays pinned while the agenda scrolls.
-          top-14 clears the floating header chip row (~56px). */}
-      <div className="sticky top-14 z-10 -mx-4 border-b border-border/60 bg-background px-4 pt-2 pb-2">
+    /* pb-28 leaves room for the floating nav pill.
+       pt-10 keeps the heading just below the floating header chip row (~48px)
+       while reclaiming vertical space the old pt-12 was wasting. */
+    <div ref={scrollContainerRef} className="h-full overflow-y-auto px-4 pt-10 pb-28">
+      {/* Sticky header + week/month strip — stays pinned while the agenda scrolls.
+          top-10 clears the floating header chip row. */}
+      <div className="sticky top-10 z-10 -mx-4 border-b border-border/60 bg-background px-4 pt-1 pb-3">
         {/* Calendar header with navigation */}
-        <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 className="truncate text-xl font-semibold">
+            <h2 className="truncate text-base font-semibold">
               {anchor.getMonth() !== undefined && (
                 <>
                   {MONTH_NAMES[anchor.getMonth()]}{" "}
@@ -241,7 +245,7 @@ export function CalendarView({
           </div>
         </div>
 
-        <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="mt-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -280,7 +284,7 @@ export function CalendarView({
         </div>
 
         {viewMode === "week" ? (
-          <div className="mb-6 grid grid-cols-7 gap-1.5">
+          <div className="mt-4 grid grid-cols-7 gap-1">
             {weekDays.map((day) => {
               const isToday = isSameDay(day, today)
               const isSelected = isSameDay(day, selected)
@@ -302,7 +306,7 @@ export function CalendarView({
                     month: "short",
                     day: "numeric",
                   })}
-                  className={`flex flex-col items-center rounded-xl border px-1 py-2 transition-colors ${beyondHorizon
+                  className={`flex flex-col items-center justify-center rounded-lg border py-1.5 transition-colors ${beyondHorizon
                     ? "cursor-not-allowed border-border/40 bg-background opacity-40"
                     : isSelected
                       ? "border-accent bg-accent/10"
@@ -312,17 +316,15 @@ export function CalendarView({
                     }`}
                 >
                   <span
-                    className={`text-[11px] ${isSelected
+                    className={`text-xs font-medium uppercase tracking-wide ${isSelected || isToday
                       ? "text-accent"
-                      : isToday
-                        ? "text-accent"
-                        : "text-muted-foreground"
+                      : "text-muted-foreground"
                       }`}
                   >
                     {chip.weekday}
                   </span>
                   <span
-                    className={`mt-0.5 text-base leading-none font-medium ${isSelected || isToday ? "text-accent" : "text-foreground"
+                    className={`mt-0.5 text-sm leading-none font-medium ${isSelected || isToday ? "text-accent" : "text-foreground"
                       }`}
                   >
                     {chip.date}
@@ -341,6 +343,7 @@ export function CalendarView({
             })}
           </div>
         ) : (
+          <div className="mt-4">
           <MonthCalendar
             anchorMonth={anchor}
             selected={selected}
@@ -349,14 +352,26 @@ export function CalendarView({
             onSelectDay={(d: Date) => {
               setAnchor(d)
               setSelected(d)
+              const hasEvents = (eventsByDay.get(dayKey(d))?.length ?? 0) > 0
+              if (hasEvents) {
+                // Defer one frame so the selected day's section is rendered
+                // before we scroll to it.
+                requestAnimationFrame(() => {
+                  daySectionRef.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  })
+                })
+              }
             }}
             onEventSelect={onEventSelect}
             joinedIds={joinedIds}
           />
+          </div>
         )}
       </div>
 
-      <div className="pt-4" />
+      <div ref={daySectionRef} className="pt-4" />
 
       {/* Selected day section */}
       <DaySection

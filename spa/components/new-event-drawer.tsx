@@ -171,17 +171,26 @@ function resolveEventType(
 // Surfaces Zod validation details from the backend so the UI tells the user
 // which field is wrong instead of a generic "Validation failed".
 function formatSubmitError(error: unknown): string {
-  if (error instanceof HttpError && Array.isArray(error.details)) {
+  if (error instanceof HttpError) {
     type ZodIssue = { path?: (string | number)[]; message?: string }
-    const issues = error.details as ZodIssue[]
-    const summary = issues
-      .slice(0, 3)
-      .map((i) => {
-        const path = i.path?.join(".") || "field"
-        return `${path}: ${i.message ?? "invalid"}`
-      })
-      .join(" · ")
-    if (summary) return `${error.message} — ${summary}`
+
+    const rawIssues = Array.isArray(error.details)
+      ? error.details
+      : error.details && typeof error.details === "object"
+        ? (error.details as { body?: unknown }).body
+        : null
+
+    if (Array.isArray(rawIssues)) {
+      const issues = rawIssues as ZodIssue[]
+      const summary = issues
+        .slice(0, 3)
+        .map((i) => {
+          const path = i.path?.join(".") || "field"
+          return `${path}: ${i.message ?? "invalid"}`
+        })
+        .join(" · ")
+      if (summary) return `${error.message} — ${summary}`
+    }
   }
   return getErrorMessage(error)
 }
@@ -755,11 +764,23 @@ export function NewEventDrawer({
         emitEventsChanged()
       } catch (err) {
         if (err instanceof HttpError) {
+          const bodyIssues =
+            err.details && typeof err.details === "object"
+              ? (err.details as { body?: unknown }).body
+              : undefined
+          const firstIssue = Array.isArray(bodyIssues) ? bodyIssues[0] : null
           console.error(
             "[Sponti] POST /events failed",
             err.status,
             err.code,
-            err.details
+            firstIssue ?? err.details,
+            firstIssue
+              ? {
+                  path: firstIssue.path?.join("."),
+                  message: firstIssue.message,
+                }
+              : undefined,
+            requestBody
           )
         }
         throw err
