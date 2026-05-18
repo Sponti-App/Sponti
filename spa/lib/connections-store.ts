@@ -176,7 +176,7 @@ export function acceptRequest(reqId: string): void {
     requests: s.requests.filter((r) => r.id !== reqId),
     connections: alreadyConnected
       ? s.connections
-      : [...s.connections, req.user],
+      : [req.user, ...s.connections],
   })
   if (!alreadyConnected) {
     setCircles((prev) =>
