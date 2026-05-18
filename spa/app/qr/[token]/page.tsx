@@ -87,6 +87,10 @@ export default function QrContactPage() {
     }
   }
 
+  const signInPath = `/login?redirectTo=${encodeURIComponent(
+    `/qr/${encodeURIComponent(token)}`
+  )}`
+
   return (
     <main className="min-h-dvh bg-background px-4 py-6 text-foreground">
       <div className="mx-auto flex min-h-[calc(100dvh-3rem)] max-w-md flex-col">
@@ -110,7 +114,7 @@ export default function QrContactPage() {
                 QR contacts only work for authenticated Sponti users.
               </p>
               <Button
-                onClick={() => router.push("/login")}
+                onClick={() => router.push(signInPath)}
                 className="mt-6 rounded-full bg-accent px-6 text-accent-foreground hover:bg-accent/90"
               >
                 sign in

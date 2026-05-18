@@ -13,13 +13,20 @@ const AUTH_PATHS = [
 const ONBOARDING_PATH = "/onboarding"
 const LEGAL_PATHS = ["/menu/terms", "/menu/privacy"]
 const PUBLIC_PATHS = [...AUTH_PATHS, ONBOARDING_PATH, ...LEGAL_PATHS]
+const QR_PATH_PREFIX = "/qr/"
+
+function getSafeRedirectPath(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/"
+  if (AUTH_PATHS.some((path) => value === path)) return "/"
+  return value
+}
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { status } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
 
-  const isPublic = PUBLIC_PATHS.includes(pathname)
+  const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith(QR_PATH_PREFIX)
   const isAuthPage = AUTH_PATHS.includes(pathname)
   const isOnboardingPage = pathname === ONBOARDING_PATH
 
@@ -28,7 +35,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     if (status === "unauthenticated" && !isPublic) {
       router.replace("/login")
     } else if (status === "authenticated" && (isAuthPage || isOnboardingPage)) {
-      router.replace("/")
+      const redirectPath = getSafeRedirectPath(
+        new URLSearchParams(window.location.search).get("redirectTo")
+      )
+      router.replace(redirectPath)
     }
   }, [status, isPublic, isAuthPage, isOnboardingPage, router])
 
