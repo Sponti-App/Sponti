@@ -6,3 +6,5 @@
 .vscode
 # os
 .DS_Store
+**/.next/
+**/out/
