@@ -42,6 +42,7 @@ import { haptic } from "@/lib/haptics"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
 import { EVENT_TYPES } from "@/types/utils"
+import { useRouter } from "next/navigation"
 
 // Hex equivalent of --accent (oklch 0.55 0.19 25). Google Maps overlays can't
 // read CSS variables, so we mirror the token here. Keep in sync with globals.css.
@@ -303,10 +304,10 @@ function warnIfMissingMapId(
   }
 }
 
-// Default + widened radii for the empty-state pivot. If 25 km nearby is empty,
-// the user can opt into 50 km. Beyond that, we suggest the calendar view.
-const DEFAULT_RADIUS_KM = 25
-const WIDE_RADIUS_KM = 50
+// Default + widened radii for the empty-state pivot. If 10 km nearby is empty,
+// the user can opt into 20 km. Beyond that, we suggest the calendar view.
+const DEFAULT_RADIUS_KM = 10
+const WIDE_RADIUS_KM = 20
 
 export function MapView({
   onEventSelect,
@@ -322,6 +323,7 @@ export function MapView({
   onSeeCalendar?: () => void
 }) {
   const { openDrawer } = useNewEventDrawer()
+  const router = useRouter()
   const [peekState, setPeekState] = useState<PeekState>("peek")
   const dragStartY = useRef<number | null>(null)
   const dragStartTime = useRef<number | null>(null)
@@ -484,9 +486,12 @@ export function MapView({
     }
   }
 
+  // The "expanded" state keeps a strip of the map visible at the top instead
+  // of going full-screen, mirroring the new-event drawer behaviour. 80vh
+  // leaves room for the route pill and floating header chips above it.
   const sheetStyle: React.CSSProperties =
     peekState === "expanded"
-      ? { height: "100%", bottom: 0 }
+      ? { height: "80vh", bottom: 0 }
       : peekState === "mini"
         ? { height: `${SHEET_PX.mini}px`, bottom: NAV_RESERVED_CSS }
         : { height: `${SHEET_PX.peek}px`, bottom: 0 }
@@ -597,29 +602,32 @@ export function MapView({
             )}
 
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-medium">Flares near you</h2>
-              <span className="text-sm text-muted-foreground">
+              <h2 className="text-base font-semibold">flares near you</h2>
+              <span className="text-xs text-muted-foreground">
                 {map.loading ? "loading…" : `${filteredEvents.length} active`}
               </span>
             </div>
 
-            {/* Filter chips */}
-            <div className="mb-3 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none">
-              <FilterChip
-                label="all"
-                active={filterType === "all"}
-                onClick={() => { haptic("selection"); setFilterType("all") }}
-              />
-              {EVENT_TYPES.map((t) => (
+            {/* Filter chips — only useful when there's something to filter.
+                Hidden when no events have come back from the nearby query. */}
+            {mapEvents.length > 0 && (
+              <div className="mb-3 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none">
                 <FilterChip
-                  key={t.value}
-                  label={t.label}
-                  icon={t.icon}
-                  active={filterType === t.value}
-                  onClick={() => { haptic("selection"); setFilterType(t.value) }}
+                  label="all"
+                  active={filterType === "all"}
+                  onClick={() => { haptic("selection"); setFilterType("all") }}
                 />
-              ))}
-            </div>
+                {EVENT_TYPES.map((t) => (
+                  <FilterChip
+                    key={t.value}
+                    label={t.label}
+                    icon={t.icon}
+                    active={filterType === t.value}
+                    onClick={() => { haptic("selection"); setFilterType(t.value) }}
+                  />
+                ))}
+              </div>
+            )}
 
             {map.error ? (
               <ErrorPanel message={map.error} onRetry={map.refresh} />
@@ -632,7 +640,7 @@ export function MapView({
                     : null
                 }
                 onSeeCalendar={onSeeCalendar}
-                onCreate={openDrawer}
+                onFindConnections={() => router.push("/circles?tab=people")}
               />
             ) : (
               <div className="space-y-2">
@@ -704,12 +712,12 @@ function EmptyState({
   radiusKm,
   onWiden,
   onSeeCalendar,
-  onCreate,
+  onFindConnections,
 }: {
   radiusKm: number
   onWiden: (() => void) | null
   onSeeCalendar?: () => void
-  onCreate: () => void
+  onFindConnections: () => void
 }) {
   return (
     <div className="rounded-xl border border-dashed border-border p-5 text-center">
@@ -737,10 +745,10 @@ function EmptyState({
           </button>
         )}
         <button
-          onClick={onCreate}
+          onClick={onFindConnections}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
         >
-          <Flame className="h-4 w-4" /> light the first one
+          <Flame className="h-4 w-4" /> connect with your friends to see their flares
         </button>
       </div>
     </div>
