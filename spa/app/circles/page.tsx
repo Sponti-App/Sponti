@@ -810,7 +810,7 @@ export default function CirclesPage() {
 
       {pendingBlock && (
         <div
-          className="absolute inset-0 z-20 flex items-end bg-black/40"
+          className="absolute inset-0 z-20 flex items-end bg-(--scrim)"
           onClick={() => setPendingBlock(null)}
         >
           <div
@@ -832,7 +832,7 @@ export default function CirclesPage() {
                   blockConnection(pendingBlock)
                   setPendingBlock(null)
                 }}
-                className="w-full rounded-full bg-destructive text-white hover:bg-destructive/90"
+                className="w-full rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 block
               </Button>

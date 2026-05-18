@@ -797,21 +797,32 @@ export function NewEventDrawer({
             {/* Vaul uses Radix Dialog internally — DialogTitle required for a11y */}
             <Drawer.Title className="sr-only">light a flare</Drawer.Title>
 
-            {/* Header */}
-            <div className="flex shrink-0 items-center justify-between px-4 py-3">
-              <button
-                type="button"
-                onClick={handleClose}
-                aria-label="Close"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-secondary"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              <div className="flex items-center gap-1.5 text-base font-semibold">
-                <Sparkles className="h-4 w-4" />
-                <span>light a flare</span>
+            {/* Header zone — title + summary chips anchored as one unit */}
+            <div className="shrink-0 border-b border-border/60">
+              <div className="flex items-center justify-between px-4 pt-2 pb-1">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  aria-label="Close"
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-secondary"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <div className="flex items-center gap-1.5 text-lg font-semibold">
+                  <Sparkles className="h-[18px] w-[18px]" />
+                  <span>light a flare</span>
+                </div>
+                <div className="h-9 w-9" aria-hidden />
               </div>
-              <div className="h-9 w-9" aria-hidden />
+              <SummaryRow
+                whenLabel={whenLabel}
+                whereLabel={whereLabel ?? "current loc"}
+                whoLabel={whoLabel}
+                whoOverLimit={isOverLimit}
+                onTapWhen={() => focusSection(whenRef)}
+                onTapWhere={() => focusSection(whereRef)}
+                onTapWho={() => focusSection(whoRef)}
+              />
             </div>
 
             {/* Scrollable form. The padding-bottom uses vaul's --snap-point-height
@@ -826,35 +837,25 @@ export function NewEventDrawer({
               data-vaul-no-drag
             >
               <Tabs value={mode} onValueChange={handleModeChange}>
-                <div className="px-4 pb-1">
-                  <TabsList className="w-full">
-                    <TabsTrigger value="now">right now</TabsTrigger>
-                    <TabsTrigger value="scheduled">pick a time</TabsTrigger>
+                <div className="px-4 pt-4 pb-0">
+                  <TabsList className="h-9 w-full">
+                    <TabsTrigger value="now" className="text-sm">right now</TabsTrigger>
+                    <TabsTrigger value="scheduled" className="text-sm">pick a time</TabsTrigger>
                   </TabsList>
                 </div>
-
-                <SummaryRow
-                  whenLabel={whenLabel}
-                  whereLabel={whereLabel ?? "current loc"}
-                  whoLabel={whoLabel}
-                  whoOverLimit={isOverLimit}
-                  onTapWhen={() => focusSection(whenRef)}
-                  onTapWhere={() => focusSection(whereRef)}
-                  onTapWho={() => focusSection(whoRef)}
-                />
 
                 <div className="px-4">
                   {/* 1. What — Title is the hero of the form. Type sits
                        inline below it as a small inferred-from-keywords hint
                        that can be overridden. */}
-                  <Section label="what's the plan?">
+                  <Section label="what's the plan?" tight>
                     <Input
                       value={title}
                       onChange={(e) => setTitle(e.target.value.slice(0, 80))}
                       placeholder="let's get drinks after work"
                     />
                     {title.length > 60 && (
-                      <p className="mt-1 text-right text-[11px] text-muted-foreground">
+                      <p className="mt-1 text-right text-xs text-muted-foreground">
                         {80 - title.length} left
                       </p>
                     )}
@@ -872,31 +873,27 @@ export function NewEventDrawer({
                         setEventType(null)
                         setTypeOverrideOpen(false)
                       }}
+                      detailsExpanded={detailsExpanded}
+                      onExpandDetails={() => setDetailsExpanded(true)}
                     />
-                    {detailsExpanded ? (
-                      <textarea
-                        value={details}
-                        onChange={(e) =>
-                          setDetails(e.target.value.slice(0, 200))
-                        }
-                        placeholder="dress code, what to bring, vibe…"
-                        rows={3}
-                        autoFocus
-                        className="mt-2 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setDetailsExpanded(true)}
-                        className="mt-2 text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        + add a note
-                      </button>
-                    )}
-                    {detailsExpanded && details.length > 160 && (
-                      <p className="mt-1 text-right text-[11px] text-muted-foreground">
-                        {200 - details.length} left
-                      </p>
+                    {detailsExpanded && (
+                      <>
+                        <textarea
+                          value={details}
+                          onChange={(e) =>
+                            setDetails(e.target.value.slice(0, 200))
+                          }
+                          placeholder="dress code, what to bring, vibe…"
+                          rows={3}
+                          autoFocus
+                          className="mt-2 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                        />
+                        {details.length > 160 && (
+                          <p className="mt-1 text-right text-xs text-muted-foreground">
+                            {200 - details.length} left
+                          </p>
+                        )}
+                      </>
                     )}
                   </Section>
 
@@ -1078,7 +1075,7 @@ function SummaryRow({
   onTapWho: () => void
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5 px-4 pt-2 pb-1">
+    <div className="flex flex-wrap justify-center gap-1.5 px-4 pt-1 pb-2.5">
       <SummaryChip label={whenLabel} onClick={onTapWhen} />
       <SummaryChip label={whereLabel} onClick={onTapWhere} />
       <SummaryChip
@@ -1107,7 +1104,7 @@ function SummaryChip({
     <button
       type="button"
       onClick={onClick}
-      className={`shrink-0 truncate rounded-full border px-2.5 py-1 text-[11px] transition-colors ${toneClasses}`}
+      className={`shrink-0 truncate rounded-full border px-3 py-1 text-xs transition-colors ${toneClasses}`}
     >
       {label}
     </button>
@@ -1127,6 +1124,8 @@ function TypeInlineIndicator({
   onToggleOverride,
   onPick,
   onClearManual,
+  detailsExpanded,
+  onExpandDetails,
 }: {
   effectiveType: EventType
   manualType: EventType | null
@@ -1135,6 +1134,8 @@ function TypeInlineIndicator({
   onToggleOverride: () => void
   onPick: (t: EventType) => void
   onClearManual: () => void
+  detailsExpanded: boolean
+  onExpandDetails: () => void
 }) {
   const meta = EVENT_TYPES.find((t) => t.value === effectiveType)
   if (!meta) return null
@@ -1142,11 +1143,11 @@ function TypeInlineIndicator({
 
   return (
     <div className="mt-2 flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Icon className="h-3 w-3 shrink-0" />
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Icon className="h-4 w-4 shrink-0" />
         <span>type · {meta.label}</span>
         {isInferred && (
-          <span className="text-[10px] text-muted-foreground/60">(auto)</span>
+          <span className="text-muted-foreground/60">(auto)</span>
         )}
         <button
           type="button"
@@ -1162,6 +1163,15 @@ function TypeInlineIndicator({
             className="text-muted-foreground hover:text-foreground"
           >
             · reset
+          </button>
+        )}
+        {!detailsExpanded && (
+          <button
+            type="button"
+            onClick={onExpandDetails}
+            className="ml-auto text-muted-foreground hover:text-foreground"
+          >
+            + add a note
           </button>
         )}
       </div>
@@ -2141,13 +2151,15 @@ function Stepper({
 function Section({
   label,
   children,
+  tight = false,
 }: {
   label: string
   children: React.ReactNode
+  tight?: boolean
 }) {
   return (
-    <div className="mt-5">
-      <Label className="mb-2 block text-xs font-medium text-muted-foreground">
+    <div className={tight ? "mt-4" : "mt-6"}>
+      <Label className="mb-2 block text-sm font-medium text-foreground">
         {label}
       </Label>
       {children}
