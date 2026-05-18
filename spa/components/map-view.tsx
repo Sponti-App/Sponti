@@ -97,7 +97,7 @@ function eventIcon(type: EventType, avatar: string) {
 
   const Icon = match.icon
 
-  return <Icon className="h-5 w-5 shrink-0 text-white dark:text-white" />
+  return <Icon className="h-5 w-5 shrink-0 text-accent-foreground" />
 }
 
 function StaticMapFallback({
@@ -112,13 +112,13 @@ function StaticMapFallback({
   user: GeoCoords
 }) {
   return (
-    <div className="relative h-full w-full bg-[#d5d0c8]">
+    <div className="relative h-full w-full bg-muted">
       <div
         className="absolute inset-0 opacity-30"
         style={{
           backgroundImage: `
-            linear-gradient(to right, #b8b3ab 1px, transparent 1px),
-            linear-gradient(to bottom, #b8b3ab 1px, transparent 1px)
+            linear-gradient(to right, var(--border) 1px, transparent 1px),
+            linear-gradient(to bottom, var(--border) 1px, transparent 1px)
           `,
           backgroundSize: "32px 32px",
         }}
@@ -557,7 +557,7 @@ export function MapView({
       {/* Bottom sheet — z-50 when expanded so it covers the nav pill */}
       <div
         style={sheetStyle}
-        className={`absolute right-0 left-0 rounded-t-3xl bg-background shadow-[0_-4px_20px_rgba(0,0,0,0.1)] transition-all duration-300 ease-out ${
+        className={`absolute right-0 left-0 rounded-t-3xl bg-background shadow-(--shadow-sheet) transition-all duration-300 ease-out ${
           peekState === "expanded" ? "z-50" : "z-20"
         }`}
       >
