@@ -362,7 +362,10 @@ export function MapView({
     [map.events]
   )
   const filteredEvents = useMemo(
-    () => (filterType === "all" ? mapEvents : mapEvents.filter((e) => e.type === filterType)),
+    () =>
+      filterType === "all"
+        ? mapEvents
+        : mapEvents.filter((e) => e.type === filterType),
     [mapEvents, filterType]
   )
 
@@ -448,11 +451,14 @@ export function MapView({
   const FLICK_VX = 0.4
   const DELTA_PX = 50
 
-  const snap = useCallback((next: PeekState) => {
-    if (next === peekState) return
-    setPeekState(next)
-    haptic("selection")
-  }, [peekState])
+  const snap = useCallback(
+    (next: PeekState) => {
+      if (next === peekState) return
+      setPeekState(next)
+      haptic("selection")
+    },
+    [peekState]
+  )
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     dragStartY.current = e.clientY
@@ -474,7 +480,7 @@ export function MapView({
     }
     const isFlick = velocity > FLICK_VX
     const goDown = delta > DELTA_PX || (isFlick && delta > 0)
-    const goUp   = delta < -DELTA_PX || (isFlick && delta < 0)
+    const goUp = delta < -DELTA_PX || (isFlick && delta < 0)
     if (goDown) {
       if (peekState === "expanded") snap("peek")
       else if (peekState === "peek") snap("mini")
@@ -604,11 +610,14 @@ export function MapView({
             </div>
 
             {/* Filter chips */}
-            <div className="mb-3 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none">
+            <div className="scrollbar-none -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1">
               <FilterChip
                 label="all"
                 active={filterType === "all"}
-                onClick={() => { haptic("selection"); setFilterType("all") }}
+                onClick={() => {
+                  haptic("selection")
+                  setFilterType("all")
+                }}
               />
               {EVENT_TYPES.map((t) => (
                 <FilterChip
@@ -616,7 +625,10 @@ export function MapView({
                   label={t.label}
                   icon={t.icon}
                   active={filterType === t.value}
-                  onClick={() => { haptic("selection"); setFilterType(t.value) }}
+                  onClick={() => {
+                    haptic("selection")
+                    setFilterType(t.value)
+                  }}
                 />
               ))}
             </div>
@@ -713,9 +725,7 @@ function EmptyState({
 }) {
   return (
     <div className="rounded-xl border border-dashed border-border p-5 text-center">
-      <p className="mb-1 text-sm font-medium">
-        no flares within {radiusKm} km
-      </p>
+      <p className="mb-1 text-sm font-medium">no flares within {radiusKm} km</p>
       <p className="mb-4 text-xs text-muted-foreground">
         quiet around here right now — try one of these
       </p>

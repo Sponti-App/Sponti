@@ -37,6 +37,14 @@ export type Recurrence = "none" | "daily" | "weekly"
 // literal "custom" for the ad-hoc friend-picker path.
 export type Audience = string
 
+export type DraftEventLocation = {
+  source: "place" | "current"
+  name: string
+  address?: string | null
+  coordinates: [number, number]
+  placeId?: string
+}
+
 export type DraftEvent = {
   mode: "now" | "scheduled"
   eventType: EventType
@@ -50,6 +58,7 @@ export type DraftEvent = {
   whereType: "current" | "search" | "saved"
   customWhere?: string
   savedPlaceLabel?: string
+  location?: DraftEventLocation | null
   guestLimit: number | null
   audience: Audience
   selectedFriendIds?: string[]

@@ -25,7 +25,10 @@ export type GeoState = {
 // permission. The UI must indicate this is *not* the user's real location.
 export const FALLBACK_COORDS: GeoCoords = { lat: 37.7849, lng: -122.4344 }
 
-export function useGeolocation(options?: { watch?: boolean }): GeoState {
+export function useGeolocation(options?: {
+  watch?: boolean
+  autoRequest?: boolean
+}): GeoState {
   const [coords, setCoords] = useState<GeoCoords | null>(null)
   const [accuracyMeters, setAccuracyMeters] = useState<number | null>(null)
   const [status, setStatus] = useState<GeoStatus>("idle")
@@ -52,6 +55,7 @@ export function useGeolocation(options?: { watch?: boolean }): GeoState {
     }
   }, [])
 
+  // Asking permission for the location
   const request = useCallback(() => {
     if (typeof window === "undefined" || !navigator.geolocation) {
       setStatus("unavailable")
@@ -70,6 +74,7 @@ export function useGeolocation(options?: { watch?: boolean }): GeoState {
 
   useEffect(() => {
     if (typeof window === "undefined" || !navigator.geolocation) return
+    if (options?.autoRequest === false) return
     if (!options?.watch) {
       // Defer past the current render so the setStatus("requesting") inside
       // request() doesn't fire synchronously in the effect body.
@@ -83,9 +88,16 @@ export function useGeolocation(options?: { watch?: boolean }): GeoState {
     })
     watchIdRef.current = id
     return () => {
-      if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current)
+      if (watchIdRef.current != null)
+        navigator.geolocation.clearWatch(watchIdRef.current)
     }
-  }, [options?.watch, request, handleSuccess, handleError])
+  }, [
+    options?.watch,
+    options?.autoRequest,
+    request,
+    handleSuccess,
+    handleError,
+  ])
 
   return { coords, accuracyMeters, status, errorMessage, request, recenter }
 }

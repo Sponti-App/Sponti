@@ -14,21 +14,6 @@ import type {
 const MIN = 60_000
 const DAY = 24 * 60 * MIN
 
-// TODO(places): Replace this fallback once the location picker returns a real
-// place payload: display name, formatted address, and GeoJSON [lng, lat]
-// coordinates. The backend already requires coordinates for every event, so
-// this keeps create-event requests valid during the UI/backend integration
-// phase. Until this is removed, ad-hoc searched/saved locations will be saved
-// with their typed label but Hamburg fallback coordinates.
-export const TEMP_EVENT_LOCATION_FALLBACK = {
-  locationName: "Hamburg",
-  locationAddress: "Hamburg, Germany",
-  location: {
-    type: "Point" as const,
-    coordinates: [9.9937, 53.5511] as [number, number],
-  },
-}
-
 export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
   return event.myRsvp === "going" || joinedIds.has(event.id)
 }
@@ -267,30 +252,41 @@ export function guestInviteModeFromDraft(
   return "none"
 }
 
-/**
- * Resolves the form's current/search/saved location fields into the backend
- * location payload. Coordinates are temporary until Places/Maps is wired.
- */
 function locationFromDraft(
   draft: DraftEvent
 ): Pick<CreateEventRequest, "locationName" | "locationAddress" | "location"> {
-  if (draft.whereType === "search" && draft.customWhere?.trim()) {
-    return {
-      ...TEMP_EVENT_LOCATION_FALLBACK,
-      locationName: draft.customWhere.trim(),
-      locationAddress: TEMP_EVENT_LOCATION_FALLBACK.locationAddress,
-    }
+  const draftLocation = draft.location
+  if (!draftLocation) {
+    throw new Error("Create event requires a resolved location.")
   }
 
-  if (draft.whereType === "saved" && draft.savedPlaceLabel?.trim()) {
-    return {
-      ...TEMP_EVENT_LOCATION_FALLBACK,
-      locationName: draft.savedPlaceLabel.trim(),
-      locationAddress: TEMP_EVENT_LOCATION_FALLBACK.locationAddress,
-    }
+  const locationName = draftLocation.name.trim()
+  if (!locationName) {
+    throw new Error("Create event requires a named location.")
   }
 
-  return TEMP_EVENT_LOCATION_FALLBACK
+  const [lng, lat] = draftLocation.coordinates
+  if (
+    !Number.isFinite(lng) ||
+    !Number.isFinite(lat) ||
+    lng < -180 ||
+    lng > 180 ||
+    lat < -90 ||
+    lat > 90
+  ) {
+    throw new Error("Create event requires valid location coordinates.")
+  }
+
+  const locationAddress = draftLocation.address?.trim() || null
+
+  return {
+    locationName,
+    locationAddress,
+    location: {
+      type: "Point",
+      coordinates: [lng, lat],
+    },
+  }
 }
 
 /**

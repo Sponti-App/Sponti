@@ -49,8 +49,9 @@ defaults, invite modes, and backend payload structure.
 
 ## Temporary Or Mocked Pieces
 
-- The place search in `page.tsx` still uses `MOCK_PLACE_RESULTS`.
-- `TEMP_EVENT_LOCATION_FALLBACK` supplies fixed coordinates until Places/Maps
-  provides real selected-location data.
+- The create drawer resolves selected Google Places through `/api/places` and
+  `/api/places/[placeId]` before creating an event.
+- Current-location events use browser geolocation coordinates when permission
+  is available.
 - `/event` uses `GET /api/v1/events/mine/upcoming` for the "your flares"
   dashboard. The local hosted-event store has been removed.

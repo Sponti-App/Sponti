@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? ""
+import {
+  GOOGLE_PLACES_BASE_URL,
+  getGooglePlacesApiKey,
+  isRecord,
+  readLocalizedText,
+  readString,
+  upstreamFailureStatus,
+} from "./googlePlaces"
 
 export async function GET(req: NextRequest) {
   const input = req.nextUrl.searchParams.get("input") ?? ""
@@ -8,33 +14,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ suggestions: [] })
   }
 
-  if (!API_KEY) {
-    console.error("[places] NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not set")
+  const apiKey = getGooglePlacesApiKey()
+  if (!apiKey) {
+    console.error("[places] GOOGLE_MAPS_API_KEY is not set")
     return NextResponse.json(
-      { suggestions: [], error: "missing API key" },
+      { suggestions: [], error: "Place search is not configured" },
       { status: 500 },
     )
   }
 
   let resp: Response
   try {
-    resp = await fetch(
-      "https://places.googleapis.com/v1/places:autocomplete",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Goog-Api-Key": API_KEY,
-          "X-Goog-FieldMask":
-            "suggestions.placePrediction.structuredFormat,suggestions.placePrediction.text",
-        },
-        body: JSON.stringify({ input: input.trim() }),
+    resp = await fetch(`${GOOGLE_PLACES_BASE_URL}/places:autocomplete`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask":
+          "suggestions.placePrediction.placeId,suggestions.placePrediction.structuredFormat,suggestions.placePrediction.text",
       },
-    )
+      body: JSON.stringify({ input: input.trim() }),
+    })
   } catch (err) {
     console.error("[places] fetch failed", err)
     return NextResponse.json(
-      { suggestions: [], error: "fetch failed" },
+      { suggestions: [], error: "Place search is unavailable" },
       { status: 502 },
     )
   }
@@ -45,13 +49,14 @@ export async function GET(req: NextRequest) {
       `[places] Google API ${resp.status} ${resp.statusText}: ${body}`,
     )
     return NextResponse.json(
-      { suggestions: [], error: `google ${resp.status}`, detail: body },
-      { status: resp.status },
+      { suggestions: [], error: "Place search is unavailable" },
+      { status: upstreamFailureStatus(resp.status) },
     )
   }
 
   type Prediction = {
     placePrediction?: {
+      placeId?: string
       text?: { text?: string }
       structuredFormat?: {
         mainText?: { text?: string }
@@ -60,17 +65,34 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const data = (await resp.json()) as { suggestions?: Prediction[] }
-  const suggestions = (data.suggestions ?? [])
+  const data = (await resp.json().catch(() => null)) as {
+    suggestions?: Prediction[]
+  } | null
+  const rawSuggestions = Array.isArray(data?.suggestions)
+    ? data.suggestions
+    : []
+  const suggestions = rawSuggestions
     .slice(0, 5)
-    .map((s) => ({
-      label:
-        s.placePrediction?.structuredFormat?.mainText?.text ??
-        s.placePrediction?.text?.text ??
-        "",
-      address: s.placePrediction?.structuredFormat?.secondaryText?.text ?? "",
-    }))
-    .filter((s) => s.label)
+    .map((s) => {
+      const prediction = isRecord(s.placePrediction)
+        ? s.placePrediction
+        : null
+      return {
+        placeId: readString(prediction?.placeId),
+        label:
+          readLocalizedText(
+            isRecord(prediction?.structuredFormat)
+              ? prediction.structuredFormat.mainText
+              : null,
+          ) || readLocalizedText(prediction?.text),
+        address: readLocalizedText(
+          isRecord(prediction?.structuredFormat)
+            ? prediction.structuredFormat.secondaryText
+            : null,
+        ),
+      }
+    })
+    .filter((s) => s.placeId && s.label)
 
   return NextResponse.json({ suggestions })
 }
