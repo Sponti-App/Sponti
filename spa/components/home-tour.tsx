@@ -86,7 +86,7 @@ export function HomeTour({ user, onViewChange }: HomeTourProps) {
     >
       <div className="absolute inset-0 bg-foreground/55 backdrop-blur-[2px]" />
       <div
-        className={`pointer-events-none absolute rounded-[28px] border-2 border-accent bg-background/10 shadow-[0_0_0_999px_rgba(0,0,0,0.16)] transition-all duration-300 ${activeStep.spotlight}`}
+        className={`pointer-events-none absolute rounded-[28px] border-2 border-accent bg-background/10 shadow-[0_0_0_999px_oklch(0_0_0/16%)] transition-all duration-300 ${activeStep.spotlight}`}
       />
 
       <div

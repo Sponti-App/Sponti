@@ -207,7 +207,7 @@ function ComposeIllustration() {
   return (
     <div className="sponti-illo absolute inset-0" aria-hidden="true">
       <div className="sponti-grid" />
-      <div className="absolute top-1/2 left-1/2 w-[260px] -translate-x-1/2 -translate-y-1/2 rounded-[18px] border border-border bg-background p-4 shadow-[0_6px_24px_-8px_rgba(0,0,0,0.12)]">
+      <div className="absolute top-1/2 left-1/2 w-[260px] -translate-x-1/2 -translate-y-1/2 rounded-[18px] border border-border bg-background p-4 shadow-(--shadow-card)">
         <div className="mb-3">
           <div className="text-xs font-medium text-muted-foreground">light a flare</div>
           <div className="mt-1 text-sm font-semibold">patio hang</div>
@@ -249,7 +249,7 @@ function AudienceIllustration() {
   return (
     <div className="sponti-illo absolute inset-0" aria-hidden="true">
       <div className="sponti-grid" />
-      <div className="absolute top-1/2 left-1/2 flex w-[260px] -translate-x-1/2 -translate-y-1/2 flex-col gap-2 rounded-[18px] border border-border bg-background p-4 shadow-[0_6px_24px_-8px_rgba(0,0,0,0.12)]">
+      <div className="absolute top-1/2 left-1/2 flex w-[260px] -translate-x-1/2 -translate-y-1/2 flex-col gap-2 rounded-[18px] border border-border bg-background p-4 shadow-(--shadow-card)">
         <div className="mb-1 text-xs font-medium text-muted-foreground">
           broadcast to
         </div>
@@ -271,7 +271,7 @@ function AudienceIllustration() {
 function Avatar({ className, label }: { className: string; label: string }) {
   return (
     <span
-      className={`sponti-avatar absolute flex size-9 items-center justify-center rounded-full bg-foreground text-[13px] font-semibold text-background shadow-[0_6px_14px_-4px_rgba(0,0,0,0.25)] ${className}`}
+      className={`sponti-avatar absolute flex size-9 items-center justify-center rounded-full bg-foreground text-[13px] font-semibold text-background shadow-(--shadow-elevated) ${className}`}
     >
       {label}
     </span>
@@ -377,7 +377,7 @@ function OnboardingStyles() {
         padding: 6px 11px 6px 8px;
         font-size: 11px;
         font-weight: 500;
-        box-shadow: 0 6px 24px -8px rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.04);
+        box-shadow: var(--shadow-card);
       }
 
       .sponti-pill-live {
@@ -424,7 +424,7 @@ function OnboardingStyles() {
         border-radius: 999px;
         background: var(--accent);
         color: var(--accent-foreground);
-        box-shadow: 0 10px 24px -6px rgba(196,64,64,.6), inset 0 1px 0 rgba(255,255,255,.25);
+        box-shadow: 0 10px 24px -6px color-mix(in oklch, var(--accent) 60%, transparent), inset 0 1px 0 oklch(1 0 0 / 25%);
         transform: translate(-50%, -50%);
         animation: sponti-core 3s ease-in-out infinite;
       }
@@ -494,8 +494,8 @@ function OnboardingStyles() {
       }
 
       @keyframes sponti-audience-pulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(196,64,64,.25); }
-        50% { box-shadow: 0 0 0 8px rgba(196,64,64,0); }
+        0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--accent) 25%, transparent); }
+        50% { box-shadow: 0 0 0 8px color-mix(in oklch, var(--accent) 0%, transparent); }
       }
 
       @keyframes sponti-pop-in {

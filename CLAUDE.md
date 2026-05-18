@@ -129,14 +129,38 @@ Sponti's visual identity is built on the **shadcn Nova** component style (compac
 --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
 ```
 
-| Context | Weight | Size guidance |
-|---------|--------|---------------|
-| Display / Hero | 700 (Bold) | 32–48 px |
-| Section heading | 600 (SemiBold) | 20–28 px |
-| Subheading / Card title | 600 (SemiBold) | 16–18 px |
-| Body / Paragraph | 400 (Regular) | 14–16 px |
-| Caption / Helper text | 400 (Regular) | 12–13 px |
-| Button / Label | 500 (Medium) | 14 px |
+#### The 4-step type scale (locked)
+
+Sponti uses a strict 4-step scale. Hierarchy comes from **weight contrast**, not from inventing intermediate sizes. **No arbitrary sizes** (`text-[10px]`, `text-[11px]`, `text-[13px]`, `text-[15px]`, etc.) — they fragment the scale and harm mobile readability.
+
+| Role | Tailwind | Size | Weight | Tailwind weight | Usage |
+|------|----------|------|--------|-----------------|-------|
+| Display / Hero | `text-2xl` → `text-4xl` | 24–36 px | 700 | `font-bold` | Landing heroes, onboarding titles. Rare in product UI. |
+| Title | `text-lg` | 18 px | 600 | `font-semibold` | Screen titles, drawer titles, modal titles |
+| Heading | `text-base` | 16 px | 600 | `font-semibold` | Header chrome ("light a flare"), card titles, section headings |
+| Body / Label | `text-sm` | 14 px | 400 / 500 | `font-normal` / `font-medium` | Inputs, paragraphs, form labels (500), button text (500) |
+| Meta / Caption | `text-xs` | 12 px | 400 | `font-normal` | Hints, counters, chips, helper text, inferred badges |
+
+**Minimum mobile size: 12 px.** Anything smaller is a bug — never use `text-[10px]` or `text-[11px]` in product UI. If something feels like it needs to be smaller than 12 px, lower the **color contrast** (e.g. `text-muted-foreground/70`) instead of shrinking the type.
+
+#### Weight rules
+
+- Body copy and input text: **400** (`font-normal`).
+- Form labels and button text: **500** (`font-medium`).
+- Titles, headings, emphasis: **600** (`font-semibold`).
+- Reserve **700** (`font-bold`) for display-scale type only (24 px+). Never bold body text.
+- Distinguish two pieces of meta on the same line by **color**, not size — same 12 px, lighter foreground for the secondary one.
+
+#### Form screens (drawers, modals, settings)
+
+- **Title bar:** `text-base font-semibold` (16/600).
+- **Summary / preview chips** under the title: `text-xs` (12 px), centered, sit between the title row and the form body.
+- **Section label:** `text-sm font-medium text-foreground` (14/500). Section labels are form questions — they belong at body size, not caption size.
+- **Input text and placeholders:** `text-sm` (14/400).
+- **Inline meta** below inputs (type hints, char counters, inferred badges, "+ add a note" affordances): `text-xs text-muted-foreground` (12/400).
+- **Primary CTA:** `text-base` (16 px) — never smaller on the main action button.
+
+Hierarchy on one screen should resolve into at most 3 sizes (16 / 14 / 12). Adding a 4th size to "fix" hierarchy is almost always solvable with weight or color instead.
 
 > **Fallback stack:** If Figtree is unavailable, fall back to the system sans-serif stack above. Never substitute a serif font.
 
@@ -242,6 +266,82 @@ Nova uses a compact base radius. All derived radii scale from `--radius`.
 - **Styling engine:** Tailwind CSS v4 with CSS-variable theming (`cssVariables: true`).
 - **Icons:** Lucide React (default shadcn icon set).
 
+### Layout & Spacing Rhythm
+
+Hierarchy of spacing matters more than the absolute values. The single biggest tell of an AI-generated UI is **uniform vertical gaps** between every element — header, controls, sections all sitting at the same distance. A modern app uses **rhythm**: tight inside a group, loose between groups, very loose between major zones.
+
+#### Spacing scale (locked)
+
+Always use Tailwind's scale. No arbitrary `mt-[15px]`, `gap-[14px]`. The scale tokens:
+
+| Token | px | Use for |
+|-------|----|---------|
+| `gap-1` / `mt-1` | 4 | Touching elements (icon + adjacent label) |
+| `gap-2` / `mt-2` | 8 | Inside a tight group (label → input, chip → chip) |
+| `gap-3` / `mt-3` | 12 | Inside a relaxed group |
+| `gap-4` / `mt-4` | 16 | Between adjacent groups in the same zone |
+| `mt-6` | 24 | Between sections within a form |
+| `mt-8` | 32 | Between major zones on a screen |
+
+If two values feel "close enough," pick the one further away — bigger gap means stronger separation, and ambiguity is exactly what makes a UI feel flat.
+
+#### Zone model for screens
+
+Every screen breaks into **zones**. A zone is a coherent block (header chrome, mode switcher, form body, action bar). Inside a zone, gaps are small. Between zones, gaps are large and often reinforced with a **`border-b border-border/60` divider** or a background tint.
+
+Drawer / modal example (the `light a flare` pattern):
+
+```
+┌─ Header zone ────────────────────────────┐
+│  [X]      light a flare                  │   tight: py-3 between rows
+│           [chip] [chip] [chip]           │   chips sit inside header zone
+├──────────────────────────────────────────┤   border-b border-border/60
+│                                          │
+│  [ tabs / segmented control ]            │   mt-4 below header border
+│                                          │
+│  what's the plan?                        │   Section: mt-4 below tabs
+│  [ input                             ]   │   label → input: mt-2
+│  type · hang out  change                 │   inline meta: mt-2
+│                                          │
+│  where do you want to meet?              │   Section: mt-6
+│  ...                                     │
+├──────────────────────────────────────────┤   border-t (pinned CTA zone)
+│  [        light a flare        ]         │   primary action
+└──────────────────────────────────────────┘
+```
+
+#### Form rules
+
+- **Title bar + summary chips = one zone**, anchored with `border-b border-border/60`. Title and chips are tight (`pt-1 pb-3`) and centered.
+- **Mode switcher (tabs / segmented control)** sits below the header border with `mt-4`. It belongs to the form, not the header — keep it visually close to the form body (gap below: `mb-2`, NOT a full section gap).
+- **First Section after a tab**: `mt-4`, not `mt-6` — the tab is already the section's header.
+- **Subsequent Sections in the same form**: `mt-6` between each.
+- **Inside a Section**: label → input is `mt-2`; input → inline meta is `mt-2`; meta → next affordance is `mt-3`.
+- **CTA bar** is pinned to the bottom and separated from form content by `border-t border-border` and its own internal padding.
+
+#### Borders, separators, surfaces
+
+- Use borders to **mark zone boundaries**, not to decorate. Light dividers: `border-border/60`. Strong: `border-border`.
+- Don't wrap groups in `<Card>` unless they need an elevated surface. A border-bottom on a header is enough separation in a flat layout. Nested cards are a smell.
+- Pinned bars (top app bar, bottom CTA) get `border-t` or `border-b` to anchor them to the viewport edge.
+
+#### Tabs / segmented controls
+
+- Reserve for **mode switching** of the same form (e.g. "right now" vs "pick a time"), not for navigation between unrelated screens.
+- Keep the control compact: `h-9` or smaller. Active state uses `bg-card` (light) or `bg-secondary` (dark) — never the accent color (accent is for primary CTAs only).
+- Place the tabs **adjacent to the form they control**. Don't leave a 24+ px gap below — that breaks the relationship.
+
+#### The "modern app" smell test
+
+A screen feels modern when:
+1. You can identify zones at a glance (header / form / action).
+2. Spacing inside each zone is visibly tighter than between zones.
+3. No control floats alone — everything is near what it owns or affects.
+4. The screen reads in **three** sizes max (16 / 14 / 12) with weight and color doing the rest.
+5. The primary action is unambiguous (one accent-colored button, pinned).
+
+If two of these are off, the screen will read as "AI-built template," even if every individual element is fine.
+
 ### Quick-Reference: Applying the Brand
 
 | Scenario | What to use |
@@ -255,8 +355,10 @@ Nova uses a compact base radius. All derived radii scale from `--radius`.
 | Card | `bg-card text-card-foreground` |
 | Borders | `border-border` |
 | Focus ring | `ring-ring` |
-| Heading font | `font-sans font-semibold` (Figtree 600) |
-| Body font | `font-sans font-normal` (Figtree 400) |
+| Heading (16 px) | `text-base font-semibold` |
+| Form section label (14 px) | `text-sm font-medium text-foreground` |
+| Body / input (14 px) | `text-sm font-normal` |
+| Meta / caption (12 px) | `text-xs text-muted-foreground` |
 
 ### Non-CSS Contexts (Figma, Docs, Presentations)
 

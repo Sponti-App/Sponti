@@ -97,7 +97,7 @@ export function EventDetailSheet({
     >
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-50 bg-foreground/30" />
-        <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-3xl bg-background shadow-[0_-4px_24px_rgba(0,0,0,0.12)] outline-none">
+        <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-3xl bg-background shadow-(--shadow-sheet) outline-none">
           {/* Drag handle — vaul attaches its gesture here automatically */}
           <div className="mx-auto mt-3 mb-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30" />
           <Drawer.Title className="sr-only">
