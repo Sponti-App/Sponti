@@ -256,7 +256,7 @@ function GoogleMapContent({
                       : ""
                   }`}
                 >
-                  {event.host.avatar}
+                  {eventIcon(event.type, event.host.avatar)}
                 </div>
               </div>
               {isLive(event) && (
@@ -364,7 +364,10 @@ export function MapView({
     [map.events]
   )
   const filteredEvents = useMemo(
-    () => (filterType === "all" ? mapEvents : mapEvents.filter((e) => e.type === filterType)),
+    () =>
+      filterType === "all"
+        ? mapEvents
+        : mapEvents.filter((e) => e.type === filterType),
     [mapEvents, filterType]
   )
 
@@ -450,11 +453,14 @@ export function MapView({
   const FLICK_VX = 0.4
   const DELTA_PX = 50
 
-  const snap = useCallback((next: PeekState) => {
-    if (next === peekState) return
-    setPeekState(next)
-    haptic("selection")
-  }, [peekState])
+  const snap = useCallback(
+    (next: PeekState) => {
+      if (next === peekState) return
+      setPeekState(next)
+      haptic("selection")
+    },
+    [peekState]
+  )
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     dragStartY.current = e.clientY
@@ -476,7 +482,7 @@ export function MapView({
     }
     const isFlick = velocity > FLICK_VX
     const goDown = delta > DELTA_PX || (isFlick && delta > 0)
-    const goUp   = delta < -DELTA_PX || (isFlick && delta < 0)
+    const goUp = delta < -DELTA_PX || (isFlick && delta < 0)
     if (goDown) {
       if (peekState === "expanded") snap("peek")
       else if (peekState === "peek") snap("mini")
@@ -611,11 +617,14 @@ export function MapView({
             {/* Filter chips — only useful when there's something to filter.
                 Hidden when no events have come back from the nearby query. */}
             {mapEvents.length > 0 && (
-              <div className="mb-3 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none">
+              <div className="scrollbar-none -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1">
                 <FilterChip
                   label="all"
                   active={filterType === "all"}
-                  onClick={() => { haptic("selection"); setFilterType("all") }}
+                  onClick={() => {
+                    haptic("selection")
+                    setFilterType("all")
+                  }}
                 />
                 {EVENT_TYPES.map((t) => (
                   <FilterChip
@@ -623,7 +632,10 @@ export function MapView({
                     label={t.label}
                     icon={t.icon}
                     active={filterType === t.value}
-                    onClick={() => { haptic("selection"); setFilterType(t.value) }}
+                    onClick={() => {
+                      haptic("selection")
+                      setFilterType(t.value)
+                    }}
                   />
                 ))}
               </div>
@@ -721,9 +733,7 @@ function EmptyState({
 }) {
   return (
     <div className="rounded-xl border border-dashed border-border p-5 text-center">
-      <p className="mb-1 text-sm font-medium">
-        no flares within {radiusKm} km
-      </p>
+      <p className="mb-1 text-sm font-medium">no flares within {radiusKm} km</p>
       <p className="mb-4 text-xs text-muted-foreground">
         quiet around here right now — try one of these
       </p>
@@ -748,7 +758,8 @@ function EmptyState({
           onClick={onFindConnections}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
         >
-          <Flame className="h-4 w-4" /> connect with your friends to see their flares
+          <Flame className="h-4 w-4" /> connect with your friends to see their
+          flares
         </button>
       </div>
     </div>
@@ -809,7 +820,7 @@ function FlareCard({
   return (
     <div className="relative overflow-hidden rounded-xl">
       {/* Swipe-reveal "I'm in" hint behind the card */}
-      <div className="absolute inset-y-0 left-0 flex w-20 items-center justify-center rounded-l-xl bg-accent">
+      <div className="absolute inset-y-0 left-0 flex w-16 items-center justify-center rounded-l-xl bg-accent">
         <span className="flex flex-col items-center gap-0.5 text-[10px] font-semibold text-accent-foreground">
           <Check className="h-4 w-4" />
           I&apos;m in
@@ -817,7 +828,7 @@ function FlareCard({
       </div>
 
       <Card
-        className={`relative cursor-pointer flex-row items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/50 ${
+        className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 ${
           joined ? "border-accent bg-accent/5" : "border-border"
         }`}
         style={{
