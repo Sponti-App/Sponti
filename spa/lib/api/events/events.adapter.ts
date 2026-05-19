@@ -125,20 +125,31 @@ function hostFromApi(host: ApiEvent["hostId"]): EventItem["host"] {
   if (typeof host === "string") {
     return {
       id: host,
-      name: "host",
-      avatar: "?",
+      name: "Host",
+      avatar: "H",
+      avatarUrl: null,
       color: "bg-stone-400",
       note: "",
     }
   }
   const name = host.displayName || host.username || "host"
+  const avatarUrl = host.avatarUrl ?? null
+  const initials = initialsFromName(name)
   return {
     id: host._id,
     name,
-    avatar: name.charAt(0).toUpperCase(),
+    avatar: initials,
+    avatarUrl,
     color: "bg-stone-400",
     note: "",
   }
+}
+
+function initialsFromName(name: string): string {
+  if (!name) return ""
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
+  return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase()
 }
 
 /**
@@ -351,9 +362,9 @@ export function createEventRequestFromDraft(
         ? target.memberIds.map((userId) => ({ userId, role: "guest" }))
         : target.kind === "circle" && target.extraMemberIds
           ? target.extraMemberIds.map((userId) => ({
-              userId,
-              role: "guest" as const,
-            }))
+            userId,
+            role: "guest" as const,
+          }))
           : [],
   }
 }

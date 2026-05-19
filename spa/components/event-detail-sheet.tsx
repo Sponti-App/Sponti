@@ -17,6 +17,7 @@ import {
   Landmark,
   Palette,
   PartyPopper,
+  Utensils,
 } from "lucide-react"
 import {
   avatarText,
@@ -32,12 +33,13 @@ const ETA_OPTIONS = ["5 min", "15 min", "30 min", "1 hr"]
 
 function EventTypeIcon({ type }: { type: EventItem["type"] }) {
   const cls = "w-6 h-6 text-accent"
+  if (type === "food") return <Utensils className={cls} />
   if (type === "drinks") return <Coffee className={cls} />
   if (type === "sports") return <Activity className={cls} />
   if (type === "culture") return <Landmark className={cls} />
   if (type === "hobby") return <Palette className={cls} />
   if (type === "party") return <PartyPopper className={cls} />
-  return <Users className={cls} />
+  return <Flame className={cls} />
 }
 
 interface Props {
@@ -128,16 +130,27 @@ export function EventDetailSheet({
               {/* Host Note */}
               <Card className="mb-4 border-0 bg-muted p-3">
                 <div className="flex items-start gap-2">
-                  <div
-                    className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${displayEvent.host.color} ${avatarText(displayEvent.host.color)}`}
-                  >
-                    {displayEvent.host.avatar}
-                  </div>
+                  {displayEvent.host.avatarUrl ? (
+                    <img
+                      src={displayEvent.host.avatarUrl}
+                      alt={displayEvent.host.name}
+                      className="h-6 w-6 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${displayEvent.host.color} ${avatarText(
+                        displayEvent.host.color
+                      )}`}
+                    >
+                      {displayEvent.host.avatar || displayEvent.host.name?.charAt(0).toUpperCase() || "H"}
+                    </div>
+                  )}
                   <div className="flex-1">
-                    <p className="text-sm text-muted-foreground">
-                      {displayEvent.host.name} · host note
-                    </p>
-                    <p className="text-sm italic">{displayEvent.host.note}</p>
+                    <div className="truncate text-sm font-medium">hosted by {displayEvent.host.name || "Host"}</div>
+
+                    {displayEvent.host.note ? (
+                      <div className="mt-0.5 text-sm text-muted-foreground">{displayEvent.host.note}</div>
+                    ) : null}
                   </div>
                 </div>
               </Card>
@@ -174,7 +187,7 @@ export function EventDetailSheet({
                         key={i}
                         className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-xs ${a.color} ${avatarText(a.color)}`}
                       >
-                        {a.avatar}
+                        {a.avatar || a.name?.charAt(0).toUpperCase() || "U"}
                       </div>
                     ))}
                   </div>
@@ -201,11 +214,10 @@ export function EventDetailSheet({
                         key={eta}
                         variant={selectedEta === eta ? "default" : "outline"}
                         size="sm"
-                        className={`flex-1 rounded-full ${
-                          selectedEta === eta
-                            ? "bg-accent text-accent-foreground hover:bg-accent/90"
-                            : "bg-background text-foreground"
-                        }`}
+                        className={`flex-1 rounded-full ${selectedEta === eta
+                          ? "bg-accent text-accent-foreground hover:bg-accent/90"
+                          : "bg-background text-foreground"
+                          }`}
                         onClick={() => {
                           haptic("selection")
                           setSelectedEta(eta)
@@ -254,11 +266,10 @@ export function EventDetailSheet({
                 </div>
               ) : imminent ? (
                 <Button
-                  className={`w-full rounded-full py-6 text-base ${
-                    selectedEta
-                      ? "bg-accent text-accent-foreground hover:bg-accent/90"
-                      : "cursor-not-allowed bg-muted text-muted-foreground"
-                  }`}
+                  className={`w-full rounded-full py-6 text-base ${selectedEta
+                    ? "bg-accent text-accent-foreground hover:bg-accent/90"
+                    : "cursor-not-allowed bg-muted text-muted-foreground"
+                    }`}
                   disabled={!selectedEta}
                   onClick={() => {
                     if (selectedEta) {
