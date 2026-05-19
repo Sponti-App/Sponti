@@ -47,16 +47,46 @@ function useApiEnabled() {
   return API_BASE.length > 0
 }
 
+const MAP_EVENTS_STALE_MS = 60_000
+
+type MapEventsCacheEntry = {
+  events: EventsState["events"]
+  fetchedAt: number
+}
+
+type MapEventsState = Omit<EventsState, "refresh"> & {
+  cacheKey: string | null
+}
+
+const mapEventsCache = new Map<string, MapEventsCacheEntry>()
+
+function coordinateCachePart(value: number): string {
+  return value.toFixed(3)
+}
+
+function mapEventsCacheKey(coords: GeoCoords, radiusKm: number): string {
+  return [
+    coordinateCachePart(coords.lat),
+    coordinateCachePart(coords.lng),
+    radiusKm,
+  ].join(":")
+}
+
 export function useMapEvents(
   userCoords: GeoCoords | null,
   radiusKm = 25
 ): EventsState {
   const apiEnabled = useApiEnabled()
-  const [state, setState] = useState<EventsState>({
+  const queryKey = useMemo(
+    () => (userCoords ? mapEventsCacheKey(userCoords, radiusKm) : null),
+    [userCoords, radiusKm]
+  )
+  const [state, setState] = useState<MapEventsState>({
     events: apiEnabled ? [] : DEMO_MAP_EVENTS,
-    loading: apiEnabled,
+    loading: false,
+    refreshing: false,
     error: null,
-    refresh: () => {},
+    cacheKey: null,
   })
   const [tick, setTick] = useState(0)
 
@@ -67,37 +97,88 @@ export function useMapEvents(
 
   useEffect(() => {
     if (!apiEnabled) return
-    if (!userCoords) return
-    const ac = new AbortController()
-    // Defer the "loading: true" tick past the current render so it doesn't
-    // trigger a cascading render synchronously inside the effect.
+    let cancelled = false
+
+    if (!userCoords || !queryKey) {
+      queueMicrotask(() => {
+        if (cancelled) return
+        setState((current) => ({
+          ...current,
+          loading: false,
+          refreshing: false,
+          error: null,
+          cacheKey: null,
+        }))
+      })
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const cached = mapEventsCache.get(queryKey)
+    const cachedIsFresh =
+      cached != null && Date.now() - cached.fetchedAt < MAP_EVENTS_STALE_MS
+    const shouldFetch = !cached || !cachedIsFresh || tick > 0
+
     queueMicrotask(() => {
-      if (ac.signal.aborted) return
-      setState((s) => ({ ...s, loading: true, error: null }))
+      if (cancelled) return
+      setState((current) => {
+        const sameQuery = current.cacheKey === queryKey
+        const events = cached?.events ?? (sameQuery ? current.events : [])
+        const hasEvents = events.length > 0
+        return {
+          events,
+          loading: shouldFetch && !hasEvents,
+          refreshing: shouldFetch && hasEvents,
+          error: null,
+          cacheKey: queryKey,
+        }
+      })
     })
+
+    if (!shouldFetch)
+      return () => {
+        cancelled = true
+      }
+
+    const ac = new AbortController()
     fetchMapEvents({ ...userCoords, radiusKm, signal: ac.signal })
       .then((items) => {
+        if (cancelled) return
+        mapEventsCache.set(queryKey, { events: items, fetchedAt: Date.now() })
         setState({
           events: items,
           loading: false,
+          refreshing: false,
           error: null,
-          refresh: () => setTick((n) => n + 1),
+          cacheKey: queryKey,
         })
       })
       .catch((err) => {
+        if (cancelled) return
         if (ac.signal.aborted) return
-        // API is configured but unreachable. Fall back to demo data so the map
-        // UI keeps working during prototype/backend outages.
         console.warn("[Sponti] map events fetch failed, using demo data:", err)
-        setState({
-          events: DEMO_MAP_EVENTS,
-          loading: false,
-          error: errMessage(err),
-          refresh: () => setTick((n) => n + 1),
+        setState((current) => {
+          const keepExisting =
+            current.cacheKey === queryKey && current.events.length > 0
+          // API is configured but unreachable. Fall back to demo data only
+          // when there is no usable cached/current result to keep on screen.
+          return {
+            events: keepExisting
+              ? current.events
+              : repositionMockEvents(DEMO_MAP_EVENTS, userCoords),
+            loading: false,
+            refreshing: false,
+            error: errMessage(err),
+            cacheKey: queryKey,
+          }
         })
       })
-    return () => ac.abort()
-  }, [apiEnabled, userCoords, radiusKm, tick])
+    return () => {
+      cancelled = true
+      ac.abort()
+    }
+  }, [apiEnabled, userCoords, radiusKm, queryKey, tick])
 
   // In mock mode, anchor seed events to the user's real coords so they appear
   // near the user regardless of city. With real backend data this is a no-op.
@@ -112,6 +193,7 @@ export function useMapEvents(
   return {
     events,
     loading: state.loading,
+    refreshing: state.refreshing,
     error: state.error,
     refresh: () => setTick((n) => n + 1),
   }

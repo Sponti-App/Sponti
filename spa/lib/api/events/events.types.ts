@@ -235,6 +235,7 @@ export type MyFlaresState = MyFlaresResult & {
 export type EventsState = {
   events: EventItem[]
   loading: boolean
+  refreshing?: boolean
   error: string | null
   refresh: () => void
 }
