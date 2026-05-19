@@ -14,6 +14,7 @@ export type GeoStatus =
 
 export type GeoState = {
   coords: GeoCoords | null
+  lastKnownCoords: GeoCoords | null
   accuracyMeters: number | null
   status: GeoStatus
   errorMessage: string | null
@@ -21,19 +22,80 @@ export type GeoState = {
   recenter: () => void
 }
 
-// SF Fillmore — used as a soft fallback so the map can render before we have
-// permission. The UI must indicate this is *not* the user's real location.
+const LAST_KNOWN_COORDS_KEY = "sponti.geo.last-known-coords.v1"
+
+let memoryLastKnownCoords: GeoCoords | null | undefined
+
+function isValidCoords(value: unknown): value is GeoCoords {
+  if (typeof value !== "object" || value === null) return false
+  const coords = value as Partial<GeoCoords>
+  return (
+    typeof coords.lat === "number" &&
+    Number.isFinite(coords.lat) &&
+    coords.lat >= -90 &&
+    coords.lat <= 90 &&
+    typeof coords.lng === "number" &&
+    Number.isFinite(coords.lng) &&
+    coords.lng >= -180 &&
+    coords.lng <= 180
+  )
+}
+
+export function readLastKnownCoords(): GeoCoords | null {
+  if (memoryLastKnownCoords !== undefined) return memoryLastKnownCoords
+  if (typeof window === "undefined") {
+    memoryLastKnownCoords = null
+    return memoryLastKnownCoords
+  }
+
+  try {
+    const raw = window.localStorage.getItem(LAST_KNOWN_COORDS_KEY)
+    if (!raw) {
+      memoryLastKnownCoords = null
+      return memoryLastKnownCoords
+    }
+    const parsed = JSON.parse(raw) as unknown
+    memoryLastKnownCoords = isValidCoords(parsed) ? parsed : null
+  } catch {
+    memoryLastKnownCoords = null
+  }
+
+  return memoryLastKnownCoords
+}
+
+function writeLastKnownCoords(coords: GeoCoords): void {
+  memoryLastKnownCoords = coords
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(LAST_KNOWN_COORDS_KEY, JSON.stringify(coords))
+  } catch {
+    // Best-effort cache only. The live geolocation result still works.
+  }
+}
+
+// SF Fillmore remains only as a non-user-location demo coordinate for legacy
+// callers. Product map surfaces should avoid rendering this as an intermediate
+// user camera.
 export const FALLBACK_COORDS: GeoCoords = { lat: 37.7849, lng: -122.4344 }
 
-export function useGeolocation(options?: { watch?: boolean }): GeoState {
+export function useGeolocation(options?: {
+  watch?: boolean
+  autoRequest?: boolean
+}): GeoState {
   const [coords, setCoords] = useState<GeoCoords | null>(null)
+  const [lastKnownCoords, setLastKnownCoords] = useState<GeoCoords | null>(() =>
+    readLastKnownCoords()
+  )
   const [accuracyMeters, setAccuracyMeters] = useState<number | null>(null)
   const [status, setStatus] = useState<GeoStatus>("idle")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const watchIdRef = useRef<number | null>(null)
 
   const handleSuccess = useCallback((pos: GeolocationPosition) => {
-    setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+    const next = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+    setCoords(next)
+    setLastKnownCoords(next)
+    writeLastKnownCoords(next)
     setAccuracyMeters(pos.coords.accuracy)
     setStatus("granted")
     setErrorMessage(null)
@@ -70,6 +132,7 @@ export function useGeolocation(options?: { watch?: boolean }): GeoState {
 
   useEffect(() => {
     if (typeof window === "undefined" || !navigator.geolocation) return
+    if (options?.autoRequest === false) return
     if (!options?.watch) {
       // Defer past the current render so the setStatus("requesting") inside
       // request() doesn't fire synchronously in the effect body.
@@ -83,9 +146,24 @@ export function useGeolocation(options?: { watch?: boolean }): GeoState {
     })
     watchIdRef.current = id
     return () => {
-      if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current)
+      if (watchIdRef.current != null)
+        navigator.geolocation.clearWatch(watchIdRef.current)
     }
-  }, [options?.watch, request, handleSuccess, handleError])
+  }, [
+    options?.autoRequest,
+    options?.watch,
+    request,
+    handleSuccess,
+    handleError,
+  ])
 
-  return { coords, accuracyMeters, status, errorMessage, request, recenter }
+  return {
+    coords,
+    lastKnownCoords,
+    accuracyMeters,
+    status,
+    errorMessage,
+    request,
+    recenter,
+  }
 }

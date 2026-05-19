@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Figtree } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
 import { AuthProvider } from '@/components/auth-provider'
 import { AuthGate } from '@/components/auth-gate'
@@ -47,6 +48,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={figtree.variable}>
+      <head>
+        {process.env.NODE_ENV === 'development' ? (
+          <>
+            {/* tweakcn preview */}
+            <Script
+              async
+              crossOrigin="anonymous"
+              src="https://tweakcn.com/live-preview.min.js"
+              strategy="afterInteractive"
+            />
+          </>
+        ) : null}
+      </head>
       <body className="font-sans antialiased" suppressHydrationWarning>
         <AuthProvider>
           <AuthGate>
@@ -57,3 +71,4 @@ export default function RootLayout({
     </html>
   )
 }
+
