@@ -11,10 +11,13 @@ import {
   Lock,
   LogOut,
   MapPin,
+  Moon,
   Shield,
+  Sun,
   Upload,
   User,
 } from "lucide-react"
+import { useTheme } from "next-themes"
 import { BottomNav } from "@/components/bottom-nav"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -102,8 +105,10 @@ export default function SettingsPage() {
 function SettingsPageContent({ user }: { user: AuthUser }) {
   const router = useRouter()
   const { logout } = useAuth()
+  const { resolvedTheme, setTheme } = useTheme()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const extras = readProfileExtras(user.id)
+  const isDark = resolvedTheme === "dark"
 
   // Account draft — seeded from auth session; replace with API response when wired
   const [account, setAccount] = useState<AccountDraft>({
@@ -230,7 +235,13 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <span className="text-base font-semibold">settings</span>
-        <div className="h-9 w-9" aria-hidden />
+        <button
+          onClick={() => setTheme(isDark ? "light" : "dark")}
+          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          className="h-9 w-9 rounded-full border border-border flex items-center justify-center"
+        >
+          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
       </div>
 
       {/* Tabbed content */}

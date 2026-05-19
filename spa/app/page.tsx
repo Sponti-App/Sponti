@@ -167,7 +167,7 @@ export default function Home() {
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             onClick={() => { haptic("selection"); setMenuOpen((v) => !v) }}
-            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/70 shadow-sm backdrop-blur-md transition-colors active:bg-background/90"
+            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md transition-colors dark:bg-background/90 active:bg-background/95"
           >
             <Menu className="h-4 w-4" />
           </button>
@@ -198,7 +198,7 @@ export default function Home() {
           <button
             onClick={() => { haptic("selection"); router.push("/settings") }}
             aria-label="Settings"
-            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/70 shadow-sm backdrop-blur-md transition-colors active:bg-background/90"
+            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md transition-colors dark:bg-background/90 active:bg-background/95"
           >
             <Settings className="h-4 w-4" />
           </button>
