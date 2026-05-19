@@ -1,6 +1,13 @@
 export type EventVisibility = "public" | "private"
 export type EventRsvp = "invited" | "going" | "maybe" | "declined"
-export type EventType = "food" | "drinks" | "sports" | "hangout" | "party" | "culture" | "hobby"
+export type EventType =
+  | "food"
+  | "drinks"
+  | "sports"
+  | "hangout"
+  | "party"
+  | "culture"
+  | "hobby"
 export type RsvpStatus = Extract<EventRsvp, "going" | "maybe" | "declined">
 export type EventGuestInviteMode = "multiple" | "single" | "none"
 export type EventInviteRole = "admin" | "guest"
@@ -37,6 +44,15 @@ export type Recurrence = "none" | "daily" | "weekly"
 // literal "custom" for the ad-hoc friend-picker path.
 export type Audience = string
 
+export type DraftEventLocation = {
+  source: "place" | "current"
+  name: string
+  address?: string | null
+  // GeoJSON order: [lng, lat]
+  coordinates: [number, number]
+  placeId?: string
+}
+
 export type DraftEvent = {
   mode: "now" | "scheduled"
   eventType: EventType
@@ -48,6 +64,7 @@ export type DraftEvent = {
   startTime?: string
   recurrence?: Recurrence
   whereType: "current" | "search" | "saved"
+  location?: DraftEventLocation | null
   customWhere?: string
   savedPlaceLabel?: string
   guestLimit: number | null
@@ -218,6 +235,7 @@ export type MyFlaresState = MyFlaresResult & {
 export type EventsState = {
   events: EventItem[]
   loading: boolean
+  refreshing?: boolean
   error: string | null
   refresh: () => void
 }

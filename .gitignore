@@ -6,3 +6,7 @@
 .vscode
 # os
 .DS_Store
+
+# Next.js build output — should only exist inside spa/, never at the repo
+# root. Ignored here to prevent stray builds from being committed again.
+.next/

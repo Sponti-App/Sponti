@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
   Check,
@@ -60,8 +60,10 @@ type Tab = "circles" | "people"
 
 export default function CirclesPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
-  const [tab, setTab] = useState<Tab>("circles")
+  const initialTab: Tab = searchParams.get("tab") === "people" ? "people" : "circles"
+  const [tab, setTab] = useState<Tab>(initialTab)
   const [qrOpen, setQrOpen] = useState(false)
 
   // People tab search
