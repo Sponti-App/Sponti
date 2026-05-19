@@ -32,7 +32,6 @@ import {
   type EventItem,
 } from "@/lib/api/events"
 import {
-  FALLBACK_COORDS,
   useGeolocation,
   type GeoCoords,
   type GeoStatus,
@@ -176,8 +175,8 @@ function GoogleMapContent({
   routeResult,
   routeDestination,
   joinedIds,
-  user,
-  hasUserLocation,
+  cameraCenter,
+  currentLocation,
   recenterTick,
 }: {
   events: EventItem[]
@@ -185,8 +184,8 @@ function GoogleMapContent({
   routeResult: RouteResult | null
   routeDestination: GeoCoords | null
   joinedIds: Set<string>
-  user: GeoCoords
-  hasUserLocation: boolean
+  cameraCenter: GeoCoords
+  currentLocation: GeoCoords | null
   recenterTick: number
 }) {
   const status = useApiLoadingStatus()
@@ -194,23 +193,30 @@ function GoogleMapContent({
   const { resolvedTheme } = useTheme()
   const autoCenteredRef = useRef(false)
   const colorScheme = resolvedTheme === "dark" ? "DARK" : "LIGHT"
+  const userInteractedRef = useRef(false)
 
-  // Auto-center on the user the first time geolocation resolves. The Map's
-  // defaultCenter only applies on first mount; without this, a fallback
-  // location would stay centered until the user pressed the recenter button.
+  // If the map opened from a cached camera, move to fresh GPS once it arrives,
+  // but only while the user has not started navigating the map themselves.
   useEffect(() => {
-    if (!map || autoCenteredRef.current || !hasUserLocation) return
+    if (
+      !map ||
+      autoCenteredRef.current ||
+      !currentLocation ||
+      userInteractedRef.current
+    )
+      return
     autoCenteredRef.current = true
-    map.panTo(user)
+    map.panTo(currentLocation)
     if ((map.getZoom() ?? 0) < 14) map.setZoom(15)
-  }, [map, user, hasUserLocation])
+  }, [map, currentLocation])
 
   // Recenter on explicit user action
   useEffect(() => {
-    if (!map || recenterTick === 0) return
-    map.panTo(user)
+    if (!map || recenterTick === 0 || !currentLocation) return
+    userInteractedRef.current = false
+    map.panTo(currentLocation)
     if ((map.getZoom() ?? 0) < 14) map.setZoom(15)
-  }, [map, user, recenterTick])
+  }, [map, currentLocation, recenterTick])
 
   if (status === APILoadingStatus.FAILED) {
     return (
@@ -218,24 +224,33 @@ function GoogleMapContent({
         events={events}
         onEventSelect={onEventSelect}
         joinedIds={joinedIds}
-        user={user}
+        user={cameraCenter}
       />
     )
   }
 
   return (
     <Map
-      defaultCenter={user}
+      defaultCenter={cameraCenter}
       defaultZoom={15}
       mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_ID}
       colorScheme={colorScheme}
+      reuseMaps
       disableDefaultUI
       gestureHandling="greedy"
       className="h-full w-full"
+      onDragstart={() => {
+        userInteractedRef.current = true
+      }}
+      onCameraChanged={(event) => {
+        if (event.domEvent) userInteractedRef.current = true
+      }}
     >
-      <AdvancedMarker position={user}>
-        <div className="h-4 w-4 rounded-full border-2 border-background bg-accent shadow-lg" />
-      </AdvancedMarker>
+      {currentLocation && (
+        <AdvancedMarker position={currentLocation}>
+          <div className="h-4 w-4 rounded-full border-2 border-background bg-accent shadow-lg" />
+        </AdvancedMarker>
+      )}
       {events.map((event) => {
         const coords = eventCoords(event)
         if (!coords) return null
@@ -260,7 +275,7 @@ function GoogleMapContent({
                       : ""
                   }`}
                 >
-                  {event.host.avatar}
+                  {eventIcon(event.type, event.host.avatar)}
                 </div>
               </div>
               {isLive(event) && (
@@ -274,7 +289,10 @@ function GoogleMapContent({
       })}
       {routeResult && <GoogleMapPolyline path={routeResult.path} />}
       {routeDestination && (
-        <FitBoundsOnce origin={user} destination={routeDestination} />
+        <FitBoundsOnce
+          origin={currentLocation ?? cameraCenter}
+          destination={routeDestination}
+        />
       )}
     </Map>
   )
@@ -355,20 +373,25 @@ export function MapView({
   const [recenterTick, setRecenterTick] = useState(0)
 
   const geo = useGeolocation()
-  const user = geo.coords ?? FALLBACK_COORDS
-  const isFallbackLocation = geo.coords == null
+  const cameraCenter = geo.coords ?? geo.lastKnownCoords
+  const hasCurrentLocation = geo.coords != null
+  const isUsingCachedLocation =
+    !hasCurrentLocation && geo.lastKnownCoords != null
   // The recenter button only makes sense on a real interactive map.
-  const hasInteractiveMap = !!apiKey
+  const hasInteractiveMap = !!apiKey && cameraCenter != null
 
   const [searchRadiusKm, setSearchRadiusKm] = useState(DEFAULT_RADIUS_KM)
   const [filterType, setFilterType] = useState<EventType | "all">("all")
-  const map = useMapEvents(geo.coords, searchRadiusKm)
+  const map = useMapEvents(cameraCenter, searchRadiusKm)
   const mapEvents = useMemo(
     () => map.events.filter((e) => !!e.location.coordinates),
     [map.events]
   )
   const filteredEvents = useMemo(
-    () => (filterType === "all" ? mapEvents : mapEvents.filter((e) => e.type === filterType)),
+    () =>
+      filterType === "all"
+        ? mapEvents
+        : mapEvents.filter((e) => e.type === filterType),
     [mapEvents, filterType]
   )
 
@@ -379,9 +402,15 @@ export function MapView({
     () => (activeRoute ? eventCoords(activeRoute) : null),
     [activeRoute]
   )
+  const routeOrigin = geo.coords ?? cameraCenter
+  const onRouteReadyRef = useRef(onRouteReady)
 
   useEffect(() => {
-    if (!activeRoute || !routeDestination) {
+    onRouteReadyRef.current = onRouteReady
+  }, [onRouteReady])
+
+  useEffect(() => {
+    if (!activeRoute || !routeDestination || !routeOrigin) {
       queueMicrotask(() => {
         setRouteResult(null)
         setRouteError(null)
@@ -393,7 +422,7 @@ export function MapView({
       // line and skip the ETA. Map is in static-fallback mode anyway.
       queueMicrotask(() =>
         setRouteResult({
-          path: [user, routeDestination],
+          path: [routeOrigin, routeDestination],
           durationSeconds: 0,
           distanceMeters: 0,
           etaLabel: "",
@@ -403,17 +432,18 @@ export function MapView({
       return
     }
     const ac = new AbortController()
-    computeRoute(user, routeDestination, "WALK", ac.signal)
+    computeRoute(routeOrigin, routeDestination, "WALK", ac.signal)
       .then((result) => {
         setRouteResult(result)
         setRouteError(null)
-        if (result.etaLabel) onRouteReady?.(activeRoute, result.etaLabel)
+        if (result.etaLabel)
+          onRouteReadyRef.current?.(activeRoute, result.etaLabel)
       })
       .catch((err: unknown) => {
         if (ac.signal.aborted) return
         // Fall back to a straight line so the user still has *some* visual
         const fallback: RouteResult = {
-          path: [user, routeDestination],
+          path: [routeOrigin, routeDestination],
           durationSeconds: 0,
           distanceMeters: 0,
           etaLabel: "",
@@ -423,9 +453,7 @@ export function MapView({
         setRouteError(err instanceof Error ? err.message : "Route unavailable")
       })
     return () => ac.abort()
-    // user lat/lng change every geolocation tick — only recompute on activeRoute change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRoute?.id, routeDestination?.lat, routeDestination?.lng, apiKey])
+  }, [activeRoute, routeDestination, routeOrigin, apiKey])
 
   // Pull-to-refresh on the sheet list. Fires only when the scroll container is
   // at the top (scrollTop === 0) and the user drags down more than 56px.
@@ -454,11 +482,14 @@ export function MapView({
   const FLICK_VX = 0.4
   const DELTA_PX = 50
 
-  const snap = useCallback((next: PeekState) => {
-    if (next === peekState) return
-    setPeekState(next)
-    haptic("selection")
-  }, [peekState])
+  const snap = useCallback(
+    (next: PeekState) => {
+      if (next === peekState) return
+      setPeekState(next)
+      haptic("selection")
+    },
+    [peekState]
+  )
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     dragStartY.current = e.clientY
@@ -480,7 +511,7 @@ export function MapView({
     }
     const isFlick = velocity > FLICK_VX
     const goDown = delta > DELTA_PX || (isFlick && delta > 0)
-    const goUp   = delta < -DELTA_PX || (isFlick && delta < 0)
+    const goUp = delta < -DELTA_PX || (isFlick && delta < 0)
     if (goDown) {
       if (peekState === "expanded") snap("peek")
       else if (peekState === "peek") snap("mini")
@@ -513,7 +544,13 @@ export function MapView({
       onPointerCancel={handleMapPointerUp}
       onPointerLeave={handleMapPointerUp}
     >
-      {apiKey ? (
+      {!cameraCenter ? (
+        <MapCameraPlaceholder
+          status={geo.status}
+          errorMessage={geo.errorMessage}
+          onRetry={geo.request}
+        />
+      ) : apiKey ? (
         <APIProvider apiKey={apiKey}>
           <GoogleMapContent
             events={mapEvents}
@@ -521,8 +558,8 @@ export function MapView({
             routeResult={routeResult}
             routeDestination={routeDestination}
             joinedIds={joinedIds}
-            user={user}
-            hasUserLocation={!isFallbackLocation}
+            cameraCenter={cameraCenter}
+            currentLocation={geo.coords}
             recenterTick={recenterTick}
           />
         </APIProvider>
@@ -531,12 +568,16 @@ export function MapView({
           events={mapEvents}
           onEventSelect={onEventSelect}
           joinedIds={joinedIds}
-          user={user}
+          user={cameraCenter}
         />
       )}
 
       {/* Geolocation + route error banners — top-16 clears the floating header chips */}
-      <GeolocationBanner status={geo.status} onRetry={geo.request} />
+      <GeolocationBanner
+        status={geo.status}
+        showingCachedLocation={isUsingCachedLocation}
+        onRetry={geo.request}
+      />
 
       {routeError && (
         <div className="absolute top-28 right-3 z-30 flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1.5 text-xs shadow">
@@ -552,7 +593,7 @@ export function MapView({
           type="button"
           onClick={() => {
             haptic("light")
-            if (isFallbackLocation) geo.request()
+            if (!hasCurrentLocation) geo.request()
             else setRecenterTick((n) => n + 1)
           }}
           style={fabBottomStyle}
@@ -586,7 +627,13 @@ export function MapView({
             className="flex h-[calc(100%-44px)] w-full items-center justify-center gap-2 px-4 text-sm font-medium text-muted-foreground active:bg-muted/40"
           >
             <ChevronUp className="h-5 w-5" />
-            {sheetSummary(map.loading, mapEvents.length, map.error)}
+            {sheetSummary(
+              map.loading,
+              Boolean(map.refreshing),
+              mapEvents.length,
+              map.error,
+              !cameraCenter
+            )}
           </button>
         ) : (
           <div
@@ -608,18 +655,27 @@ export function MapView({
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-base font-semibold">flares near you</h2>
               <span className="text-xs text-muted-foreground">
-                {map.loading ? "loading…" : `${filteredEvents.length} active`}
+                {!cameraCenter
+                  ? locationStatusLabel(geo.status)
+                  : map.loading
+                    ? "loading..."
+                    : map.refreshing
+                      ? "updating..."
+                      : `${filteredEvents.length} active`}
               </span>
             </div>
 
             {/* Filter chips — only useful when there's something to filter.
                 Hidden when no events have come back from the nearby query. */}
-            {mapEvents.length > 0 && (
-              <div className="mb-3 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none">
+            {cameraCenter && mapEvents.length > 0 && (
+              <div className="scrollbar-none -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1">
                 <FilterChip
                   label="all"
                   active={filterType === "all"}
-                  onClick={() => { haptic("selection"); setFilterType("all") }}
+                  onClick={() => {
+                    haptic("selection")
+                    setFilterType("all")
+                  }}
                 />
                 {EVENT_TYPES.map((t) => (
                   <FilterChip
@@ -627,13 +683,22 @@ export function MapView({
                     label={t.label}
                     icon={t.icon}
                     active={filterType === t.value}
-                    onClick={() => { haptic("selection"); setFilterType(t.value) }}
+                    onClick={() => {
+                      haptic("selection")
+                      setFilterType(t.value)
+                    }}
                   />
                 ))}
               </div>
             )}
 
-            {map.error ? (
+            {!cameraCenter ? (
+              <LocationSheetState
+                status={geo.status}
+                errorMessage={geo.errorMessage}
+                onRetry={geo.request}
+              />
+            ) : map.error && mapEvents.length === 0 ? (
               <ErrorPanel message={map.error} onRetry={map.refresh} />
             ) : filteredEvents.length === 0 && !map.loading ? (
               <EmptyState
@@ -648,6 +713,17 @@ export function MapView({
               />
             ) : (
               <div className="space-y-2">
+                {map.refreshing && mapEvents.length > 0 && (
+                  <div className="flex items-center justify-center gap-1.5 py-1 text-xs text-muted-foreground">
+                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                    loading nearby events...
+                  </div>
+                )}
+                {map.error && mapEvents.length > 0 && (
+                  <div className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+                    couldn&apos;t refresh nearby flares
+                  </div>
+                )}
                 {filteredEvents.map((event) => (
                   <FlareCard
                     key={event.id}
@@ -670,25 +746,129 @@ export function MapView({
   )
 }
 
-function GeolocationBanner({
+function MapCameraPlaceholder({
   status,
+  errorMessage,
   onRetry,
 }: {
   status: GeoStatus
+  errorMessage: string | null
   onRetry: () => void
 }) {
+  const blocked =
+    status === "denied" || status === "unavailable" || status === "error"
+  const title = blocked ? "location needed" : "finding your location"
+  const message = blocked
+    ? (errorMessage ??
+      "Turn on location access to show nearby flares in your area.")
+    : "Setting up the map around you."
+
+  return (
+    <div className="relative flex h-full w-full items-center justify-center bg-muted">
+      <div
+        className="absolute inset-0 opacity-40"
+        style={{
+          backgroundImage: `
+            linear-gradient(to right, var(--border) 1px, transparent 1px),
+            linear-gradient(to bottom, var(--border) 1px, transparent 1px)
+          `,
+          backgroundSize: "32px 32px",
+        }}
+      />
+      <div className="relative mx-6 flex max-w-xs flex-col items-center text-center">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background shadow-sm">
+          {blocked ? (
+            <MapPin className="h-5 w-5 text-accent" />
+          ) : (
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          )}
+        </div>
+        <p className="text-base font-semibold">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{message}</p>
+        {blocked && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground"
+          >
+            try again
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function GeolocationBanner({
+  status,
+  showingCachedLocation,
+  onRetry,
+}: {
+  status: GeoStatus
+  showingCachedLocation: boolean
+  onRetry: () => void
+}) {
+  if (!showingCachedLocation) return null
   if (status === "granted" || status === "idle" || status === "requesting")
     return null
   const msg =
     status === "denied"
-      ? "showing approximate area — enable location to find flares near you"
-      : "couldn't get your location — showing approximate area"
+      ? "showing last known area - enable location for nearby flares"
+      : "couldn't update your location - showing last known area"
   return (
     <div className="absolute top-16 right-3 left-3 z-30 flex items-center gap-2 rounded-xl border border-border bg-background/95 px-3 py-2 text-xs shadow-md">
       <MapPin className="h-3.5 w-3.5 shrink-0 text-accent" />
       <span className="flex-1">{msg}</span>
       <button onClick={onRetry} className="shrink-0 font-medium text-accent">
         retry
+      </button>
+    </div>
+  )
+}
+
+function locationStatusLabel(status: GeoStatus): string {
+  if (status === "denied") return "location off"
+  if (status === "unavailable" || status === "error") return "location issue"
+  return "locating..."
+}
+
+function LocationSheetState({
+  status,
+  errorMessage,
+  onRetry,
+}: {
+  status: GeoStatus
+  errorMessage: string | null
+  onRetry: () => void
+}) {
+  const blocked =
+    status === "denied" || status === "unavailable" || status === "error"
+
+  if (!blocked) {
+    return (
+      <div className="rounded-xl border border-border p-4 text-center">
+        <span className="mx-auto mb-3 block h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+        <p className="text-sm font-medium">finding your location</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          nearby flares will load once the map knows where to start
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-border p-4 text-center">
+      <MapPin className="mx-auto mb-2 h-5 w-5 text-accent" />
+      <p className="text-sm font-medium">location needed</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {errorMessage ??
+          "Enable location access to show nearby flares around you."}
+      </p>
+      <button
+        onClick={onRetry}
+        className="mt-3 text-sm font-medium text-accent"
+      >
+        try again
       </button>
     </div>
   )
@@ -725,9 +905,7 @@ function EmptyState({
 }) {
   return (
     <div className="rounded-xl border border-dashed border-border p-5 text-center">
-      <p className="mb-1 text-sm font-medium">
-        no flares within {radiusKm} km
-      </p>
+      <p className="mb-1 text-sm font-medium">no flares within {radiusKm} km</p>
       <p className="mb-4 text-xs text-muted-foreground">
         quiet around here right now — try one of these
       </p>
@@ -752,7 +930,8 @@ function EmptyState({
           onClick={onFindConnections}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
         >
-          <Flame className="h-4 w-4" /> connect with your friends to see their flares
+          <Flame className="h-4 w-4" /> connect with your friends to see their
+          flares
         </button>
       </div>
     </div>
@@ -761,11 +940,15 @@ function EmptyState({
 
 function sheetSummary(
   loading: boolean,
+  refreshing: boolean,
   count: number,
-  error: string | null
+  error: string | null,
+  needsLocation: boolean
 ): string {
+  if (needsLocation) return "finding your location"
   if (error) return "tap to retry"
-  if (loading) return "loading flares…"
+  if (loading) return "loading flares..."
+  if (refreshing && count > 0) return `${count} updating`
   if (count === 0) return "no flares near you"
   return `${count} flare${count === 1 ? "" : "s"} near you`
 }
@@ -813,7 +996,7 @@ function FlareCard({
   return (
     <div className="relative overflow-hidden rounded-xl">
       {/* Swipe-reveal "I'm in" hint behind the card */}
-      <div className="absolute inset-y-0 left-0 flex w-20 items-center justify-center rounded-l-xl bg-accent">
+      <div className="absolute inset-y-0 left-0 flex w-16 items-center justify-center rounded-l-xl bg-accent">
         <span className="flex flex-col items-center gap-0.5 text-[10px] font-semibold text-accent-foreground">
           <Check className="h-4 w-4" />
           I&apos;m in
@@ -821,7 +1004,7 @@ function FlareCard({
       </div>
 
       <Card
-        className={`relative cursor-pointer flex-row items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/50 ${
+        className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 ${
           joined ? "border-accent bg-accent/5" : "border-border"
         }`}
         style={{

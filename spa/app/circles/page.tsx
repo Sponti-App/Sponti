@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
@@ -55,6 +55,7 @@ import {
   unblock as unblockAction,
   useConnectionsState,
 } from "@/lib/connections-store"
+import { searchUsers, type UserSearchResult } from "@/lib/api/users"
 
 type Tab = "circles" | "people"
 
@@ -68,8 +69,36 @@ export default function CirclesPage() {
 
   // People tab search
   const [peopleQuery, setPeopleQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([])
+  const [searching, setSearching] = useState(false)
 
-  const { connections, requests, blocked, discoverable, sentRequests } =
+  useEffect(() => {
+    const q = peopleQuery.trim().replace(/^@/, "")
+    if (q.length < 2) {
+
+      const timeout = window.setTimeout(() => {
+        setSearchResults([])
+        setSearching(false)
+      }, 0)
+
+      return () => window.clearTimeout(timeout)
+
+    }
+    const timeout = window.setTimeout(async () => {
+      setSearching(true)
+      try {
+        const users = await searchUsers(q)
+        setSearchResults(users)
+      } catch {
+        setSearchResults([])
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+    return () => window.clearTimeout(timeout)
+  }, [peopleQuery])
+
+  const { connections, requests, blocked, sentRequests } =
     useConnectionsState()
   const circles = useCircles()
 
@@ -93,20 +122,9 @@ export default function CirclesPage() {
     return map
   }, [connections])
 
-  const matchingDiscoverable = useMemo(() => {
-    const q = peopleQuery.trim().toLowerCase().replace(/^@/, "")
-    if (!q) return [] as Connection[]
-    return discoverable.filter(
-      (d) =>
-        d.username.toLowerCase().includes(q) ||
-        d.displayName.toLowerCase().includes(q),
-    )
-  }, [peopleQuery, discoverable])
-
   // ----- handlers -----
-
-  const sendRequest = (target: Connection): void => {
-    sendRequestAction(target)
+  const sendRequest = (target: Pick<Connection, "id" | "username" | "displayName">): void => {
+    sendRequestAction(target as Connection)
     setPeopleQuery("")
   }
 
@@ -242,11 +260,10 @@ export default function CirclesPage() {
               return (
                 <div
                   key={circle.id}
-                  className={`overflow-hidden rounded-xl border transition-colors ${
-                    isExpanded
-                      ? "border-accent bg-card"
-                      : "border-border bg-background"
-                  }`}
+                  className={`overflow-hidden rounded-xl border transition-colors ${isExpanded
+                    ? "border-accent bg-card"
+                    : "border-border bg-background"
+                    }`}
                 >
                   <button
                     type="button"
@@ -261,9 +278,8 @@ export default function CirclesPage() {
                   >
                     <CircleStackIcon
                       type={circle.type}
-                      className={`h-6 w-6 shrink-0 ${
-                        isExpanded ? "text-accent" : "text-muted-foreground"
-                      }`}
+                      className={`h-6 w-6 shrink-0 ${isExpanded ? "text-accent" : "text-muted-foreground"
+                        }`}
                     />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">{circle.name}</p>
@@ -273,9 +289,8 @@ export default function CirclesPage() {
                       </p>
                     </div>
                     <ChevronDown
-                      className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
-                        isExpanded ? "rotate-180" : ""
-                      }`}
+                      className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""
+                        }`}
                     />
                   </button>
 
@@ -317,11 +332,10 @@ export default function CirclesPage() {
                                   [circle.id]: s,
                                 }))
                               }
-                              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                                sort === s
-                                  ? "bg-foreground text-background"
-                                  : "bg-secondary text-muted-foreground hover:text-foreground"
-                              }`}
+                              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${sort === s
+                                ? "bg-foreground text-background"
+                                : "bg-secondary text-muted-foreground hover:text-foreground"
+                                }`}
                             >
                               {s === "recent" ? "recent" : "a–z"}
                             </button>
@@ -367,46 +381,46 @@ export default function CirclesPage() {
                                     </div>
                                   </button>
                                   <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <button
-                                          type="button"
-                                          aria-label={`options for ${m.displayName}`}
-                                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
-                                        >
-                                          <MoreHorizontal className="h-3.5 w-3.5" />
-                                        </button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        {movableCircles.map((target) => (
-                                          <DropdownMenuItem
-                                            key={target.id}
-                                            onClick={() =>
-                                              moveConnectionToCircle(
-                                                m.id,
-                                                circle.id,
-                                                target.id,
-                                              )
-                                            }
-                                          >
-                                            move to {target.name}
-                                          </DropdownMenuItem>
-                                        ))}
-                                        {movableCircles.length > 0 && (
-                                          <DropdownMenuSeparator />
-                                        )}
+                                    <DropdownMenuTrigger asChild>
+                                      <button
+                                        type="button"
+                                        aria-label={`options for ${m.displayName}`}
+                                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
+                                      >
+                                        <MoreHorizontal className="h-3.5 w-3.5" />
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      {movableCircles.map((target) => (
                                         <DropdownMenuItem
+                                          key={target.id}
                                           onClick={() =>
-                                            removeMemberFromCircle(
-                                              circle.id,
+                                            moveConnectionToCircle(
                                               m.id,
+                                              circle.id,
+                                              target.id,
                                             )
                                           }
-                                          className="text-destructive focus:text-destructive"
                                         >
-                                          remove
+                                          move to {target.name}
                                         </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
+                                      ))}
+                                      {movableCircles.length > 0 && (
+                                        <DropdownMenuSeparator />
+                                      )}
+                                      <DropdownMenuItem
+                                        onClick={() =>
+                                          removeMemberFromCircle(
+                                            circle.id,
+                                            m.id,
+                                          )
+                                        }
+                                        className="text-destructive focus:text-destructive"
+                                      >
+                                        remove
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </li>
                               )
                             })}
@@ -414,49 +428,49 @@ export default function CirclesPage() {
                         )}
 
                         <div className="flex flex-col gap-1.5">
-                            <div className="relative">
-                              <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                              <Input
-                                placeholder="add a friend…"
-                                value={memberQuery}
-                                onChange={(e) => setMemberQuery(e.target.value)}
-                                className="pl-9"
-                              />
-                            </div>
-                            {memberQuery.trim() && (
-                              <ul className="overflow-hidden rounded-lg border border-border">
-                                {addable.length === 0 ? (
-                                  <li className="px-3 py-2.5 text-xs text-muted-foreground">
-                                    no matches
+                          <div className="relative">
+                            <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              placeholder="add a friend…"
+                              value={memberQuery}
+                              onChange={(e) => setMemberQuery(e.target.value)}
+                              className="pl-9"
+                            />
+                          </div>
+                          {memberQuery.trim() && (
+                            <ul className="overflow-hidden rounded-lg border border-border">
+                              {addable.length === 0 ? (
+                                <li className="px-3 py-2.5 text-xs text-muted-foreground">
+                                  no matches
+                                </li>
+                              ) : (
+                                addable.map((c) => (
+                                  <li key={c.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        addMemberToCircle(circle.id, c.id)
+                                        setMemberQuery("")
+                                      }}
+                                      className="flex w-full items-center gap-3 px-2 py-2 text-left hover:bg-secondary"
+                                    >
+                                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">
+                                        <Plus className="h-3.5 w-3.5" />
+                                      </span>
+                                      <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-medium">
+                                          {c.displayName}
+                                        </span>
+                                        <span className="block truncate text-xs text-muted-foreground">
+                                          @{c.username}
+                                        </span>
+                                      </span>
+                                    </button>
                                   </li>
-                                ) : (
-                                  addable.map((c) => (
-                                    <li key={c.id}>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          addMemberToCircle(circle.id, c.id)
-                                          setMemberQuery("")
-                                        }}
-                                        className="flex w-full items-center gap-3 px-2 py-2 text-left hover:bg-secondary"
-                                      >
-                                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">
-                                          <Plus className="h-3.5 w-3.5" />
-                                        </span>
-                                        <span className="min-w-0 flex-1">
-                                          <span className="block truncate text-sm font-medium">
-                                            {c.displayName}
-                                          </span>
-                                          <span className="block truncate text-xs text-muted-foreground">
-                                            @{c.username}
-                                          </span>
-                                        </span>
-                                      </button>
-                                    </li>
-                                  ))
-                                )}
-                              </ul>
-                            )}
+                                ))
+                              )}
+                            </ul>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -524,11 +538,10 @@ export default function CirclesPage() {
                             className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-secondary"
                           >
                             <span
-                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                                checked
-                                  ? "border-accent bg-accent text-accent-foreground"
-                                  : "border-border"
-                              }`}
+                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${checked
+                                ? "border-accent bg-accent text-accent-foreground"
+                                : "border-border"
+                                }`}
                             >
                               {checked && <Check className="h-3 w-3" />}
                             </span>
@@ -569,13 +582,17 @@ export default function CirclesPage() {
               </div>
               {peopleQuery.trim() && (
                 <div className="mt-2 overflow-hidden rounded-xl border border-border bg-card">
-                  {matchingDiscoverable.length === 0 ? (
+                  {searching ? (
+                    <p className="px-3 py-2.5 text-xs text-muted-foreground">
+                      searching…
+                    </p>
+                  ) : searchResults.length === 0 ? (
                     <p className="px-3 py-2.5 text-xs text-muted-foreground">
                       no matches for &ldquo;{peopleQuery}&rdquo;
                     </p>
                   ) : (
                     <ul className="divide-y divide-border">
-                      {matchingDiscoverable.map((d) => (
+                      {searchResults.map((d) => (
                         <li key={d.id} className="flex items-center gap-3 px-3 py-2">
                           <Avatar name={d.displayName} />
                           <div className="min-w-0 flex-1">
@@ -588,7 +605,13 @@ export default function CirclesPage() {
                           </div>
                           <Button
                             size="sm"
-                            onClick={() => sendRequest(d)}
+                            onClick={() =>
+                              sendRequest({
+                                id: d.id,
+                                username: d.username,
+                                displayName: d.displayName,
+                              })
+                            }
                             className="h-8 rounded-full bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
                           >
                             <UserPlus className="mr-1 h-3.5 w-3.5" />
@@ -796,11 +819,10 @@ export default function CirclesPage() {
                                     type="button"
                                     disabled={inCircle}
                                     onClick={() => addMemberToCircle(ci.id, c.id)}
-                                    className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                                      inCircle
-                                        ? "bg-accent/15 text-accent"
-                                        : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
-                                    }`}
+                                    className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${inCircle
+                                      ? "bg-accent/15 text-accent"
+                                      : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+                                      }`}
                                   >
                                     {inCircle && <Check className="h-3 w-3" />}
                                     {ci.name}
@@ -933,11 +955,10 @@ export default function CirclesPage() {
 function Avatar({ name, muted = false }: { name: string; muted?: boolean }) {
   return (
     <span
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
-        muted
-          ? "bg-secondary text-muted-foreground"
-          : "border border-accent/20 bg-accent/10 text-accent"
-      }`}
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium ${muted
+        ? "bg-secondary text-muted-foreground"
+        : "border border-accent/20 bg-accent/10 text-accent"
+        }`}
     >
       {initials(name)}
     </span>

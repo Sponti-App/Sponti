@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { HttpError } from "@/lib/http"
-import { markHomeTourPending } from "@/lib/onboarding"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -55,7 +54,6 @@ export default function RegisterPage() {
         email: email.trim(),
         password,
       })
-      markHomeTourPending()
       router.replace("/")
     } catch (err) {
       if (err instanceof HttpError) {
@@ -73,8 +71,7 @@ export default function RegisterPage() {
       setError(null)
       setGoogleSubmitting(true)
       try {
-        const { isNewUser } = await loginWithGoogle(credential)
-        if (isNewUser) markHomeTourPending()
+        await loginWithGoogle(credential)
         router.replace("/")
       } catch (err) {
         if (err instanceof HttpError) {

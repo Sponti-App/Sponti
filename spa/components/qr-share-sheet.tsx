@@ -1,10 +1,16 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import QRCode from "qrcode"
-import { Check, Loader2, RefreshCw, Share2, X } from "lucide-react"
+import { Check, Loader2, Share2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { createQrContactToken } from "@/lib/api/qr-contact-tokens"
+
+const DEFAULT_PUBLIC_APP_URL = "https://sponti.fun"
+
+function publicAppUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_PUBLIC_APP_URL?.trim()
+  return (configured || DEFAULT_PUBLIC_APP_URL).replace(/\/+$/, "")
+}
 
 export function QrShareSheet({
   displayName,
@@ -17,28 +23,17 @@ export function QrShareSheet({
 }) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
-  const [expiresAt, setExpiresAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const [refreshing, setRefreshing] = useState(true)
-  const [refreshCount, setRefreshCount] = useState(0)
-
-  const expiresLabel = useMemo(() => {
-    if (!expiresAt) return null
-    return new Intl.DateTimeFormat(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(new Date(expiresAt))
-  }, [expiresAt])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const controller = new AbortController()
+    let cancelled = false
 
     async function loadQr() {
       try {
         setError(null)
-        const token = await createQrContactToken(controller.signal)
-        const url = `${window.location.origin}/qr/${encodeURIComponent(token.token)}`
+        const url = publicAppUrl()
         const dataUrl = await QRCode.toDataURL(url, {
           width: 240,
           margin: 2,
@@ -47,33 +42,34 @@ export function QrShareSheet({
             light: "#ffffff",
           },
         })
-        if (controller.signal.aborted) return
+        if (cancelled) return
         setShareUrl(url)
         setQrDataUrl(dataUrl)
-        setExpiresAt(token.expiresAt)
       } catch {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           setError("QR is unavailable right now.")
         }
       } finally {
-        if (!controller.signal.aborted) {
-          setRefreshing(false)
+        if (!cancelled) {
+          setLoading(false)
         }
       }
     }
 
     loadQr()
 
-    return () => controller.abort()
-  }, [refreshCount])
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const shareQr = async () => {
     if (!shareUrl) return
-    const text = `Add ${displayName} on Sponti: ${shareUrl}`
+    const text = `Open Sponti: ${shareUrl}`
 
     try {
       if (navigator.share) {
-        await navigator.share({ title: "Add me on Sponti", text, url: shareUrl })
+        await navigator.share({ title: "Open Sponti", text, url: shareUrl })
       } else {
         await navigator.clipboard.writeText(shareUrl)
         setCopied(true)
@@ -129,14 +125,13 @@ export function QrShareSheet({
           </div>
 
           <p className="text-xs text-muted-foreground text-center max-w-[260px]">
-            scan to preview my profile and send a friend request
-            {expiresLabel ? ` before ${expiresLabel}.` : "."}
+            scan to open Sponti
           </p>
 
           <div className="flex flex-wrap justify-center gap-2">
             <Button
               onClick={shareQr}
-              disabled={!shareUrl || refreshing}
+              disabled={!shareUrl || loading}
               className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90 px-5 disabled:opacity-60"
             >
               {copied ? (
@@ -144,22 +139,7 @@ export function QrShareSheet({
               ) : (
                 <Share2 className="h-4 w-4 mr-2" />
               )}
-              {copied ? "copied link" : "share QR link"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={refreshing}
-              onClick={() => {
-                setRefreshing(true)
-                setRefreshCount((count) => count + 1)
-              }}
-              className="rounded-full px-5"
-            >
-              <RefreshCw
-                className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-              />
-              refresh
+              {copied ? "copied link" : "share Sponti link"}
             </Button>
           </div>
         </div>
