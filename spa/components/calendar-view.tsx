@@ -344,29 +344,29 @@ export function CalendarView({
           </div>
         ) : (
           <div className="mt-4">
-          <MonthCalendar
-            anchorMonth={anchor}
-            selected={selected}
-            today={today}
-            eventsByDay={eventsByDay}
-            onSelectDay={(d: Date) => {
-              setAnchor(d)
-              setSelected(d)
-              const hasEvents = (eventsByDay.get(dayKey(d))?.length ?? 0) > 0
-              if (hasEvents) {
-                // Defer one frame so the selected day's section is rendered
-                // before we scroll to it.
-                requestAnimationFrame(() => {
-                  daySectionRef.current?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start",
+            <MonthCalendar
+              anchorMonth={anchor}
+              selected={selected}
+              today={today}
+              eventsByDay={eventsByDay}
+              onSelectDay={(d: Date) => {
+                setAnchor(d)
+                setSelected(d)
+                const hasEvents = (eventsByDay.get(dayKey(d))?.length ?? 0) > 0
+                if (hasEvents) {
+                  // Defer one frame so the selected day's section is rendered
+                  // before we scroll to it.
+                  requestAnimationFrame(() => {
+                    daySectionRef.current?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    })
                   })
-                })
-              }
-            }}
-            onEventSelect={onEventSelect}
-            joinedIds={joinedIds}
-          />
+                }
+              }}
+              onEventSelect={onEventSelect}
+              joinedIds={joinedIds}
+            />
           </div>
         )}
       </div>
@@ -508,7 +508,7 @@ function DaySection({
           ))}
         </div>
       )}
-      {events.length === 0 && emptyAction}
+      {emptyAction}
     </div>
   )
 }
