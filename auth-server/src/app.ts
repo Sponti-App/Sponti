@@ -41,7 +41,7 @@ app.get("/health", (req, res) => {
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 3001;
 await connectDB();
 
 app.listen(PORT, () => {

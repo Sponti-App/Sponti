@@ -21,8 +21,11 @@ import {
   type EventsState,
   type MyFlaresState,
 } from "./api/events"
+import { resolveConfiguredBaseUrl } from "./http"
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
+const API_BASE = resolveConfiguredBaseUrl(
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
+)
 type EventsChangedListener = () => void
 
 // Avoids duplicates, easy add and remove.

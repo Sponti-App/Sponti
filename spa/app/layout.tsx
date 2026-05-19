@@ -1,12 +1,13 @@
 import type { Metadata } from 'next'
-import { Figtree } from 'next/font/google'
+import { Bricolage_Grotesque } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
 import { AuthProvider } from '@/components/auth-provider'
 import { AuthGate } from '@/components/auth-gate'
 import { NewEventDrawerProvider } from '@/components/new-event-drawer-provider'
+import { ThemeProvider } from '@/components/theme-provider'
 
-const figtree = Figtree({
+const bricolageGrotesque = Bricolage_Grotesque({
   subsets: ['latin'],
   variable: '--font-sans',
   fallback: ['sans-serif'],
@@ -47,7 +48,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={figtree.variable}>
+    <html lang="en" className={bricolageGrotesque.variable} suppressHydrationWarning>
       <head>
         {process.env.NODE_ENV === 'development' ? (
           <>
@@ -62,11 +63,13 @@ export default function RootLayout({
         ) : null}
       </head>
       <body className="font-sans antialiased" suppressHydrationWarning>
-        <AuthProvider>
-          <AuthGate>
-            <NewEventDrawerProvider>{children}</NewEventDrawerProvider>
-          </AuthGate>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <AuthGate>
+              <NewEventDrawerProvider>{children}</NewEventDrawerProvider>
+            </AuthGate>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
