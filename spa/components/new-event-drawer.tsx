@@ -26,12 +26,14 @@ import {
   createEventRequestFromDraft,
   type Audience,
   type DraftEvent,
+  type DraftEventLocation,
   type EventAudienceTarget,
   type EventType,
 } from "@/lib/api/events"
 import { fetchMyCircles } from "@/lib/api/circles"
 import { fetchAcceptedConnections } from "@/lib/api/connections"
 import { HttpError } from "@/lib/http"
+import { useGeolocation, type GeoStatus } from "@/lib/geolocation"
 import { emitEventsChanged } from "@/lib/use-events"
 import { type Circle, type Connection } from "@/lib/circles"
 import {
@@ -45,7 +47,14 @@ import { EVENT_TYPES } from "@/types/utils"
 
 type Mode = "now" | "scheduled"
 type WhereType = "current" | "search"
-type PlaceSuggestion = { label: string; address: string }
+type PlaceSuggestion = { placeId: string; label: string; address: string }
+type PlaceDetailsResponse = {
+  placeId: string
+  name: string
+  address: string | null
+  lat: number
+  lng: number
+}
 
 const STEP_MIN = 15
 const NOW_MAX_OFFSET_MIN = 360
@@ -109,6 +118,39 @@ function formatDayChip(d: Date): { weekday: string; date: string } {
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   return "Something went wrong. Try again."
+}
+
+function isPlaceSuggestion(value: unknown): value is PlaceSuggestion {
+  if (!value || typeof value !== "object") return false
+  const suggestion = value as Record<string, unknown>
+  return (
+    typeof suggestion.placeId === "string" &&
+    suggestion.placeId.trim().length > 0 &&
+    typeof suggestion.label === "string" &&
+    suggestion.label.trim().length > 0 &&
+    typeof suggestion.address === "string"
+  )
+}
+
+function isPlaceDetailsResponse(value: unknown): value is PlaceDetailsResponse {
+  if (!value || typeof value !== "object") return false
+  const place = value as Record<string, unknown>
+  return (
+    typeof place.placeId === "string" &&
+    place.placeId.trim().length > 0 &&
+    typeof place.name === "string" &&
+    place.name.trim().length > 0 &&
+    (typeof place.address === "string" || place.address === null) &&
+    typeof place.lat === "number" &&
+    Number.isFinite(place.lat) &&
+    typeof place.lng === "number" &&
+    Number.isFinite(place.lng)
+  )
+}
+
+function currentLocationError(status: GeoStatus): string {
+  if (status === "requesting") return "Still finding your location."
+  return "Enable location access or search for a place."
 }
 
 // Cheap keyword inference so the user doesn't have to pick a type explicitly
@@ -235,8 +277,11 @@ type EventDraftStateDefaults = {
   whereType: WhereType
   searchQuery: string
   pickedSearchAddress: string
+  selectedLocation: DraftEventLocation | null
   placeResults: PlaceSuggestion[]
   placesLoading: boolean
+  placeDetailsLoading: boolean
+  placeDetailsError: string | null
   isOpen: boolean
   guestLimit: number
   audience: Audience
@@ -265,8 +310,11 @@ function getInitialEventDraftState(): EventDraftStateDefaults {
     whereType: "current",
     searchQuery: "",
     pickedSearchAddress: "",
+    selectedLocation: null,
     placeResults: [],
     placesLoading: false,
+    placeDetailsLoading: false,
+    placeDetailsError: null,
     isOpen: false,
     guestLimit: 10,
     audience: "",
@@ -287,6 +335,12 @@ export function NewEventDrawer({
 }) {
   const { user } = useAuth()
   const hostName = user?.displayName?.trim() || "you"
+  const {
+    coords: geoCoords,
+    status: geoStatus,
+    errorMessage: geoErrorMessage,
+    request: requestGeoLocation,
+  } = useGeolocation({ autoRequest: false })
   const storedCircles = useCircles()
   const [apiCircles, setApiCircles] = useState<Circle[] | null>(null)
   const [connections, setConnections] = useState<Connection[]>([])
@@ -389,13 +443,23 @@ export function NewEventDrawer({
   const [pickedSearchAddress, setPickedSearchAddress] = useState(
     initialEventDraftState.pickedSearchAddress
   )
+  const [selectedLocation, setSelectedLocation] =
+    useState<DraftEventLocation | null>(initialEventDraftState.selectedLocation)
   const [placeResults, setPlaceResults] = useState<PlaceSuggestion[]>(
     initialEventDraftState.placeResults
   )
   const [placesLoading, setPlacesLoading] = useState(
     initialEventDraftState.placesLoading
   )
+  const [placeDetailsLoading, setPlaceDetailsLoading] = useState(
+    initialEventDraftState.placeDetailsLoading
+  )
+  const [placeDetailsError, setPlaceDetailsError] = useState<string | null>(
+    initialEventDraftState.placeDetailsError
+  )
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const placesSearchRequestRef = useRef(0)
+  const placeDetailsRequestRef = useRef(0)
 
   // GUESTS
   const [isOpen, setIsOpen] = useState(initialEventDraftState.isOpen)
@@ -445,6 +509,8 @@ export function NewEventDrawer({
     }
 
     const initialState = getInitialEventDraftState()
+    placesSearchRequestRef.current += 1
+    placeDetailsRequestRef.current += 1
     setActiveSnapPoint(initialState.activeSnapPoint)
     setMode(initialState.mode)
     setEventType(initialState.eventType)
@@ -460,8 +526,11 @@ export function NewEventDrawer({
     setWhereType(initialState.whereType)
     setSearchQuery(initialState.searchQuery)
     setPickedSearchAddress(initialState.pickedSearchAddress)
+    setSelectedLocation(initialState.selectedLocation)
     setPlaceResults(initialState.placeResults)
     setPlacesLoading(initialState.placesLoading)
+    setPlaceDetailsLoading(initialState.placeDetailsLoading)
+    setPlaceDetailsError(initialState.placeDetailsError)
     setIsOpen(initialState.isOpen)
     setGuestLimit(initialState.guestLimit)
     setAudience(initialState.audience)
@@ -501,6 +570,11 @@ export function NewEventDrawer({
     queueMicrotask(() => setEditingCircleId(null))
   }, [open])
 
+  useEffect(() => {
+    if (!open || whereType !== "current" || geoStatus !== "idle") return
+    requestGeoLocation()
+  }, [open, whereType, geoStatus, requestGeoLocation])
+
   const handleStartOffset = (next: number): void => {
     setStartOffsetMin(next)
     setEndOffsetMin((prev) => {
@@ -524,9 +598,20 @@ export function NewEventDrawer({
     })
   }
 
+  const currentLocation = useMemo<DraftEventLocation | null>(() => {
+    if (!geoCoords) return null
+    return {
+      source: "current",
+      name: "Current location",
+      address: null,
+      coordinates: [geoCoords.lng, geoCoords.lat],
+    }
+  }, [geoCoords])
+
   // Google Places search via /api/places proxy
-  const searchPlaces = useCallback(async (query: string) => {
+  const searchPlaces = useCallback(async (query: string, requestId: number) => {
     if (query.trim().length < 2) {
+      if (placesSearchRequestRef.current !== requestId) return
       setPlaceResults([])
       setPlacesLoading(false)
       return
@@ -538,21 +623,100 @@ export function NewEventDrawer({
       )
       if (!resp.ok) throw new Error("places error")
       const data = (await resp.json()) as { suggestions: PlaceSuggestion[] }
-      setPlaceResults(data.suggestions)
+      if (placesSearchRequestRef.current !== requestId) return
+      setPlaceResults(
+        Array.isArray(data.suggestions)
+          ? data.suggestions.filter(isPlaceSuggestion)
+          : []
+      )
     } catch {
+      if (placesSearchRequestRef.current !== requestId) return
       setPlaceResults([])
     } finally {
+      if (placesSearchRequestRef.current !== requestId) return
       setPlacesLoading(false)
     }
   }, [])
 
   const handleSearchQuery = (v: string): void => {
+    const requestId = placesSearchRequestRef.current + 1
+    placesSearchRequestRef.current = requestId
+    placeDetailsRequestRef.current += 1
     setSearchQuery(v)
     setPickedSearchAddress("")
+    setSelectedLocation(null)
+    setPlaceResults([])
+    setPlaceDetailsLoading(false)
+    setPlaceDetailsError(null)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      void searchPlaces(v)
+      void searchPlaces(v, requestId)
     }, 350)
+  }
+
+  const handleWhereType = (next: WhereType): void => {
+    setWhereType(next)
+    setPlaceDetailsError(null)
+    if (next === "current") {
+      placesSearchRequestRef.current += 1
+      placeDetailsRequestRef.current += 1
+      setSearchQuery("")
+      setPickedSearchAddress("")
+      setSelectedLocation(null)
+      setPlaceResults([])
+      setPlacesLoading(false)
+      setPlaceDetailsLoading(false)
+      if (geoStatus !== "granted" && geoStatus !== "requesting") {
+        requestGeoLocation()
+      }
+    }
+  }
+
+  const handlePickSearch = async (
+    suggestion: PlaceSuggestion
+  ): Promise<void> => {
+    const requestId = placeDetailsRequestRef.current + 1
+    placeDetailsRequestRef.current = requestId
+    setWhereType("search")
+    setSearchQuery(suggestion.label)
+    setPickedSearchAddress(suggestion.label)
+    setSelectedLocation(null)
+    setPlaceResults([])
+    setPlaceDetailsError(null)
+    setPlaceDetailsLoading(true)
+
+    try {
+      const resp = await fetch(
+        `/api/places/${encodeURIComponent(suggestion.placeId)}`
+      )
+      if (!resp.ok) throw new Error("Place details unavailable.")
+      const data: unknown = await resp.json()
+      if (!isPlaceDetailsResponse(data)) {
+        throw new Error("Place details unavailable.")
+      }
+      if (placeDetailsRequestRef.current !== requestId) return
+      const location: DraftEventLocation = {
+        source: "place",
+        name: data.name,
+        address: data.address,
+        placeId: data.placeId,
+        coordinates: [data.lng, data.lat],
+      }
+      setSelectedLocation(location)
+      setSearchQuery(data.name)
+      setPickedSearchAddress(data.name)
+    } catch {
+      if (placeDetailsRequestRef.current !== requestId) return
+      setSelectedLocation(null)
+      setPickedSearchAddress("")
+      setPlaceDetailsError(
+        "That place could not be resolved. Try another result."
+      )
+    } finally {
+      if (placeDetailsRequestRef.current === requestId) {
+        setPlaceDetailsLoading(false)
+      }
+    }
   }
 
   // Now-mode wheel options use absolute clock-time labels so the user sees
@@ -619,11 +783,12 @@ export function NewEventDrawer({
   const whereLabel = useMemo<string | null>(() => {
     if (whereType === "current") return "current loc"
     if (whereType === "search") {
-      const v = pickedSearchAddress || searchQuery.trim()
+      const v =
+        selectedLocation?.name || pickedSearchAddress || searchQuery.trim()
       return v || null
     }
     return null
-  }, [whereType, pickedSearchAddress, searchQuery])
+  }, [whereType, selectedLocation, pickedSearchAddress, searchQuery])
 
   const whenLabel = useMemo(() => {
     if (mode === "now") {
@@ -686,6 +851,24 @@ export function NewEventDrawer({
       )
       return
     }
+
+    const draftLocation =
+      whereType === "current" ? currentLocation : selectedLocation
+
+    if (!draftLocation) {
+      if (whereType === "current") {
+        if (geoStatus === "idle") requestGeoLocation()
+        setSubmitError(currentLocationError(geoStatus))
+      } else if (placeDetailsLoading) {
+        setSubmitError("Still checking that place.")
+      } else if (placeDetailsError) {
+        setSubmitError(placeDetailsError)
+      } else {
+        setSubmitError("Pick a place from the search results before posting.")
+      }
+      return
+    }
+
     setIsSubmitting(true)
     let created = false
     const createdAt = new Date().toISOString()
@@ -730,9 +913,10 @@ export function NewEventDrawer({
             ? `${String(scheduledStart.getHours()).padStart(2, "0")}:${String(scheduledStart.getMinutes()).padStart(2, "0")}`
             : undefined,
         whereType,
+        location: draftLocation,
         customWhere:
           whereType === "search"
-            ? pickedSearchAddress || searchQuery.trim() || undefined
+            ? selectedLocation?.name || searchQuery.trim() || undefined
             : undefined,
         guestLimit,
         audience: isOpen
@@ -864,8 +1048,12 @@ export function NewEventDrawer({
               <Tabs value={mode} onValueChange={handleModeChange}>
                 <div className="px-4 pt-4 pb-0">
                   <TabsList className="h-9 w-full">
-                    <TabsTrigger value="now" className="text-sm">right now</TabsTrigger>
-                    <TabsTrigger value="scheduled" className="text-sm">pick a time</TabsTrigger>
+                    <TabsTrigger value="now" className="text-sm">
+                      right now
+                    </TabsTrigger>
+                    <TabsTrigger value="scheduled" className="text-sm">
+                      pick a time
+                    </TabsTrigger>
                   </TabsList>
                 </div>
 
@@ -977,17 +1165,20 @@ export function NewEventDrawer({
                     <Section label="where do you want to meet?">
                       <WherePicker
                         whereType={whereType}
-                        onWhereType={setWhereType}
+                        onWhereType={handleWhereType}
                         searchQuery={searchQuery}
                         onSearchQuery={handleSearchQuery}
                         pickedSearchAddress={pickedSearchAddress}
-                        onPickSearch={(v) => {
-                          setPickedSearchAddress(v)
-                          setSearchQuery(v)
-                          setPlaceResults([])
+                        selectedLocation={selectedLocation}
+                        onPickSearch={(suggestion) => {
+                          void handlePickSearch(suggestion)
                         }}
                         placeResults={placeResults}
                         placesLoading={placesLoading}
+                        placeDetailsLoading={placeDetailsLoading}
+                        placeDetailsError={placeDetailsError}
+                        geoStatus={geoStatus}
+                        geoErrorMessage={geoErrorMessage}
                       />
                     </Section>
                   </div>
@@ -1062,7 +1253,11 @@ export function NewEventDrawer({
                 onClick={handleSubmit}
                 disabled={
                   isSubmitting ||
-                  (!isOpen && (audienceLoading || Boolean(audienceError)))
+                  (!isOpen && (audienceLoading || Boolean(audienceError))) ||
+                  (whereType === "search" && placeDetailsLoading) ||
+                  (whereType === "current" &&
+                    geoStatus === "requesting" &&
+                    !currentLocation)
                 }
                 className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
               >
@@ -1171,9 +1366,7 @@ function TypeInlineIndicator({
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Icon className="h-4 w-4 shrink-0" />
         <span>type · {meta.label}</span>
-        {isInferred && (
-          <span className="text-muted-foreground/60">(auto)</span>
-        )}
+        {isInferred && <span className="text-muted-foreground/60">(auto)</span>}
         <button
           type="button"
           onClick={onToggleOverride}
@@ -1492,21 +1685,39 @@ function WherePicker({
   searchQuery,
   onSearchQuery,
   pickedSearchAddress,
+  selectedLocation,
   onPickSearch,
   placeResults,
   placesLoading,
+  placeDetailsLoading,
+  placeDetailsError,
+  geoStatus,
+  geoErrorMessage,
 }: {
   whereType: WhereType
   onWhereType: (v: WhereType) => void
   searchQuery: string
   onSearchQuery: (v: string) => void
   pickedSearchAddress: string
-  onPickSearch: (v: string) => void
+  selectedLocation: DraftEventLocation | null
+  onPickSearch: (v: PlaceSuggestion) => void
   placeResults: PlaceSuggestion[]
   placesLoading: boolean
+  placeDetailsLoading: boolean
+  placeDetailsError: string | null
+  geoStatus: GeoStatus
+  geoErrorMessage: string | null
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const expanded = whereType === "search"
+  const currentHint =
+    geoStatus === "requesting"
+      ? "finding your location..."
+      : geoStatus === "denied" ||
+          geoStatus === "unavailable" ||
+          geoStatus === "error"
+        ? (geoErrorMessage ?? currentLocationError(geoStatus))
+        : null
 
   const expand = (): void => {
     onWhereType("search")
@@ -1521,19 +1732,32 @@ function WherePicker({
   return (
     <div className="flex flex-col gap-2">
       {!expanded ? (
-        <div className="flex items-center gap-2">
-          <Chip selected onClick={() => undefined}>
-            <MapPin className="h-3.5 w-3.5" />
-            current loc
-          </Chip>
-          <button
-            type="button"
-            onClick={expand}
-            aria-label="Search for a place"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-secondary"
-          >
-            <Search className="h-3.5 w-3.5" />
-          </button>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <Chip selected onClick={() => undefined}>
+              <MapPin className="h-3.5 w-3.5" />
+              current loc
+            </Chip>
+            <button
+              type="button"
+              onClick={expand}
+              aria-label="Search for a place"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-secondary"
+            >
+              <Search className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {currentHint && (
+            <p
+              className={`text-xs ${
+                geoStatus === "requesting"
+                  ? "text-muted-foreground"
+                  : "text-destructive"
+              }`}
+            >
+              {currentHint}
+            </p>
+          )}
         </div>
       ) : (
         <div>
@@ -1558,21 +1782,38 @@ function WherePicker({
           {placesLoading && (
             <p className="mt-1.5 text-xs text-muted-foreground">searching…</p>
           )}
+          {placeDetailsLoading && (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              checking place...
+            </p>
+          )}
+          {placeDetailsError && (
+            <p className="mt-1.5 text-xs text-destructive" role="alert">
+              {placeDetailsError}
+            </p>
+          )}
+          {selectedLocation && !placeDetailsLoading && (
+            <p className="mt-1.5 truncate text-xs text-muted-foreground">
+              selected - {selectedLocation.address ?? selectedLocation.name}
+            </p>
+          )}
           {!placesLoading &&
+            !placeDetailsLoading &&
             !pickedSearchAddress &&
+            !selectedLocation &&
             placeResults.length > 0 && (
               <ul className="mt-1.5 overflow-hidden rounded-lg border border-border bg-card">
                 {placeResults.map((r) => (
-                  <li key={`${r.label}-${r.address}`}>
+                  <li key={r.placeId}>
                     <button
                       type="button"
-                      onClick={() => onPickSearch(r.label)}
+                      onClick={() => onPickSearch(r)}
                       className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
                     >
                       <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm">{r.label}</div>
-                        <div className="truncate text-[11px] text-muted-foreground">
+                        <div className="truncate text-xs text-muted-foreground">
                           {r.address}
                         </div>
                       </div>
