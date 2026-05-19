@@ -10,9 +10,8 @@ const AUTH_PATHS = [
   "/forgot-password",
   "/reset-password",
 ]
-const ONBOARDING_PATH = "/onboarding"
 const LEGAL_PATHS = ["/menu/terms", "/menu/privacy"]
-const PUBLIC_PATHS = [...AUTH_PATHS, ONBOARDING_PATH, ...LEGAL_PATHS]
+const PUBLIC_PATHS = [...AUTH_PATHS, ...LEGAL_PATHS]
 const QR_PATH_PREFIX = "/qr/"
 
 function getSafeRedirectPath(value: string | null): string {
@@ -28,19 +27,18 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith(QR_PATH_PREFIX)
   const isAuthPage = AUTH_PATHS.includes(pathname)
-  const isOnboardingPage = pathname === ONBOARDING_PATH
 
   useEffect(() => {
     if (status === "loading") return
     if (status === "unauthenticated" && !isPublic) {
       router.replace("/login")
-    } else if (status === "authenticated" && (isAuthPage || isOnboardingPage)) {
+    } else if (status === "authenticated" && isAuthPage) {
       const redirectPath = getSafeRedirectPath(
         new URLSearchParams(window.location.search).get("redirectTo")
       )
       router.replace(redirectPath)
     }
-  }, [status, isPublic, isAuthPage, isOnboardingPage, router])
+  }, [status, isPublic, isAuthPage, router])
 
   if (status === "loading") {
     return (
@@ -55,7 +53,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
     </div>
   )
-  if (status === "authenticated" && (isAuthPage || isOnboardingPage)) return (
+  if (status === "authenticated" && isAuthPage) return (
     <div className="flex min-h-dvh items-center justify-center bg-background">
       <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
     </div>
