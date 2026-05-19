@@ -9,7 +9,7 @@ router.post("/register", validateBody(registerSchema), register);
 router.post("/login", validateBody(loginSchema), login);
 router.post("/google", validateBody(googleLoginSchema), googleLogin);
 router.post("/refresh", validateBody(refreshTokenSchema), refresh);
-router.post("/logout", requireAuth, validateBody(logoutSchema), logout);
+router.post("/logout", validateBody(logoutSchema), logout);
 router.get("/me", requireAuth, me);
 router.post("/forgot-password", validateBody(forgotPasswordSchema), forgotPassword);
 router.post("/reset-password", validateBody(resetPasswordSchema), resetPassword);
