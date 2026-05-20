@@ -347,9 +347,9 @@ export function NewEventDrawer({
   // Creation is a compose task, so it opens as a full-height sheet instead of
   // starting as a cramped peek.
   const initialEventDraftState = useMemo(() => getInitialEventDraftState(), [])
-  const [, setActiveSnapPoint] = useState<
-    number | string | null
-  >(initialEventDraftState.activeSnapPoint)
+  const [, setActiveSnapPoint] = useState<number | string | null>(
+    initialEventDraftState.activeSnapPoint
+  )
   const handleClose = onClose
 
   // Section refs let the summary-chip row scroll the form to the relevant
@@ -460,20 +460,17 @@ export function NewEventDrawer({
   const [audience, setAudience] = useState<Audience>(
     initialEventDraftState.audience
   )
-  const defaultAudience = useMemo(
-    () =>
-      circles.find((c) => c.type === "close")?.id ??
-      circles.find((c) => c.name.toLowerCase() === "close friends")?.id ??
-      circles[0]?.id ??
-      "",
-    [circles]
+  // Empty string means no circle is selected, which allows private events
+  // that invite only manually selected friends.
+  const selectedAudienceCircle = useMemo(
+    () => circles.find((circle) => circle.id === audience) ?? null,
+    [circles, audience]
   )
-  const effectiveAudience = circles.some((c) => c.id === audience)
-    ? audience
-    : defaultAudience
-  // Direct invites are extras on top of whatever circle is selected — they
-  // become `members` on the create-event request alongside `circles`. Lets
-  // the user pick inner + add a couple more people for this one event.
+  const handleSelectAudience = useCallback((circleId: string): void => {
+    setAudience((prev) => (prev === circleId ? "" : circleId))
+  }, [])
+  // Direct invites become `members` on the create-event request, either as
+  // extras for a selected circle or as the whole private audience.
   const [directlyInvitedIds, setDirectlyInvitedIds] = useState<string[]>(
     initialEventDraftState.directlyInvitedIds
   )
@@ -849,16 +846,20 @@ export function NewEventDrawer({
 
   const inviteeCount = useMemo(() => {
     if (isOpen) return 0
-    const circleMembers =
-      circles.find((c) => c.id === effectiveAudience)?.memberIds ?? []
+    const circleMembers = selectedAudienceCircle?.memberIds ?? []
     // Dedupe: if a directly-invited person is already in the selected circle,
     // they only get counted once (the backend dedupes too).
     const memberSet = new Set(circleMembers)
     const extras = directlyInvitedIds.filter((id) => !memberSet.has(id)).length
     return circleMembers.length + extras
-  }, [circles, effectiveAudience, isOpen, directlyInvitedIds])
+  }, [selectedAudienceCircle, isOpen, directlyInvitedIds])
 
   const isOverLimit = !isOpen && inviteeCount > guestLimit
+  const hasPrivateInvitees = isOpen || inviteeCount > 0
+  const privateInviteeError =
+    !isOpen && !audienceLoading && !audienceError && !hasPrivateInvitees
+      ? "Invite at least one friend or choose a circle with members."
+      : null
 
   // Compact audience label for the summary chip — folds headcount in so the
   // standalone "X people will see this" line can be dropped. Public events
@@ -866,10 +867,9 @@ export function NewEventDrawer({
   // when anyone can join).
   const whoLabel = useMemo(() => {
     if (isOpen) return `public · up to ${guestLimit}`
-    const circle = circles.find((c) => c.id === effectiveAudience)
-    const baseName = circle?.name.toLowerCase() ?? "friends"
+    const baseName = selectedAudienceCircle?.name.toLowerCase() ?? "friends"
     return `${baseName} · ${inviteeCount}`
-  }, [isOpen, circles, effectiveAudience, inviteeCount, guestLimit])
+  }, [isOpen, selectedAudienceCircle, inviteeCount, guestLimit])
 
   const handleSubmit = async (): Promise<void> => {
     if (isSubmitting) return
@@ -882,6 +882,12 @@ export function NewEventDrawer({
     if (!isOpen && audienceError) {
       setSubmitError(
         "Load your circles and friends before creating a private event."
+      )
+      return
+    }
+    if (!hasPrivateInvitees) {
+      setSubmitError(
+        "Invite at least one friend or choose a circle with members."
       )
       return
     }
@@ -906,26 +912,18 @@ export function NewEventDrawer({
     setIsSubmitting(true)
     let created = false
     const createdAt = new Date().toISOString()
-    const selectedAudienceCircle = !isOpen
-      ? (circles.find((circle) => circle.id === effectiveAudience) ?? null)
-      : null
     let eventAudience: EventAudienceTarget = { kind: "public" }
 
     try {
       if (!isOpen) {
-        if (!selectedAudienceCircle) {
-          setSubmitError("Choose a circle before creating a private event.")
-          return
-        }
-
-        // Direct invites ride as extra `members` on top of the selected
-        // circle invite.
-        eventAudience = {
-          kind: "circle",
-          circleId: selectedAudienceCircle.id,
-          extraMemberIds:
-            directlyInvitedIds.length > 0 ? directlyInvitedIds : undefined,
-        }
+        eventAudience = selectedAudienceCircle
+          ? {
+              kind: "circle",
+              circleId: selectedAudienceCircle.id,
+              extraMemberIds:
+                directlyInvitedIds.length > 0 ? directlyInvitedIds : undefined,
+            }
+          : { kind: "members", memberIds: directlyInvitedIds }
       }
 
       const effectiveDuration =
@@ -1052,7 +1050,7 @@ export function NewEventDrawer({
                   <X className="h-4 w-4" />
                 </button>
                 <div className="flex items-center gap-1.5 text-lg font-semibold">
-                  <Sparkles className="h-[18px] w-[18px]" />
+                  <Sparkles className="h-4.5 w-4.5" />
                   <span>light a flare</span>
                 </div>
                 <div className="h-9 w-9" aria-hidden />
@@ -1235,8 +1233,8 @@ export function NewEventDrawer({
                         guestLimit={guestLimit}
                         onGuestLimit={setGuestLimit}
                         circles={circles}
-                        audience={effectiveAudience}
-                        onSelectAudience={setAudience}
+                        audience={audience}
+                        onSelectAudience={handleSelectAudience}
                         connections={connections}
                         editingCircleId={editingCircleId}
                         onStartEditingCircle={setEditingCircleId}
@@ -1263,9 +1261,7 @@ export function NewEventDrawer({
             </div>
 
             {/* CTA pinned to the bottom of the full-height compose sheet. */}
-            <div
-              className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 border-t border-border bg-card px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]"
-            >
+            <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 border-t border-border bg-card px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
               {submitError && (
                 <p
                   className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
@@ -1274,11 +1270,20 @@ export function NewEventDrawer({
                   {submitError}
                 </p>
               )}
+              {!submitError && privateInviteeError && (
+                <p
+                  className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                  role="alert"
+                >
+                  {privateInviteeError}
+                </p>
+              )}
               <Button
                 onClick={handleSubmit}
                 disabled={
                   isSubmitting ||
                   (!isOpen && (audienceLoading || Boolean(audienceError))) ||
+                  Boolean(privateInviteeError) ||
                   (whereType === "search" && placeDetailsLoading) ||
                   (whereType === "current" &&
                     geoStatus === "requesting" &&
@@ -1950,10 +1955,8 @@ function WhoBlock({
             onSelect={onSelectAudience}
             onEdit={onStartEditingCircle}
           />
-          {/* Always-visible — selecting friends here adds them as direct
-              invites on top of whatever circle is the audience. Not gated on
-              "all friends" anymore: user can pick inner + add a few extras
-              for this one event without permanently editing inner. */}
+          {/* Always-visible — selecting friends here adds direct event
+              invites, either as circle extras or as a manual-only audience. */}
           <DirectInviteSearch
             connections={connections}
             directlyInvitedIds={directlyInvitedIds}
@@ -2200,11 +2203,10 @@ function CircleEditor({
   )
 }
 
-// Optional amplifier on top of whatever circle is the audience — pick a few
-// specific people to invite directly for this one event. Collapsed by default
-// so it doesn't eat ~200px when the user has no extras to add. The trigger
-// shows a running count when non-zero, so the user can still see at a glance
-// who's coming along.
+// Optional direct-audience picker for this one event. Collapsed by default so
+// it doesn't eat ~200px when the user has no extras to add. The trigger shows
+// a running count when non-zero, so the user can still see at a glance who's
+// coming along.
 function DirectInviteSearch({
   connections,
   directlyInvitedIds,

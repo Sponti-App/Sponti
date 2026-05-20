@@ -41,8 +41,10 @@ export interface EventItem {
 }
 
 export type Recurrence = "none" | "daily" | "weekly"
-// A backend circle id when visibility is private. Circle tier labels such as
-// "inner", "close", and "all" live on circle.type, not in this id field.
+// A backend circle id when one is selected. The compose drawer uses "" as the
+// no-circle-selected sentinel for private events with direct member invites.
+// Circle tier labels such as "inner", "close", and "all" live on circle.type,
+// not in this id field.
 export type Audience = string
 
 export type DraftEventLocation = {
