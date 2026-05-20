@@ -40,21 +40,12 @@ import {
   type ConnectionRequest,
 } from "@/lib/circles"
 import {
-  addMemberToCircle,
-  moveConnectionToCircle,
-  removeMemberFromCircle,
-  setCircles,
-  useCircles,
-} from "@/lib/circles-store"
-import {
-  acceptRequest as acceptRequestAction,
-  blockConnection as blockConnectionAction,
-  cancelSentRequest as cancelSentRequestAction,
-  declineRequest as declineRequestAction,
-  sendRequest as sendRequestAction,
-  unblock as unblockAction,
-  useConnectionsState,
-} from "@/lib/connections-store"
+  addCircleMember as addApiCircleMember,
+  createCircle as createApiCircle,
+  fetchMyCircles,
+  removeCircleMember as removeApiCircleMember,
+  updateCircle as updateApiCircle,
+} from "@/lib/api/circles"
 import {
   deleteConnection as deleteApiConnection,
   fetchAcceptedConnections,
@@ -63,9 +54,18 @@ import {
   respondToConnectionRequest as respondToApiConnectionRequest,
   sendConnectionRequest as sendApiConnectionRequest,
 } from "@/lib/api/connections"
+import {
+  blockUser as blockApiUser,
+  fetchBlockedUsers,
+  unblockUser as unblockApiUser,
+} from "@/lib/api/blocks"
 import { searchUsers, type UserSearchResult } from "@/lib/api/users"
 
 type Tab = "circles" | "people"
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
 
 export default function CirclesPage() {
   const router = useRouter()
@@ -106,57 +106,62 @@ export default function CirclesPage() {
     return () => window.clearTimeout(timeout)
   }, [peopleQuery])
 
-  const {
-    connections: localConnections,
-    requests: localRequests,
-    blocked,
-    sentRequests: localSentRequests,
-  } = useConnectionsState()
-  const [apiConnections, setApiConnections] = useState<Connection[]>([])
-  const [apiRequests, setApiRequests] = useState<ConnectionRequest[]>([])
-  const [apiSentRequests, setApiSentRequests] = useState<Connection[]>([])
+  const [connections, setConnections] = useState<Connection[]>([])
+  const [requests, setRequests] = useState<ConnectionRequest[]>([])
+  const [sentRequests, setSentRequests] = useState<Connection[]>([])
+  const [blocked, setBlocked] = useState<BlockedUser[]>([])
+  const [circles, setCircles] = useState<Circle[]>([])
   const [connectionsLoading, setConnectionsLoading] = useState(apiEnabled)
+  const [circlesLoading, setCirclesLoading] = useState(apiEnabled)
   const [connectionsError, setConnectionsError] = useState<string | null>(null)
-  const [connectionsVersion, setConnectionsVersion] = useState(0)
-  const circles = useCircles()
+  const [circlesError, setCirclesError] = useState<string | null>(null)
+  const [backendVersion, setBackendVersion] = useState(0)
 
   useEffect(() => {
-    if (!apiEnabled) return
+    if (!apiEnabled) {
+      return
+    }
     const ac = new AbortController()
     queueMicrotask(() => {
       if (ac.signal.aborted) return
       setConnectionsLoading(true)
+      setCirclesLoading(true)
       setConnectionsError(null)
+      setCirclesError(null)
     })
 
     Promise.all([
       fetchAcceptedConnections(ac.signal),
       fetchIncomingConnectionRequests(ac.signal),
       fetchOutgoingConnectionRequests(ac.signal),
+      fetchBlockedUsers(ac.signal),
+      fetchMyCircles(ac.signal),
     ])
-      .then(([accepted, incoming, outgoing]) => {
-        setApiConnections(accepted)
-        setApiRequests(incoming)
-        setApiSentRequests(outgoing)
+      .then(([accepted, incoming, outgoing, blockedUsers, nextCircles]) => {
+        setConnections(accepted)
+        setRequests(incoming)
+        setSentRequests(outgoing)
+        setBlocked(blockedUsers)
+        setCircles(nextCircles)
       })
       .catch((err) => {
         if (ac.signal.aborted) return
-        setConnectionsError(
-          err instanceof Error ? err.message : "Could not load connections"
-        )
+        const message = getErrorMessage(err, "Could not load your circles")
+        setConnectionsError(message)
+        setCirclesError(message)
       })
       .finally(() => {
-        if (!ac.signal.aborted) setConnectionsLoading(false)
+        if (!ac.signal.aborted) {
+          setConnectionsLoading(false)
+          setCirclesLoading(false)
+        }
       })
 
     return () => ac.abort()
-  }, [apiEnabled, connectionsVersion])
+  }, [apiEnabled, backendVersion])
 
-  const connections = apiEnabled ? apiConnections : localConnections
-  const requests = apiEnabled ? apiRequests : localRequests
-  const sentRequests = apiEnabled ? apiSentRequests : localSentRequests
-  const refreshBackendConnections = (): void =>
-    setConnectionsVersion((version) => version + 1)
+  const refreshBackendData = (): void =>
+    setBackendVersion((version) => version + 1)
 
   // Circles tab state
   const [expandedCircleId, setExpandedCircleId] = useState<string | null>(null)
@@ -184,81 +189,234 @@ export default function CirclesPage() {
   const sendRequest = (
     target: Pick<Connection, "id" | "username" | "displayName">
   ): void => {
-    if (apiEnabled) {
-      void sendApiConnectionRequest(target.id)
-        .then(() => {
-          setPeopleQuery("")
-          refreshBackendConnections()
-        })
-        .catch((err) =>
-          setConnectionsError(
-            err instanceof Error ? err.message : "Could not send request"
-          )
-        )
+    if (!apiEnabled) {
+      setConnectionsError("Backend API is not configured.")
       return
     }
 
-    sendRequestAction(target as Connection)
-    setPeopleQuery("")
+    void sendApiConnectionRequest(target.id)
+      .then(() => {
+        setPeopleQuery("")
+        refreshBackendData()
+      })
+      .catch((err) =>
+        setConnectionsError(getErrorMessage(err, "Could not send request"))
+      )
   }
 
   const acceptRequest = (req: ConnectionRequest): void => {
-    if (apiEnabled) {
-      void respondToApiConnectionRequest(req.id, "accepted")
-        .then(() => {
-          setJustAcceptedId(req.user.id)
-          addMemberToCircle("all", req.user.id)
-          refreshBackendConnections()
-        })
-        .catch((err) =>
-          setConnectionsError(
-            err instanceof Error ? err.message : "Could not accept request"
-          )
-        )
+    if (!apiEnabled) {
+      setConnectionsError("Backend API is not configured.")
       return
     }
 
-    acceptRequestAction(req.id)
-    setJustAcceptedId(req.user.id)
+    void (async () => {
+      await respondToApiConnectionRequest(req.id, "accepted")
+
+      const allCircle = circles.find((circle) => circle.type === "all")
+      if (allCircle && !allCircle.memberIds.includes(req.user.id)) {
+        try {
+          await addApiCircleMember(allCircle.id, req.user.id)
+        } catch (error) {
+          setCirclesError(
+            getErrorMessage(error, "Could not add connection to all friends")
+          )
+        }
+      }
+
+      setJustAcceptedId(req.user.id)
+      refreshBackendData()
+    })().catch((err) =>
+      setConnectionsError(getErrorMessage(err, "Could not accept request"))
+    )
   }
 
   const declineRequest = (req: ConnectionRequest): void => {
-    if (apiEnabled) {
-      void respondToApiConnectionRequest(req.id, "rejected")
-        .then(refreshBackendConnections)
-        .catch((err) =>
-          setConnectionsError(
-            err instanceof Error ? err.message : "Could not decline request"
-          )
-        )
+    if (!apiEnabled) {
+      setConnectionsError("Backend API is not configured.")
       return
     }
 
-    declineRequestAction(req.id)
+    void respondToApiConnectionRequest(req.id, "rejected")
+      .then(refreshBackendData)
+      .catch((err) =>
+        setConnectionsError(getErrorMessage(err, "Could not decline request"))
+      )
   }
 
   const blockConnection = (target: Connection): void => {
-    blockConnectionAction(target)
-    setPendingBlock(null)
-  }
-
-  const cancelSentRequest = (target: Connection): void => {
-    if (apiEnabled && target.connectionId) {
-      void deleteApiConnection(target.connectionId)
-        .then(refreshBackendConnections)
-        .catch((err) =>
-          setConnectionsError(
-            err instanceof Error ? err.message : "Could not cancel request"
-          )
-        )
+    if (!apiEnabled) {
+      setConnectionsError("Backend API is not configured.")
       return
     }
 
-    cancelSentRequestAction(target.id)
+    void blockApiUser(target.id)
+      .then(() => {
+        setPendingBlock(null)
+        refreshBackendData()
+      })
+      .catch((err) =>
+        setConnectionsError(getErrorMessage(err, "Could not block user"))
+      )
+  }
+
+  const cancelSentRequest = (target: Connection): void => {
+    if (!apiEnabled || !target.connectionId) {
+      setConnectionsError("Could not cancel request.")
+      return
+    }
+
+    void deleteApiConnection(target.connectionId)
+      .then(refreshBackendData)
+      .catch((err) =>
+        setConnectionsError(getErrorMessage(err, "Could not cancel request"))
+      )
   }
 
   const unblock = (target: BlockedUser): void => {
-    unblockAction(target.id)
+    if (!apiEnabled) {
+      setConnectionsError("Backend API is not configured.")
+      return
+    }
+
+    void unblockApiUser(target.id)
+      .then(refreshBackendData)
+      .catch((err) =>
+        setConnectionsError(getErrorMessage(err, "Could not unblock user"))
+      )
+  }
+
+  const updateCircleMembers = (
+    circleId: string,
+    updater: (memberIds: string[]) => string[],
+    memberAddedAt?: Record<string, string>
+  ): void => {
+    setCircles((prev) =>
+      prev.map((circle) =>
+        circle.id === circleId
+          ? {
+              ...circle,
+              memberIds: updater(circle.memberIds),
+              memberAddedAt: memberAddedAt ?? circle.memberAddedAt,
+            }
+          : circle
+      )
+    )
+  }
+
+  const addMemberToCircle = (
+    circleId: string,
+    userId: string,
+    onSuccess?: () => void
+  ): void => {
+    if (!apiEnabled) {
+      setCirclesError("Backend API is not configured.")
+      return
+    }
+
+    void addApiCircleMember(circleId, userId)
+      .then(() => {
+        const now = new Date().toISOString()
+        const circle = circles.find((c) => c.id === circleId)
+        updateCircleMembers(
+          circleId,
+          (memberIds) =>
+            memberIds.includes(userId) ? memberIds : [...memberIds, userId],
+          { ...(circle?.memberAddedAt ?? {}), [userId]: now }
+        )
+        onSuccess?.()
+      })
+      .catch((err) =>
+        setCirclesError(getErrorMessage(err, "Could not add circle member"))
+      )
+  }
+
+  const removeMemberFromCircle = (circleId: string, userId: string): void => {
+    if (!apiEnabled) {
+      setCirclesError("Backend API is not configured.")
+      return
+    }
+
+    void removeApiCircleMember(circleId, userId)
+      .then(() => {
+        const circle = circles.find((c) => c.id === circleId)
+        const memberAddedAt = { ...(circle?.memberAddedAt ?? {}) }
+        delete memberAddedAt[userId]
+        updateCircleMembers(
+          circleId,
+          (memberIds) => memberIds.filter((id) => id !== userId),
+          memberAddedAt
+        )
+      })
+      .catch((err) =>
+        setCirclesError(getErrorMessage(err, "Could not remove circle member"))
+      )
+  }
+
+  const moveConnectionToCircle = (
+    userId: string,
+    fromCircleId: string,
+    toCircleId: string
+  ): void => {
+    if (!apiEnabled) {
+      setCirclesError("Backend API is not configured.")
+      return
+    }
+
+    void (async () => {
+      await addApiCircleMember(toCircleId, userId)
+      await removeApiCircleMember(fromCircleId, userId)
+      const now = new Date().toISOString()
+      setCircles((prev) =>
+        prev.map((circle) => {
+          if (circle.id === fromCircleId) {
+            const memberAddedAt = { ...(circle.memberAddedAt ?? {}) }
+            delete memberAddedAt[userId]
+            return {
+              ...circle,
+              memberIds: circle.memberIds.filter((id) => id !== userId),
+              memberAddedAt,
+            }
+          }
+
+          if (circle.id === toCircleId) {
+            return {
+              ...circle,
+              memberIds: circle.memberIds.includes(userId)
+                ? circle.memberIds
+                : [...circle.memberIds, userId],
+              memberAddedAt: { ...circle.memberAddedAt, [userId]: now },
+            }
+          }
+
+          return circle
+        })
+      )
+    })().catch((err) =>
+      setCirclesError(getErrorMessage(err, "Could not move circle member"))
+    )
+  }
+
+  const saveCircleName = (circle: Circle): void => {
+    const name = circle.name.trim()
+    if (!name) {
+      refreshBackendData()
+      return
+    }
+
+    void updateApiCircle(circle.id, { name })
+      .then((updated) =>
+        setCircles((prev) =>
+          prev.map((c) =>
+            c.id === circle.id
+              ? { ...c, ...updated, memberIds: c.memberIds, memberAddedAt: c.memberAddedAt }
+              : c
+          )
+        )
+      )
+      .catch((err) =>
+        setCirclesError(getErrorMessage(err, "Could not update circle"))
+      )
   }
 
   const toggleNewCircleMember = (id: string): void => {
@@ -270,27 +428,35 @@ export default function CirclesPage() {
   const createCircle = (): void => {
     const name = newCircleName.trim()
     if (!name) return
-    const now = new Date().toISOString()
-    const next: Circle = {
-      id: `custom-${Date.now()}`,
+
+    if (!apiEnabled) {
+      setCirclesError("Backend API is not configured.")
+      return
+    }
+
+    void createApiCircle({
       name,
-      description: "custom circle",
       type: "custom",
       memberIds: newCircleMemberIds,
-      memberAddedAt: Object.fromEntries(
-        newCircleMemberIds.map((id) => [id, now])
-      ),
-    }
-    setCircles((prev) => [...prev, next])
-    setExpandedCircleId(next.id)
-    setNewCircleName("")
-    setNewCircleMemberIds([])
-    setNewCircleOpen(false)
+    })
+      .then((next) => {
+        setCircles((prev) => [...prev, next])
+        setExpandedCircleId(next.id)
+        setNewCircleName("")
+        setNewCircleMemberIds([])
+        setNewCircleOpen(false)
+      })
+      .catch((err) =>
+        setCirclesError(getErrorMessage(err, "Could not create circle"))
+      )
   }
 
   // Circles the user can still add a connection to (excludes "all" and circles they're already in)
   const addableCircles = (connectionId: string): Circle[] =>
-    circles.filter((c) => c.id !== "all" && !c.memberIds.includes(connectionId))
+    circles.filter(
+      (circle) =>
+        circle.type !== "all" && !circle.memberIds.includes(connectionId)
+    )
 
   return (
     <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
@@ -337,8 +503,26 @@ export default function CirclesPage() {
         <div className="flex-1 overflow-y-auto px-4 pb-32">
           {/* ── CIRCLES TAB ── */}
           <TabsContent value="circles" className="m-0 mt-3 flex flex-col gap-3">
+            {circlesLoading && (
+              <p className="rounded-xl border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
+                loading circles...
+              </p>
+            )}
+
+            {circlesError && (
+              <p className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                {circlesError}
+              </p>
+            )}
+
+            {!circlesLoading && circles.length === 0 && (
+              <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+                no circles yet.
+              </p>
+            )}
+
             {circles
-              .filter((c) => c.id !== "all")
+              .filter((c) => c.type !== "all")
               .map((circle) => {
                 const isExpanded = expandedCircleId === circle.id
                 const sort = circleSort[circle.id] ?? "recent"
@@ -434,6 +618,10 @@ export default function CirclesPage() {
                                 )
                               )
                             }
+                            onBlur={() => saveCircleName(circle)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") e.currentTarget.blur()
+                            }}
                             aria-label="circle name"
                             className="font-medium"
                           />
@@ -476,7 +664,7 @@ export default function CirclesPage() {
                                 const movableCircles = circles.filter(
                                   (c) =>
                                     c.id !== circle.id &&
-                                    c.id !== "all" &&
+                                    c.type !== "all" &&
                                     !c.memberIds.includes(m.id)
                                 )
                                 return (
@@ -570,8 +758,9 @@ export default function CirclesPage() {
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          addMemberToCircle(circle.id, c.id)
-                                          setMemberQuery("")
+                                          addMemberToCircle(circle.id, c.id, () =>
+                                            setMemberQuery("")
+                                          )
                                         }}
                                         className="flex w-full items-center gap-3 px-2 py-2 text-left hover:bg-secondary"
                                       >
@@ -951,7 +1140,7 @@ export default function CirclesPage() {
                               add to circle:
                             </span>
                             {circles
-                              .filter((ci) => ci.id !== "all")
+                              .filter((ci) => ci.type !== "all")
                               .map((ci) => {
                                 const inCircle = ci.memberIds.includes(c.id)
                                 return (
