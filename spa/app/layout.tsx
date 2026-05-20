@@ -49,19 +49,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={bricolageGrotesque.variable} suppressHydrationWarning>
-      <head>
-        {process.env.NODE_ENV === 'development' ? (
-          <>
-            {/* tweakcn preview */}
-            <Script
-              async
-              crossOrigin="anonymous"
-              src="https://tweakcn.com/live-preview.min.js"
-              strategy="afterInteractive"
-            />
-          </>
-        ) : null}
-      </head>
       <body className="font-sans antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider>

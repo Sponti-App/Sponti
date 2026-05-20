@@ -26,6 +26,16 @@ const LAST_KNOWN_COORDS_KEY = "sponti.geo.last-known-coords.v1"
 
 let memoryLastKnownCoords: GeoCoords | null | undefined
 
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1"
+}
+
+function isSecureGeolocationContext(): boolean {
+  if (typeof window === "undefined") return false
+  if (window.isSecureContext) return true
+  return isLoopbackHost(window.location.hostname)
+}
+
 function isValidCoords(value: unknown): value is GeoCoords {
   if (typeof value !== "object" || value === null) return false
   const coords = value as Partial<GeoCoords>
@@ -120,6 +130,13 @@ export function useGeolocation(options?: {
       setErrorMessage("Geolocation not supported")
       return
     }
+    if (!isSecureGeolocationContext()) {
+      setStatus("unavailable")
+      setErrorMessage(
+        "Location needs a secure connection. Open this app on localhost or HTTPS."
+      )
+      return
+    }
     setStatus("requesting")
     navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
       enableHighAccuracy: true,
@@ -133,6 +150,13 @@ export function useGeolocation(options?: {
   useEffect(() => {
     if (typeof window === "undefined" || !navigator.geolocation) return
     if (options?.autoRequest === false) return
+    if (!isSecureGeolocationContext()) {
+      setStatus("unavailable")
+      setErrorMessage(
+        "Location needs a secure connection. Open this app on localhost or HTTPS."
+      )
+      return
+    }
     if (!options?.watch) {
       // Defer past the current render so the setStatus("requesting") inside
       // request() doesn't fire synchronously in the effect body.
