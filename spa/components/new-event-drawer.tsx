@@ -1891,20 +1891,16 @@ function WhoBlock({
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           public
         </span>
-        {showLimit && (
-          <>
-            <div className="h-7 w-px shrink-0 bg-border" />
-            <span className="shrink-0 text-xs text-muted-foreground">
-              limit
-            </span>
-            <Stepper
-              value={guestLimit}
-              onChange={onGuestLimit}
-              min={1}
-              max={200}
-            />
-          </>
-        )}
+        <>
+          <div className="h-7 w-px shrink-0 bg-border" />
+          <span className="shrink-0 text-xs text-muted-foreground">limit</span>
+          <Stepper
+            value={guestLimit}
+            onChange={onGuestLimit}
+            min={1}
+            max={200}
+          />
+        </>
       </div>
 
       {!isOpen && editingCircle && (
