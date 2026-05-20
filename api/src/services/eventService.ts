@@ -1,5 +1,12 @@
-import mongoose, { type ClientSession } from "mongoose";
-import { Block, Circle, CircleMember, Connection, Event, EventMember } from "#models/index";
+import { type ClientSession } from "mongoose";
+import {
+  Block,
+  Circle,
+  CircleMember,
+  Connection,
+  Event,
+  EventMember,
+} from "#models/index";
 import type {
   ActiveMapEventsQuery,
   CreateEventBody,
@@ -10,6 +17,7 @@ import type {
   UpdateMyEventMembershipBody,
 } from "#schemas/eventSchemas";
 import { getBlockedInviteeIds, getBlockedRelationshipUserIds } from "#services/blockService";
+import { getUsersByIds, type UserSummary } from "#services/userDirectoryService";
 import {
   createEventInvitationNotifications,
   createEventRsvpChangeNotification,
@@ -30,6 +38,19 @@ type InviteCandidate = {
 type EventWithMemberStats<T> = T & {
   memberCount: number;
   goingCount: number;
+};
+type EventUserIdentity = {
+  _id: string;
+  displayName?: string;
+  username?: string;
+  avatarUrl?: string | null;
+};
+type EventWithPeople<T> = Omit<T, "hostId"> & {
+  hostId: string | EventUserIdentity | null;
+  attendees: EventUserIdentity[];
+};
+type EventWithHostProfile<T> = Omit<T, "hostId"> & {
+  hostId: string | EventUserIdentity | null;
 };
 
 const roleRank: Record<InviteRole, number> = {
@@ -107,6 +128,104 @@ const attachMemberStats = async <T extends { _id: unknown }>(
     memberCount: statsByEventId.get(String(event._id))?.memberCount ?? 0,
     goingCount: statsByEventId.get(String(event._id))?.goingCount ?? 0,
   }));
+};
+
+const objectIdString = (value: unknown): string => {
+  if (value && typeof value === "object" && "_id" in value) {
+    return String((value as { _id: unknown })._id);
+  }
+
+  return String(value);
+};
+
+const extractHostId = (hostId: unknown): string | null => {
+  if (!hostId) return null;
+  return objectIdString(hostId);
+};
+
+const toEventUserIdentity = (userId: string, user?: UserSummary): EventUserIdentity => ({
+  _id: user?._id ?? userId,
+  displayName: user?.displayName ?? user?.username ?? "guest",
+  username: user?.username,
+  avatarUrl: user?.avatarUrl ?? null,
+});
+
+const attachHostProfiles = async <T extends { hostId: unknown }>(
+  events: T[]
+): Promise<Array<EventWithHostProfile<T>>> => {
+  if (events.length === 0) {
+    return [];
+  }
+
+  const hostIds = events
+    .map((event) => extractHostId(event.hostId))
+    .filter((id): id is string => id !== null);
+  const users = await getUsersByIds(uniqueObjectIdStrings(hostIds));
+
+  return events.map((event) => {
+    const hostId = extractHostId(event.hostId);
+    if (!hostId) return { ...event, hostId: null };
+
+    const user = users.get(hostId);
+    return {
+      ...event,
+      hostId: user ? toEventUserIdentity(hostId, user) : hostId,
+    };
+  });
+};
+
+const attachEventPeople = async <T extends { _id: unknown; hostId: unknown }>(
+  events: T[]
+): Promise<Array<EventWithPeople<T>>> => {
+  if (events.length === 0) {
+    return [];
+  }
+
+  const eventIds = events.map((event) => toObjectId(String(event._id)));
+  const goingMembers = await EventMember.find({
+    eventId: { $in: eventIds },
+    rsvpStatus: "going",
+  })
+    .select("eventId userId")
+    .lean();
+
+  const userIds = uniqueObjectIdStrings([
+    ...events
+      .map((event) => extractHostId(event.hostId))
+      .filter((id): id is string => id !== null),
+    ...goingMembers.map((member) => String(member.userId)),
+  ]);
+  const users = await getUsersByIds(userIds);
+  const hostIdByEventId = new Map(
+    events.map((event) => [String(event._id), extractHostId(event.hostId)])
+  );
+  const attendeesByEventId = new Map<string, EventUserIdentity[]>();
+
+  for (const member of goingMembers) {
+    const eventId = String(member.eventId);
+    const userId = String(member.userId);
+    if (userId === hostIdByEventId.get(eventId)) continue;
+    const attendees = attendeesByEventId.get(eventId) ?? [];
+    attendees.push(toEventUserIdentity(userId, users.get(userId)));
+    attendeesByEventId.set(eventId, attendees);
+  }
+
+  return events.map((event) => {
+    const hostId = extractHostId(event.hostId);
+    if (!hostId) {
+      return {
+        ...event,
+        hostId: null,
+        attendees: attendeesByEventId.get(String(event._id)) ?? [],
+      };
+    }
+
+    return {
+      ...event,
+      hostId: toEventUserIdentity(hostId, users.get(hostId)),
+      attendees: attendeesByEventId.get(String(event._id)) ?? [],
+    };
+  });
 };
 
 const assertAcceptedConnectionInvitees = async (hostId: string, inviteeIds: string[]) => {
@@ -361,11 +480,16 @@ export const getEventById = async (userId: string, eventId: string) => {
     throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  const [eventWithHost] = await attachHostProfiles([event]);
-  const withStats = await attachMemberStats(eventWithHost ? [eventWithHost] : [event]);
+  const withStats = await attachMemberStats([event]);
   const withRsvp = await attachMyRsvp(userId, withStats);
+  const withPeople = await attachEventPeople(withRsvp);
+  const enriched = withPeople[0];
 
-  return withRsvp[0] ?? event;
+  if (!enriched) {
+    throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
+  }
+
+  return enriched;
 };
 
 /**
@@ -423,11 +547,16 @@ export const getMyUpcomingEvents = async (userId: string, query: MyUpcomingEvent
     attachMyRsvp(userId, invitedWithStats),
     attachMyRsvp(userId, pastWithStats),
   ]);
+  const [hostedWithPeople, invitedWithPeople, pastWithPeople] = await Promise.all([
+    attachEventPeople(hostedWithRsvp),
+    attachEventPeople(invitedWithRsvp),
+    attachEventPeople(pastWithRsvp),
+  ]);
 
   return {
-    hostedByMe: hostedWithRsvp,
-    invited: invitedWithRsvp,
-    pastHosted: pastWithRsvp,
+    hostedByMe: hostedWithPeople,
+    invited: invitedWithPeople,
+    pastHosted: pastWithPeople,
   };
 };
 
@@ -626,96 +755,6 @@ const attachMyRsvp = async <T extends { _id: unknown }>(
   }));
 };
 
-const extractHostId = (hostId: unknown): string | null => {
-  if (!hostId) return null;
-  if (typeof hostId === "string") return hostId;
-  if (typeof hostId === "object" && "_id" in hostId) {
-    return String((hostId as { _id: unknown })._id);
-  }
-  return String(hostId);
-};
-
-const fetchHostProfiles = async (hostIds: string[]) => {
-  if (hostIds.length === 0) {
-    return new Map<
-      string,
-      { _id: string; username?: string; displayName?: string; avatarUrl?: string | null }
-    >();
-  }
-
-  const db = mongoose.connection.db;
-  if (!db) {
-    throw new AppError("MongoDB connection unavailable", 500, "DB_CONNECTION_ERROR");
-  }
-
-  const users = await db
-    .collection("users")
-    .find(
-      { _id: { $in: hostIds.map(toObjectId) } },
-      {
-        projection: {
-          _id: 1,
-          username: 1,
-          displayName: 1,
-          avatarUrl: 1,
-        },
-      }
-    )
-    .toArray();
-
-  return new Map(
-    users.map((user) => [
-      String(user._id),
-      {
-        _id: String(user._id),
-        username: user.username,
-        displayName: user.displayName,
-        avatarUrl: user.avatarUrl ?? null,
-      },
-    ])
-  );
-};
-
-const attachHostProfiles = async <T extends { hostId: unknown }>(
-  events: T[]
-): Promise<
-  Array<
-    T & {
-      hostId:
-        | { _id: string; username?: string; displayName?: string; avatarUrl?: string | null }
-        | string
-        | null;
-    }
-  >
-> => {
-  if (events.length === 0) {
-    return [];
-  }
-
-  const hostIds = events
-    .map((event) => extractHostId(event.hostId))
-    .filter((id): id is string => id !== null);
-  const uniqueHostIds = Array.from(new Set(hostIds));
-  const hostProfiles = await fetchHostProfiles(uniqueHostIds);
-
-  return events.map((event) => {
-    const id = extractHostId(event.hostId);
-    if (!id) {
-      return event as T & { hostId: string | null };
-    }
-
-    const profile = hostProfiles.get(id);
-    if (!profile) {
-      return event as T & { hostId: string | null };
-    }
-
-    return {
-      ...event,
-      hostId: profile,
-    };
-  });
-};
-
 /**
  * Returns events that should appear on the home map for the authenticated user.
  *
@@ -774,21 +813,10 @@ export const filterOutBlockedEventHosts = async <T extends { hostId: unknown }>(
 ) => {
   const blockedIds = new Set(await getBlockedRelationshipUserIds(userId));
 
-  const hostIdString = (host: unknown) => {
-    if (!host) return String(host);
-    if (typeof host === "string") return host;
-    try {
-      if (host && typeof host === "object" && "_id" in host) {
-        return String((host as any)._id);
-      }
-    } catch {
-      // ignore
-    }
-
-    return String(host);
-  };
-
-  return events.filter((event) => !blockedIds.has(hostIdString(event.hostId)));
+  return events.filter((event) => {
+    const hostId = extractHostId(event.hostId);
+    return !hostId || !blockedIds.has(hostId);
+  });
 };
 
 export const isUserBlockedFromEventHost = async (userId: string, hostId: string) => {

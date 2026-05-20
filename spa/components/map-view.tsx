@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card"
 import {
   ChevronRight,
   ChevronUp,
+  ChevronDown,
   Check,
   Flame,
   LocateFixed,
@@ -20,7 +21,9 @@ import {
   AlertCircle,
   Calendar as CalendarIcon,
   Expand,
+  X,
 } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   avatarText,
   distanceFromUser,
@@ -381,19 +384,57 @@ export function MapView({
   const hasInteractiveMap = !!apiKey && cameraCenter != null
 
   const [searchRadiusKm, setSearchRadiusKm] = useState(DEFAULT_RADIUS_KM)
-  const [filterType, setFilterType] = useState<EventType | "all">("all")
+  const [typeFilters, setTypeFilters] = useState<Set<EventType>>(new Set())
+  const [timeFilter, setTimeFilter] = useState<"live" | "upcoming" | "all">(
+    "all"
+  )
+  const [showEnded, setShowEnded] = useState(false)
+  const [nowMs, setNowMs] = useState(0)
+  useEffect(() => {
+    const updateNow = () => setNowMs(Date.now())
+    updateNow()
+    const id = window.setInterval(updateNow, 60_000)
+    return () => window.clearInterval(id)
+  }, [])
   const map = useMapEvents(cameraCenter, searchRadiusKm)
   const mapEvents = useMemo(
     () => map.events.filter((e) => !!e.location.coordinates),
     [map.events]
   )
-  const filteredEvents = useMemo(
-    () =>
-      filterType === "all"
-        ? mapEvents
-        : mapEvents.filter((e) => e.type === filterType),
-    [mapEvents, filterType]
-  )
+  const groupedEvents = useMemo(() => {
+    const now = nowMs
+    const live: EventItem[] = []
+    const upcoming: EventItem[] = []
+    const ended: EventItem[] = []
+    for (const e of mapEvents) {
+      if (typeFilters.size > 0 && !typeFilters.has(e.type)) continue
+      const start = new Date(e.startAt).getTime()
+      const end = new Date(e.endAt).getTime()
+      if (now >= start && now <= end) live.push(e)
+      else if (start > now) upcoming.push(e)
+      else ended.push(e)
+    }
+    // Live ends soonest first, upcoming starts soonest first, ended most-recent first.
+    live.sort(
+      (a, b) => new Date(a.endAt).getTime() - new Date(b.endAt).getTime()
+    )
+    upcoming.sort(
+      (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+    )
+    ended.sort(
+      (a, b) => new Date(b.endAt).getTime() - new Date(a.endAt).getTime()
+    )
+    return { live, upcoming, ended }
+  }, [mapEvents, nowMs, typeFilters])
+  const visibleEvents = useMemo(() => {
+    if (timeFilter === "live") return groupedEvents.live
+    if (timeFilter === "upcoming") return groupedEvents.upcoming
+    return [...groupedEvents.live, ...groupedEvents.upcoming]
+  }, [groupedEvents, timeFilter])
+  const activeCount =
+    groupedEvents.live.length + groupedEvents.upcoming.length
+  const endedVisible =
+    timeFilter === "all" && groupedEvents.ended.length > 0
 
   // ---- Routes API: compute route + ETA when activeRoute changes ----
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null)
@@ -535,6 +576,11 @@ export function MapView({
     peekState === "mini"
       ? { bottom: `calc(${NAV_RESERVED_CSS} + ${SHEET_PX.mini + 12}px)` }
       : { bottom: `${SHEET_PX.peek + 12}px` }
+  // Recenter sits above the primary flare FAB. 56 = 44 (recenter) + 12 gap.
+  const recenterBottomStyle: React.CSSProperties =
+    peekState === "mini"
+      ? { bottom: `calc(${NAV_RESERVED_CSS} + ${SHEET_PX.mini + 12 + 68}px)` }
+      : { bottom: `${SHEET_PX.peek + 12 + 68}px` }
 
   return (
     <div
@@ -586,6 +632,21 @@ export function MapView({
         </div>
       )}
 
+      {/* Primary FAB: light a flare. Sits in the natural thumb-reach spot,
+          above the bottom sheet. Recenter sits above it as a utility. */}
+      <button
+        type="button"
+        onClick={() => {
+          haptic("medium")
+          openDrawer()
+        }}
+        style={fabBottomStyle}
+        aria-label="Light a flare"
+        className="absolute right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg transition-[bottom] duration-300 ease-out active:scale-95"
+      >
+        <Flame className="h-6 w-6" />
+      </button>
+
       {/* Recenter button — only meaningful on a real Google map; hidden in the
           static fallback where pan/zoom and panTo don't apply. */}
       {hasInteractiveMap && (
@@ -596,7 +657,7 @@ export function MapView({
             if (!hasCurrentLocation) geo.request()
             else setRecenterTick((n) => n + 1)
           }}
-          style={fabBottomStyle}
+          style={recenterBottomStyle}
           aria-label="Recenter on my location"
           className="absolute right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md transition-[bottom] duration-300 ease-out"
         >
@@ -661,34 +722,65 @@ export function MapView({
                     ? "loading..."
                     : map.refreshing
                       ? "updating..."
-                      : `${filteredEvents.length} active`}
+                      : `${activeCount} active`}
               </span>
             </div>
 
-            {/* Filter chips — only useful when there's something to filter.
-                Hidden when no events have come back from the nearby query. */}
+            {/* Time-range segmented control + type chips. Both hidden when
+                there are no events nearby (nothing to filter). */}
             {cameraCenter && mapEvents.length > 0 && (
-              <div className="scrollbar-none -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1">
-                <FilterChip
-                  label="all"
-                  active={filterType === "all"}
-                  onClick={() => {
+              <div className="mb-3 space-y-2">
+                <Tabs
+                  value={timeFilter}
+                  onValueChange={(v) => {
                     haptic("selection")
-                    setFilterType("all")
+                    setTimeFilter(v as "live" | "upcoming" | "all")
                   }}
-                />
-                {EVENT_TYPES.map((t) => (
-                  <FilterChip
-                    key={t.value}
-                    label={t.label}
-                    icon={t.icon}
-                    active={filterType === t.value}
-                    onClick={() => {
-                      haptic("selection")
-                      setFilterType(t.value)
-                    }}
-                  />
-                ))}
+                >
+                  <TabsList className="h-8 w-full">
+                    <TabsTrigger value="live" className="text-xs">
+                      live
+                    </TabsTrigger>
+                    <TabsTrigger value="upcoming" className="text-xs">
+                      upcoming
+                    </TabsTrigger>
+                    <TabsTrigger value="all" className="text-xs">
+                      all
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <div className="scrollbar-none -mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1">
+                  {EVENT_TYPES.map((t) => (
+                    <FilterChip
+                      key={t.value}
+                      label={t.label}
+                      icon={t.icon}
+                      active={typeFilters.has(t.value)}
+                      onClick={() => {
+                        haptic("selection")
+                        setTypeFilters((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(t.value)) next.delete(t.value)
+                          else next.add(t.value)
+                          return next
+                        })
+                      }}
+                    />
+                  ))}
+                  {typeFilters.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptic("selection")
+                        setTypeFilters(new Set())
+                      }}
+                      className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                      clear
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -700,7 +792,9 @@ export function MapView({
               />
             ) : map.error && mapEvents.length === 0 ? (
               <ErrorPanel message={map.error} onRetry={map.refresh} />
-            ) : filteredEvents.length === 0 && !map.loading ? (
+            ) : visibleEvents.length === 0 &&
+              !endedVisible &&
+              !map.loading ? (
               <EmptyState
                 radiusKm={searchRadiusKm}
                 onWiden={
@@ -724,12 +818,13 @@ export function MapView({
                     couldn&apos;t refresh nearby flares
                   </div>
                 )}
-                {filteredEvents.map((event) => (
+                {visibleEvents.map((event) => (
                   <FlareCard
                     key={event.id}
                     event={event}
                     joined={isJoined(event, joinedIds)}
                     user={geo.coords}
+                    status={isLive(event) ? "live" : "upcoming"}
                     onClick={() => onEventSelect(event)}
                     onSwipeJoin={() => {
                       haptic("success")
@@ -737,6 +832,39 @@ export function MapView({
                     }}
                   />
                 ))}
+                {endedVisible && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptic("selection")
+                        setShowEnded((s) => !s)
+                      }}
+                      className="flex w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <span>
+                        {showEnded ? "hide" : "show"}{" "}
+                        {groupedEvents.ended.length} ended
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${
+                          showEnded ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                    {showEnded &&
+                      groupedEvents.ended.map((event) => (
+                        <FlareCard
+                          key={event.id}
+                          event={event}
+                          joined={isJoined(event, joinedIds)}
+                          user={geo.coords}
+                          status="ended"
+                          onClick={() => onEventSelect(event)}
+                        />
+                      ))}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -930,8 +1058,7 @@ function EmptyState({
           onClick={onFindConnections}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
         >
-          <Flame className="h-4 w-4" /> connect with your friends to see their
-          flares
+          <Flame className="h-4 w-4" /> connect with your friends
         </button>
       </div>
     </div>
@@ -953,26 +1080,40 @@ function sheetSummary(
   return `${count} flare${count === 1 ? "" : "s"} near you`
 }
 
+function endingInLabel(event: EventItem, now: number = Date.now()): string {
+  const end = new Date(event.endAt).getTime()
+  const mins = Math.max(0, Math.round((end - now) / 60_000))
+  if (mins < 60) return `ending in ${mins} min`
+  const hours = Math.floor(mins / 60)
+  const rem = mins % 60
+  return rem === 0 ? `ending in ${hours}h` : `ending in ${hours}h ${rem}m`
+}
+
 function FlareCard({
   event,
   joined,
   user,
+  status,
   onClick,
   onSwipeJoin,
 }: {
   event: EventItem
   joined: boolean
   user: GeoCoords | null
+  status: "live" | "upcoming" | "ended"
   onClick: () => void
   onSwipeJoin?: () => void
 }) {
   const dist = distanceFromUser(event, user)
+  const isEnded = status === "ended"
+  const isLiveStatus = status === "live"
   const swipeStartX = useRef<number | null>(null)
   const [swipeX, setSwipeX] = useState(0)
   const SWIPE_THRESHOLD = 80
+  const swipeEnabled = !joined && !isEnded
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (joined) return
+    if (!swipeEnabled) return
     swipeStartX.current = e.clientX
     e.currentTarget.setPointerCapture(e.pointerId)
   }
@@ -986,27 +1127,41 @@ function FlareCard({
     const dx = e.clientX - swipeStartX.current
     swipeStartX.current = null
     setSwipeX(0)
-    if (dx >= SWIPE_THRESHOLD && !joined) {
+    if (dx >= SWIPE_THRESHOLD && swipeEnabled) {
       onSwipeJoin?.()
     } else {
       onClick()
     }
   }
 
+  const hostFirst = event.host.name.trim().split(/\s+/)[0]
+  const timeLabel = isLiveStatus
+    ? endingInLabel(event)
+    : isEnded
+      ? "ended"
+      : formatRelativeStatus(event)
+  const metaText = [`by ${hostFirst}`, dist?.label, timeLabel]
+    .filter(Boolean)
+    .join(" · ")
+
   return (
     <div className="relative overflow-hidden rounded-xl">
-      {/* Swipe-reveal "I'm in" hint behind the card */}
-      <div className="absolute inset-y-0 left-0 flex w-16 items-center justify-center rounded-l-xl bg-accent">
-        <span className="flex flex-col items-center gap-0.5 text-[10px] font-semibold text-accent-foreground">
-          <Check className="h-4 w-4" />
-          I&apos;m in
-        </span>
-      </div>
+      {/* Swipe-reveal "I'm in" hint — hidden for ended/joined cards */}
+      {swipeEnabled && (
+        <div className="absolute inset-y-0 left-0 flex w-16 items-center justify-center rounded-l-xl bg-accent">
+          <span className="flex flex-col items-center gap-0.5 text-[10px] font-semibold text-accent-foreground">
+            <Check className="h-4 w-4" />
+            I&apos;m in
+          </span>
+        </div>
+      )}
 
       <Card
         className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 ${
-          joined ? "border-accent bg-accent/5" : "border-border"
-        }`}
+          isLiveStatus
+            ? "border-l-[3px] border-l-accent"
+            : ""
+        } ${isEnded ? "border-border bg-muted/30" : "border-border"}`}
         style={{
           transform: `translateX(${swipeX}px)`,
           transition: swipeX === 0 ? "transform 0.2s ease-out" : "none",
@@ -1018,27 +1173,47 @@ function FlareCard({
         onClick={swipeX > 4 ? undefined : onClick}
       >
         <div
-          className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium ${event.host.color} ${avatarText(event.host.color)}`}
+          className={`flex h-10 w-10 items-center justify-center rounded-full ${
+            isEnded
+              ? "bg-muted text-muted-foreground"
+              : "bg-muted text-foreground"
+          }`}
         >
-          {eventIcon(event.type, event.host.avatar)}
+          {(() => {
+            const match = EVENT_TYPES.find((t) => t.value === event.type)
+            if (!match) return <span className="text-sm">{event.host.avatar}</span>
+            const Icon = match.icon
+            return <Icon className="h-5 w-5" />
+          })()}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="truncate font-medium text-accent">
-              {event.title.split("·", 2)}
+            <p
+              className={`truncate font-medium ${
+                isEnded ? "text-muted-foreground" : "text-foreground"
+              }`}
+            >
+              {event.title.split("·", 2)[0]}
             </p>
-            {joined && (
-              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+            {joined && !isEnded && (
+              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">
                 <Check className="h-2.5 w-2.5" /> going
               </span>
             )}
           </div>
-          <p className="truncate text-sm text-muted-foreground">
-            {formatRelativeStatus(event)} · {event.location.name}
-            {dist ? ` · ${dist.label}` : ""}
+          <p
+            className={`truncate text-xs ${
+              isEnded ? "text-muted-foreground/70" : "text-muted-foreground"
+            }`}
+          >
+            {metaText}
           </p>
         </div>
-        <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+        <ChevronRight
+          className={`h-5 w-5 shrink-0 ${
+            isEnded ? "text-muted-foreground/50" : "text-muted-foreground"
+          }`}
+        />
       </Card>
     </div>
   )

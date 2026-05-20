@@ -198,7 +198,9 @@ export default function Home() {
                 setView("map")
               }}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
-                view === "map" ? "bg-accent text-accent-foreground" : ""
+                view === "map"
+                  ? "bg-card text-primary"
+                  : "text-muted-foreground"
               }`}
             >
               <Map className="h-4 w-4" />
@@ -210,7 +212,9 @@ export default function Home() {
                 setView("calendar")
               }}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
-                view === "calendar" ? "bg-accent text-accent-foreground" : ""
+                view === "calendar"
+                  ? "bg-card text-primary"
+                  : "text-muted-foreground"
               }`}
             >
               <Calendar className="h-4 w-4" />

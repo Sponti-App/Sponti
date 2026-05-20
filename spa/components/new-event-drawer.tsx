@@ -292,7 +292,7 @@ type EventDraftStateDefaults = {
 function getInitialEventDraftState(): EventDraftStateDefaults {
   // Keep wall-clock defaults in a factory so reset uses "today" at reset time.
   return {
-    activeSnapPoint: 0.55,
+    activeSnapPoint: 0.95,
     mode: "now",
     eventType: null,
     typeOverrideOpen: false,
@@ -344,14 +344,10 @@ export function NewEventDrawer({
   const [audienceError, setAudienceError] = useState<string | null>(null)
 
   // Drawer
-  // Three snaps so the spontaneous flow can sit at a 0.55 "peek" (title +
-  // summary chips + CTA above the fold), 0.8 for normal customization, and
-  // 0.95 for full edit. 0.55 is the floor that fits chrome + title input +
-  // summary chips + CTA stack on small viewports without clipping. Scheduled
-  // mode jumps straight to 0.95 — there's no useful peek state when a
-  // date/time picker is the whole point.
+  // Creation is a compose task, so it opens as a full-height sheet instead of
+  // starting as a cramped peek.
   const initialEventDraftState = useMemo(() => getInitialEventDraftState(), [])
-  const [activeSnapPoint, setActiveSnapPoint] = useState<
+  const [, setActiveSnapPoint] = useState<
     number | string | null
   >(initialEventDraftState.activeSnapPoint)
   const handleClose = onClose
@@ -383,7 +379,7 @@ export function NewEventDrawer({
   const handleModeChange = (v: string) => {
     const next = v as Mode
     setMode(next)
-    setActiveSnapPoint(next === "scheduled" ? 0.95 : 0.55)
+    setActiveSnapPoint(0.95)
   }
 
   // Event type — `eventType` holds the user's MANUAL pick (null = not picked
@@ -1034,12 +1030,6 @@ export function NewEventDrawer({
             onClose()
           }
         }}
-        snapPoints={[0.55, 0.8, 0.95]}
-        activeSnapPoint={activeSnapPoint}
-        setActiveSnapPoint={(snap) => {
-          haptic("selection")
-          setActiveSnapPoint(snap)
-        }}
         dismissible
       >
         <Drawer.Portal>
@@ -1078,15 +1068,11 @@ export function NewEventDrawer({
               />
             </div>
 
-            {/* Scrollable form. The padding-bottom uses vaul's --snap-point-height
-                (the drawer's translateY at the current snap) plus space for the
-                CTA, so the last form field doesn't hide under the pinned CTA. */}
+            {/* Scrollable form with enough bottom padding for the pinned CTA. */}
             <div
               ref={scrollRef}
               className="min-h-0 flex-1 overflow-y-auto"
-              style={{
-                paddingBottom: "calc(var(--snap-point-height, 0px) + 160px)",
-              }}
+              style={{ paddingBottom: "140px" }}
               data-vaul-no-drag
             >
               <Tabs value={mode} onValueChange={handleModeChange}>
@@ -1276,16 +1262,9 @@ export function NewEventDrawer({
               </Tabs>
             </div>
 
-            {/* CTA pinned to the visible bottom of the drawer at any snap point.
-                bottom = --snap-point-height cancels vaul's translateY so the
-                button stays at the viewport bottom (matching the drawer's
-                visible bottom edge), not the drawer's natural bottom. */}
+            {/* CTA pinned to the bottom of the full-height compose sheet. */}
             <div
-              className="pointer-events-auto absolute inset-x-0 z-10 border-t border-border bg-card px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]"
-              style={{
-                bottom: "var(--snap-point-height, 0px)",
-                transition: "bottom 0.5s cubic-bezier(.32,.72,0,1)",
-              }}
+              className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 border-t border-border bg-card px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]"
             >
               {submitError && (
                 <p
@@ -1321,7 +1300,7 @@ export function NewEventDrawer({
 
 // Sits between the mode tabs and the form sections. Surfaces the three
 // implicit defaults (when, where, who) so the user knows exactly what'll
-// ship from the 0.55 peek snap — no scrolling needed. Each chip is a
+// ship from the high compose snap without extra scrolling. Each chip is a
 // shortcut: tap to expand the drawer to 0.95 and scroll to that section.
 function SummaryRow({
   whenLabel,

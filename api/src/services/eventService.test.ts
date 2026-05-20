@@ -41,18 +41,19 @@ vi.mock("#services/blockService", () => ({
   getBlockedRelationshipUserIds: getBlockedRelationshipUserIdsMock,
 }));
 
-vi.mock("#utils/transactions", () => ({
-  withTransactionFallback: vi.fn((callback: () => unknown) => callback()),
-}));
-
 vi.mock("#services/userDirectoryService", () => ({
   getUsersByIds: getUsersByIdsMock,
+}));
+
+vi.mock("#utils/transactions", () => ({
+  withTransactionFallback: vi.fn((callback: () => unknown) => callback()),
 }));
 
 const {
   cancelEvent,
   createEvent,
   getActiveMapEvents,
+  getEventById,
   getEvents,
   getMyUpcomingEvents,
   reactivateEvent,
@@ -70,9 +71,7 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   eventMemberDistinctMock.mockResolvedValue([]);
   getBlockedRelationshipUserIdsMock.mockResolvedValue([]);
-  getUsersByIdsMock.mockResolvedValue(
-    new Map([[GUEST_ID, { _id: GUEST_ID, username: "guest", displayName: "Guest" }]])
-  );
+  getUsersByIdsMock.mockResolvedValue(new Map());
 });
 
 afterEach(() => {
@@ -106,6 +105,12 @@ const mockEventMembersForStats = (members: Array<Record<string, unknown>> = []) 
   const selectMock = vi.fn().mockReturnValue({ lean: leanMock });
   eventMemberFindMock.mockReturnValue({ select: selectMock });
   return { leanMock, selectMock };
+};
+
+const eventMemberFindResult = (members: Array<Record<string, unknown>> = []) => {
+  const leanMock = vi.fn().mockResolvedValue(members);
+  const selectMock = vi.fn().mockReturnValue({ lean: leanMock });
+  return { select: selectMock };
 };
 
 const mockPagedEventFind = (events: Array<Record<string, unknown>> = []) => {
@@ -185,6 +190,7 @@ describe("eventService.cancelEvent", () => {
     mockEventMembersForNotifications([
       { userId: USER_ID, rsvpStatus: "going" },
       { userId: GUEST_ID, rsvpStatus: "declined" },
+      { userId: ADMIN_ID, rsvpStatus: "going" },
     ]);
     notificationCreateMock.mockResolvedValue([]);
 
@@ -395,6 +401,67 @@ describe("eventService.getEvents", () => {
       expect.arrayContaining([expect.objectContaining({ status: "active" })])
     );
     expect(endAtCondition.endAt?.$gt).toEqual(endAtFrom);
+  });
+});
+
+describe("eventService.getEventById", () => {
+  it("returns host identity and going guest identities for detail surfaces", async () => {
+    const event = eventDocument();
+    const leanMock = vi.fn().mockResolvedValue(event);
+    eventFindOneMock.mockReturnValue({ lean: leanMock });
+    eventMemberFindMock
+      .mockReturnValueOnce(
+        eventMemberFindResult([
+          { eventId: EVENT_ID, rsvpStatus: "going" },
+          { eventId: EVENT_ID, rsvpStatus: "invited" },
+        ])
+      )
+      .mockReturnValueOnce(eventMemberFindResult([{ eventId: EVENT_ID, rsvpStatus: "going" }]))
+      .mockReturnValueOnce(
+        eventMemberFindResult([
+          { eventId: EVENT_ID, userId: USER_ID },
+          { eventId: EVENT_ID, userId: GUEST_ID },
+        ])
+      );
+    getUsersByIdsMock.mockResolvedValue(
+      new Map([
+        [
+          USER_ID,
+          {
+            _id: USER_ID,
+            username: "martin",
+            displayName: "Martin",
+            avatarUrl: null,
+          },
+        ],
+        [
+          GUEST_ID,
+          {
+            _id: GUEST_ID,
+            username: "alex",
+            displayName: "Alex",
+            avatarUrl: null,
+          },
+        ],
+      ])
+    );
+
+    const result = await getEventById(USER_ID, EVENT_ID);
+
+    expect(result.hostId).toEqual({
+      _id: USER_ID,
+      username: "martin",
+      displayName: "Martin",
+      avatarUrl: null,
+    });
+    expect(result.attendees).toEqual([
+      {
+        _id: GUEST_ID,
+        username: "alex",
+        displayName: "Alex",
+        avatarUrl: null,
+      },
+    ]);
   });
 });
 
