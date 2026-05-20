@@ -1,5 +1,6 @@
 "use client"
 
+import { Capacitor } from "@capacitor/core"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 export type GeoCoords = { lat: number; lng: number }
@@ -33,6 +34,7 @@ function isLoopbackHost(hostname: string): boolean {
 function isSecureGeolocationContext(): boolean {
   if (typeof window === "undefined") return false
   if (window.isSecureContext) return true
+  if (Capacitor.isNativePlatform()) return true
   return isLoopbackHost(window.location.hostname)
 }
 
