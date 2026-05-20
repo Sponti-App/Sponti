@@ -1,5 +1,5 @@
 export type EventVisibility = "public" | "private"
-export type EventRsvp = "invited" | "going" | "maybe" | "declined"
+export type EventRsvp = "invited" | "going" | "declined"
 export type EventType =
   | "food"
   | "drinks"
@@ -8,7 +8,7 @@ export type EventType =
   | "party"
   | "culture"
   | "hobby"
-export type RsvpStatus = Extract<EventRsvp, "going" | "maybe" | "declined">
+export type RsvpStatus = Extract<EventRsvp, "going" | "declined">
 export type EventGuestInviteMode = "multiple" | "single" | "none"
 export type EventInviteRole = "admin" | "guest"
 export type ApiEventStatus = "active" | "cancelled" | "completed"

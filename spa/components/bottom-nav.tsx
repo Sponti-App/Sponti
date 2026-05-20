@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react"
 import { Home, Inbox, Users, Bell, Flame } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useMyFlares } from "@/lib/use-events"
+import { useUnreadNotificationCount } from "@/lib/use-notifications"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { haptic } from "@/lib/haptics"
 
@@ -27,7 +28,7 @@ type NavItem =
 
 export function BottomNav({
   onOpenNotifications,
-  notificationsUnread = 0,
+  notificationsUnread,
 }: {
   // Optional: only the home page handles the popover inline. On other pages,
   // tapping Feed routes back to home where notifications live.
@@ -38,6 +39,8 @@ export function BottomNav({
   const pathname = usePathname()
   const { openDrawer } = useNewEventDrawer()
   const { hostedByMe, invited } = useMyFlares()
+  const backendUnreadCount = useUnreadNotificationCount()
+  const resolvedNotificationsUnread = notificationsUnread ?? backendUnreadCount
   const activeHosted = hostedByMe.filter((e) => e.apiStatus !== "cancelled")
   // Badge counts hosted-by-me + invited so users see a heads-up when there's
   // something waiting in the hub (a new invitation, a flare they're hosting).
@@ -50,7 +53,7 @@ export function BottomNav({
       icon: Bell,
       label: "Feed",
       onClick: onOpenNotifications ?? (() => router.push("/")),
-      badge: notificationsUnread,
+      badge: resolvedNotificationsUnread,
     },
     {
       kind: "action",
@@ -82,7 +85,7 @@ export function BottomNav({
     const write = () =>
       document.documentElement.style.setProperty(
         "--sponti-nav-h",
-        `${el.offsetHeight}px`,
+        `${el.offsetHeight}px`
       )
     write()
     const ro = new ResizeObserver(write)
@@ -102,8 +105,14 @@ export function BottomNav({
         if (item.center) {
           const centerClick =
             item.kind === "route"
-              ? () => { haptic("medium"); router.push(item.href) }
-              : () => { haptic("medium"); item.onClick() }
+              ? () => {
+                  haptic("medium")
+                  router.push(item.href)
+                }
+              : () => {
+                  haptic("medium")
+                  item.onClick()
+                }
           return (
             <button
               key={item.label}
@@ -120,8 +129,14 @@ export function BottomNav({
         const active = item.kind === "route" && isActive(item.href)
         const handleClick =
           item.kind === "route"
-            ? () => { haptic("selection"); router.push(item.href) }
-            : () => { haptic("selection"); item.onClick() }
+            ? () => {
+                haptic("selection")
+                router.push(item.href)
+              }
+            : () => {
+                haptic("selection")
+                item.onClick()
+              }
 
         return (
           <button
@@ -129,7 +144,7 @@ export function BottomNav({
             type="button"
             onClick={handleClick}
             aria-label={item.label}
-            className={`relative flex min-h-11 min-w-11 max-w-20 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-[10px] font-medium transition-colors ${
+            className={`relative flex min-h-11 max-w-20 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-[10px] font-medium transition-colors ${
               active
                 ? "text-accent"
                 : "text-muted-foreground hover:text-foreground"

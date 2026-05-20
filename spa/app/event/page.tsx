@@ -19,9 +19,10 @@ import {
   deriveStatus,
   reactivateEvent,
   updateEvent,
+  updateMyRsvp,
   type HostedEvent,
 } from "@/lib/api/events"
-import { useMyFlares } from "@/lib/use-events"
+import { emitEventsChanged, useMyFlares } from "@/lib/use-events"
 
 const UNDO_WINDOW_MS = 5_000
 
@@ -44,6 +45,9 @@ export default function EventHubPage() {
   const [hostedOpen, setHostedOpen] = useState(true)
   const [invitedOpen, setInvitedOpen] = useState(true)
   const [pastOpen, setPastOpen] = useState(false)
+  const [respondingIds, setRespondingIds] = useState<Record<string, boolean>>(
+    {}
+  )
 
   useEffect(() => {
     const timers = cancelTimers.current
@@ -175,6 +179,29 @@ export default function EventHubPage() {
     refresh()
   }
 
+  const handleInvitedRsvp = async (
+    event: HostedEvent,
+    rsvpStatus: "going" | "declined"
+  ): Promise<void> => {
+    try {
+      setActionError(null)
+      setRespondingIds((current) => ({ ...current, [event.id]: true }))
+      await updateMyRsvp(event.id, { rsvpStatus })
+      emitEventsChanged()
+      refresh()
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Could not update RSVP"
+      )
+    } finally {
+      setRespondingIds((current) => {
+        const next = { ...current }
+        delete next[event.id]
+        return next
+      })
+    }
+  }
+
   return (
     <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
       <div className="flex shrink-0 items-center justify-between px-4 py-3">
@@ -250,6 +277,11 @@ export default function EventHubPage() {
                   key={event.id}
                   event={event}
                   status={deriveStatus(event)}
+                  responsePending={Boolean(respondingIds[event.id])}
+                  onAcceptInvite={() => void handleInvitedRsvp(event, "going")}
+                  onDeclineInvite={() =>
+                    void handleInvitedRsvp(event, "declined")
+                  }
                 />
               ))}
             </CollapsibleSection>

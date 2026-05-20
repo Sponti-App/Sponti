@@ -66,6 +66,9 @@ export function EventHostCard({
   onChange,
   onCancelRequest,
   onReactivate,
+  onAcceptInvite,
+  onDeclineInvite,
+  responsePending = false,
   onLocationChange,
   onTimeShift,
 }: {
@@ -75,6 +78,9 @@ export function EventHostCard({
   onChange?: (kind: "time" | "location", detail: string) => void
   onCancelRequest?: () => void
   onReactivate?: () => void
+  onAcceptInvite?: () => void
+  onDeclineInvite?: () => void
+  responsePending?: boolean
   onLocationChange?: (
     locationLabel: string,
     locationDetail?: string
@@ -90,6 +96,7 @@ export function EventHostCard({
   const isLive = status === "live"
   const isPast = status === "past"
   const isCancelled = status === "cancelled"
+  const canRespond = Boolean(onAcceptInvite || onDeclineInvite)
 
   const goingCount = event.attendingCount
   const inviteCount = event.attendeeCount
@@ -238,6 +245,32 @@ export function EventHostCard({
             disabled={isSaving}
             onClick={() => onReactivate?.()}
           />
+        </div>
+      )}
+
+      {canRespond && !isPast && !isCancelled && (
+        <div className="flex items-center gap-2 border-t border-border/60 pt-2">
+          <Button
+            type="button"
+            size="sm"
+            disabled={responsePending}
+            onClick={() => onAcceptInvite?.()}
+            className="h-8 flex-1 rounded-full bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
+          >
+            <Check className="mr-1 h-3.5 w-3.5" />
+            going
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={responsePending}
+            onClick={() => onDeclineInvite?.()}
+            className="h-8 flex-1 rounded-full px-3 text-xs"
+          >
+            <X className="mr-1 h-3.5 w-3.5" />
+            decline
+          </Button>
         </div>
       )}
 

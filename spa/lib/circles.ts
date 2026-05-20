@@ -4,6 +4,7 @@
 
 export type Connection = {
   id: string
+  connectionId?: string
   displayName: string
   username: string
   note?: string

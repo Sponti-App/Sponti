@@ -24,7 +24,7 @@ const eventMemberSchema = new Schema(
     },
     rsvpStatus: {
       type: String,
-      enum: ["invited", "going", "maybe", "declined"],
+      enum: ["invited", "going", "declined"],
       default: "invited",
       required: true,
     },
@@ -47,7 +47,7 @@ eventMemberSchema.index({ eventId: 1, userId: 1 }, { unique: true });
 eventMemberSchema.index({ userId: 1, rsvpStatus: 1 });
 
 export type EventRole = "host" | "admin" | "guest";
-export type RsvpStatus = "invited" | "going" | "maybe" | "declined";
+export type RsvpStatus = "invited" | "going" | "declined";
 export type EventMemberDocument = InferSchemaType<typeof eventMemberSchema>;
 
 export const EventMember: Model<EventMemberDocument> =

@@ -17,7 +17,8 @@ import {
   updateMyRsvp,
   type EventItem,
 } from "@/lib/api/events"
-import { MOCK_NOTIFICATIONS } from "@/lib/notifications"
+import type { Notification } from "@/lib/notifications"
+import { useNotifications } from "@/lib/use-notifications"
 import { haptic } from "@/lib/haptics"
 
 export default function Home() {
@@ -29,14 +30,22 @@ export default function Home() {
   const [joinedIds, setJoinedIds] = useState<Set<string>>(() => new Set())
   const [menuOpen, setMenuOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS)
+  const {
+    notifications,
+    unreadCount,
+    loading: notificationsLoading,
+    loadingMore: notificationsLoadingMore,
+    error: notificationsError,
+    hasMore: notificationsHasMore,
+    loadLatest: loadLatestNotifications,
+    loadMore: loadMoreNotifications,
+  } = useNotifications()
   const { user } = useAuth()
-  const unreadCount = notifications.filter((n) => !n.read).length
 
   // Left-edge swipe to open MenuDrawer
   const swipeStartX = useRef<number | null>(null)
-  const SWIPE_EDGE_PX = 32   // how close to the left edge the touch must start
-  const SWIPE_DIST_PX = 64   // minimum horizontal travel to trigger
+  const SWIPE_EDGE_PX = 32 // how close to the left edge the touch must start
+  const SWIPE_DIST_PX = 64 // minimum horizontal travel to trigger
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const x = e.touches[0].clientX
@@ -57,10 +66,16 @@ export default function Home() {
     setNotificationsOpen((v) => {
       const next = !v
       if (next) {
-        setNotifications((curr) => curr.map((n) => ({ ...n, read: true })))
+        void loadLatestNotifications()
       }
       return next
     })
+  }
+
+  const handleNotificationClick = (notification: Notification) => {
+    haptic("selection")
+    setNotificationsOpen(false)
+    router.push(notification.href)
   }
 
   const handleJoin = (event: EventItem, eta: string | null) => {
@@ -166,7 +181,10 @@ export default function Home() {
             type="button"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
-            onClick={() => { haptic("selection"); setMenuOpen((v) => !v) }}
+            onClick={() => {
+              haptic("selection")
+              setMenuOpen((v) => !v)
+            }}
             className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/70 shadow-sm backdrop-blur-md transition-colors active:bg-background/90"
           >
             <Menu className="h-4 w-4" />
@@ -175,7 +193,10 @@ export default function Home() {
           {/* View toggle pill */}
           <div className="pointer-events-auto flex items-center rounded-full border border-border/60 bg-background/70 p-1 shadow-sm backdrop-blur-md">
             <button
-              onClick={() => { haptic("selection"); setView("map") }}
+              onClick={() => {
+                haptic("selection")
+                setView("map")
+              }}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
                 view === "map" ? "bg-accent text-accent-foreground" : ""
               }`}
@@ -184,7 +205,10 @@ export default function Home() {
               <span>map</span>
             </button>
             <button
-              onClick={() => { haptic("selection"); setView("calendar") }}
+              onClick={() => {
+                haptic("selection")
+                setView("calendar")
+              }}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
                 view === "calendar" ? "bg-accent text-accent-foreground" : ""
               }`}
@@ -196,7 +220,10 @@ export default function Home() {
 
           {/* Settings pill */}
           <button
-            onClick={() => { haptic("selection"); router.push("/settings") }}
+            onClick={() => {
+              haptic("selection")
+              router.push("/settings")
+            }}
             aria-label="Settings"
             className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/70 shadow-sm backdrop-blur-md transition-colors active:bg-background/90"
           >
@@ -208,6 +235,13 @@ export default function Home() {
           open={notificationsOpen}
           onClose={() => setNotificationsOpen(false)}
           notifications={notifications}
+          unreadCount={unreadCount}
+          loading={notificationsLoading}
+          loadingMore={notificationsLoadingMore}
+          error={notificationsError}
+          hasMore={notificationsHasMore}
+          onLoadMore={() => void loadMoreNotifications()}
+          onNotificationClick={handleNotificationClick}
         />
 
         {/* Route active pill — tap to reopen details, X to clear.

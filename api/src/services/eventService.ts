@@ -1,14 +1,5 @@
 import { type ClientSession } from "mongoose";
-import {
-  Block,
-  Circle,
-  CircleMember,
-  Connection,
-  Event,
-  EventMember,
-  Notification,
-  type NotificationType,
-} from "#models/index";
+import { Block, Circle, CircleMember, Connection, Event, EventMember } from "#models/index";
 import type {
   ActiveMapEventsQuery,
   CreateEventBody,
@@ -19,7 +10,11 @@ import type {
   UpdateMyEventMembershipBody,
 } from "#schemas/eventSchemas";
 import { getBlockedInviteeIds, getBlockedRelationshipUserIds } from "#services/blockService";
-import { notificationHooks } from "#services/notificationHookService";
+import {
+  createEventInvitationNotifications,
+  createEventRsvpChangeNotification,
+  createEventStatusNotifications,
+} from "#services/notificationService";
 import { AppError } from "#utils/AppError";
 import { toObjectId, uniqueObjectIdStrings } from "#utils/objectId";
 import { getPagination, toPagination } from "#utils/pagination";
@@ -35,13 +30,6 @@ type InviteCandidate = {
 type EventWithMemberStats<T> = T & {
   memberCount: number;
   goingCount: number;
-};
-type EventStatusNotificationInput = {
-  eventId: string;
-  hostId: string;
-  eventTitle: string;
-  type: Extract<NotificationType, "event_cancelled" | "event_reactivated">;
-  session?: ClientSession;
 };
 
 const roleRank: Record<InviteRole, number> = {
@@ -119,48 +107,6 @@ const attachMemberStats = async <T extends { _id: unknown }>(
     memberCount: statsByEventId.get(String(event._id))?.memberCount ?? 0,
     goingCount: statsByEventId.get(String(event._id))?.goingCount ?? 0,
   }));
-};
-
-const createEventStatusNotifications = async ({
-  eventId,
-  hostId,
-  eventTitle,
-  type,
-  session,
-}: EventStatusNotificationInput) => {
-  const eventObjectId = toObjectId(eventId);
-  const hostObjectId = toObjectId(hostId);
-  const members = await EventMember.find({ eventId: eventObjectId })
-    .select("userId")
-    .session(session ?? null)
-    .lean();
-  const recipients = members.filter((member) => String(member.userId) !== hostId);
-
-  if (recipients.length === 0) {
-    return;
-  }
-
-  const isCancellation = type === "event_cancelled";
-  const title = isCancellation ? "Event cancelled" : "Event reactivated";
-  const message = isCancellation
-    ? `${eventTitle} was cancelled.`
-    : `${eventTitle} was reactivated.`;
-
-  await Notification.create(
-    recipients.map((member) => ({
-      userId: member.userId,
-      actorId: hostObjectId,
-      type,
-      targetType: "event" as const,
-      targetId: eventObjectId,
-      title,
-      message,
-      metadata: {
-        eventTitle,
-      },
-    })),
-    { session }
-  );
 };
 
 const assertAcceptedConnectionInvitees = async (hostId: string, inviteeIds: string[]) => {
@@ -320,16 +266,18 @@ export const createEvent = async (hostId: string, input: CreateEventBody) => {
 
     const members = await EventMember.create(memberDocs, { session });
 
+    if (invitees.length > 0) {
+      await createEventInvitationNotifications({
+        eventId: String(event._id),
+        hostId,
+        eventTitle: event.title,
+        inviteeIds: invitees.map((invitee) => invitee.userId),
+        session,
+      });
+    }
+
     return { event, members };
   });
-
-  if (invitees.length > 0) {
-    await notificationHooks.onEventInvitationsCreated({
-      eventId: result.event._id.toString(),
-      hostId,
-      invitedUserIds: invitees.map((invitee) => invitee.userId),
-    });
-  }
 
   return result;
 };
@@ -537,10 +485,6 @@ export const cancelEvent = async (hostId: string, eventId: string) => {
     return { event, changed: true };
   });
 
-  if (result.changed) {
-    await notificationHooks.onEventCancelled({ eventId, hostId });
-  }
-
   return result.event;
 };
 
@@ -588,10 +532,6 @@ export const reactivateEvent = async (hostId: string, eventId: string) => {
     return { event, changed: true };
   });
 
-  if (result.changed) {
-    await notificationHooks.onEventReactivated({ eventId, hostId });
-  }
-
   return result.event;
 };
 
@@ -601,7 +541,7 @@ export const updateMyEventMembership = async (
   input: UpdateMyEventMembershipBody
 ) => {
   const event = await Event.findOne({ _id: toObjectId(eventId), status: "active" })
-    .select("_id")
+    .select("_id hostId title")
     .lean();
 
   if (!event) {
@@ -617,6 +557,10 @@ export const updateMyEventMembership = async (
     throw new AppError("Event membership not found", 404, "EVENT_MEMBERSHIP_NOT_FOUND");
   }
 
+  const previousRsvpStatus = membership.rsvpStatus;
+  const nextRsvpStatus = input.rsvpStatus;
+  const rsvpStatusChanged = nextRsvpStatus !== undefined && nextRsvpStatus !== previousRsvpStatus;
+
   if (input.rsvpStatus) {
     membership.rsvpStatus = input.rsvpStatus;
   }
@@ -626,6 +570,16 @@ export const updateMyEventMembership = async (
   }
 
   await membership.save();
+
+  if (rsvpStatusChanged && nextRsvpStatus) {
+    await createEventRsvpChangeNotification({
+      eventId: String(event._id),
+      hostId: String(event.hostId),
+      attendeeId: userId,
+      eventTitle: event.title,
+      rsvpStatus: nextRsvpStatus,
+    });
+  }
 
   return membership;
 };

@@ -1,9 +1,11 @@
 import mongoose, { Schema, model, type InferSchemaType, type Model } from "mongoose";
 
 export const NOTIFICATION_TYPES = [
+  "event_invitation",
   "event_reactivated",
   "event_cancelled",
   "connection_request",
+  "connection_accepted",
   "event_rsvp_change",
 ] as const;
 
@@ -63,6 +65,7 @@ const notificationSchema = new Schema(
 );
 
 notificationSchema.index({ userId: 1, readAt: 1, createdAt: -1 });
+notificationSchema.index({ userId: 1, createdAt: -1, _id: -1 });
 notificationSchema.index({ targetType: 1, targetId: 1, type: 1 });
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

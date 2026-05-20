@@ -7,8 +7,10 @@ const eventFindOneMock = vi.hoisted(() => vi.fn());
 const eventMemberCreateMock = vi.hoisted(() => vi.fn());
 const eventMemberDistinctMock = vi.hoisted(() => vi.fn());
 const eventMemberFindMock = vi.hoisted(() => vi.fn());
+const eventMemberFindOneMock = vi.hoisted(() => vi.fn());
 const eventMemberUpdateManyMock = vi.hoisted(() => vi.fn());
 const getBlockedRelationshipUserIdsMock = vi.hoisted(() => vi.fn());
+const getUsersByIdsMock = vi.hoisted(() => vi.fn());
 const notificationCreateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("#models/index", () => ({
@@ -26,7 +28,7 @@ vi.mock("#models/index", () => ({
     create: eventMemberCreateMock,
     distinct: eventMemberDistinctMock,
     find: eventMemberFindMock,
-    findOne: vi.fn(),
+    findOne: eventMemberFindOneMock,
     updateMany: eventMemberUpdateManyMock,
   },
   Notification: {
@@ -43,6 +45,10 @@ vi.mock("#utils/transactions", () => ({
   withTransactionFallback: vi.fn((callback: () => unknown) => callback()),
 }));
 
+vi.mock("#services/userDirectoryService", () => ({
+  getUsersByIds: getUsersByIdsMock,
+}));
+
 const {
   cancelEvent,
   createEvent,
@@ -50,6 +56,7 @@ const {
   getEvents,
   getMyUpcomingEvents,
   reactivateEvent,
+  updateMyEventMembership,
 } = await import("#services/eventService");
 
 const USER_ID = "507f1f77bcf86cd799439011";
@@ -63,6 +70,9 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   eventMemberDistinctMock.mockResolvedValue([]);
   getBlockedRelationshipUserIdsMock.mockResolvedValue([]);
+  getUsersByIdsMock.mockResolvedValue(
+    new Map([[GUEST_ID, { _id: GUEST_ID, username: "guest", displayName: "Guest" }]])
+  );
 });
 
 afterEach(() => {
@@ -74,6 +84,13 @@ const mockEventFindOneSession = (event: unknown) => {
   const sessionMock = vi.fn().mockResolvedValue(event);
   eventFindOneMock.mockReturnValue({ session: sessionMock });
   return sessionMock;
+};
+
+const mockEventFindOneSelectLean = (event: unknown) => {
+  const leanMock = vi.fn().mockResolvedValue(event);
+  const selectMock = vi.fn().mockReturnValue({ lean: leanMock });
+  eventFindOneMock.mockReturnValue({ select: selectMock });
+  return { leanMock, selectMock };
 };
 
 const mockEventMembersForNotifications = (members: Array<Record<string, unknown>>) => {
@@ -168,7 +185,6 @@ describe("eventService.cancelEvent", () => {
     mockEventMembersForNotifications([
       { userId: USER_ID, rsvpStatus: "going" },
       { userId: GUEST_ID, rsvpStatus: "declined" },
-      { userId: ADMIN_ID, rsvpStatus: "maybe" },
     ]);
     notificationCreateMock.mockResolvedValue([]);
 
@@ -179,20 +195,21 @@ describe("eventService.cancelEvent", () => {
     expect(event.save).toHaveBeenCalledOnce();
     expect(eventMemberUpdateManyMock).not.toHaveBeenCalled();
     expect(notificationCreateMock).toHaveBeenCalledOnce();
-    expect(notificationCreateMock.mock.calls[0]?.[0]).toEqual([
+    const docs = notificationCreateMock.mock.calls[0]?.[0] as Array<{
+      userId: unknown;
+      actorId: unknown;
+      type: string;
+      targetType: string;
+    }>;
+    expect(docs).toHaveLength(1);
+    expect(String(docs[0]?.userId)).toBe(ADMIN_ID);
+    expect(docs[0]).toEqual(
       expect.objectContaining({
-        userId: GUEST_ID,
         actorId: expect.anything(),
         type: "event_cancelled",
         targetType: "event",
-      }),
-      expect.objectContaining({
-        userId: ADMIN_ID,
-        actorId: expect.anything(),
-        type: "event_cancelled",
-        targetType: "event",
-      }),
-    ]);
+      })
+    );
   });
 
   it("rejects an admin member who is not the host", async () => {
@@ -246,6 +263,7 @@ describe("eventService.reactivateEvent", () => {
     mockEventMembersForNotifications([
       { userId: USER_ID, rsvpStatus: "going" },
       { userId: GUEST_ID, rsvpStatus: "declined" },
+      { userId: ADMIN_ID, rsvpStatus: "going" },
     ]);
     notificationCreateMock.mockResolvedValue([]);
 
@@ -254,13 +272,97 @@ describe("eventService.reactivateEvent", () => {
     expect(result).toBe(event);
     expect(event.status).toBe("active");
     expect(event.save).toHaveBeenCalledOnce();
-    expect(notificationCreateMock.mock.calls[0]?.[0]).toEqual([
+    const docs = notificationCreateMock.mock.calls[0]?.[0] as Array<{
+      userId: unknown;
+      type: string;
+      targetType: string;
+    }>;
+    expect(docs).toHaveLength(1);
+    expect(String(docs[0]?.userId)).toBe(ADMIN_ID);
+    expect(docs[0]).toEqual(
       expect.objectContaining({
-        userId: GUEST_ID,
         type: "event_reactivated",
         targetType: "event",
-      }),
-    ]);
+      })
+    );
+  });
+});
+
+describe("eventService.updateMyEventMembership", () => {
+  it("creates an RSVP notification only when the RSVP status actually changes", async () => {
+    mockEventFindOneSelectLean({
+      _id: EVENT_ID,
+      hostId: USER_ID,
+      title: "coffee after class",
+    });
+    const membership = {
+      rsvpStatus: "invited",
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    eventMemberFindOneMock.mockResolvedValue(membership);
+    notificationCreateMock.mockResolvedValue([{}]);
+
+    await updateMyEventMembership(GUEST_ID, EVENT_ID, {
+      rsvpStatus: "going",
+    });
+
+    expect(membership.rsvpStatus).toBe("going");
+    expect(membership.save).toHaveBeenCalledOnce();
+    expect(notificationCreateMock).toHaveBeenCalledOnce();
+    const docs = notificationCreateMock.mock.calls[0]?.[0] as Array<{
+      userId: unknown;
+      actorId: unknown;
+      type: string;
+      metadata: { rsvpStatus?: string };
+    }>;
+    expect(String(docs[0]?.userId)).toBe(USER_ID);
+    expect(String(docs[0]?.actorId)).toBe(GUEST_ID);
+    expect(docs[0]).toEqual(
+      expect.objectContaining({
+        type: "event_rsvp_change",
+        metadata: expect.objectContaining({ rsvpStatus: "going" }),
+      })
+    );
+  });
+
+  it("does not create an RSVP notification for ETA-only or unchanged RSVP updates", async () => {
+    mockEventFindOneSelectLean({
+      _id: EVENT_ID,
+      hostId: USER_ID,
+      title: "coffee after class",
+    });
+    eventMemberFindOneMock.mockResolvedValue({
+      rsvpStatus: "going",
+      save: vi.fn().mockResolvedValue(undefined),
+    });
+
+    await updateMyEventMembership(GUEST_ID, EVENT_ID, {
+      memberWillArriveAt: new Date("2026-05-14T13:10:00.000Z"),
+    });
+
+    await updateMyEventMembership(GUEST_ID, EVENT_ID, {
+      rsvpStatus: "going",
+    });
+
+    expect(notificationCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("does not notify when the host updates their own RSVP", async () => {
+    mockEventFindOneSelectLean({
+      _id: EVENT_ID,
+      hostId: USER_ID,
+      title: "coffee after class",
+    });
+    eventMemberFindOneMock.mockResolvedValue({
+      rsvpStatus: "invited",
+      save: vi.fn().mockResolvedValue(undefined),
+    });
+
+    await updateMyEventMembership(USER_ID, EVENT_ID, {
+      rsvpStatus: "going",
+    });
+
+    expect(notificationCreateMock).not.toHaveBeenCalled();
   });
 });
 
