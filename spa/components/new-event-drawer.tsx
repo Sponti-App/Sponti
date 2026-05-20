@@ -466,14 +466,35 @@ export function NewEventDrawer({
     () => circles.find((circle) => circle.id === audience) ?? null,
     [circles, audience]
   )
-  const handleSelectAudience = useCallback((circleId: string): void => {
-    setAudience((prev) => (prev === circleId ? "" : circleId))
-  }, [])
+  const selectedAudienceMemberIdSet = useMemo(
+    () => new Set(selectedAudienceCircle?.memberIds ?? []),
+    [selectedAudienceCircle]
+  )
   // Direct invites become `members` on the create-event request, either as
   // extras for a selected circle or as the whole private audience.
   const [directlyInvitedIds, setDirectlyInvitedIds] = useState<string[]>(
     initialEventDraftState.directlyInvitedIds
   )
+  const handleSelectAudience = useCallback(
+    (circleId: string): void => {
+      const nextAudience = audience === circleId ? "" : circleId
+      setAudience(nextAudience)
+
+      const nextCircle = circles.find((circle) => circle.id === nextAudience)
+      if (!nextCircle || nextCircle.memberIds.length === 0) return
+
+      const memberSet = new Set(nextCircle.memberIds)
+      setDirectlyInvitedIds((prev) => {
+        const next = prev.filter((id) => !memberSet.has(id))
+        return next.length === prev.length ? prev : next
+      })
+    },
+    [audience, circles]
+  )
+  const directInviteConnections = useMemo(() => {
+    if (selectedAudienceMemberIdSet.size === 0) return connections
+    return connections.filter((c) => !selectedAudienceMemberIdSet.has(c.id))
+  }, [connections, selectedAudienceMemberIdSet])
   // Inner/Close are editable inline via long-press. This holds the id of the
   // circle currently being edited; null when no edit panel is open.
   const [editingCircleId, setEditingCircleId] = useState<string | null>(
@@ -579,6 +600,11 @@ export function NewEventDrawer({
               : circle
           )
         )
+        if (circleId === audience) {
+          setDirectlyInvitedIds((prev) =>
+            prev.includes(userId) ? prev.filter((id) => id !== userId) : prev
+          )
+        }
       })
       .catch((error: unknown) => {
         setAudienceError(getErrorMessage(error))
@@ -1236,19 +1262,21 @@ export function NewEventDrawer({
                         audience={audience}
                         onSelectAudience={handleSelectAudience}
                         connections={connections}
+                        directInviteConnections={directInviteConnections}
                         editingCircleId={editingCircleId}
                         onStartEditingCircle={setEditingCircleId}
                         onCloseEditingCircle={() => setEditingCircleId(null)}
                         onAddCircleMember={updateCircleMember}
                         onRemoveCircleMember={removeCircleMember}
                         directlyInvitedIds={directlyInvitedIds}
-                        onToggleDirectInvite={(id) =>
+                        onToggleDirectInvite={(id) => {
+                          if (selectedAudienceMemberIdSet.has(id)) return
                           setDirectlyInvitedIds((prev) =>
                             prev.includes(id)
                               ? prev.filter((x) => x !== id)
                               : [...prev, id]
                           )
-                        }
+                        }}
                         allowForward={allowForward}
                         onAllowForward={setAllowForward}
                         allowPlusOne={allowPlusOne}
@@ -1869,6 +1897,7 @@ function WhoBlock({
   audience,
   onSelectAudience,
   connections,
+  directInviteConnections,
   editingCircleId,
   onStartEditingCircle,
   onCloseEditingCircle,
@@ -1889,6 +1918,7 @@ function WhoBlock({
   audience: Audience
   onSelectAudience: (circleId: string) => void
   connections: Connection[]
+  directInviteConnections: Connection[]
   editingCircleId: string | null
   onStartEditingCircle: (id: string) => void
   onCloseEditingCircle: () => void
@@ -1958,7 +1988,7 @@ function WhoBlock({
           {/* Always-visible — selecting friends here adds direct event
               invites, either as circle extras or as a manual-only audience. */}
           <DirectInviteSearch
-            connections={connections}
+            connections={directInviteConnections}
             directlyInvitedIds={directlyInvitedIds}
             onToggle={onToggleDirectInvite}
           />
