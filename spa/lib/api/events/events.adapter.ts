@@ -125,19 +125,42 @@ function hostFromApi(host: ApiEvent["hostId"]): EventItem["host"] {
   if (typeof host === "string") {
     return {
       id: host,
-      name: "host",
-      avatar: "?",
+      name: "Host",
+      avatar: "H",
+      avatarUrl: null,
       color: "bg-stone-400",
       note: "",
     }
   }
   const name = host.displayName || host.username || "host"
+  const avatarUrl = host.avatarUrl ?? null
+  const initials = initialsFromName(name)
   return {
     id: host._id,
     name,
-    avatar: name.charAt(0).toUpperCase(),
+    avatar: initials,
+    avatarUrl,
     color: "bg-stone-400",
     note: "",
+  }
+}
+
+function initialsFromName(name: string): string {
+  if (!name) return ""
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
+  return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase()
+}
+
+function hostIdentityFromApi(
+  host: ApiEvent["hostId"]
+): Pick<HostedEvent, "hostId" | "hostName" | "hostUsername" | "hostAvatarUrl"> {
+  if (typeof host === "string") return { hostId: host }
+  return {
+    hostId: host._id,
+    hostName: host.displayName || host.username || "host",
+    hostUsername: host.username,
+    hostAvatarUrl: host.avatarUrl ?? null,
   }
 }
 
@@ -181,8 +204,11 @@ export function adaptApiEvent(api: ApiEvent): EventItem {
 export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
   return {
     id: api._id,
+    ...hostIdentityFromApi(api.hostId),
     title: api.title,
     description: api.description ?? undefined,
+    type: api.type,
+    coverImageUrl: api.coverImageUrl ?? undefined,
     startAt: api.startAt,
     endAt: api.endAt,
     locationLabel: api.locationName,
@@ -190,7 +216,15 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     audienceLabel: api.visibility,
     attendeeCount: api.memberCount ?? api.attendees?.length ?? 0,
     attendingCount: api.goingCount ?? 0,
+    attendees: (api.attendees ?? []).map((a) => ({
+      id: a._id,
+      displayName: a.displayName || a.username || "guest",
+      username: a.username,
+      avatarUrl: a.avatarUrl ?? null,
+    })),
     visibility: api.visibility,
+    guestLimit: api.guestInviteLimit,
+    myRsvp: api.myRsvp ?? null,
     recurrence: "none",
     apiStatus: api.status,
     updatedAt: api.updatedAt ?? api.startAt,

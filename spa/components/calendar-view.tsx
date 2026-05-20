@@ -227,7 +227,7 @@ export function CalendarView({
               {anchor.getMonth() !== undefined && (
                 <>
                   {MONTH_NAMES[anchor.getMonth()]}{" "}
-                  <span className="text-sm font-medium text-muted-foreground">
+                  <span className="text-xs font-normal text-muted-foreground">
                     {anchor.getFullYear()}
                   </span>
                 </>
@@ -250,14 +250,14 @@ export function CalendarView({
             <button
               type="button"
               onClick={() => setViewMode("week")}
-              className={`rounded-full px-2 py-1 text-sm font-medium transition-colors ${viewMode === "week" ? "bg-accent text-accent-foreground" : "text-foreground"}`}
+              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${viewMode === "week" ? "bg-card text-primary" : "text-muted-foreground hover:text-foreground"}`}
             >
               week
             </button>
             <button
               type="button"
               onClick={() => setViewMode("month")}
-              className={`rounded-full px-2 py-1 text-sm font-medium transition-colors ${viewMode === "month" ? "bg-accent text-accent-foreground" : "text-foreground"}`}
+              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${viewMode === "month" ? "bg-card text-primary" : "text-muted-foreground hover:text-foreground"}`}
             >
               month
             </button>
@@ -306,36 +306,45 @@ export function CalendarView({
                     month: "short",
                     day: "numeric",
                   })}
-                  className={`flex flex-col items-center justify-center rounded-lg border py-1.5 transition-colors ${beyondHorizon
-                    ? "cursor-not-allowed border-border/40 bg-background opacity-40"
+                  className={`flex flex-col items-center justify-center rounded-lg py-1.5 transition-colors ${beyondHorizon
+                    ? "cursor-not-allowed opacity-30"
                     : isSelected
-                      ? "border-accent bg-accent/10"
-                      : isToday
-                        ? "border-accent/60 bg-background hover:bg-secondary"
-                        : "border-border bg-background hover:bg-secondary"
+                      ? "bg-card"
+                      : "hover:bg-secondary"
                     }`}
                 >
                   <span
-                    className={`text-xs font-medium uppercase tracking-wide ${isSelected || isToday
-                      ? "text-accent"
-                      : "text-muted-foreground"
-                      }`}
+                    className={`text-xs font-medium uppercase tracking-wide ${
+                      isSelected
+                        ? "text-primary"
+                        : isToday
+                          ? "text-accent"
+                          : "text-muted-foreground"
+                    }`}
                   >
                     {chip.weekday}
                   </span>
                   <span
-                    className={`mt-0.5 text-sm leading-none font-medium ${isSelected || isToday ? "text-accent" : "text-foreground"
-                      }`}
+                    className={`mt-0.5 text-sm leading-none font-medium ${
+                      isSelected
+                        ? "text-primary"
+                        : isToday
+                          ? "text-accent"
+                          : "text-foreground"
+                    }`}
                   >
                     {chip.date}
                   </span>
                   <div
-                    className={`mt-1 h-1 w-1 rounded-full ${hasEvents
-                      ? isSelected || isToday
-                        ? "bg-accent"
-                        : "bg-foreground"
-                      : "bg-transparent"
-                      }`}
+                    className={`mt-1 h-1 w-1 rounded-full ${
+                      hasEvents
+                        ? isSelected
+                          ? "bg-primary"
+                          : isToday
+                            ? "bg-accent"
+                            : "bg-foreground"
+                        : "bg-transparent"
+                    }`}
                     aria-hidden
                   />
                 </button>
@@ -344,29 +353,29 @@ export function CalendarView({
           </div>
         ) : (
           <div className="mt-4">
-          <MonthCalendar
-            anchorMonth={anchor}
-            selected={selected}
-            today={today}
-            eventsByDay={eventsByDay}
-            onSelectDay={(d: Date) => {
-              setAnchor(d)
-              setSelected(d)
-              const hasEvents = (eventsByDay.get(dayKey(d))?.length ?? 0) > 0
-              if (hasEvents) {
-                // Defer one frame so the selected day's section is rendered
-                // before we scroll to it.
-                requestAnimationFrame(() => {
-                  daySectionRef.current?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start",
+            <MonthCalendar
+              anchorMonth={anchor}
+              selected={selected}
+              today={today}
+              eventsByDay={eventsByDay}
+              onSelectDay={(d: Date) => {
+                setAnchor(d)
+                setSelected(d)
+                const hasEvents = (eventsByDay.get(dayKey(d))?.length ?? 0) > 0
+                if (hasEvents) {
+                  // Defer one frame so the selected day's section is rendered
+                  // before we scroll to it.
+                  requestAnimationFrame(() => {
+                    daySectionRef.current?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    })
                   })
-                })
-              }
-            }}
-            onEventSelect={onEventSelect}
-            joinedIds={joinedIds}
-          />
+                }
+              }}
+              onEventSelect={onEventSelect}
+              joinedIds={joinedIds}
+            />
           </div>
         )}
       </div>
@@ -383,13 +392,13 @@ export function CalendarView({
           <button
             type="button"
             onClick={openDrawer}
-            className="mt-3 flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-accent/50 bg-accent/5 px-4 py-3 text-left transition-colors hover:bg-accent/10"
+            className="mt-3 flex w-full items-center gap-3 rounded-xl bg-card px-4 py-3 text-left transition-colors hover:bg-secondary"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
               <Flame className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-medium text-accent">+ make a plan</p>
+              <p className="text-sm font-medium text-foreground">+ make a plan</p>
               <p className="text-xs text-muted-foreground">
                 light a flare for any day this week
               </p>
@@ -508,7 +517,7 @@ function DaySection({
           ))}
         </div>
       )}
-      {events.length === 0 && emptyAction}
+      {emptyAction}
     </div>
   )
 }
@@ -525,8 +534,9 @@ function EventCard({
   const live = isLive(event)
   return (
     <Card
-      className={`cursor-pointer flex-row items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/50 active:bg-muted ${joined ? "border-accent bg-accent/5" : "border-border"
-        }`}
+      className={`cursor-pointer flex-row items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:bg-muted/50 active:bg-muted ${
+        live ? "border-l-[3px] border-l-accent" : ""
+      }`}
       onClick={() => onSelect(event)}
     >
       <span className="w-12 shrink-0 text-sm text-muted-foreground tabular-nums">
@@ -535,19 +545,15 @@ function EventCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <p className="truncate text-sm font-medium">{event.title}</p>
-          {live && (
-            <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-accent-foreground">
-              live
-            </span>
-          )}
           {joined && (
-            <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+            <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">
               <Check className="h-2.5 w-2.5" /> going
             </span>
           )}
         </div>
         <p className="truncate text-xs text-muted-foreground">
-          {event.location.name} · {event.going} going
+          {event.location.name}
+          {event.going > 0 ? ` · ${event.going} going` : ""}
         </p>
       </div>
       <div className="flex shrink-0 -space-x-1">

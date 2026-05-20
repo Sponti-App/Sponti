@@ -7,7 +7,6 @@ import { BottomNav } from "@/components/bottom-nav"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
 import { MenuDrawer } from "@/components/menu-drawer"
 import { NotificationsPopover } from "@/components/notifications-popover"
-import { HomeTour } from "@/components/home-tour"
 import { useAuth } from "@/components/auth-provider"
 import { Menu, Settings, Map, Calendar, Navigation, X } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -168,7 +167,7 @@ export default function Home() {
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             onClick={() => { haptic("selection"); setMenuOpen((v) => !v) }}
-            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/70 shadow-sm backdrop-blur-md transition-colors active:bg-background/90"
+            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md transition-colors dark:bg-background/90 active:bg-background/95"
           >
             <Menu className="h-4 w-4" />
           </button>
@@ -178,7 +177,9 @@ export default function Home() {
             <button
               onClick={() => { haptic("selection"); setView("map") }}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
-                view === "map" ? "bg-accent text-accent-foreground" : ""
+                view === "map"
+                  ? "bg-card text-primary"
+                  : "text-muted-foreground"
               }`}
             >
               <Map className="h-4 w-4" />
@@ -187,7 +188,9 @@ export default function Home() {
             <button
               onClick={() => { haptic("selection"); setView("calendar") }}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
-                view === "calendar" ? "bg-accent text-accent-foreground" : ""
+                view === "calendar"
+                  ? "bg-card text-primary"
+                  : "text-muted-foreground"
               }`}
             >
               <Calendar className="h-4 w-4" />
@@ -199,7 +202,7 @@ export default function Home() {
           <button
             onClick={() => { haptic("selection"); router.push("/settings") }}
             aria-label="Settings"
-            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/70 shadow-sm backdrop-blur-md transition-colors active:bg-background/90"
+            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md transition-colors dark:bg-background/90 active:bg-background/95"
           >
             <Settings className="h-4 w-4" />
           </button>
@@ -257,7 +260,6 @@ export default function Home() {
       </div>
 
       <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
-      <HomeTour user={user} onViewChange={setView} />
     </div>
   )
 }

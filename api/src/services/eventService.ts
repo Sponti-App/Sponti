@@ -19,6 +19,7 @@ import type {
   UpdateMyEventMembershipBody,
 } from "#schemas/eventSchemas";
 import { getBlockedInviteeIds, getBlockedRelationshipUserIds } from "#services/blockService";
+import { getUsersByIds, type UserSummary } from "#services/userDirectoryService";
 import { notificationHooks } from "#services/notificationHookService";
 import { AppError } from "#utils/AppError";
 import { toObjectId, uniqueObjectIdStrings } from "#utils/objectId";
@@ -35,6 +36,19 @@ type InviteCandidate = {
 type EventWithMemberStats<T> = T & {
   memberCount: number;
   goingCount: number;
+};
+type EventUserIdentity = {
+  _id: string;
+  displayName?: string;
+  username?: string;
+  avatarUrl?: string | null;
+};
+type EventWithPeople<T> = Omit<T, "hostId"> & {
+  hostId: string | EventUserIdentity;
+  attendees: EventUserIdentity[];
+};
+type EventWithHostProfile<T> = Omit<T, "hostId"> & {
+  hostId: string | EventUserIdentity | null;
 };
 type EventStatusNotificationInput = {
   eventId: string;
@@ -119,6 +133,94 @@ const attachMemberStats = async <T extends { _id: unknown }>(
     memberCount: statsByEventId.get(String(event._id))?.memberCount ?? 0,
     goingCount: statsByEventId.get(String(event._id))?.goingCount ?? 0,
   }));
+};
+
+const objectIdString = (value: unknown): string => {
+  if (value && typeof value === "object" && "_id" in value) {
+    return String((value as { _id: unknown })._id);
+  }
+
+  return String(value);
+};
+
+const extractHostId = (hostId: unknown): string | null => {
+  if (!hostId) return null;
+  return objectIdString(hostId);
+};
+
+const toEventUserIdentity = (userId: string, user?: UserSummary): EventUserIdentity => ({
+  _id: user?._id ?? userId,
+  displayName: user?.displayName ?? user?.username ?? "guest",
+  username: user?.username,
+  avatarUrl: user?.avatarUrl ?? null,
+});
+
+const attachHostProfiles = async <T extends { hostId: unknown }>(
+  events: T[]
+): Promise<Array<EventWithHostProfile<T>>> => {
+  if (events.length === 0) {
+    return [];
+  }
+
+  const hostIds = events
+    .map((event) => extractHostId(event.hostId))
+    .filter((id): id is string => id !== null);
+  const users = await getUsersByIds(uniqueObjectIdStrings(hostIds));
+
+  return events.map((event) => {
+    const hostId = extractHostId(event.hostId);
+    if (!hostId) return { ...event, hostId: null };
+
+    const user = users.get(hostId);
+    return {
+      ...event,
+      hostId: user ? toEventUserIdentity(hostId, user) : hostId,
+    };
+  });
+};
+
+const attachEventPeople = async <T extends { _id: unknown; hostId: unknown }>(
+  events: T[]
+): Promise<Array<EventWithPeople<T>>> => {
+  if (events.length === 0) {
+    return [];
+  }
+
+  const eventIds = events.map((event) => toObjectId(String(event._id)));
+  const goingMembers = await EventMember.find({
+    eventId: { $in: eventIds },
+    rsvpStatus: "going",
+  })
+    .select("eventId userId")
+    .lean();
+
+  const userIds = uniqueObjectIdStrings([
+    ...events.map((event) => objectIdString(event.hostId)),
+    ...goingMembers.map((member) => String(member.userId)),
+  ]);
+  const users = await getUsersByIds(userIds);
+  const hostIdByEventId = new Map(
+    events.map((event) => [String(event._id), objectIdString(event.hostId)])
+  );
+  const attendeesByEventId = new Map<string, EventUserIdentity[]>();
+
+  for (const member of goingMembers) {
+    const eventId = String(member.eventId);
+    const userId = String(member.userId);
+    if (userId === hostIdByEventId.get(eventId)) continue;
+    const attendees = attendeesByEventId.get(eventId) ?? [];
+    attendees.push(toEventUserIdentity(userId, users.get(userId)));
+    attendeesByEventId.set(eventId, attendees);
+  }
+
+  return events.map((event) => {
+    const hostId = objectIdString(event.hostId);
+    return {
+      ...event,
+      hostId: toEventUserIdentity(hostId, users.get(hostId)),
+      attendees: attendeesByEventId.get(String(event._id)) ?? [],
+    };
+  });
 };
 
 const createEventStatusNotifications = async ({
@@ -394,7 +496,7 @@ export const getEvents = async (userId: string, query: GetEventsQuery) => {
   ]);
 
   return {
-    data: events,
+    data: await attachHostProfiles(events),
     pagination: toPagination(page, limit, total),
   };
 };
@@ -415,8 +517,14 @@ export const getEventById = async (userId: string, eventId: string) => {
 
   const withStats = await attachMemberStats([event]);
   const withRsvp = await attachMyRsvp(userId, withStats);
+  const withPeople = await attachEventPeople(withRsvp);
+  const enriched = withPeople[0];
 
-  return withRsvp[0] ?? event;
+  if (!enriched) {
+    throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
+  }
+
+  return enriched;
 };
 
 /**
@@ -457,10 +565,16 @@ export const getMyUpcomingEvents = async (userId: string, query: MyUpcomingEvent
       .lean(),
   ]);
 
+  const [hostedByMeWithHost, invitedWithHost, pastHostedWithHost] = await Promise.all([
+    attachHostProfiles(hostedByMe),
+    attachHostProfiles(invited),
+    attachHostProfiles(pastHosted),
+  ]);
+
   const [hostedWithStats, invitedWithStats, pastWithStats] = await Promise.all([
-    attachMemberStats(hostedByMe),
-    attachMemberStats(invited),
-    attachMemberStats(pastHosted),
+    attachMemberStats(hostedByMeWithHost),
+    attachMemberStats(invitedWithHost),
+    attachMemberStats(pastHostedWithHost),
   ]);
 
   const [hostedWithRsvp, invitedWithRsvp, pastWithRsvp] = await Promise.all([
@@ -468,11 +582,16 @@ export const getMyUpcomingEvents = async (userId: string, query: MyUpcomingEvent
     attachMyRsvp(userId, invitedWithStats),
     attachMyRsvp(userId, pastWithStats),
   ]);
+  const [hostedWithPeople, invitedWithPeople, pastWithPeople] = await Promise.all([
+    attachEventPeople(hostedWithRsvp),
+    attachEventPeople(invitedWithRsvp),
+    attachEventPeople(pastWithRsvp),
+  ]);
 
   return {
-    hostedByMe: hostedWithRsvp,
-    invited: invitedWithRsvp,
-    pastHosted: pastWithRsvp,
+    hostedByMe: hostedWithPeople,
+    invited: invitedWithPeople,
+    pastHosted: pastWithPeople,
   };
 };
 
@@ -693,7 +812,7 @@ export const getActiveMapEvents = async (userId: string, query: ActiveMapEventsQ
   });
 
   const events = await Event.find(filter).sort({ startAt: 1 }).limit(200).lean();
-  return attachMyRsvp(userId, events);
+  return attachMyRsvp(userId, await attachHostProfiles(events));
 };
 
 export const getUpcomingCalendarEvents = async (
@@ -712,7 +831,7 @@ export const getUpcomingCalendarEvents = async (
   ]);
 
   return {
-    data: await attachMyRsvp(userId, events),
+    data: await attachMyRsvp(userId, await attachHostProfiles(events)),
     pagination: toPagination(page, limit, total),
   };
 };
@@ -723,7 +842,10 @@ export const filterOutBlockedEventHosts = async <T extends { hostId: unknown }>(
 ) => {
   const blockedIds = new Set(await getBlockedRelationshipUserIds(userId));
 
-  return events.filter((event) => !blockedIds.has(String(event.hostId)));
+  return events.filter((event) => {
+    const hostId = extractHostId(event.hostId);
+    return !hostId || !blockedIds.has(hostId);
+  });
 };
 
 export const isUserBlockedFromEventHost = async (userId: string, hostId: string) => {

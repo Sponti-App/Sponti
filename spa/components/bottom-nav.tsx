@@ -98,30 +98,17 @@ export function BottomNav({
     >
       {items.map((item) => {
         const Icon = item.icon
-
-        if (item.center) {
-          const centerClick =
-            item.kind === "route"
-              ? () => { haptic("medium"); router.push(item.href) }
-              : () => { haptic("medium"); item.onClick() }
-          return (
-            <button
-              key={item.label}
-              type="button"
-              onClick={centerClick}
-              aria-label={item.label}
-              className="-mt-6 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg ring-4 ring-background transition-transform active:scale-95"
-            >
-              <Icon className="h-6 w-6" />
-            </button>
-          )
-        }
-
         const active = item.kind === "route" && isActive(item.href)
         const handleClick =
           item.kind === "route"
-            ? () => { haptic("selection"); router.push(item.href) }
-            : () => { haptic("selection"); item.onClick() }
+            ? () => {
+                haptic(item.center ? "medium" : "selection")
+                router.push(item.href)
+              }
+            : () => {
+                haptic(item.center ? "medium" : "selection")
+                item.onClick()
+              }
 
         return (
           <button

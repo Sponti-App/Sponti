@@ -26,6 +26,7 @@ export interface EventItem {
     id: string
     name: string
     avatar: string
+    avatarUrl?: string | null
     color: string
     note: string
   }
@@ -82,8 +83,14 @@ export type EventStatus = HostedEventStatus
 
 export type HostedEvent = {
   id: string
+  hostId?: string
+  hostName?: string
+  hostUsername?: string
+  hostAvatarUrl?: string | null
   title: string
   description?: string
+  type: EventType
+  coverImageUrl?: string
   startAt: string
   endAt: string
   locationLabel: string
@@ -91,6 +98,14 @@ export type HostedEvent = {
   audienceLabel: string
   attendeeCount: number
   attendingCount: number
+  attendees?: Array<{
+    id: string
+    displayName: string
+    username?: string
+    avatarUrl?: string | null
+  }>
+  guestLimit: number
+  myRsvp?: EventRsvp | null
   visibility: EventVisibility
   recurrence: Recurrence
   apiStatus: ApiEventStatus
@@ -128,6 +143,7 @@ export type CreateEventRequest = {
   title: string
   description?: string | null
   type: EventType
+  coverImageUrl?: string | null
   startAt: string
   endAt: string
   locationName: string
@@ -171,10 +187,18 @@ export type ApiEventMember = {
 
 export type ApiEvent = {
   _id: string
-  hostId: string | { _id: string; displayName?: string; username?: string }
+  hostId:
+    | string
+    | {
+        _id: string
+        displayName?: string
+        username?: string
+        avatarUrl?: string | null
+      }
   title: string
   description?: string | null
   type: EventType
+  coverImageUrl?: string | null
   startAt: string
   endAt: string
   locationName: string
@@ -187,7 +211,12 @@ export type ApiEvent = {
   myRsvp?: EventRsvp | null
   memberCount?: number
   goingCount?: number
-  attendees?: Array<{ _id: string; displayName?: string; username?: string }>
+  attendees?: Array<{
+    _id: string
+    displayName?: string
+    username?: string
+    avatarUrl?: string | null
+  }>
   createdAt?: string
   updatedAt?: string
 }
