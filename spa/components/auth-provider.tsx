@@ -42,6 +42,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [revalidatedFor, setRevalidatedFor] = useState<string | null>(null)
 
   useEffect(() => {
+    if (session.accessToken && !session.refreshToken) {
+      clearSession()
+      setRevalidatedFor(null)
+    }
+  }, [session.accessToken, session.refreshToken])
+
+  useEffect(() => {
     if (!session.accessToken || !session.refreshToken) return
     if (revalidatedFor === session.accessToken) return
 
@@ -70,6 +77,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const status: Status = !session.accessToken
     ? "unauthenticated"
+    : !session.refreshToken
+      ? "unauthenticated"
     : revalidatedFor === session.accessToken
       ? "authenticated"
       : "loading"

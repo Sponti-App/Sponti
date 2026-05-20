@@ -6,15 +6,12 @@ import { connectDB } from "#db";
 
 const app = express();
 
-// Allow the Next dev server and Capacitor WebView origins. Override via
-// CORS_ORIGINS (comma-separated) when deploying.
 const defaultOrigins = [
     "https://sponti-spa.vercel.app",
     "http://localhost:3000",
     "http://localhost:3001",
     "http://localhost:3002",
     "http://localhost",
-    "http://192.168.178.185:3000",
     "capacitor://localhost",
     "ionic://localhost",
 ];
