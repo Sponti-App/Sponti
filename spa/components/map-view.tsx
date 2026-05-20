@@ -563,12 +563,9 @@ export function MapView({
     }
   }
 
-  // The "expanded" state keeps a strip of the map visible at the top instead
-  // of going full-screen, mirroring the new-event drawer behaviour. 80vh
-  // leaves room for the route pill and floating header chips above it.
   const sheetStyle: React.CSSProperties =
     peekState === "expanded"
-      ? { height: "80vh", bottom: 0 }
+      ? { height: "55vh", bottom: 0 }
       : peekState === "mini"
         ? { height: `${SHEET_PX.mini}px`, bottom: NAV_RESERVED_CSS }
         : { height: `${SHEET_PX.peek}px`, bottom: 0 }
