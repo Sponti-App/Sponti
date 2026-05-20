@@ -13,6 +13,7 @@ type ApiCircleMember = {
   ownerId: string
   userId: string
   user?: ApiUserSummary | null
+  createdAt?: string
 }
 
 type ApiCircle = {
@@ -33,6 +34,13 @@ export type CreateCircleRequest = {
   memberIds?: string[]
 }
 
+export type UpdateCircleRequest = {
+  name?: string
+  type?: CircleType
+  color?: string | null
+  icon?: string | null
+}
+
 /**
  * Provides the short UI description for known system circle types. Custom or
  * missing types fall back to the default close-friends wording.
@@ -40,6 +48,7 @@ export type CreateCircleRequest = {
 function descriptionFromType(type: CircleType | undefined): string {
   if (type === "inner") return "your tightest group"
   if (type === "all") return "everyone you follow"
+  if (type === "custom") return "custom circle"
   return "your closer group"
 }
 
@@ -49,12 +58,20 @@ function descriptionFromType(type: CircleType | undefined): string {
  */
 export function adaptApiCircle(circle: ApiCircle): Circle {
   const type = circle.type ?? "close"
+  const members = circle.members ?? []
   return {
     id: circle._id,
     name: circle.name,
     description: descriptionFromType(type),
     type,
-    memberIds: (circle.members ?? []).map((member) => member.userId),
+    memberIds: members.map((member) => member.userId),
+    color: circle.color ?? null,
+    icon: circle.icon ?? null,
+    memberAddedAt: Object.fromEntries(
+      members
+        .filter((member) => member.createdAt)
+        .map((member) => [member.userId, member.createdAt as string])
+    ),
   }
 }
 
@@ -75,4 +92,33 @@ export function createCircle(body: CreateCircleRequest): Promise<Circle> {
     method: "POST",
     body,
   }).then((response) => adaptApiCircle(response.data))
+}
+
+export function updateCircle(
+  circleId: string,
+  body: UpdateCircleRequest
+): Promise<Circle> {
+  return apiFetch<{ data: ApiCircle }>(`/circles/${circleId}`, {
+    method: "PATCH",
+    body,
+  }).then((response) => adaptApiCircle(response.data))
+}
+
+export function addCircleMember(
+  circleId: string,
+  userId: string
+): Promise<void> {
+  return apiFetch<{ data: ApiCircleMember }>(`/circles/${circleId}/members`, {
+    method: "POST",
+    body: { userId },
+  }).then(() => undefined)
+}
+
+export function removeCircleMember(
+  circleId: string,
+  userId: string
+): Promise<void> {
+  return apiFetch<void>(`/circles/${circleId}/members/${userId}`, {
+    method: "DELETE",
+  })
 }

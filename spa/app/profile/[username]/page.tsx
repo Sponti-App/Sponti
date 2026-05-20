@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useState } from "react"
+import { use, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,11 +12,16 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { initials } from "@/lib/circles"
 import {
-  blockConnection as blockConnectionAction,
-  cancelSentRequest as cancelSentRequestAction,
-  unblock as unblockAction,
-  useConnectionsState,
-} from "@/lib/connections-store"
+  deleteConnection as deleteApiConnection,
+  fetchAcceptedConnections,
+  fetchOutgoingConnectionRequests,
+} from "@/lib/api/connections"
+import {
+  blockUser as blockApiUser,
+  fetchBlockedUsers,
+  unblockUser as unblockApiUser,
+} from "@/lib/api/blocks"
+import type { BlockedUser, Connection } from "@/lib/circles"
 
 type RelationshipState = "connected" | "sent" | "blocked" | "stranger"
 
@@ -27,8 +32,39 @@ export default function PublicProfilePage({
 }) {
   const { username } = use(params)
   const router = useRouter()
-  const { connections, sentRequests, blocked } = useConnectionsState()
+  const [connections, setConnections] = useState<Connection[]>([])
+  const [sentRequests, setSentRequests] = useState<Connection[]>([])
+  const [blocked, setBlocked] = useState<BlockedUser[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [version, setVersion] = useState(0)
   const [showBlockConfirm, setShowBlockConfirm] = useState(false)
+  const apiEnabled = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").length > 0
+
+  useEffect(() => {
+    if (!apiEnabled) {
+      return
+    }
+
+    const ac = new AbortController()
+    Promise.all([
+      fetchAcceptedConnections(ac.signal),
+      fetchOutgoingConnectionRequests(ac.signal),
+      fetchBlockedUsers(ac.signal),
+    ])
+      .then(([accepted, outgoing, blockedUsers]) => {
+        if (ac.signal.aborted) return
+        setConnections(accepted)
+        setSentRequests(outgoing)
+        setBlocked(blockedUsers)
+        setError(null)
+      })
+      .catch((err) => {
+        if (ac.signal.aborted) return
+        setError(err instanceof Error ? err.message : "Could not load profile")
+      })
+
+    return () => ac.abort()
+  }, [apiEnabled, version])
 
   const connection = connections.find((c) => c.username === username)
   const sentRequest = sentRequests.find((r) => r.username === username)
@@ -102,8 +138,10 @@ export default function PublicProfilePage({
             <Button
               variant="outline"
               onClick={() => {
-                cancelSentRequestAction(sentRequest.id)
-                router.back()
+                if (!sentRequest.connectionId) return
+                void deleteApiConnection(sentRequest.connectionId).then(() =>
+                  router.back()
+                )
               }}
               className="rounded-full px-6"
             >
@@ -114,8 +152,7 @@ export default function PublicProfilePage({
             <Button
               variant="outline"
               onClick={() => {
-                unblockAction(blockedUser.id)
-                router.back()
+                void unblockApiUser(blockedUser.id).then(() => router.back())
               }}
               className="rounded-full px-6"
             >
@@ -123,6 +160,12 @@ export default function PublicProfilePage({
             </Button>
           )}
         </div>
+
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
       </div>
 
       {showBlockConfirm && connection && (
@@ -144,8 +187,10 @@ export default function PublicProfilePage({
             <div className="flex flex-col gap-2">
               <Button
                 onClick={() => {
-                  blockConnectionAction(connection)
-                  router.back()
+                  void blockApiUser(connection.id).then(() => {
+                    setVersion((current) => current + 1)
+                    router.back()
+                  })
                 }}
                 className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full"
               >

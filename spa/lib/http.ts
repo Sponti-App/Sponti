@@ -206,6 +206,9 @@ async function request<T>(
     return (await res.json()) as T
   } catch (error) {
     if (requestController.signal.aborted) {
+      if (opts.signal?.aborted) {
+        throw new HttpError(0, `Request to ${path} was cancelled`)
+      }
       throw new HttpError(0, `Request to ${path} timed out`)
     }
     throw error

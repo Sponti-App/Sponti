@@ -6,7 +6,10 @@ import type {
   SendConnectionRequestBody,
 } from "#schemas/connectionSchemas";
 import { hasAnyBlockBetweenUsers } from "#services/blockService";
-import { notificationHooks } from "#services/notificationHookService";
+import {
+  createConnectionAcceptedNotification,
+  createConnectionRequestNotification,
+} from "#services/notificationService";
 import { getUsersByIds } from "#services/userDirectoryService";
 import { AppError } from "#utils/AppError";
 import { toObjectId } from "#utils/objectId";
@@ -77,6 +80,17 @@ export const sendConnectionRequest = async (
         { session }
       );
 
+      if (!connection) {
+        throw new AppError("Connection could not be created", 500, "CONNECTION_CREATE_FAILED");
+      }
+
+      await createConnectionAcceptedNotification({
+        requesterId: input.receiverId,
+        accepterId: requesterId,
+        connectionId: String(reversePending._id),
+        session,
+      });
+
       return {
         connection,
         reverseConnection: reversePending,
@@ -97,20 +111,23 @@ export const sendConnectionRequest = async (
       { session }
     );
 
+    if (!connection) {
+      throw new AppError("Connection could not be created", 500, "CONNECTION_CREATE_FAILED");
+    }
+
+    await createConnectionRequestNotification({
+      requesterId,
+      receiverId: input.receiverId,
+      connectionId: String(connection._id),
+      session,
+    });
+
     return {
       connection,
       autoAccepted: false,
       created: true,
     };
   });
-
-  if ("connection" in result && result.created && !result.autoAccepted) {
-    await notificationHooks.onConnectionRequestCreated({
-      requesterId,
-      receiverId: input.receiverId,
-      connectionId: result.connection._id.toString(),
-    });
-  }
 
   return {
     processed: true,
@@ -209,6 +226,13 @@ export const respondToConnectionRequest = async (
         },
         { upsert: true, session }
       );
+
+      await createConnectionAcceptedNotification({
+        requesterId: String(connection.requesterId),
+        accepterId: userId,
+        connectionId: String(connection._id),
+        session,
+      });
     }
 
     return connection;

@@ -30,19 +30,16 @@ import {
   type EventAudienceTarget,
   type EventType,
 } from "@/lib/api/events"
-import { fetchMyCircles } from "@/lib/api/circles"
+import {
+  addCircleMember as addApiCircleMember,
+  fetchMyCircles,
+  removeCircleMember as removeApiCircleMember,
+} from "@/lib/api/circles"
 import { fetchAcceptedConnections } from "@/lib/api/connections"
 import { HttpError } from "@/lib/http"
 import { useGeolocation, type GeoStatus } from "@/lib/geolocation"
 import { emitEventsChanged } from "@/lib/use-events"
 import { type Circle, type Connection } from "@/lib/circles"
-import {
-  addMemberToCircle,
-  ensureSystemCircles,
-  removeMemberFromCircle,
-  setCircles,
-  useCircles,
-} from "@/lib/circles-store"
 import { EVENT_TYPES } from "@/types/utils"
 
 type Mode = "now" | "scheduled"
@@ -341,20 +338,18 @@ export function NewEventDrawer({
     errorMessage: geoErrorMessage,
     request: requestGeoLocation,
   } = useGeolocation({ autoRequest: false })
-  const storedCircles = useCircles()
-  const [apiCircles, setApiCircles] = useState<Circle[] | null>(null)
+  const [circles, setCircles] = useState<Circle[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
   const [audienceLoading, setAudienceLoading] = useState(true)
   const [audienceError, setAudienceError] = useState<string | null>(null)
-  const circles = ensureSystemCircles(apiCircles ?? storedCircles)
 
   // Drawer
   // Creation is a compose task, so it opens as a full-height sheet instead of
   // starting as a cramped peek.
   const initialEventDraftState = useMemo(() => getInitialEventDraftState(), [])
-  const [, setActiveSnapPoint] = useState<
-    number | string | null
-  >(initialEventDraftState.activeSnapPoint)
+  const [, setActiveSnapPoint] = useState<number | string | null>(
+    initialEventDraftState.activeSnapPoint
+  )
   const handleClose = onClose
 
   // Section refs let the summary-chip row scroll the form to the relevant
@@ -465,23 +460,41 @@ export function NewEventDrawer({
   const [audience, setAudience] = useState<Audience>(
     initialEventDraftState.audience
   )
-  const defaultAudience = useMemo(
-    () =>
-      circles.find((c) => c.type === "close")?.id ??
-      circles.find((c) => c.name.toLowerCase() === "close friends")?.id ??
-      circles[0]?.id ??
-      "",
-    [circles]
+  // Empty string means no circle is selected, which allows private events
+  // that invite only manually selected friends.
+  const selectedAudienceCircle = useMemo(
+    () => circles.find((circle) => circle.id === audience) ?? null,
+    [circles, audience]
   )
-  const effectiveAudience = circles.some((c) => c.id === audience)
-    ? audience
-    : defaultAudience
-  // Direct invites are extras on top of whatever circle is selected — they
-  // become `members` on the create-event request alongside `circles`. Lets
-  // the user pick inner + add a couple more people for this one event.
+  const selectedAudienceMemberIdSet = useMemo(
+    () => new Set(selectedAudienceCircle?.memberIds ?? []),
+    [selectedAudienceCircle]
+  )
+  // Direct invites become `members` on the create-event request, either as
+  // extras for a selected circle or as the whole private audience.
   const [directlyInvitedIds, setDirectlyInvitedIds] = useState<string[]>(
     initialEventDraftState.directlyInvitedIds
   )
+  const handleSelectAudience = useCallback(
+    (circleId: string): void => {
+      const nextAudience = audience === circleId ? "" : circleId
+      setAudience(nextAudience)
+
+      const nextCircle = circles.find((circle) => circle.id === nextAudience)
+      if (!nextCircle || nextCircle.memberIds.length === 0) return
+
+      const memberSet = new Set(nextCircle.memberIds)
+      setDirectlyInvitedIds((prev) => {
+        const next = prev.filter((id) => !memberSet.has(id))
+        return next.length === prev.length ? prev : next
+      })
+    },
+    [audience, circles]
+  )
+  const directInviteConnections = useMemo(() => {
+    if (selectedAudienceMemberIdSet.size === 0) return connections
+    return connections.filter((c) => !selectedAudienceMemberIdSet.has(c.id))
+  }, [connections, selectedAudienceMemberIdSet])
   // Inner/Close are editable inline via long-press. This holds the id of the
   // circle currently being edited; null when no edit panel is open.
   const [editingCircleId, setEditingCircleId] = useState<string | null>(
@@ -546,7 +559,6 @@ export function NewEventDrawer({
       .then(([nextConnections, nextCircles]) => {
         if (controller.signal.aborted) return
         setConnections(nextConnections)
-        setApiCircles(nextCircles)
         setCircles(nextCircles)
         setAudienceLoading(false)
       })
@@ -570,6 +582,55 @@ export function NewEventDrawer({
     if (!open || whereType !== "current" || geoStatus !== "idle") return
     requestGeoLocation()
   }, [open, whereType, geoStatus, requestGeoLocation])
+
+  const updateCircleMember = (circleId: string, userId: string): void => {
+    void addApiCircleMember(circleId, userId)
+      .then(() => {
+        const now = new Date().toISOString()
+        setCircles((prev) =>
+          prev.map((circle) =>
+            circle.id === circleId
+              ? {
+                  ...circle,
+                  memberIds: circle.memberIds.includes(userId)
+                    ? circle.memberIds
+                    : [...circle.memberIds, userId],
+                  memberAddedAt: { ...circle.memberAddedAt, [userId]: now },
+                }
+              : circle
+          )
+        )
+        if (circleId === audience) {
+          setDirectlyInvitedIds((prev) =>
+            prev.includes(userId) ? prev.filter((id) => id !== userId) : prev
+          )
+        }
+      })
+      .catch((error: unknown) => {
+        setAudienceError(getErrorMessage(error))
+      })
+  }
+
+  const removeCircleMember = (circleId: string, userId: string): void => {
+    void removeApiCircleMember(circleId, userId)
+      .then(() => {
+        setCircles((prev) =>
+          prev.map((circle) => {
+            if (circle.id !== circleId) return circle
+            const memberAddedAt = { ...(circle.memberAddedAt ?? {}) }
+            delete memberAddedAt[userId]
+            return {
+              ...circle,
+              memberIds: circle.memberIds.filter((id) => id !== userId),
+              memberAddedAt,
+            }
+          })
+        )
+      })
+      .catch((error: unknown) => {
+        setAudienceError(getErrorMessage(error))
+      })
+  }
 
   const handleStartOffset = (next: number): void => {
     setStartOffsetMin(next)
@@ -811,16 +872,20 @@ export function NewEventDrawer({
 
   const inviteeCount = useMemo(() => {
     if (isOpen) return 0
-    const circleMembers =
-      circles.find((c) => c.id === effectiveAudience)?.memberIds ?? []
+    const circleMembers = selectedAudienceCircle?.memberIds ?? []
     // Dedupe: if a directly-invited person is already in the selected circle,
     // they only get counted once (the backend dedupes too).
     const memberSet = new Set(circleMembers)
     const extras = directlyInvitedIds.filter((id) => !memberSet.has(id)).length
     return circleMembers.length + extras
-  }, [circles, effectiveAudience, isOpen, directlyInvitedIds])
+  }, [selectedAudienceCircle, isOpen, directlyInvitedIds])
 
   const isOverLimit = !isOpen && inviteeCount > guestLimit
+  const hasPrivateInvitees = isOpen || inviteeCount > 0
+  const privateInviteeError =
+    !isOpen && !audienceLoading && !audienceError && !hasPrivateInvitees
+      ? "Invite at least one friend or choose a circle with members."
+      : null
 
   // Compact audience label for the summary chip — folds headcount in so the
   // standalone "X people will see this" line can be dropped. Public events
@@ -828,10 +893,9 @@ export function NewEventDrawer({
   // when anyone can join).
   const whoLabel = useMemo(() => {
     if (isOpen) return `public · up to ${guestLimit}`
-    const circle = circles.find((c) => c.id === effectiveAudience)
-    const baseName = circle?.name.toLowerCase() ?? "friends"
+    const baseName = selectedAudienceCircle?.name.toLowerCase() ?? "friends"
     return `${baseName} · ${inviteeCount}`
-  }, [isOpen, circles, effectiveAudience, inviteeCount, guestLimit])
+  }, [isOpen, selectedAudienceCircle, inviteeCount, guestLimit])
 
   const handleSubmit = async (): Promise<void> => {
     if (isSubmitting) return
@@ -844,6 +908,12 @@ export function NewEventDrawer({
     if (!isOpen && audienceError) {
       setSubmitError(
         "Load your circles and friends before creating a private event."
+      )
+      return
+    }
+    if (!hasPrivateInvitees) {
+      setSubmitError(
+        "Invite at least one friend or choose a circle with members."
       )
       return
     }
@@ -868,20 +938,18 @@ export function NewEventDrawer({
     setIsSubmitting(true)
     let created = false
     const createdAt = new Date().toISOString()
-    const finalAudience: Audience = effectiveAudience
     let eventAudience: EventAudienceTarget = { kind: "public" }
 
     try {
       if (!isOpen) {
-        // Direct invites only ride along with "all friends" — they become
-        // extra `members` on the API request on top of the circle invite.
-        // Works with any circle — user can pick inner and add a few extras.
-        eventAudience = {
-          kind: "circle",
-          circleId: effectiveAudience,
-          extraMemberIds:
-            directlyInvitedIds.length > 0 ? directlyInvitedIds : undefined,
-        }
+        eventAudience = selectedAudienceCircle
+          ? {
+              kind: "circle",
+              circleId: selectedAudienceCircle.id,
+              extraMemberIds:
+                directlyInvitedIds.length > 0 ? directlyInvitedIds : undefined,
+            }
+          : { kind: "members", memberIds: directlyInvitedIds }
       }
 
       const effectiveDuration =
@@ -916,8 +984,8 @@ export function NewEventDrawer({
             : undefined,
         guestLimit,
         audience: isOpen
-          ? (circles.find((c) => c.type === "all")?.id ?? finalAudience)
-          : finalAudience,
+          ? (circles.find((c) => c.type === "all")?.id ?? "")
+          : (selectedAudienceCircle?.id ?? ""),
         visibility: isOpen ? "public" : "private",
         allowForward: isOpen ? false : allowForward,
         allowPlusOne: isOpen ? false : allowPlusOne,
@@ -1008,7 +1076,7 @@ export function NewEventDrawer({
                   <X className="h-4 w-4" />
                 </button>
                 <div className="flex items-center gap-1.5 text-lg font-semibold">
-                  <Sparkles className="h-[18px] w-[18px]" />
+                  <Sparkles className="h-4.5 w-4.5" />
                   <span>light a flare</span>
                 </div>
                 <div className="h-9 w-9" aria-hidden />
@@ -1191,20 +1259,24 @@ export function NewEventDrawer({
                         guestLimit={guestLimit}
                         onGuestLimit={setGuestLimit}
                         circles={circles}
-                        audience={effectiveAudience}
-                        onSelectAudience={setAudience}
+                        audience={audience}
+                        onSelectAudience={handleSelectAudience}
                         connections={connections}
+                        directInviteConnections={directInviteConnections}
                         editingCircleId={editingCircleId}
                         onStartEditingCircle={setEditingCircleId}
                         onCloseEditingCircle={() => setEditingCircleId(null)}
+                        onAddCircleMember={updateCircleMember}
+                        onRemoveCircleMember={removeCircleMember}
                         directlyInvitedIds={directlyInvitedIds}
-                        onToggleDirectInvite={(id) =>
+                        onToggleDirectInvite={(id) => {
+                          if (selectedAudienceMemberIdSet.has(id)) return
                           setDirectlyInvitedIds((prev) =>
                             prev.includes(id)
                               ? prev.filter((x) => x !== id)
                               : [...prev, id]
                           )
-                        }
+                        }}
                         allowForward={allowForward}
                         onAllowForward={setAllowForward}
                         allowPlusOne={allowPlusOne}
@@ -1217,9 +1289,7 @@ export function NewEventDrawer({
             </div>
 
             {/* CTA pinned to the bottom of the full-height compose sheet. */}
-            <div
-              className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 border-t border-border bg-card px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]"
-            >
+            <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 border-t border-border bg-card px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
               {submitError && (
                 <p
                   className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
@@ -1228,11 +1298,20 @@ export function NewEventDrawer({
                   {submitError}
                 </p>
               )}
+              {!submitError && privateInviteeError && (
+                <p
+                  className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                  role="alert"
+                >
+                  {privateInviteeError}
+                </p>
+              )}
               <Button
                 onClick={handleSubmit}
                 disabled={
                   isSubmitting ||
                   (!isOpen && (audienceLoading || Boolean(audienceError))) ||
+                  Boolean(privateInviteeError) ||
                   (whereType === "search" && placeDetailsLoading) ||
                   (whereType === "current" &&
                     geoStatus === "requesting" &&
@@ -1818,9 +1897,12 @@ function WhoBlock({
   audience,
   onSelectAudience,
   connections,
+  directInviteConnections,
   editingCircleId,
   onStartEditingCircle,
   onCloseEditingCircle,
+  onAddCircleMember,
+  onRemoveCircleMember,
   directlyInvitedIds,
   onToggleDirectInvite,
   allowForward,
@@ -1836,9 +1918,12 @@ function WhoBlock({
   audience: Audience
   onSelectAudience: (circleId: string) => void
   connections: Connection[]
+  directInviteConnections: Connection[]
   editingCircleId: string | null
   onStartEditingCircle: (id: string) => void
   onCloseEditingCircle: () => void
+  onAddCircleMember: (circleId: string, userId: string) => void
+  onRemoveCircleMember: (circleId: string, userId: string) => void
   directlyInvitedIds: string[]
   onToggleDirectInvite: (id: string) => void
   allowForward: boolean
@@ -1870,20 +1955,16 @@ function WhoBlock({
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           public
         </span>
-        {showLimit && (
-          <>
-            <div className="h-7 w-px shrink-0 bg-border" />
-            <span className="shrink-0 text-xs text-muted-foreground">
-              limit
-            </span>
-            <Stepper
-              value={guestLimit}
-              onChange={onGuestLimit}
-              min={1}
-              max={200}
-            />
-          </>
-        )}
+        <>
+          <div className="h-7 w-px shrink-0 bg-border" />
+          <span className="shrink-0 text-xs text-muted-foreground">limit</span>
+          <Stepper
+            value={guestLimit}
+            onChange={onGuestLimit}
+            min={1}
+            max={200}
+          />
+        </>
       </div>
 
       {!isOpen && editingCircle && (
@@ -1891,6 +1972,8 @@ function WhoBlock({
           circle={editingCircle}
           connections={connections}
           onClose={onCloseEditingCircle}
+          onAddMember={onAddCircleMember}
+          onRemoveMember={onRemoveCircleMember}
         />
       )}
 
@@ -1902,12 +1985,10 @@ function WhoBlock({
             onSelect={onSelectAudience}
             onEdit={onStartEditingCircle}
           />
-          {/* Always-visible — selecting friends here adds them as direct
-              invites on top of whatever circle is the audience. Not gated on
-              "all friends" anymore: user can pick inner + add a few extras
-              for this one event without permanently editing inner. */}
+          {/* Always-visible — selecting friends here adds direct event
+              invites, either as circle extras or as a manual-only audience. */}
           <DirectInviteSearch
-            connections={connections}
+            connections={directInviteConnections}
             directlyInvitedIds={directlyInvitedIds}
             onToggle={onToggleDirectInvite}
           />
@@ -2024,6 +2105,15 @@ function CircleCards({
   const systemCircles = circles.filter(
     (c) => c.type === "inner" || c.type === "close" || c.type === "all"
   )
+
+  if (systemCircles.length === 0) {
+    return (
+      <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
+        no circles available
+      </p>
+    )
+  }
+
   return (
     <div className="grid grid-cols-3 gap-2">
       {systemCircles.map((c) => (
@@ -2097,16 +2187,19 @@ function CircleChip({
 }
 
 // Full-width replacement for the chip row when a circle is being edited.
-// Tapping a friend adds/removes them from the circle (locally — TODO wire
-// backend POST/DELETE /circles/:id/members once the ObjectId issue is fixed).
+// Tapping a friend adds/removes them from the backend-backed circle.
 function CircleEditor({
   circle,
   connections,
   onClose,
+  onAddMember,
+  onRemoveMember,
 }: {
   circle: Circle
   connections: Connection[]
   onClose: () => void
+  onAddMember: (circleId: string, userId: string) => void
+  onRemoveMember: (circleId: string, userId: string) => void
 }) {
   return (
     <div className="flex min-h-0 flex-col gap-2 rounded-xl border border-accent bg-accent/5 p-3">
@@ -2126,14 +2219,11 @@ function CircleEditor({
       <FriendList
         connections={connections}
         selectedIds={circle.memberIds}
-        // TODO(wiring): also call POST /circles/:id/members and
-        // DELETE /circles/:id/members/:userId once the backend ObjectId
-        // issue is fixed. Local store edit is optimistic-only for now.
         onToggle={(id) => {
           if (circle.memberIds.includes(id)) {
-            removeMemberFromCircle(circle.id, id)
+            onRemoveMember(circle.id, id)
           } else {
-            addMemberToCircle(circle.id, id)
+            onAddMember(circle.id, id)
           }
         }}
         emptyHint="no matches"
@@ -2143,11 +2233,10 @@ function CircleEditor({
   )
 }
 
-// Optional amplifier on top of whatever circle is the audience — pick a few
-// specific people to invite directly for this one event. Collapsed by default
-// so it doesn't eat ~200px when the user has no extras to add. The trigger
-// shows a running count when non-zero, so the user can still see at a glance
-// who's coming along.
+// Optional direct-audience picker for this one event. Collapsed by default so
+// it doesn't eat ~200px when the user has no extras to add. The trigger shows
+// a running count when non-zero, so the user can still see at a glance who's
+// coming along.
 function DirectInviteSearch({
   connections,
   directlyInvitedIds,

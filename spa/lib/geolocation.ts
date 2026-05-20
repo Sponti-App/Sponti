@@ -153,10 +153,12 @@ export function useGeolocation(options?: {
     if (typeof window === "undefined" || !navigator.geolocation) return
     if (options?.autoRequest === false) return
     if (!isSecureGeolocationContext()) {
-      setStatus("unavailable")
-      setErrorMessage(
-        "Location needs a secure connection. Open this app on localhost or HTTPS."
-      )
+      queueMicrotask(() => {
+        setStatus("unavailable")
+        setErrorMessage(
+          "Location needs a secure connection. Open this app on localhost or HTTPS."
+        )
+      })
       return
     }
     if (!options?.watch) {

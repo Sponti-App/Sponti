@@ -223,7 +223,6 @@ Table event_members {
 Enum rsvpStatus {
   invited // default
   going
-  maybe
   declined
 }
 

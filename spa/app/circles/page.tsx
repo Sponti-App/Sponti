@@ -40,32 +40,42 @@ import {
   type ConnectionRequest,
 } from "@/lib/circles"
 import {
-  addMemberToCircle,
-  moveConnectionToCircle,
-  removeMemberFromCircle,
-  setCircles,
-  useCircles,
-} from "@/lib/circles-store"
+  addCircleMember as addApiCircleMember,
+  createCircle as createApiCircle,
+  fetchMyCircles,
+  removeCircleMember as removeApiCircleMember,
+  updateCircle as updateApiCircle,
+} from "@/lib/api/circles"
 import {
-  acceptRequest as acceptRequestAction,
-  blockConnection as blockConnectionAction,
-  cancelSentRequest as cancelSentRequestAction,
-  declineRequest as declineRequestAction,
-  sendRequest as sendRequestAction,
-  unblock as unblockAction,
-  useConnectionsState,
-} from "@/lib/connections-store"
+  deleteConnection as deleteApiConnection,
+  fetchAcceptedConnections,
+  fetchIncomingConnectionRequests,
+  fetchOutgoingConnectionRequests,
+  respondToConnectionRequest as respondToApiConnectionRequest,
+  sendConnectionRequest as sendApiConnectionRequest,
+} from "@/lib/api/connections"
+import {
+  blockUser as blockApiUser,
+  fetchBlockedUsers,
+  unblockUser as unblockApiUser,
+} from "@/lib/api/blocks"
 import { searchUsers, type UserSearchResult } from "@/lib/api/users"
 
 type Tab = "circles" | "people"
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
 
 export default function CirclesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
-  const initialTab: Tab = searchParams.get("tab") === "people" ? "people" : "circles"
+  const initialTab: Tab =
+    searchParams.get("tab") === "people" ? "people" : "circles"
   const [tab, setTab] = useState<Tab>(initialTab)
   const [qrOpen, setQrOpen] = useState(false)
+  const apiEnabled = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").length > 0
 
   // People tab search
   const [peopleQuery, setPeopleQuery] = useState("")
@@ -75,14 +85,12 @@ export default function CirclesPage() {
   useEffect(() => {
     const q = peopleQuery.trim().replace(/^@/, "")
     if (q.length < 2) {
-
       const timeout = window.setTimeout(() => {
         setSearchResults([])
         setSearching(false)
       }, 0)
 
       return () => window.clearTimeout(timeout)
-
     }
     const timeout = window.setTimeout(async () => {
       setSearching(true)
@@ -98,13 +106,68 @@ export default function CirclesPage() {
     return () => window.clearTimeout(timeout)
   }, [peopleQuery])
 
-  const { connections, requests, blocked, sentRequests } =
-    useConnectionsState()
-  const circles = useCircles()
+  const [connections, setConnections] = useState<Connection[]>([])
+  const [requests, setRequests] = useState<ConnectionRequest[]>([])
+  const [sentRequests, setSentRequests] = useState<Connection[]>([])
+  const [blocked, setBlocked] = useState<BlockedUser[]>([])
+  const [circles, setCircles] = useState<Circle[]>([])
+  const [connectionsLoading, setConnectionsLoading] = useState(apiEnabled)
+  const [circlesLoading, setCirclesLoading] = useState(apiEnabled)
+  const [connectionsError, setConnectionsError] = useState<string | null>(null)
+  const [circlesError, setCirclesError] = useState<string | null>(null)
+  const [backendVersion, setBackendVersion] = useState(0)
+
+  useEffect(() => {
+    if (!apiEnabled) {
+      return
+    }
+    const ac = new AbortController()
+    queueMicrotask(() => {
+      if (ac.signal.aborted) return
+      setConnectionsLoading(true)
+      setCirclesLoading(true)
+      setConnectionsError(null)
+      setCirclesError(null)
+    })
+
+    Promise.all([
+      fetchAcceptedConnections(ac.signal),
+      fetchIncomingConnectionRequests(ac.signal),
+      fetchOutgoingConnectionRequests(ac.signal),
+      fetchBlockedUsers(ac.signal),
+      fetchMyCircles(ac.signal),
+    ])
+      .then(([accepted, incoming, outgoing, blockedUsers, nextCircles]) => {
+        setConnections(accepted)
+        setRequests(incoming)
+        setSentRequests(outgoing)
+        setBlocked(blockedUsers)
+        setCircles(nextCircles)
+      })
+      .catch((err) => {
+        if (ac.signal.aborted) return
+        const message = getErrorMessage(err, "Could not load your circles")
+        setConnectionsError(message)
+        setCirclesError(message)
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) {
+          setConnectionsLoading(false)
+          setCirclesLoading(false)
+        }
+      })
+
+    return () => ac.abort()
+  }, [apiEnabled, backendVersion])
+
+  const refreshBackendData = (): void =>
+    setBackendVersion((version) => version + 1)
 
   // Circles tab state
   const [expandedCircleId, setExpandedCircleId] = useState<string | null>(null)
-  const [circleSort, setCircleSort] = useState<Record<string, "alpha" | "recent">>({})
+  const [circleSort, setCircleSort] = useState<
+    Record<string, "alpha" | "recent">
+  >({})
   const [memberQuery, setMemberQuery] = useState("")
   const [newCircleOpen, setNewCircleOpen] = useState(false)
   const [newCircleName, setNewCircleName] = useState("")
@@ -123,61 +186,277 @@ export default function CirclesPage() {
   }, [connections])
 
   // ----- handlers -----
-  const sendRequest = (target: Pick<Connection, "id" | "username" | "displayName">): void => {
-    sendRequestAction(target as Connection)
-    setPeopleQuery("")
+  const sendRequest = (
+    target: Pick<Connection, "id" | "username" | "displayName">
+  ): void => {
+    if (!apiEnabled) {
+      setConnectionsError("Backend API is not configured.")
+      return
+    }
+
+    void sendApiConnectionRequest(target.id)
+      .then(() => {
+        setPeopleQuery("")
+        refreshBackendData()
+      })
+      .catch((err) =>
+        setConnectionsError(getErrorMessage(err, "Could not send request"))
+      )
   }
 
   const acceptRequest = (req: ConnectionRequest): void => {
-    acceptRequestAction(req.id)
-    setJustAcceptedId(req.user.id)
+    if (!apiEnabled) {
+      setConnectionsError("Backend API is not configured.")
+      return
+    }
+
+    void (async () => {
+      await respondToApiConnectionRequest(req.id, "accepted")
+
+      const allCircle = circles.find((circle) => circle.type === "all")
+      if (allCircle && !allCircle.memberIds.includes(req.user.id)) {
+        try {
+          await addApiCircleMember(allCircle.id, req.user.id)
+        } catch (error) {
+          setCirclesError(
+            getErrorMessage(error, "Could not add connection to all friends")
+          )
+        }
+      }
+
+      setJustAcceptedId(req.user.id)
+      refreshBackendData()
+    })().catch((err) =>
+      setConnectionsError(getErrorMessage(err, "Could not accept request"))
+    )
   }
 
   const declineRequest = (req: ConnectionRequest): void => {
-    declineRequestAction(req.id)
+    if (!apiEnabled) {
+      setConnectionsError("Backend API is not configured.")
+      return
+    }
+
+    void respondToApiConnectionRequest(req.id, "rejected")
+      .then(refreshBackendData)
+      .catch((err) =>
+        setConnectionsError(getErrorMessage(err, "Could not decline request"))
+      )
   }
 
   const blockConnection = (target: Connection): void => {
-    blockConnectionAction(target)
-    setPendingBlock(null)
+    if (!apiEnabled) {
+      setConnectionsError("Backend API is not configured.")
+      return
+    }
+
+    void blockApiUser(target.id)
+      .then(() => {
+        setPendingBlock(null)
+        refreshBackendData()
+      })
+      .catch((err) =>
+        setConnectionsError(getErrorMessage(err, "Could not block user"))
+      )
   }
 
-  const cancelSentRequest = (targetId: string): void => {
-    cancelSentRequestAction(targetId)
+  const cancelSentRequest = (target: Connection): void => {
+    if (!apiEnabled || !target.connectionId) {
+      setConnectionsError("Could not cancel request.")
+      return
+    }
+
+    void deleteApiConnection(target.connectionId)
+      .then(refreshBackendData)
+      .catch((err) =>
+        setConnectionsError(getErrorMessage(err, "Could not cancel request"))
+      )
   }
 
   const unblock = (target: BlockedUser): void => {
-    unblockAction(target.id)
+    if (!apiEnabled) {
+      setConnectionsError("Backend API is not configured.")
+      return
+    }
+
+    void unblockApiUser(target.id)
+      .then(refreshBackendData)
+      .catch((err) =>
+        setConnectionsError(getErrorMessage(err, "Could not unblock user"))
+      )
+  }
+
+  const updateCircleMembers = (
+    circleId: string,
+    updater: (memberIds: string[]) => string[],
+    memberAddedAt?: Record<string, string>
+  ): void => {
+    setCircles((prev) =>
+      prev.map((circle) =>
+        circle.id === circleId
+          ? {
+              ...circle,
+              memberIds: updater(circle.memberIds),
+              memberAddedAt: memberAddedAt ?? circle.memberAddedAt,
+            }
+          : circle
+      )
+    )
+  }
+
+  const addMemberToCircle = (
+    circleId: string,
+    userId: string,
+    onSuccess?: () => void
+  ): void => {
+    if (!apiEnabled) {
+      setCirclesError("Backend API is not configured.")
+      return
+    }
+
+    void addApiCircleMember(circleId, userId)
+      .then(() => {
+        const now = new Date().toISOString()
+        const circle = circles.find((c) => c.id === circleId)
+        updateCircleMembers(
+          circleId,
+          (memberIds) =>
+            memberIds.includes(userId) ? memberIds : [...memberIds, userId],
+          { ...(circle?.memberAddedAt ?? {}), [userId]: now }
+        )
+        onSuccess?.()
+      })
+      .catch((err) =>
+        setCirclesError(getErrorMessage(err, "Could not add circle member"))
+      )
+  }
+
+  const removeMemberFromCircle = (circleId: string, userId: string): void => {
+    if (!apiEnabled) {
+      setCirclesError("Backend API is not configured.")
+      return
+    }
+
+    void removeApiCircleMember(circleId, userId)
+      .then(() => {
+        const circle = circles.find((c) => c.id === circleId)
+        const memberAddedAt = { ...(circle?.memberAddedAt ?? {}) }
+        delete memberAddedAt[userId]
+        updateCircleMembers(
+          circleId,
+          (memberIds) => memberIds.filter((id) => id !== userId),
+          memberAddedAt
+        )
+      })
+      .catch((err) =>
+        setCirclesError(getErrorMessage(err, "Could not remove circle member"))
+      )
+  }
+
+  const moveConnectionToCircle = (
+    userId: string,
+    fromCircleId: string,
+    toCircleId: string
+  ): void => {
+    if (!apiEnabled) {
+      setCirclesError("Backend API is not configured.")
+      return
+    }
+
+    void (async () => {
+      await addApiCircleMember(toCircleId, userId)
+      await removeApiCircleMember(fromCircleId, userId)
+      const now = new Date().toISOString()
+      setCircles((prev) =>
+        prev.map((circle) => {
+          if (circle.id === fromCircleId) {
+            const memberAddedAt = { ...(circle.memberAddedAt ?? {}) }
+            delete memberAddedAt[userId]
+            return {
+              ...circle,
+              memberIds: circle.memberIds.filter((id) => id !== userId),
+              memberAddedAt,
+            }
+          }
+
+          if (circle.id === toCircleId) {
+            return {
+              ...circle,
+              memberIds: circle.memberIds.includes(userId)
+                ? circle.memberIds
+                : [...circle.memberIds, userId],
+              memberAddedAt: { ...circle.memberAddedAt, [userId]: now },
+            }
+          }
+
+          return circle
+        })
+      )
+    })().catch((err) =>
+      setCirclesError(getErrorMessage(err, "Could not move circle member"))
+    )
+  }
+
+  const saveCircleName = (circle: Circle): void => {
+    const name = circle.name.trim()
+    if (!name) {
+      refreshBackendData()
+      return
+    }
+
+    void updateApiCircle(circle.id, { name })
+      .then((updated) =>
+        setCircles((prev) =>
+          prev.map((c) =>
+            c.id === circle.id
+              ? { ...c, ...updated, memberIds: c.memberIds, memberAddedAt: c.memberAddedAt }
+              : c
+          )
+        )
+      )
+      .catch((err) =>
+        setCirclesError(getErrorMessage(err, "Could not update circle"))
+      )
   }
 
   const toggleNewCircleMember = (id: string): void => {
     setNewCircleMemberIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     )
   }
 
   const createCircle = (): void => {
     const name = newCircleName.trim()
     if (!name) return
-    const now = new Date().toISOString()
-    const next: Circle = {
-      id: `custom-${Date.now()}`,
+
+    if (!apiEnabled) {
+      setCirclesError("Backend API is not configured.")
+      return
+    }
+
+    void createApiCircle({
       name,
-      description: "custom circle",
       type: "custom",
       memberIds: newCircleMemberIds,
-      memberAddedAt: Object.fromEntries(newCircleMemberIds.map((id) => [id, now])),
-    }
-    setCircles((prev) => [...prev, next])
-    setExpandedCircleId(next.id)
-    setNewCircleName("")
-    setNewCircleMemberIds([])
-    setNewCircleOpen(false)
+    })
+      .then((next) => {
+        setCircles((prev) => [...prev, next])
+        setExpandedCircleId(next.id)
+        setNewCircleName("")
+        setNewCircleMemberIds([])
+        setNewCircleOpen(false)
+      })
+      .catch((err) =>
+        setCirclesError(getErrorMessage(err, "Could not create circle"))
+      )
   }
 
   // Circles the user can still add a connection to (excludes "all" and circles they're already in)
   const addableCircles = (connectionId: string): Circle[] =>
-    circles.filter((c) => c.id !== "all" && !c.memberIds.includes(connectionId))
+    circles.filter(
+      (circle) =>
+        circle.type !== "all" && !circle.memberIds.includes(connectionId)
+    )
 
   return (
     <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
@@ -187,7 +466,7 @@ export default function CirclesPage() {
         className="flex min-h-0 flex-1 flex-col"
       >
         {/* Sticky header + tab bar */}
-        <div className="shrink-0 sticky top-0 z-10 bg-background">
+        <div className="sticky top-0 z-10 shrink-0 bg-background">
           <div className="flex items-center justify-between px-4 py-3">
             <button
               onClick={() => router.push("/")}
@@ -224,260 +503,291 @@ export default function CirclesPage() {
         <div className="flex-1 overflow-y-auto px-4 pb-32">
           {/* ── CIRCLES TAB ── */}
           <TabsContent value="circles" className="m-0 mt-3 flex flex-col gap-3">
-            {circles.filter((c) => c.id !== "all").map((circle) => {
-              const isExpanded = expandedCircleId === circle.id
-              const sort = circleSort[circle.id] ?? "recent"
+            {circlesLoading && (
+              <p className="rounded-xl border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
+                loading circles...
+              </p>
+            )}
 
-              const memberCount = circle.memberIds.length
-              const previewNames = circle.memberIds
-                .slice(0, 3)
-                .map((id) => connectionsById.get(id)?.displayName)
-                .filter(Boolean)
-                .join(", ")
+            {circlesError && (
+              <p className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                {circlesError}
+              </p>
+            )}
 
-              const rawMembers = circle.memberIds
-                .map((id) => connectionsById.get(id))
-                .filter((c): c is Connection => Boolean(c))
+            {!circlesLoading && circles.length === 0 && (
+              <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+                no circles yet.
+              </p>
+            )}
 
-              const sortedMembers = [...rawMembers].sort((a, b) => {
-                if (sort === "alpha") return a.displayName.localeCompare(b.displayName)
-                const aAt = circle.memberAddedAt?.[a.id] ?? ""
-                const bAt = circle.memberAddedAt?.[b.id] ?? ""
-                return bAt > aAt ? -1 : aAt > bAt ? 1 : 0
-              })
+            {circles
+              .filter((c) => c.type !== "all")
+              .map((circle) => {
+                const isExpanded = expandedCircleId === circle.id
+                const sort = circleSort[circle.id] ?? "recent"
 
-              const memberSet = new Set(circle.memberIds)
-              const q = memberQuery.trim().toLowerCase()
-              const addable = connections.filter((c) => {
-                if (memberSet.has(c.id)) return false
-                if (!q) return true
+                const memberCount = circle.memberIds.length
+                const previewNames = circle.memberIds
+                  .slice(0, 3)
+                  .map((id) => connectionsById.get(id)?.displayName)
+                  .filter(Boolean)
+                  .join(", ")
+
+                const rawMembers = circle.memberIds
+                  .map((id) => connectionsById.get(id))
+                  .filter((c): c is Connection => Boolean(c))
+
+                const sortedMembers = [...rawMembers].sort((a, b) => {
+                  if (sort === "alpha")
+                    return a.displayName.localeCompare(b.displayName)
+                  const aAt = circle.memberAddedAt?.[a.id] ?? ""
+                  const bAt = circle.memberAddedAt?.[b.id] ?? ""
+                  return bAt > aAt ? -1 : aAt > bAt ? 1 : 0
+                })
+
+                const memberSet = new Set(circle.memberIds)
+                const q = memberQuery.trim().toLowerCase()
+                const addable = connections.filter((c) => {
+                  if (memberSet.has(c.id)) return false
+                  if (!q) return true
+                  return (
+                    c.displayName.toLowerCase().includes(q) ||
+                    c.username.toLowerCase().includes(q)
+                  )
+                })
+
                 return (
-                  c.displayName.toLowerCase().includes(q) ||
-                  c.username.toLowerCase().includes(q)
-                )
-              })
-
-              return (
-                <div
-                  key={circle.id}
-                  className={`overflow-hidden rounded-xl border transition-colors ${isExpanded
-                    ? "border-accent bg-card"
-                    : "border-border bg-background"
-                    }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setExpandedCircleId((prev) => {
-                        if (prev === circle.id) return null
-                        setMemberQuery("")
-                        return circle.id
-                      })
-                    }}
-                    className="flex w-full items-center gap-3 p-3 text-left"
-                  >
-                    <CircleStackIcon
-                      type={circle.type}
-                      className={`h-6 w-6 shrink-0 ${isExpanded ? "text-accent" : "text-muted-foreground"
-                        }`}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{circle.name}</p>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {memberCount} {memberCount === 1 ? "person" : "people"}
-                        {previewNames ? ` · ${previewNames}` : ""}
-                      </p>
-                    </div>
-                    <ChevronDown
-                      className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""
-                        }`}
-                    />
-                  </button>
-
                   <div
-                    style={{
-                      display: "grid",
-                      gridTemplateRows: isExpanded ? "1fr" : "0fr",
-                      transition: "grid-template-rows 200ms ease",
-                    }}
+                    key={circle.id}
+                    className={`overflow-hidden rounded-xl border transition-colors ${
+                      isExpanded
+                        ? "border-accent bg-card"
+                        : "border-border bg-background"
+                    }`}
                   >
-                    <div className="overflow-hidden">
-                      <div className="flex flex-col gap-3 border-t border-border px-3 pt-3 pb-3">
-                        <Input
-                          value={circle.name}
-                          onChange={(e) =>
-                            setCircles((prev) =>
-                              prev.map((c) =>
-                                c.id === circle.id
-                                  ? { ...c, name: e.target.value }
-                                  : c,
-                              )
-                            )
-                          }
-                          aria-label="circle name"
-                          className="font-medium"
-                        />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExpandedCircleId((prev) => {
+                          if (prev === circle.id) return null
+                          setMemberQuery("")
+                          return circle.id
+                        })
+                      }}
+                      className="flex w-full items-center gap-3 p-3 text-left"
+                    >
+                      <CircleStackIcon
+                        type={circle.type}
+                        className={`h-6 w-6 shrink-0 ${
+                          isExpanded ? "text-accent" : "text-muted-foreground"
+                        }`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">{circle.name}</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {memberCount}{" "}
+                          {memberCount === 1 ? "person" : "people"}
+                          {previewNames ? ` · ${previewNames}` : ""}
+                        </p>
+                      </div>
+                      <ChevronDown
+                        className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
+                          isExpanded ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
 
-                        <div className="flex items-center gap-1.5">
-                          <p className="mr-1 text-xs text-muted-foreground uppercase tracking-wide">
-                            sort
-                          </p>
-                          {(["recent", "alpha"] as const).map((s) => (
-                            <button
-                              key={s}
-                              type="button"
-                              onClick={() =>
-                                setCircleSort((prev) => ({
-                                  ...prev,
-                                  [circle.id]: s,
-                                }))
-                              }
-                              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${sort === s
-                                ? "bg-foreground text-background"
-                                : "bg-secondary text-muted-foreground hover:text-foreground"
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateRows: isExpanded ? "1fr" : "0fr",
+                        transition: "grid-template-rows 200ms ease",
+                      }}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="flex flex-col gap-3 border-t border-border px-3 pt-3 pb-3">
+                          <Input
+                            value={circle.name}
+                            onChange={(e) =>
+                              setCircles((prev) =>
+                                prev.map((c) =>
+                                  c.id === circle.id
+                                    ? { ...c, name: e.target.value }
+                                    : c
+                                )
+                              )
+                            }
+                            onBlur={() => saveCircleName(circle)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") e.currentTarget.blur()
+                            }}
+                            aria-label="circle name"
+                            className="font-medium"
+                          />
+
+                          <div className="flex items-center gap-1.5">
+                            <p className="mr-1 text-xs tracking-wide text-muted-foreground uppercase">
+                              sort
+                            </p>
+                            {(["recent", "alpha"] as const).map((s) => (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() =>
+                                  setCircleSort((prev) => ({
+                                    ...prev,
+                                    [circle.id]: s,
+                                  }))
+                                }
+                                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                                  sort === s
+                                    ? "bg-foreground text-background"
+                                    : "bg-secondary text-muted-foreground hover:text-foreground"
                                 }`}
-                            >
-                              {s === "recent" ? "recent" : "a–z"}
-                            </button>
-                          ))}
-                        </div>
-
-                        {sortedMembers.length === 0 ? (
-                          <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-                            this circle is empty.
-                          </p>
-                        ) : (
-                          <ul
-                            className="flex flex-col divide-y divide-border overflow-y-auto rounded-lg border border-border"
-                            style={{ maxHeight: "220px" }}
-                          >
-                            {sortedMembers.map((m) => {
-                              const movableCircles = circles.filter(
-                                (c) =>
-                                  c.id !== circle.id &&
-                                  c.id !== "all" &&
-                                  !c.memberIds.includes(m.id),
-                              )
-                              return (
-                                <li
-                                  key={m.id}
-                                  className="flex items-center gap-2 px-2 py-2"
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      router.push(`/profile/${m.username}`)
-                                    }
-                                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                                  >
-                                    <Avatar name={m.displayName} />
-                                    <div className="min-w-0">
-                                      <p className="truncate text-sm font-medium">
-                                        {m.displayName}
-                                      </p>
-                                      <p className="truncate text-xs text-muted-foreground">
-                                        @{m.username}
-                                      </p>
-                                    </div>
-                                  </button>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <button
-                                        type="button"
-                                        aria-label={`options for ${m.displayName}`}
-                                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
-                                      >
-                                        <MoreHorizontal className="h-3.5 w-3.5" />
-                                      </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      {movableCircles.map((target) => (
-                                        <DropdownMenuItem
-                                          key={target.id}
-                                          onClick={() =>
-                                            moveConnectionToCircle(
-                                              m.id,
-                                              circle.id,
-                                              target.id,
-                                            )
-                                          }
-                                        >
-                                          move to {target.name}
-                                        </DropdownMenuItem>
-                                      ))}
-                                      {movableCircles.length > 0 && (
-                                        <DropdownMenuSeparator />
-                                      )}
-                                      <DropdownMenuItem
-                                        onClick={() =>
-                                          removeMemberFromCircle(
-                                            circle.id,
-                                            m.id,
-                                          )
-                                        }
-                                        className="text-destructive focus:text-destructive"
-                                      >
-                                        remove
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        )}
-
-                        <div className="flex flex-col gap-1.5">
-                          <div className="relative">
-                            <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                            <Input
-                              placeholder="add a friend…"
-                              value={memberQuery}
-                              onChange={(e) => setMemberQuery(e.target.value)}
-                              className="pl-9"
-                            />
+                              >
+                                {s === "recent" ? "recent" : "a–z"}
+                              </button>
+                            ))}
                           </div>
-                          {memberQuery.trim() && (
-                            <ul className="overflow-hidden rounded-lg border border-border">
-                              {addable.length === 0 ? (
-                                <li className="px-3 py-2.5 text-xs text-muted-foreground">
-                                  no matches
-                                </li>
-                              ) : (
-                                addable.map((c) => (
-                                  <li key={c.id}>
+
+                          {sortedMembers.length === 0 ? (
+                            <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+                              this circle is empty.
+                            </p>
+                          ) : (
+                            <ul
+                              className="flex flex-col divide-y divide-border overflow-y-auto rounded-lg border border-border"
+                              style={{ maxHeight: "220px" }}
+                            >
+                              {sortedMembers.map((m) => {
+                                const movableCircles = circles.filter(
+                                  (c) =>
+                                    c.id !== circle.id &&
+                                    c.type !== "all" &&
+                                    !c.memberIds.includes(m.id)
+                                )
+                                return (
+                                  <li
+                                    key={m.id}
+                                    className="flex items-center gap-2 px-2 py-2"
+                                  >
                                     <button
                                       type="button"
-                                      onClick={() => {
-                                        addMemberToCircle(circle.id, c.id)
-                                        setMemberQuery("")
-                                      }}
-                                      className="flex w-full items-center gap-3 px-2 py-2 text-left hover:bg-secondary"
+                                      onClick={() =>
+                                        router.push(`/profile/${m.username}`)
+                                      }
+                                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
                                     >
-                                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">
-                                        <Plus className="h-3.5 w-3.5" />
-                                      </span>
-                                      <span className="min-w-0 flex-1">
-                                        <span className="block truncate text-sm font-medium">
-                                          {c.displayName}
-                                        </span>
-                                        <span className="block truncate text-xs text-muted-foreground">
-                                          @{c.username}
-                                        </span>
-                                      </span>
+                                      <Avatar name={m.displayName} />
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium">
+                                          {m.displayName}
+                                        </p>
+                                        <p className="truncate text-xs text-muted-foreground">
+                                          @{m.username}
+                                        </p>
+                                      </div>
                                     </button>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <button
+                                          type="button"
+                                          aria-label={`options for ${m.displayName}`}
+                                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
+                                        >
+                                          <MoreHorizontal className="h-3.5 w-3.5" />
+                                        </button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        {movableCircles.map((target) => (
+                                          <DropdownMenuItem
+                                            key={target.id}
+                                            onClick={() =>
+                                              moveConnectionToCircle(
+                                                m.id,
+                                                circle.id,
+                                                target.id
+                                              )
+                                            }
+                                          >
+                                            move to {target.name}
+                                          </DropdownMenuItem>
+                                        ))}
+                                        {movableCircles.length > 0 && (
+                                          <DropdownMenuSeparator />
+                                        )}
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            removeMemberFromCircle(
+                                              circle.id,
+                                              m.id
+                                            )
+                                          }
+                                          className="text-destructive focus:text-destructive"
+                                        >
+                                          remove
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   </li>
-                                ))
-                              )}
+                                )
+                              })}
                             </ul>
                           )}
+
+                          <div className="flex flex-col gap-1.5">
+                            <div className="relative">
+                              <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                              <Input
+                                placeholder="add a friend…"
+                                value={memberQuery}
+                                onChange={(e) => setMemberQuery(e.target.value)}
+                                className="pl-9"
+                              />
+                            </div>
+                            {memberQuery.trim() && (
+                              <ul className="overflow-hidden rounded-lg border border-border">
+                                {addable.length === 0 ? (
+                                  <li className="px-3 py-2.5 text-xs text-muted-foreground">
+                                    no matches
+                                  </li>
+                                ) : (
+                                  addable.map((c) => (
+                                    <li key={c.id}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          addMemberToCircle(circle.id, c.id, () =>
+                                            setMemberQuery("")
+                                          )
+                                        }}
+                                        className="flex w-full items-center gap-3 px-2 py-2 text-left hover:bg-secondary"
+                                      >
+                                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">
+                                          <Plus className="h-3.5 w-3.5" />
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                          <span className="block truncate text-sm font-medium">
+                                            {c.displayName}
+                                          </span>
+                                          <span className="block truncate text-xs text-muted-foreground">
+                                            @{c.username}
+                                          </span>
+                                        </span>
+                                      </button>
+                                    </li>
+                                  ))
+                                )}
+                              </ul>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
 
             <button
               type="button"
@@ -538,10 +848,11 @@ export default function CirclesPage() {
                             className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-secondary"
                           >
                             <span
-                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${checked
-                                ? "border-accent bg-accent text-accent-foreground"
-                                : "border-border"
-                                }`}
+                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                                checked
+                                  ? "border-accent bg-accent text-accent-foreground"
+                                  : "border-border"
+                              }`}
                             >
                               {checked && <Check className="h-3 w-3" />}
                             </span>
@@ -593,7 +904,10 @@ export default function CirclesPage() {
                   ) : (
                     <ul className="divide-y divide-border">
                       {searchResults.map((d) => (
-                        <li key={d.id} className="flex items-center gap-3 px-3 py-2">
+                        <li
+                          key={d.id}
+                          className="flex items-center gap-3 px-3 py-2"
+                        >
                           <Avatar name={d.displayName} />
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium">
@@ -624,6 +938,18 @@ export default function CirclesPage() {
                 </div>
               )}
             </div>
+
+            {connectionsLoading && (
+              <p className="mt-3 rounded-xl border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
+                loading connections...
+              </p>
+            )}
+
+            {connectionsError && (
+              <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                {connectionsError}
+              </p>
+            )}
 
             {/* Received requests */}
             {requests.length > 0 && (
@@ -705,7 +1031,7 @@ export default function CirclesPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => cancelSentRequest(r.id)}
+                        onClick={() => cancelSentRequest(r)}
                         className="h-8 shrink-0 rounded-full px-3 text-xs"
                       >
                         cancel
@@ -719,7 +1045,9 @@ export default function CirclesPage() {
             {/* Your people — active connections + blocked at bottom */}
             <section className="mt-6">
               <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs font-medium text-foreground">connections</p>
+                <p className="text-xs font-medium text-foreground">
+                  connections
+                </p>
                 <span className="text-xs text-muted-foreground">
                   {connections.length}
                 </span>
@@ -742,7 +1070,9 @@ export default function CirclesPage() {
                         <div className="flex items-center gap-3 px-1 py-2">
                           <button
                             type="button"
-                            onClick={() => router.push(`/profile/${c.username}`)}
+                            onClick={() =>
+                              router.push(`/profile/${c.username}`)
+                            }
                             className="flex min-w-0 flex-1 items-center gap-3 text-left"
                           >
                             <Avatar name={c.displayName} />
@@ -810,7 +1140,7 @@ export default function CirclesPage() {
                               add to circle:
                             </span>
                             {circles
-                              .filter((ci) => ci.id !== "all")
+                              .filter((ci) => ci.type !== "all")
                               .map((ci) => {
                                 const inCircle = ci.memberIds.includes(c.id)
                                 return (
@@ -818,11 +1148,14 @@ export default function CirclesPage() {
                                     key={ci.id}
                                     type="button"
                                     disabled={inCircle}
-                                    onClick={() => addMemberToCircle(ci.id, c.id)}
-                                    className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${inCircle
-                                      ? "bg-accent/15 text-accent"
-                                      : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
-                                      }`}
+                                    onClick={() =>
+                                      addMemberToCircle(ci.id, c.id)
+                                    }
+                                    className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                                      inCircle
+                                        ? "bg-accent/15 text-accent"
+                                        : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+                                    }`}
                                   >
                                     {inCircle && <Check className="h-3 w-3" />}
                                     {ci.name}
@@ -859,7 +1192,7 @@ export default function CirclesPage() {
                       {blocked.map((b) => (
                         <li
                           key={b.id}
-                          className="flex items-center gap-3 border-b border-border px-1 py-2 last:border-b-0 opacity-50"
+                          className="flex items-center gap-3 border-b border-border px-1 py-2 opacity-50 last:border-b-0"
                         >
                           <Avatar name={b.displayName} muted />
                           <div className="min-w-0 flex-1">
@@ -867,7 +1200,8 @@ export default function CirclesPage() {
                               {b.displayName}
                             </p>
                             <p className="truncate text-xs text-muted-foreground">
-                              @{b.username} · blocked {formatBlockedAt(b.blockedAt)}
+                              @{b.username} · blocked{" "}
+                              {formatBlockedAt(b.blockedAt)}
                             </p>
                           </div>
                           <DropdownMenu>
@@ -933,7 +1267,7 @@ export default function CirclesPage() {
             <div className="flex flex-col gap-2">
               <Button
                 onClick={() => blockConnection(pendingBlock)}
-                className="w-full rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                className="text-destructive-foreground w-full rounded-full bg-destructive hover:bg-destructive/90"
               >
                 block
               </Button>
@@ -955,10 +1289,11 @@ export default function CirclesPage() {
 function Avatar({ name, muted = false }: { name: string; muted?: boolean }) {
   return (
     <span
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium ${muted
-        ? "bg-secondary text-muted-foreground"
-        : "border border-accent/20 bg-accent/10 text-accent"
-        }`}
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
+        muted
+          ? "bg-secondary text-muted-foreground"
+          : "border border-accent/20 bg-accent/10 text-accent"
+      }`}
     >
       {initials(name)}
     </span>

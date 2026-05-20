@@ -129,7 +129,7 @@ export const createCircle = async (ownerId: string, input: CreateCircleBody) => 
               ownerId: ownerObjectId,
               userId: toObjectId(memberId),
             })),
-            { session }
+            { session, ordered: true }
           )
         : [];
 
