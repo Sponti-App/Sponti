@@ -152,6 +152,18 @@ function initialsFromName(name: string): string {
   return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase()
 }
 
+function hostIdentityFromApi(
+  host: ApiEvent["hostId"]
+): Pick<HostedEvent, "hostId" | "hostName" | "hostUsername" | "hostAvatarUrl"> {
+  if (typeof host === "string") return { hostId: host }
+  return {
+    hostId: host._id,
+    hostName: host.displayName || host.username || "host",
+    hostUsername: host.username,
+    hostAvatarUrl: host.avatarUrl ?? null,
+  }
+}
+
 /**
  * Converts a backend event document into the EventItem shape consumed by the
  * home map/calendar UI.
@@ -192,8 +204,11 @@ export function adaptApiEvent(api: ApiEvent): EventItem {
 export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
   return {
     id: api._id,
+    ...hostIdentityFromApi(api.hostId),
     title: api.title,
     description: api.description ?? undefined,
+    type: api.type,
+    coverImageUrl: api.coverImageUrl ?? undefined,
     startAt: api.startAt,
     endAt: api.endAt,
     locationLabel: api.locationName,
@@ -201,7 +216,15 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     audienceLabel: api.visibility,
     attendeeCount: api.memberCount ?? api.attendees?.length ?? 0,
     attendingCount: api.goingCount ?? 0,
+    attendees: (api.attendees ?? []).map((a) => ({
+      id: a._id,
+      displayName: a.displayName || a.username || "guest",
+      username: a.username,
+      avatarUrl: a.avatarUrl ?? null,
+    })),
     visibility: api.visibility,
+    guestLimit: api.guestInviteLimit,
+    myRsvp: api.myRsvp ?? null,
     recurrence: "none",
     apiStatus: api.status,
     updatedAt: api.updatedAt ?? api.startAt,
@@ -362,9 +385,9 @@ export function createEventRequestFromDraft(
         ? target.memberIds.map((userId) => ({ userId, role: "guest" }))
         : target.kind === "circle" && target.extraMemberIds
           ? target.extraMemberIds.map((userId) => ({
-            userId,
-            role: "guest" as const,
-          }))
+              userId,
+              role: "guest" as const,
+            }))
           : [],
   }
 }

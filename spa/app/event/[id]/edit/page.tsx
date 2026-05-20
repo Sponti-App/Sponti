@@ -184,13 +184,16 @@ export default function EventEditPage() {
   return (
     <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
       <div className="flex shrink-0 items-center justify-between px-4 py-3">
-        <button
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
           onClick={() => router.push("/event")}
-          aria-label="Back"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground"
+          aria-label="back"
+          className="h-10 w-10 rounded-full"
         >
           <ArrowLeft className="h-4 w-4" />
-        </button>
+        </Button>
         <div className="flex items-center gap-1.5 text-base font-semibold">
           <Pencil className="h-4 w-4" />
           <span>edit flare</span>
