@@ -47,9 +47,10 @@ import { EVENT_TYPES } from "@/types/utils"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 
-// Hex equivalent of --accent (oklch 0.55 0.19 25). Google Maps overlays can't
-// read CSS variables, so we mirror the token here. Keep in sync with globals.css.
-const ACCENT_HEX = "#c44040"
+// Hex equivalent of --accent (oklch 0.8041 0.126 52.09). Google Maps overlays
+// can't read CSS variables, so we mirror the token here. Keep in sync with
+// globals.css.
+const ACCENT_HEX = "#f8b187"
 
 function GoogleMapPolyline({ path }: { path: google.maps.LatLngLiteral[] }) {
   const map = useMap()
