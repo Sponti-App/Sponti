@@ -144,7 +144,7 @@ export function NotificationsPopover({
         ) : (
           <ul
             ref={scrollRef}
-            className="max-h-[360px] divide-y divide-border overflow-y-auto"
+            className="max-h-90 divide-y divide-border overflow-y-auto"
           >
             {notifications.map((notification) => {
               const { icon: Icon, ring } = TYPE_VISUAL[notification.type]

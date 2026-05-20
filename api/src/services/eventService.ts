@@ -383,7 +383,7 @@ export const createEvent = async (hostId: string, input: CreateEventBody) => {
       })),
     ];
 
-    const members = await EventMember.create(memberDocs, { session });
+    const members = await EventMember.create(memberDocs, { session, ordered: true });
 
     if (invitees.length > 0) {
       await createEventInvitationNotifications({

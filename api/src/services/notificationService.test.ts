@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { type ClientSession } from "mongoose";
 
 const eventMemberFindMock = vi.hoisted(() => vi.fn());
 const notificationCountDocumentsMock = vi.hoisted(() => vi.fn());
@@ -38,6 +39,7 @@ const EVENT_ID = "507f1f77bcf86cd799439015";
 const NOTIFICATION_ID = "507f1f77bcf86cd799439016";
 const OLDER_NOTIFICATION_ID = "507f1f77bcf86cd799439017";
 const EXTRA_NOTIFICATION_ID = "507f1f77bcf86cd799439018";
+const notificationSession = { id: "notification-session" } as unknown as ClientSession;
 
 beforeEach(() => {
   getUsersByIdsMock.mockResolvedValue(new Map());
@@ -197,9 +199,14 @@ describe("notificationService creation helpers", () => {
       hostId: HOST_ID,
       eventTitle: "rooftop drinks",
       inviteeIds: [GUEST_ID, GUEST_ID, ADMIN_ID, HOST_ID],
+      session: notificationSession,
     });
 
     expect(notificationCreateMock).toHaveBeenCalledOnce();
+    expect(notificationCreateMock).toHaveBeenCalledWith(expect.any(Array), {
+      session: notificationSession,
+      ordered: true,
+    });
     const docs = notificationCreateMock.mock.calls[0]?.[0] as Array<{
       userId: unknown;
       type: string;
@@ -217,30 +224,37 @@ describe("notificationService creation helpers", () => {
     );
   });
 
-  it("excludes hosts and declined members from cancel/reactivate notifications", async () => {
+  it("excludes hosts and declined members from ordered cancel/reactivate batches", async () => {
     mockEventMembers([
       { userId: HOST_ID, rsvpStatus: "going" },
-      { userId: GUEST_ID, rsvpStatus: "declined" },
+      { userId: USER_ID, rsvpStatus: "declined" },
+      { userId: GUEST_ID, rsvpStatus: "invited" },
+      { userId: ADMIN_ID, rsvpStatus: "going" },
     ]);
-    notificationCreateMock.mockResolvedValue([{}]);
+    notificationCreateMock.mockResolvedValue([{}, {}]);
 
     await createEventStatusNotifications({
       eventId: EVENT_ID,
       hostId: HOST_ID,
       eventTitle: "rooftop drinks",
       type: "event_cancelled",
+      session: notificationSession,
     });
 
     expect(eventMemberFindMock).toHaveBeenCalledWith({
       eventId: expect.anything(),
       rsvpStatus: { $in: ["invited", "going"] },
     });
+    expect(notificationCreateMock).toHaveBeenCalledWith(expect.any(Array), {
+      session: notificationSession,
+      ordered: true,
+    });
     const docs = notificationCreateMock.mock.calls[0]?.[0] as Array<{
       userId: unknown;
       type: string;
     }>;
-    expect(docs).toHaveLength(1);
-    expect(String(docs[0]?.userId)).toBe(ADMIN_ID);
-    expect(docs[0]?.type).toBe("event_cancelled");
+    expect(docs).toHaveLength(2);
+    expect(docs.map((doc) => String(doc.userId))).toEqual([GUEST_ID, ADMIN_ID]);
+    expect(docs.map((doc) => doc.type)).toEqual(["event_cancelled", "event_cancelled"]);
   });
 });

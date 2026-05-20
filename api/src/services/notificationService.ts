@@ -149,7 +149,7 @@ const createNotifications = async (inputs: CreateNotificationInput[], session?: 
     metadata: input.metadata ?? {},
   }));
 
-  const created = await Notification.create(docs, { session });
+  const created = await Notification.create(docs, { session, ordered: true });
 
   return { created: created.length };
 };

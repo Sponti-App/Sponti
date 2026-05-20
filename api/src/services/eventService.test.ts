@@ -9,15 +9,21 @@ const eventMemberDistinctMock = vi.hoisted(() => vi.fn());
 const eventMemberFindMock = vi.hoisted(() => vi.fn());
 const eventMemberFindOneMock = vi.hoisted(() => vi.fn());
 const eventMemberUpdateManyMock = vi.hoisted(() => vi.fn());
+const circleFindMock = vi.hoisted(() => vi.fn());
+const circleMemberFindMock = vi.hoisted(() => vi.fn());
+const connectionFindMock = vi.hoisted(() => vi.fn());
+const getBlockedInviteeIdsMock = vi.hoisted(() => vi.fn());
 const getBlockedRelationshipUserIdsMock = vi.hoisted(() => vi.fn());
 const getUsersByIdsMock = vi.hoisted(() => vi.fn());
 const notificationCreateMock = vi.hoisted(() => vi.fn());
+const notificationFindMock = vi.hoisted(() => vi.fn());
+const transactionSessionMock = vi.hoisted(() => ({ id: "transaction-session" }));
 
 vi.mock("#models/index", () => ({
   Block: { exists: vi.fn() },
-  Circle: { find: vi.fn() },
-  CircleMember: { find: vi.fn() },
-  Connection: { find: vi.fn() },
+  Circle: { find: circleFindMock },
+  CircleMember: { find: circleMemberFindMock },
+  Connection: { find: connectionFindMock },
   Event: {
     countDocuments: eventCountDocumentsMock,
     create: eventCreateMock,
@@ -33,11 +39,12 @@ vi.mock("#models/index", () => ({
   },
   Notification: {
     create: notificationCreateMock,
+    find: notificationFindMock,
   },
 }));
 
 vi.mock("#services/blockService", () => ({
-  getBlockedInviteeIds: vi.fn(),
+  getBlockedInviteeIds: getBlockedInviteeIdsMock,
   getBlockedRelationshipUserIds: getBlockedRelationshipUserIdsMock,
 }));
 
@@ -46,7 +53,9 @@ vi.mock("#services/userDirectoryService", () => ({
 }));
 
 vi.mock("#utils/transactions", () => ({
-  withTransactionFallback: vi.fn((callback: () => unknown) => callback()),
+  withTransactionFallback: vi.fn((callback: (session?: unknown) => unknown) =>
+    callback(transactionSessionMock)
+  ),
 }));
 
 const {
@@ -64,12 +73,14 @@ const USER_ID = "507f1f77bcf86cd799439011";
 const EVENT_ID = "507f1f77bcf86cd799439012";
 const GUEST_ID = "507f1f77bcf86cd799439013";
 const ADMIN_ID = "507f1f77bcf86cd799439014";
+const CIRCLE_ID = "507f1f77bcf86cd799439015";
 const NOW = new Date("2026-05-14T12:00:00.000Z");
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   eventMemberDistinctMock.mockResolvedValue([]);
+  getBlockedInviteeIdsMock.mockResolvedValue(new Set());
   getBlockedRelationshipUserIdsMock.mockResolvedValue([]);
   getUsersByIdsMock.mockResolvedValue(new Map());
 });
@@ -90,6 +101,35 @@ const mockEventFindOneSelectLean = (event: unknown) => {
   const selectMock = vi.fn().mockReturnValue({ lean: leanMock });
   eventFindOneMock.mockReturnValue({ select: selectMock });
   return { leanMock, selectMock };
+};
+
+const mockCircleFindLean = (circles: Array<Record<string, unknown>>) => {
+  const leanMock = vi.fn().mockResolvedValue(circles);
+  const selectMock = vi.fn().mockReturnValue({ lean: leanMock });
+  circleFindMock.mockReturnValue({ select: selectMock });
+  return { leanMock, selectMock };
+};
+
+const mockCircleMemberFindLean = (members: Array<Record<string, unknown>>) => {
+  const leanMock = vi.fn().mockResolvedValue(members);
+  const selectMock = vi.fn().mockReturnValue({ lean: leanMock });
+  circleMemberFindMock.mockReturnValue({ select: selectMock });
+  return { leanMock, selectMock };
+};
+
+const mockAcceptedConnections = (connections: Array<Record<string, unknown>>) => {
+  const leanMock = vi.fn().mockResolvedValue(connections);
+  const selectMock = vi.fn().mockReturnValue({ lean: leanMock });
+  connectionFindMock.mockReturnValue({ select: selectMock });
+  return { leanMock, selectMock };
+};
+
+const mockExistingNotifications = (notifications: Array<Record<string, unknown>>) => {
+  const leanMock = vi.fn().mockResolvedValue(notifications);
+  const sessionMock = vi.fn().mockReturnValue({ lean: leanMock });
+  const selectMock = vi.fn().mockReturnValue({ session: sessionMock });
+  notificationFindMock.mockReturnValue({ select: selectMock });
+  return { leanMock, selectMock, sessionMock };
 };
 
 const mockEventMembersForNotifications = (members: Array<Record<string, unknown>>) => {
@@ -180,6 +220,48 @@ describe("eventService.createEvent", () => {
       }),
     ]);
     expect(result.event.type).toBe("drinks");
+  });
+
+  it("creates ordered event-member batches when private circle invitees are expanded", async () => {
+    eventCreateMock.mockImplementation(async (docs: Array<Record<string, unknown>>) =>
+      docs.map((doc) => ({ _id: EVENT_ID, ...doc }))
+    );
+    eventMemberCreateMock.mockResolvedValue([]);
+    notificationCreateMock.mockResolvedValue([{}, {}]);
+    mockCircleFindLean([{ _id: CIRCLE_ID }]);
+    mockCircleMemberFindLean([
+      { circleId: CIRCLE_ID, userId: GUEST_ID },
+      { circleId: CIRCLE_ID, userId: ADMIN_ID },
+    ]);
+    mockAcceptedConnections([
+      { requesterId: USER_ID, receiverId: GUEST_ID },
+      { requesterId: USER_ID, receiverId: ADMIN_ID },
+    ]);
+    mockExistingNotifications([]);
+
+    await createEvent(USER_ID, {
+      title: "beer",
+      description: null,
+      type: "drinks",
+      startAt: new Date("2026-05-20T10:30:00.000Z"),
+      endAt: new Date("2026-05-20T13:45:00.000Z"),
+      locationName: "Saint Pauli",
+      locationAddress: "St Pauli, Hamburg, Germany",
+      location: { type: "Point", coordinates: [9.9699353, 53.5508628] },
+      visibility: "private",
+      allowGuestInvites: "none",
+      guestInviteLimit: 5,
+      members: [],
+      circles: [{ circleId: CIRCLE_ID, role: "guest" }],
+    });
+
+    expect(eventMemberCreateMock).toHaveBeenCalledOnce();
+    expect(eventMemberCreateMock).toHaveBeenCalledWith(expect.any(Array), {
+      session: transactionSessionMock,
+      ordered: true,
+    });
+    const docs = eventMemberCreateMock.mock.calls[0]?.[0] as Array<{ userId: unknown }>;
+    expect(docs.map((doc) => String(doc.userId))).toEqual([USER_ID, GUEST_ID, ADMIN_ID]);
   });
 });
 
