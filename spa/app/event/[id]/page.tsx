@@ -525,7 +525,10 @@ function ThreadBlock({
   onMessage: (value: string) => void
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
 }) {
-  const renderedMessages = useMemo(() => [...messages].reverse(), [messages])
+  const renderedMessages = useMemo(
+    () => messages.map((text, index) => ({ text, index })).reverse(),
+    [messages]
+  )
 
   return (
     <section className="pt-4">
@@ -550,7 +553,7 @@ function ThreadBlock({
 
       <div className="mt-4 flex flex-col gap-3.5">
         {renderedMessages.map((item, index) => (
-          <div key={`${item}-${index}`} className="flex gap-2.5">
+          <div key={`message-${item.index}`} className="flex gap-2.5">
             <Avatar className="size-[30px]">
               <AvatarFallback className="text-xs">
                 {index === renderedMessages.length - 1 ? "S" : "Y"}
@@ -564,7 +567,7 @@ function ThreadBlock({
                 · now
               </p>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                {item.toLowerCase()}
+                {item.text.toLowerCase()}
               </p>
             </div>
           </div>

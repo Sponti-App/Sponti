@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEventBodySchema } from "./eventSchemas.js";
+import { createEventBodySchema, updateMyEventMembershipBodySchema } from "./eventSchemas.js";
 
 const baseCreateEventBody = {
   title: "coffee after class",
@@ -23,6 +23,16 @@ describe("createEventBodySchema", () => {
     const result = createEventBodySchema.safeParse({
       ...baseCreateEventBody,
       type: "karaoke",
+    });
+
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("updateMyEventMembershipBodySchema", () => {
+  it("rejects deprecated maybe RSVP writes", () => {
+    const result = updateMyEventMembershipBodySchema.safeParse({
+      rsvpStatus: "maybe",
     });
 
     expect(result.success).toBe(false);

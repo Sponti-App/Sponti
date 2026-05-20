@@ -56,7 +56,6 @@ function statusLabel(status: EventStatus): string | null {
 function rsvpLabel(rsvp: HostedEvent["myRsvp"]): string {
   if (rsvp === "going") return "going"
   if (rsvp === "declined") return "not going"
-  if (rsvp === "maybe") return "maybe"
   return "invited"
 }
 

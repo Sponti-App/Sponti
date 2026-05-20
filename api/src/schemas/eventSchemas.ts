@@ -93,7 +93,7 @@ export const updateEventBodySchema = z
 
 export const updateMyEventMembershipBodySchema = z
   .object({
-    rsvpStatus: z.enum(["going", "maybe", "declined"]).optional(),
+    rsvpStatus: z.enum(["going", "declined"]).optional(),
     memberWillArriveAt: isoDateSchema.nullable().optional(),
   })
   .strict()

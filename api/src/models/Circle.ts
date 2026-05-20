@@ -1,6 +1,6 @@
 import mongoose, { Schema, model, type InferSchemaType, type Model } from "mongoose";
 
-export const CIRCLE_TYPES = ["close", "inner", "all"] as const;
+export const CIRCLE_TYPES = ["close", "inner", "all", "custom"] as const;
 
 const circleSchema = new Schema(
   {

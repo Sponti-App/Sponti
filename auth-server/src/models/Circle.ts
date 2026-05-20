@@ -1,6 +1,6 @@
 import { model, Schema, Types } from "mongoose";
 
-const circleTypes = ["close", "inner", "all"] as const;
+const circleTypes = ["close", "inner", "all", "custom"] as const;
 
 type CircleType = (typeof circleTypes)[number];
 

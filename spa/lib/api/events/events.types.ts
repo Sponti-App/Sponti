@@ -1,5 +1,5 @@
 export type EventVisibility = "public" | "private"
-export type EventRsvp = "invited" | "going" | "maybe" | "declined"
+export type EventRsvp = "invited" | "going" | "declined"
 export type EventType =
   | "food"
   | "drinks"
@@ -8,7 +8,7 @@ export type EventType =
   | "party"
   | "culture"
   | "hobby"
-export type RsvpStatus = Extract<EventRsvp, "going" | "maybe" | "declined">
+export type RsvpStatus = Extract<EventRsvp, "going" | "declined">
 export type EventGuestInviteMode = "multiple" | "single" | "none"
 export type EventInviteRole = "admin" | "guest"
 export type ApiEventStatus = "active" | "cancelled" | "completed"
@@ -41,8 +41,10 @@ export interface EventItem {
 }
 
 export type Recurrence = "none" | "daily" | "weekly"
-// A circle id (e.g. "inner", "close", "all", or a custom-NNN id) OR the
-// literal "custom" for the ad-hoc friend-picker path.
+// A backend circle id when one is selected. The compose drawer uses "" as the
+// no-circle-selected sentinel for private events with direct member invites.
+// Circle tier labels such as "inner", "close", and "all" live on circle.type,
+// not in this id field.
 export type Audience = string
 
 export type DraftEventLocation = {
@@ -119,8 +121,7 @@ export type EventCoordinates = {
 
 export type EventAudienceTarget =
   | { kind: "public" }
-  // `extraMemberIds` rides along on top of the circle invite — used when the
-  // user picks "all friends" and also taps specific people to invite directly.
+  // `extraMemberIds` rides along on top of the selected circle invite.
   | { kind: "circle"; circleId: string; extraMemberIds?: string[] }
   | { kind: "members"; memberIds: string[] }
 

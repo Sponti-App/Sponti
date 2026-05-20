@@ -389,13 +389,20 @@ export function MapView({
     "all"
   )
   const [showEnded, setShowEnded] = useState(false)
+  const [nowMs, setNowMs] = useState(0)
+  useEffect(() => {
+    const updateNow = () => setNowMs(Date.now())
+    updateNow()
+    const id = window.setInterval(updateNow, 60_000)
+    return () => window.clearInterval(id)
+  }, [])
   const map = useMapEvents(cameraCenter, searchRadiusKm)
   const mapEvents = useMemo(
     () => map.events.filter((e) => !!e.location.coordinates),
     [map.events]
   )
   const groupedEvents = useMemo(() => {
-    const now = Date.now()
+    const now = nowMs
     const live: EventItem[] = []
     const upcoming: EventItem[] = []
     const ended: EventItem[] = []
@@ -418,7 +425,7 @@ export function MapView({
       (a, b) => new Date(b.endAt).getTime() - new Date(a.endAt).getTime()
     )
     return { live, upcoming, ended }
-  }, [mapEvents, typeFilters])
+  }, [mapEvents, nowMs, typeFilters])
   const visibleEvents = useMemo(() => {
     if (timeFilter === "live") return groupedEvents.live
     if (timeFilter === "upcoming") return groupedEvents.upcoming
@@ -1052,7 +1059,6 @@ function EmptyState({
           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
         >
           <Flame className="h-4 w-4" /> connect with your friends
-          
         </button>
       </div>
     </div>
