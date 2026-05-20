@@ -185,7 +185,7 @@ export default function Home() {
               haptic("selection")
               setMenuOpen((v) => !v)
             }}
-            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/70 shadow-sm backdrop-blur-md transition-colors active:bg-background/90"
+            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md transition-colors active:bg-background/95 dark:bg-background/90"
           >
             <Menu className="h-4 w-4" />
           </button>
@@ -225,7 +225,7 @@ export default function Home() {
               router.push("/settings")
             }}
             aria-label="Settings"
-            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/70 shadow-sm backdrop-blur-md transition-colors active:bg-background/90"
+            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md transition-colors active:bg-background/95 dark:bg-background/90"
           >
             <Settings className="h-4 w-4" />
           </button>

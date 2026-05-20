@@ -1,4 +1,4 @@
-import { type ClientSession } from "mongoose";
+import mongoose, { type ClientSession } from "mongoose";
 import { Block, Circle, CircleMember, Connection, Event, EventMember } from "#models/index";
 import type {
   ActiveMapEventsQuery,
@@ -342,7 +342,7 @@ export const getEvents = async (userId: string, query: GetEventsQuery) => {
   ]);
 
   return {
-    data: events,
+    data: await attachHostProfiles(events),
     pagination: toPagination(page, limit, total),
   };
 };
@@ -361,7 +361,8 @@ export const getEventById = async (userId: string, eventId: string) => {
     throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  const withStats = await attachMemberStats([event]);
+  const [eventWithHost] = await attachHostProfiles([event]);
+  const withStats = await attachMemberStats(eventWithHost ? [eventWithHost] : [event]);
   const withRsvp = await attachMyRsvp(userId, withStats);
 
   return withRsvp[0] ?? event;
@@ -405,10 +406,16 @@ export const getMyUpcomingEvents = async (userId: string, query: MyUpcomingEvent
       .lean(),
   ]);
 
+  const [hostedByMeWithHost, invitedWithHost, pastHostedWithHost] = await Promise.all([
+    attachHostProfiles(hostedByMe),
+    attachHostProfiles(invited),
+    attachHostProfiles(pastHosted),
+  ]);
+
   const [hostedWithStats, invitedWithStats, pastWithStats] = await Promise.all([
-    attachMemberStats(hostedByMe),
-    attachMemberStats(invited),
-    attachMemberStats(pastHosted),
+    attachMemberStats(hostedByMeWithHost),
+    attachMemberStats(invitedWithHost),
+    attachMemberStats(pastHostedWithHost),
   ]);
 
   const [hostedWithRsvp, invitedWithRsvp, pastWithRsvp] = await Promise.all([
@@ -619,6 +626,96 @@ const attachMyRsvp = async <T extends { _id: unknown }>(
   }));
 };
 
+const extractHostId = (hostId: unknown): string | null => {
+  if (!hostId) return null;
+  if (typeof hostId === "string") return hostId;
+  if (typeof hostId === "object" && "_id" in hostId) {
+    return String((hostId as { _id: unknown })._id);
+  }
+  return String(hostId);
+};
+
+const fetchHostProfiles = async (hostIds: string[]) => {
+  if (hostIds.length === 0) {
+    return new Map<
+      string,
+      { _id: string; username?: string; displayName?: string; avatarUrl?: string | null }
+    >();
+  }
+
+  const db = mongoose.connection.db;
+  if (!db) {
+    throw new AppError("MongoDB connection unavailable", 500, "DB_CONNECTION_ERROR");
+  }
+
+  const users = await db
+    .collection("users")
+    .find(
+      { _id: { $in: hostIds.map(toObjectId) } },
+      {
+        projection: {
+          _id: 1,
+          username: 1,
+          displayName: 1,
+          avatarUrl: 1,
+        },
+      }
+    )
+    .toArray();
+
+  return new Map(
+    users.map((user) => [
+      String(user._id),
+      {
+        _id: String(user._id),
+        username: user.username,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl ?? null,
+      },
+    ])
+  );
+};
+
+const attachHostProfiles = async <T extends { hostId: unknown }>(
+  events: T[]
+): Promise<
+  Array<
+    T & {
+      hostId:
+        | { _id: string; username?: string; displayName?: string; avatarUrl?: string | null }
+        | string
+        | null;
+    }
+  >
+> => {
+  if (events.length === 0) {
+    return [];
+  }
+
+  const hostIds = events
+    .map((event) => extractHostId(event.hostId))
+    .filter((id): id is string => id !== null);
+  const uniqueHostIds = Array.from(new Set(hostIds));
+  const hostProfiles = await fetchHostProfiles(uniqueHostIds);
+
+  return events.map((event) => {
+    const id = extractHostId(event.hostId);
+    if (!id) {
+      return event as T & { hostId: string | null };
+    }
+
+    const profile = hostProfiles.get(id);
+    if (!profile) {
+      return event as T & { hostId: string | null };
+    }
+
+    return {
+      ...event,
+      hostId: profile,
+    };
+  });
+};
+
 /**
  * Returns events that should appear on the home map for the authenticated user.
  *
@@ -647,7 +744,7 @@ export const getActiveMapEvents = async (userId: string, query: ActiveMapEventsQ
   });
 
   const events = await Event.find(filter).sort({ startAt: 1 }).limit(200).lean();
-  return attachMyRsvp(userId, events);
+  return attachMyRsvp(userId, await attachHostProfiles(events));
 };
 
 export const getUpcomingCalendarEvents = async (
@@ -666,7 +763,7 @@ export const getUpcomingCalendarEvents = async (
   ]);
 
   return {
-    data: await attachMyRsvp(userId, events),
+    data: await attachMyRsvp(userId, await attachHostProfiles(events)),
     pagination: toPagination(page, limit, total),
   };
 };
@@ -677,7 +774,21 @@ export const filterOutBlockedEventHosts = async <T extends { hostId: unknown }>(
 ) => {
   const blockedIds = new Set(await getBlockedRelationshipUserIds(userId));
 
-  return events.filter((event) => !blockedIds.has(String(event.hostId)));
+  const hostIdString = (host: unknown) => {
+    if (!host) return String(host);
+    if (typeof host === "string") return host;
+    try {
+      if (host && typeof host === "object" && "_id" in host) {
+        return String((host as any)._id);
+      }
+    } catch {
+      // ignore
+    }
+
+    return String(host);
+  };
+
+  return events.filter((event) => !blockedIds.has(hostIdString(event.hostId)));
 };
 
 export const isUserBlockedFromEventHost = async (userId: string, hostId: string) => {

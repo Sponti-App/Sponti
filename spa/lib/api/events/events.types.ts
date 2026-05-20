@@ -26,6 +26,7 @@ export interface EventItem {
     id: string
     name: string
     avatar: string
+    avatarUrl?: string | null
     color: string
     note: string
   }
@@ -170,7 +171,9 @@ export type ApiEventMember = {
 
 export type ApiEvent = {
   _id: string
-  hostId: string | { _id: string; displayName?: string; username?: string }
+  hostId:
+  | string
+  | { _id: string; displayName?: string; username?: string; avatarUrl?: string | null }
   title: string
   description?: string | null
   type: EventType

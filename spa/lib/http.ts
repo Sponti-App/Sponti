@@ -44,6 +44,42 @@ async function parseError(res: Response): Promise<ErrorResponse | null> {
   }
 }
 
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1"
+}
+
+function matchesCurrentHost(candidateUrl: URL): boolean {
+  if (typeof window === "undefined") return false
+
+  const currentHost = window.location.hostname
+  return (
+    candidateUrl.hostname === currentHost ||
+    (isLoopbackHost(candidateUrl.hostname) && isLoopbackHost(currentHost))
+  )
+}
+
+export function resolveConfiguredBaseUrl(rawValue: string): string {
+  const candidates = rawValue
+    .split(",")
+    .map((candidate) => candidate.trim())
+    .filter(Boolean)
+
+  if (candidates.length === 0) return ""
+
+  if (typeof window === "undefined") return candidates[0]
+
+  for (const candidate of candidates) {
+    try {
+      const candidateUrl = new URL(candidate)
+      if (matchesCurrentHost(candidateUrl)) return candidate
+    } catch {
+      continue
+    }
+  }
+
+  return candidates[0]
+}
+
 async function refreshSession(): Promise<string | null> {
   if (!AUTH_BASE) return null
 
@@ -139,9 +175,12 @@ function normalizeBaseUrl(value: string): string {
 function normalizeApiBaseUrl(value: string): string {
   return normalizeBaseUrl(value).replace(/\/api\/v1$/, "")
 }
-
-const AUTH_BASE = normalizeBaseUrl(process.env.NEXT_PUBLIC_AUTH_BASE_URL ?? "")
-const API_BASE = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
+const AUTH_BASE = normalizeBaseUrl(
+  resolveConfiguredBaseUrl(process.env.NEXT_PUBLIC_AUTH_BASE_URL ?? "")
+)
+const API_BASE = normalizeApiBaseUrl(
+  resolveConfiguredBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
+)
 
 function withApiVersionPrefix(path: string): string {
   if (path.startsWith("/api/v1")) return path

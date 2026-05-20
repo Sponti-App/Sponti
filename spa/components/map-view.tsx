@@ -42,6 +42,7 @@ import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
 import { EVENT_TYPES } from "@/types/utils"
 import { useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
 
 // Hex equivalent of --accent (oklch 0.55 0.19 25). Google Maps overlays can't
 // read CSS variables, so we mirror the token here. Keep in sync with globals.css.
@@ -189,7 +190,9 @@ function GoogleMapContent({
 }) {
   const status = useApiLoadingStatus()
   const map = useMap()
+  const { resolvedTheme } = useTheme()
   const autoCenteredRef = useRef(false)
+  const colorScheme = resolvedTheme === "dark" ? "DARK" : "LIGHT"
   const userInteractedRef = useRef(false)
 
   // If the map opened from a cached camera, move to fresh GPS once it arrives,
@@ -231,6 +234,7 @@ function GoogleMapContent({
       defaultCenter={cameraCenter}
       defaultZoom={15}
       mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_ID}
+      colorScheme={colorScheme}
       reuseMaps
       disableDefaultUI
       gestureHandling="greedy"
