@@ -250,14 +250,14 @@ export function CalendarView({
             <button
               type="button"
               onClick={() => setViewMode("week")}
-              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${viewMode === "week" ? "bg-card text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              className={`rounded-full px-3 py-1 text-sm transition-colors active:scale-[0.97] ${viewMode === "week" ? "bg-card text-foreground font-semibold" : "text-muted-foreground font-medium hover:text-foreground"}`}
             >
               week
             </button>
             <button
               type="button"
               onClick={() => setViewMode("month")}
-              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${viewMode === "month" ? "bg-card text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              className={`rounded-full px-3 py-1 text-sm transition-colors active:scale-[0.97] ${viewMode === "month" ? "bg-card text-foreground font-semibold" : "text-muted-foreground font-medium hover:text-foreground"}`}
             >
               month
             </button>
@@ -306,7 +306,7 @@ export function CalendarView({
                     month: "short",
                     day: "numeric",
                   })}
-                  className={`flex flex-col items-center justify-center rounded-lg py-1.5 transition-colors ${beyondHorizon
+                  className={`flex flex-col items-center justify-center rounded-lg py-1.5 transition-colors active:scale-[0.97] ${beyondHorizon
                     ? "cursor-not-allowed opacity-30"
                     : isSelected
                       ? "bg-card"
@@ -546,7 +546,7 @@ function EventCard({
         <div className="flex items-center gap-1.5">
           <p className="truncate text-sm font-medium">{event.title}</p>
           {joined && (
-            <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+            <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
               <Check className="h-2.5 w-2.5" /> going
             </span>
           )}

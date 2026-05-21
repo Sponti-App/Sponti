@@ -48,7 +48,7 @@ export function MenuDrawer({
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center gap-3 rounded-xl px-1 py-3 text-base font-medium transition-colors hover:bg-secondary"
+                className="flex items-center gap-3 rounded-xl px-1 py-3 text-base font-medium transition-colors hover:bg-secondary active:bg-muted"
                 tabIndex={open ? 0 : -1}
                 onClick={onClose}
               >

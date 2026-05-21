@@ -153,7 +153,7 @@ export function NotificationsPopover({
                   <button
                     type="button"
                     onClick={() => onNotificationClick?.(notification)}
-                    className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary ${
+                    className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary active:bg-muted ${
                       notification.read ? "" : "bg-accent/5"
                     }`}
                   >
