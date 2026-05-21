@@ -103,7 +103,7 @@ function eventIcon(type: EventType, avatar: string) {
 
   const Icon = match.icon
 
-  return <Icon className="h-5 w-5 shrink-0 text-accent-foreground" />
+  return <Icon className="h-5 w-5 shrink-0 text-accent" />
 }
 
 function StaticMapFallback({
@@ -150,7 +150,7 @@ function StaticMapFallback({
             className="absolute flex cursor-pointer flex-col items-center"
           >
             <div
-              className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${isJoined(event, joinedIds)
+              className={`flex h-10 w-10 items-center justify-center rounded-full border-2 border-accent bg-background text-sm font-medium shadow-lg ${isJoined(event, joinedIds)
                   ? "ring-2 ring-accent ring-offset-2"
                   : ""
                 }`}
@@ -176,6 +176,8 @@ function StaticMapFallback({
 function GoogleMapContent({
   events,
   onEventSelect,
+  previewEvent,
+  setPreviewEvent,
   routeResult,
   routeDestination,
   joinedIds,
@@ -185,6 +187,8 @@ function GoogleMapContent({
 }: {
   events: EventItem[]
   onEventSelect: (event: EventItem) => void
+  previewEvent: EventItem | null
+  setPreviewEvent: React.Dispatch<React.SetStateAction<EventItem | null>>
   routeResult: RouteResult | null
   routeDestination: GeoCoords | null
   joinedIds: Set<string>
@@ -252,7 +256,10 @@ function GoogleMapContent({
     >
       {currentLocation && (
         <AdvancedMarker position={currentLocation}>
-          <div className="h-4 w-4 rounded-full border-2 border-background bg-accent shadow-lg" />
+          <div className="relative flex items-center justify-center">
+            <span className="absolute h-4 w-4 animate-ping rounded-full bg-blue-400/40" />
+            <div className="relative h-3.5 w-3.5 rounded-full border-2 border-white bg-blue-500 shadow-lg" />
+          </div>
         </AdvancedMarker>
       )}
       {events.map((event) => {
@@ -262,7 +269,7 @@ function GoogleMapContent({
           <AdvancedMarker
             key={event.id}
             position={coords}
-            onClick={() => onEventSelect(event)}
+            onClick={() => setPreviewEvent(prev => prev?.id === event.id ? null : event)}
           >
             <div className="flex cursor-pointer flex-col items-center">
               <div className="relative flex items-center justify-center">
@@ -273,7 +280,7 @@ function GoogleMapContent({
                   />
                 )}
                 <div
-                  className={`relative flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${isJoined(event, joinedIds)
+                  className={`relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent bg-background text-xs font-medium shadow-lg ${isJoined(event, joinedIds)
                       ? "ring-2 ring-accent ring-offset-2"
                       : ""
                     }`}
@@ -290,6 +297,48 @@ function GoogleMapContent({
           </AdvancedMarker>
         )
       })}
+      {previewEvent && eventCoords(previewEvent) && (
+        <AdvancedMarker
+          position={eventCoords(previewEvent)!}
+          zIndex={1000}
+        >
+          <div className="relative mb-10 flex origin-bottom animate-[scale-in_150ms_ease-out] flex-col items-center">
+            <div className="relative w-52 rounded-2xl border border-border/60 bg-background p-3.5 shadow-xl">
+              <button
+                type="button"
+                onClick={() => setPreviewEvent(null)}
+                className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onEventSelect(previewEvent)
+                  setPreviewEvent(null)
+                }}
+                className="flex w-full flex-col items-center gap-1.5 text-center"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15">
+                  {eventIcon(previewEvent.type, previewEvent.host.avatar)}
+                </div>
+                <p className="line-clamp-2 text-sm font-semibold text-foreground">
+                  {previewEvent.title.split("·", 2)[0]}
+                </p>
+                <p className="line-clamp-1 text-xs text-muted-foreground">
+                  {previewEvent.location.name}
+                </p>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span>{previewEvent.going} going</span>
+                  <span className="text-border">·</span>
+                  <span>by {previewEvent.host.name.trim().split(/\s+/)[0]}</span>
+                </div>
+              </button>
+            </div>
+            <div className="h-0 w-0 border-x-[8px] border-t-[8px] border-x-transparent border-t-background" />
+          </div>
+        </AdvancedMarker>
+      )}
       {routeResult && <GoogleMapPolyline path={routeResult.path} />}
       {routeDestination && (
         <FitBoundsOnce
@@ -389,6 +438,7 @@ export function MapView({
     "all"
   )
   const [showEnded, setShowEnded] = useState(false)
+  const [previewEvent, setPreviewEvent] = useState<EventItem | null>(null)
   const [nowMs, setNowMs] = useState(0)
   useEffect(() => {
     const updateNow = () => setNowMs(Date.now())
@@ -598,6 +648,8 @@ export function MapView({
           <GoogleMapContent
             events={mapEvents}
             onEventSelect={onEventSelect}
+            previewEvent={previewEvent}
+            setPreviewEvent={setPreviewEvent}
             routeResult={routeResult}
             routeDestination={routeDestination}
             joinedIds={joinedIds}

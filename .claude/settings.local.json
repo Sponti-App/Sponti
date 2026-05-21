@@ -11,7 +11,10 @@
       "Bash(npx tsc *)",
       "Bash(npx eslint *)",
       "Bash(npm run *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git -C /Users/patrickcaire/Development/Sponti show 'stash@{__TRACKED_VAR__}' -- spa/components/map-view.tsx)",
+      "Bash(git -C /Users/patrickcaire/Development/Sponti reflog --all)",
+      "Bash(git -C /Users/patrickcaire/Development/Sponti reflog)"
     ]
   }
 }
