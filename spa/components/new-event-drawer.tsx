@@ -19,8 +19,7 @@ import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import {
   createEvent,
@@ -45,6 +44,7 @@ import { EVENT_TYPES } from "@/types/utils"
 
 type Mode = "now" | "scheduled"
 type WhereType = "current" | "search"
+type ExpandedSection = "when" | "where" | "who" | null
 type PlaceSuggestion = { placeId: string; label: string; address: string }
 type PlaceDetailsResponse = {
   placeId: string
@@ -55,7 +55,6 @@ type PlaceDetailsResponse = {
 }
 
 const STEP_MIN = 15
-const NOW_MAX_OFFSET_MIN = 360
 const MAX_DURATION_MIN = 240
 const MIN_DURATION_MIN = 15
 const SCHEDULED_MAX_DAYS = 14
@@ -69,11 +68,6 @@ function formatDateInput(d: Date): string {
   const mm = String(d.getMonth() + 1).padStart(2, "0")
   const dd = String(d.getDate()).padStart(2, "0")
   return `${yyyy}-${mm}-${dd}`
-}
-
-function minutesNow(): number {
-  const n = new Date()
-  return n.getHours() * 60 + n.getMinutes()
 }
 
 function formatRelative(minutes: number): string {
@@ -349,39 +343,25 @@ export function NewEventDrawer({
   // Creation is a compose task, so it opens as a full-height sheet instead of
   // starting as a cramped peek.
   const initialEventDraftState = useMemo(() => getInitialEventDraftState(), [])
-  const [, setActiveSnapPoint] = useState<number | string | null>(
-    initialEventDraftState.activeSnapPoint
-  )
+  const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null)
   const handleClose = onClose
 
-  // Section refs let the summary-chip row scroll the form to the relevant
-  // section when the user taps a chip. Also gates the expand-then-scroll
-  // sequence on the next frame so the drawer has time to settle at 0.95.
   const scrollRef = useRef<HTMLDivElement>(null)
-  const whenRef = useRef<HTMLDivElement>(null)
-  const whereRef = useRef<HTMLDivElement>(null)
-  const whoRef = useRef<HTMLDivElement>(null)
+  const pendingPublicSubmit = useRef(false)
 
-  const focusSection = (
-    target: React.RefObject<HTMLDivElement | null>
-  ): void => {
-    setActiveSnapPoint(0.95)
-    // Wait for the snap animation to start so the section actually exists
-    // in the visible viewport before we scroll. Two frames covers the
-    // initial layout flush + snap transition kick-off.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        target.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-      })
-    })
-  }
+  const toggleSection = useCallback((section: "when" | "where" | "who") => {
+    setExpandedSection((prev) => (prev === section ? null : section))
+    haptic("selection")
+  }, [])
 
   // Mode
   const [mode, setMode] = useState<Mode>(initialEventDraftState.mode)
   const handleModeChange = (v: string) => {
     const next = v as Mode
     setMode(next)
-    setActiveSnapPoint(0.95)
+    if (next === "scheduled") {
+      setExpandedSection("when")
+    }
   }
 
   // Event type — `eventType` holds the user's MANUAL pick (null = not picked
@@ -404,12 +384,6 @@ export function NewEventDrawer({
   const inferredType = useMemo(() => inferEventType(title), [title])
   const effectiveType = resolveEventType(eventType, inferredType)
 
-  // Round to nearest STEP_MIN so every wheel label lands on a clean interval
-  // (e.g. 4:26 → 4:30 instead of 4:26).
-  const mountMinutes = useMemo(
-    () => Math.round(minutesNow() / STEP_MIN) * STEP_MIN,
-    []
-  )
   const [startOffsetMin, setStartOffsetMin] = useState(
     initialEventDraftState.startOffsetMin
   )
@@ -512,6 +486,7 @@ export function NewEventDrawer({
     initialEventDraftState.submitError
   )
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false)
 
   const resetEventDraft = useCallback((): void => {
     if (debounceRef.current) {
@@ -522,7 +497,7 @@ export function NewEventDrawer({
     const initialState = getInitialEventDraftState()
     placesSearchRequestRef.current += 1
     placeDetailsRequestRef.current += 1
-    setActiveSnapPoint(initialState.activeSnapPoint)
+    setExpandedSection(null)
     setMode(initialState.mode)
     setEventType(initialState.eventType)
     setTypeOverrideOpen(initialState.typeOverrideOpen)
@@ -542,15 +517,21 @@ export function NewEventDrawer({
     setPlacesLoading(initialState.placesLoading)
     setPlaceDetailsLoading(initialState.placeDetailsLoading)
     setPlaceDetailsError(initialState.placeDetailsError)
-    setIsOpen(initialState.isOpen)
     setGuestLimit(initialState.guestLimit)
-    setAudience(initialState.audience)
     setDirectlyInvitedIds(initialState.directlyInvitedIds)
     setEditingCircleId(initialState.editingCircleId)
     setAllowForward(initialState.allowForward)
     setAllowPlusOne(initialState.allowPlusOne)
     setSubmitError(initialState.submitError)
-  }, [])
+    if (connections.length === 0) {
+      setIsOpen(true)
+      setAudience(initialState.audience)
+    } else {
+      setIsOpen(false)
+      const allCircle = circles.find((c) => c.type === "all")
+      setAudience(allCircle?.id ?? initialState.audience)
+    }
+  }, [circles, connections])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -563,6 +544,12 @@ export function NewEventDrawer({
         setConnections(nextConnections)
         setCircles(nextCircles)
         setAudienceLoading(false)
+        if (nextConnections.length === 0) {
+          setIsOpen(true)
+        } else {
+          const allCircle = nextCircles.find((c) => c.type === "all")
+          if (allCircle) setAudience(allCircle.id)
+        }
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
@@ -577,7 +564,10 @@ export function NewEventDrawer({
   // whenever the drawer is closed so reopening starts fresh.
   useEffect(() => {
     if (open) return
-    queueMicrotask(() => setEditingCircleId(null))
+    queueMicrotask(() => {
+      setEditingCircleId(null)
+      setExpandedSection(null)
+    })
   }, [open])
 
   useEffect(() => {
@@ -632,18 +622,6 @@ export function NewEventDrawer({
       .catch((error: unknown) => {
         setAudienceError(getErrorMessage(error))
       })
-  }
-
-  const handleStartOffset = (next: number): void => {
-    setStartOffsetMin(next)
-    setEndOffsetMin((prev) => {
-      if (prev === OPEN_ENDED) return OPEN_ENDED
-      const min = next + MIN_DURATION_MIN
-      const max = next + MAX_DURATION_MIN
-      if (prev < min) return min
-      if (prev > max) return max
-      return prev
-    })
   }
 
   const handleStartTime = (next: number): void => {
@@ -778,29 +756,6 @@ export function NewEventDrawer({
     }
   }
 
-  // Now-mode wheel options use absolute clock-time labels so the user sees
-  // "9:30pm" instead of "+30m", matching the scheduled-mode wheel behavior.
-  const nowStartOptions = useMemo(() => {
-    const out: { value: number; label: string }[] = []
-    for (let m = 0; m <= NOW_MAX_OFFSET_MIN; m += STEP_MIN) {
-      const wallMin = (((mountMinutes + m) % 1440) + 1440) % 1440
-      out.push({ value: m, label: m === 0 ? "now" : formatTimeOfDay(wallMin) })
-    }
-    return out
-  }, [mountMinutes])
-
-  const nowEndOptions = useMemo(() => {
-    const out: { value: number; label: string }[] = []
-    const min = startOffsetMin + MIN_DURATION_MIN
-    const max = startOffsetMin + MAX_DURATION_MIN
-    for (let m = min; m <= max; m += STEP_MIN) {
-      const wallMin = (((mountMinutes + m) % 1440) + 1440) % 1440
-      out.push({ value: m, label: formatTimeOfDay(wallMin) })
-    }
-    out.push({ value: OPEN_ENDED, label: "open" })
-    return out
-  }, [startOffsetMin, mountMinutes])
-
   const scheduledStartOptions = useMemo(() => {
     const out: { value: number; label: string }[] = []
     for (
@@ -829,15 +784,6 @@ export function NewEventDrawer({
     }
     return endTimeMin - startTimeMin
   }, [mode, endOffsetMin, startOffsetMin, endTimeMin, startTimeMin])
-
-  const wallTimeForNow = useMemo(() => {
-    const startMin = (((mountMinutes + startOffsetMin) % 1440) + 1440) % 1440
-    const endMin =
-      endOffsetMin === OPEN_ENDED
-        ? null
-        : (((mountMinutes + endOffsetMin) % 1440) + 1440) % 1440
-    return { startMin, endMin }
-  }, [mountMinutes, startOffsetMin, endOffsetMin])
 
   const whereLabel = useMemo<string | null>(() => {
     if (whereType === "current") return "current loc"
@@ -884,10 +830,8 @@ export function NewEventDrawer({
 
   const isOverLimit = !isOpen && inviteeCount > guestLimit
   const hasPrivateInvitees = isOpen || inviteeCount > 0
-  const privateInviteeError =
+  const needsAudience =
     !isOpen && !audienceLoading && !audienceError && !hasPrivateInvitees
-      ? "Invite at least one friend or choose a circle with members."
-      : null
 
   // Compact audience label for the summary chip — folds headcount in so the
   // standalone "X people will see this" line can be dropped. Public events
@@ -914,9 +858,7 @@ export function NewEventDrawer({
       return
     }
     if (!hasPrivateInvitees) {
-      setSubmitError(
-        "Invite at least one friend or choose a circle with members."
-      )
+      setIsOpen(true)
       return
     }
 
@@ -1046,346 +988,372 @@ export function NewEventDrawer({
     }
   }
 
-  return (
-    <>
-      <Drawer.Root
-        open={open}
-        onOpenChange={(next) => {
-          if (next) haptic("medium")
-          else {
-            haptic("light")
-            onClose()
-          }
-        }}
-        dismissible
-      >
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 z-50 bg-foreground/25" />
-          <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex h-[95svh] flex-col rounded-t-3xl border-t border-border bg-card">
-            {/* Drag handle */}
-            <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
-            {/* Vaul uses Radix Dialog internally — DialogTitle required for a11y */}
-            <Drawer.Title className="sr-only">light a flare</Drawer.Title>
+  useEffect(() => {
+    if (!pendingPublicSubmit.current || !isOpen) return
+    pendingPublicSubmit.current = false
+    void handleSubmit()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
 
-            {/* Header zone — title + summary chips anchored as one unit */}
-            <div className="shrink-0 border-b border-border/60">
-              <div className="flex items-center justify-between px-4 pt-2 pb-1">
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  aria-label="Close"
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-secondary"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-                <div className="flex items-center gap-1.5 text-lg font-semibold">
-                  <Sparkles className="h-4.5 w-4.5" />
-                  <span>light a flare</span>
-                </div>
-                <div className="h-9 w-9" aria-hidden />
-              </div>
-              <SummaryRow
-                whenLabel={whenLabel}
-                whereLabel={whereLabel ?? "current loc"}
-                whoLabel={whoLabel}
-                whoOverLimit={isOverLimit}
-                onTapWhen={() => focusSection(whenRef)}
-                onTapWhere={() => focusSection(whereRef)}
-                onTapWho={() => focusSection(whoRef)}
+  return (
+    <Drawer.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (next) haptic("medium")
+        else {
+          haptic("light")
+          onClose()
+        }
+      }}
+      dismissible
+    >
+      <Drawer.Portal>
+        <Drawer.Overlay className="fixed inset-0 z-40 bg-black/40" />
+        <Drawer.Content
+          className={`fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-3xl border-t border-border bg-card transition-[max-height] duration-300 ease-out ${
+            expandedSection ? "max-h-[75svh]" : "max-h-[50svh]"
+          }`}
+        >
+          {/* Drag handle */}
+          <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
+          <Drawer.Title className="sr-only">light a flare</Drawer.Title>
+
+          {/* Header */}
+          <div className="flex shrink-0 items-center justify-between px-4 pt-2 pb-3">
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label="Close"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-secondary"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="flex items-center gap-1.5 text-lg font-semibold">
+              <Sparkles className="h-4.5 w-4.5" />
+              <span>light a flare</span>
+            </div>
+            <div className="h-9 w-9" aria-hidden />
+          </div>
+
+          {/* Scrollable compose area */}
+          <div
+            ref={scrollRef}
+            className="min-h-0 flex-1 overflow-y-auto px-4 pb-4"
+            data-vaul-no-drag
+          >
+            {/* Title input — hero of the compose card */}
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value.slice(0, 80))}
+              placeholder="what's the plan? e.g. drinks after work"
+              autoFocus
+            />
+            {title.length > 60 && (
+              <p className="mt-1 text-right text-xs text-muted-foreground">
+                {80 - title.length} left
+              </p>
+            )}
+            <TypeInlineIndicator
+              effectiveType={effectiveType}
+              manualType={eventType}
+              isInferred={eventType === null && inferredType !== null}
+              overrideOpen={typeOverrideOpen}
+              onToggleOverride={() => setTypeOverrideOpen((v) => !v)}
+              onPick={(t) => {
+                setEventType(t)
+                setTypeOverrideOpen(false)
+              }}
+              onClearManual={() => {
+                setEventType(null)
+                setTypeOverrideOpen(false)
+              }}
+              detailsExpanded={detailsExpanded}
+              onExpandDetails={() => setDetailsExpanded(true)}
+            />
+            {detailsExpanded && (
+              <>
+                <textarea
+                  value={details}
+                  onChange={(e) => setDetails(e.target.value.slice(0, 200))}
+                  placeholder="dress code, what to bring, vibe…"
+                  rows={2}
+                  autoFocus
+                  className="mt-2 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
+                {details.length > 160 && (
+                  <p className="mt-1 text-right text-xs text-muted-foreground">
+                    {200 - details.length} left
+                  </p>
+                )}
+              </>
+            )}
+
+            {/* Tappable default chips — these ARE the form controls */}
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              <SectionChip
+                label={whenLabel}
+                active={expandedSection === "when"}
+                onClick={() => toggleSection("when")}
+              />
+              <SectionChip
+                label={whereLabel ?? "current loc"}
+                active={expandedSection === "where"}
+                onClick={() => toggleSection("where")}
+              />
+              <SectionChip
+                label={whoLabel}
+                active={expandedSection === "who"}
+                tone={isOverLimit ? "destructive" : "default"}
+                onClick={() => toggleSection("who")}
               />
             </div>
 
-            {/* Scrollable form with enough bottom padding for the pinned CTA. */}
-            <div
-              ref={scrollRef}
-              className="min-h-0 flex-1 overflow-y-auto"
-              style={{ paddingBottom: "140px" }}
-              data-vaul-no-drag
-            >
-              <Tabs value={mode} onValueChange={handleModeChange}>
-                <div className="px-4 pt-4 pb-0">
-                  <TabsList className="h-9 w-full">
-                    <TabsTrigger value="now" className="text-sm">
-                      right now
-                    </TabsTrigger>
-                    <TabsTrigger value="scheduled" className="text-sm">
-                      pick a time
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
+            {/* Mode toggle */}
+            <Tabs value={mode} onValueChange={handleModeChange}>
+              <TabsList className="mt-3 h-8 w-full">
+                <TabsTrigger value="now" className="text-xs">
+                  right now
+                </TabsTrigger>
+                <TabsTrigger value="scheduled" className="text-xs">
+                  pick a time
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
 
-                <div className="px-4">
-                  {/* 1. What — Title is the hero of the form. Type sits
-                       inline below it as a small inferred-from-keywords hint
-                       that can be overridden. */}
-                  <Section label="what's the plan?" tight>
-                    <Input
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value.slice(0, 80))}
-                      placeholder="let's get drinks after work"
+            {/* Accordion: expanded section content */}
+            {expandedSection === "when" && (
+              <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
+                {mode === "now" ? (
+                  <>
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">
+                      how long?
+                    </p>
+                    <NowDurationChips
+                      value={endOffsetMin}
+                      onChange={(v) => {
+                        setStartOffsetMin(0)
+                        setEndOffsetMin(v)
+                      }}
                     />
-                    {title.length > 60 && (
-                      <p className="mt-1 text-right text-xs text-muted-foreground">
-                        {80 - title.length} left
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      starts now
+                      {endOffsetMin === OPEN_ENDED
+                        ? " · open-ended"
+                        : ` · ${formatRelative(endOffsetMin)}`}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">
+                      date
+                    </p>
+                    <DateStrip
+                      days={dateStripDays}
+                      value={startDate}
+                      onChange={setStartDate}
+                    />
+                    <p className="mt-3 mb-2 text-xs font-medium text-muted-foreground">
+                      time
+                    </p>
+                    <TimeRange
+                      startOptions={scheduledStartOptions}
+                      endOptions={scheduledEndOptions}
+                      startValue={startTimeMin}
+                      endValue={endTimeMin}
+                      onStart={handleStartTime}
+                      onEnd={setEndTimeMin}
+                    />
+                    {durationMin !== null && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        lasts {formatRelative(durationMin)}
                       </p>
                     )}
-                    <TypeInlineIndicator
-                      effectiveType={effectiveType}
-                      manualType={eventType}
-                      isInferred={eventType === null && inferredType !== null}
-                      overrideOpen={typeOverrideOpen}
-                      onToggleOverride={() => setTypeOverrideOpen((v) => !v)}
-                      onPick={(t) => {
-                        setEventType(t)
-                        setTypeOverrideOpen(false)
-                      }}
-                      onClearManual={() => {
-                        setEventType(null)
-                        setTypeOverrideOpen(false)
-                      }}
-                      detailsExpanded={detailsExpanded}
-                      onExpandDetails={() => setDetailsExpanded(true)}
-                    />
-                    {detailsExpanded && (
-                      <>
-                        <textarea
-                          value={details}
-                          onChange={(e) =>
-                            setDetails(e.target.value.slice(0, 200))
-                          }
-                          placeholder="dress code, what to bring, vibe…"
-                          rows={3}
-                          autoFocus
-                          className="mt-2 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                        />
-                        {details.length > 160 && (
-                          <p className="mt-1 text-right text-xs text-muted-foreground">
-                            {200 - details.length} left
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </Section>
+                  </>
+                )}
+              </div>
+            )}
 
-                  {/* 3. When */}
-                  <div ref={whenRef} className="scroll-mt-2">
-                    <TabsContent value="now" className="m-0">
-                      <Section label="how long should it last?">
-                        {/* Right Now assumes start = now. Picking a duration
-                            chip sets endOffsetMin directly (since
-                            startOffsetMin is forced to 0). Horizontal scroll
-                            handles overflow on narrow viewports. */}
-                        <NowDurationChips
-                          value={endOffsetMin}
-                          onChange={(v) => {
-                            setStartOffsetMin(0)
-                            setEndOffsetMin(v)
-                          }}
-                        />
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          starts now
-                          {endOffsetMin === OPEN_ENDED
-                            ? " · open-ended"
-                            : ` · ${formatRelative(endOffsetMin)}`}
-                        </p>
-                      </Section>
-                    </TabsContent>
+            {expandedSection === "where" && (
+              <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
+                <WherePicker
+                  whereType={whereType}
+                  onWhereType={handleWhereType}
+                  searchQuery={searchQuery}
+                  onSearchQuery={handleSearchQuery}
+                  pickedSearchAddress={pickedSearchAddress}
+                  selectedLocation={selectedLocation}
+                  onPickSearch={(suggestion) => {
+                    void handlePickSearch(suggestion)
+                  }}
+                  placeResults={placeResults}
+                  placesLoading={placesLoading}
+                  placeDetailsLoading={placeDetailsLoading}
+                  placeDetailsError={placeDetailsError}
+                  geoStatus={geoStatus}
+                  geoErrorMessage={geoErrorMessage}
+                />
+              </div>
+            )}
 
-                    <TabsContent value="scheduled" className="m-0">
-                      <Section label="date">
-                        <DateStrip
-                          days={dateStripDays}
-                          value={startDate}
-                          onChange={setStartDate}
-                        />
-                      </Section>
-                      <Section label="how long should it last?">
-                        <TimeRange
-                          startOptions={scheduledStartOptions}
-                          endOptions={scheduledEndOptions}
-                          startValue={startTimeMin}
-                          endValue={endTimeMin}
-                          onStart={handleStartTime}
-                          onEnd={setEndTimeMin}
-                        />
-                        {durationMin !== null && (
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            lasts {formatRelative(durationMin)}
-                          </p>
-                        )}
-                      </Section>
-                    </TabsContent>
-                  </div>
+            {expandedSection === "who" && (
+              <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
+                {audienceLoading && (
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    loading your circles and friends…
+                  </p>
+                )}
+                {audienceError && (
+                  <p className="mb-2 text-xs text-destructive" role="alert">
+                    {audienceError}
+                  </p>
+                )}
+                <WhoBlock
+                  isOpen={isOpen}
+                  onOpen={setIsOpen}
+                  guestLimit={guestLimit}
+                  onGuestLimit={setGuestLimit}
+                  circles={circles}
+                  audience={audience}
+                  onSelectAudience={handleSelectAudience}
+                  connections={connections}
+                  directInviteConnections={directInviteConnections}
+                  editingCircleId={editingCircleId}
+                  onStartEditingCircle={setEditingCircleId}
+                  onCloseEditingCircle={() => setEditingCircleId(null)}
+                  onAddCircleMember={updateCircleMember}
+                  onRemoveCircleMember={removeCircleMember}
+                  directlyInvitedIds={directlyInvitedIds}
+                  onToggleDirectInvite={(id) => {
+                    if (selectedAudienceMemberIdSet.has(id)) return
+                    setDirectlyInvitedIds((prev) =>
+                      prev.includes(id)
+                        ? prev.filter((x) => x !== id)
+                        : [...prev, id]
+                    )
+                  }}
+                  allowForward={allowForward}
+                  onAllowForward={setAllowForward}
+                  allowPlusOne={allowPlusOne}
+                  onAllowPlusOne={setAllowPlusOne}
+                />
+              </div>
+            )}
+          </div>
 
-                  {/* 4. Where */}
-                  <div ref={whereRef} className="scroll-mt-2">
-                    <Section label="where do you want to meet?">
-                      <WherePicker
-                        whereType={whereType}
-                        onWhereType={handleWhereType}
-                        searchQuery={searchQuery}
-                        onSearchQuery={handleSearchQuery}
-                        pickedSearchAddress={pickedSearchAddress}
-                        selectedLocation={selectedLocation}
-                        onPickSearch={(suggestion) => {
-                          void handlePickSearch(suggestion)
-                        }}
-                        placeResults={placeResults}
-                        placesLoading={placesLoading}
-                        placeDetailsLoading={placeDetailsLoading}
-                        placeDetailsError={placeDetailsError}
-                        geoStatus={geoStatus}
-                        geoErrorMessage={geoErrorMessage}
-                      />
-                    </Section>
-                  </div>
-
-                  {/* 5. Who */}
-                  <div ref={whoRef} className="scroll-mt-2">
-                    <Section label="who's gonna see your flare?">
-                      {audienceLoading && (
-                        <p className="mb-2 text-xs text-muted-foreground">
-                          loading your circles and friends…
-                        </p>
-                      )}
-                      {audienceError && (
-                        <p
-                          className="mb-2 text-xs text-destructive"
-                          role="alert"
-                        >
-                          {audienceError}
-                        </p>
-                      )}
-                      <WhoBlock
-                        isOpen={isOpen}
-                        onOpen={setIsOpen}
-                        guestLimit={guestLimit}
-                        onGuestLimit={setGuestLimit}
-                        circles={circles}
-                        audience={audience}
-                        onSelectAudience={handleSelectAudience}
-                        connections={connections}
-                        directInviteConnections={directInviteConnections}
-                        editingCircleId={editingCircleId}
-                        onStartEditingCircle={setEditingCircleId}
-                        onCloseEditingCircle={() => setEditingCircleId(null)}
-                        onAddCircleMember={updateCircleMember}
-                        onRemoveCircleMember={removeCircleMember}
-                        directlyInvitedIds={directlyInvitedIds}
-                        onToggleDirectInvite={(id) => {
-                          if (selectedAudienceMemberIdSet.has(id)) return
-                          setDirectlyInvitedIds((prev) =>
-                            prev.includes(id)
-                              ? prev.filter((x) => x !== id)
-                              : [...prev, id]
-                          )
-                        }}
-                        allowForward={allowForward}
-                        onAllowForward={setAllowForward}
-                        allowPlusOne={allowPlusOne}
-                        onAllowPlusOne={setAllowPlusOne}
-                      />
-                    </Section>
-                  </div>
-                </div>
-              </Tabs>
-            </div>
-
-            {/* CTA pinned to the bottom of the full-height compose sheet. */}
-            <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 border-t border-border bg-card px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-              {submitError && (
-                <p
-                  className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-                  role="alert"
-                >
-                  {submitError}
-                </p>
-              )}
-              {!submitError && privateInviteeError && (
-                <p
-                  className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-                  role="alert"
-                >
-                  {privateInviteeError}
-                </p>
-              )}
-              <Button
-                onClick={handleSubmit}
-                disabled={
-                  isSubmitting ||
-                  (!isOpen && (audienceLoading || Boolean(audienceError))) ||
-                  Boolean(privateInviteeError) ||
-                  (whereType === "search" && placeDetailsLoading) ||
-                  (whereType === "current" &&
-                    geoStatus === "requesting" &&
-                    !currentLocation)
-                }
-                className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
+          {/* CTA pinned at the bottom */}
+          <div className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+            {submitError && (
+              <p
+                className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                role="alert"
               >
-                {isSubmitting ? "lighting…" : "light a flare"}
-              </Button>
-            </div>
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
-    </>
+                {submitError}
+              </p>
+            )}
+            {!submitError && needsAudience && (
+              <div className="mb-2 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5">
+                <p className="text-xs text-muted-foreground">
+                  no friends on sponti yet? invite them or go public so anyone
+                  nearby can join.
+                </p>
+                <div className="mt-1.5 flex gap-2">
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-accent hover:underline"
+                    onClick={async () => {
+                      const url =
+                        (
+                          process.env.NEXT_PUBLIC_PUBLIC_APP_URL?.trim() || ""
+                        ).replace(/\/+$/, "") || "https://sponti.fun"
+                      const text = `join me on sponti! ${url}`
+                      try {
+                        if (navigator.share) {
+                          await navigator.share({ title: "sponti", text, url })
+                        } else {
+                          await navigator.clipboard.writeText(url)
+                          setInviteLinkCopied(true)
+                          setTimeout(() => setInviteLinkCopied(false), 1600)
+                        }
+                      } catch {
+                        /* share cancelled */
+                      }
+                    }}
+                  >
+                    {inviteLinkCopied ? (
+                      <Check className="mr-1 inline h-3 w-3" />
+                    ) : (
+                      <Share2 className="mr-1 inline h-3 w-3" />
+                    )}
+                    {inviteLinkCopied ? "copied!" : "share invite link"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled
+                    className="text-xs font-medium text-muted-foreground/50"
+                  >
+                    <UserPlus className="mr-1 inline h-3 w-3" />
+                    import contacts (soon)
+                  </button>
+                </div>
+              </div>
+            )}
+            <Button
+              onClick={() => {
+                if (needsAudience) {
+                  pendingPublicSubmit.current = true
+                  setIsOpen(true)
+                  haptic("selection")
+                  return
+                }
+                void handleSubmit()
+              }}
+              disabled={
+                isSubmitting ||
+                (!isOpen &&
+                  !needsAudience &&
+                  (audienceLoading || Boolean(audienceError))) ||
+                (whereType === "search" && placeDetailsLoading) ||
+                (whereType === "current" &&
+                  geoStatus === "requesting" &&
+                  !currentLocation)
+              }
+              className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
+            >
+              {isSubmitting
+                ? "lighting…"
+                : needsAudience
+                  ? "make it public & go live"
+                  : "light a flare"}
+            </Button>
+          </div>
+        </Drawer.Content>
+      </Drawer.Portal>
+    </Drawer.Root>
   )
 }
 
-// ----- Summary chip row -----
-
-// Sits between the mode tabs and the form sections. Surfaces the three
-// implicit defaults (when, where, who) so the user knows exactly what'll
-// ship from the high compose snap without extra scrolling. Each chip is a
-// shortcut: tap to expand the drawer to 0.95 and scroll to that section.
-function SummaryRow({
-  whenLabel,
-  whereLabel,
-  whoLabel,
-  whoOverLimit,
-  onTapWhen,
-  onTapWhere,
-  onTapWho,
-}: {
-  whenLabel: string
-  whereLabel: string
-  whoLabel: string
-  whoOverLimit: boolean
-  onTapWhen: () => void
-  onTapWhere: () => void
-  onTapWho: () => void
-}) {
-  return (
-    <div className="flex flex-wrap justify-center gap-1.5 px-4 pt-1 pb-2.5">
-      <SummaryChip label={whenLabel} onClick={onTapWhen} />
-      <SummaryChip label={whereLabel} onClick={onTapWhere} />
-      <SummaryChip
-        label={whoLabel}
-        onClick={onTapWho}
-        tone={whoOverLimit ? "destructive" : "default"}
-      />
-    </div>
-  )
-}
-
-function SummaryChip({
+function SectionChip({
   label,
+  active,
   onClick,
   tone = "default",
 }: {
   label: string
+  active: boolean
   onClick: () => void
   tone?: "default" | "destructive"
 }) {
   const toneClasses =
     tone === "destructive"
-      ? "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/15"
-      : "border-border bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground"
+      ? "border-destructive/40 bg-destructive/10 text-destructive"
+      : active
+        ? "border-accent bg-accent/10 text-accent"
+        : "border-border bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground"
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`shrink-0 truncate rounded-full border px-3 py-1 text-xs transition-colors ${toneClasses}`}
+      className={`shrink-0 truncate rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${toneClasses}`}
     >
       {label}
     </button>
@@ -1938,12 +1906,6 @@ function WhoBlock({
     ? (circles.find((c) => c.id === editingCircleId) ?? null)
     : null
 
-  // The cap only matters when the headcount isn't already bounded by a
-  // curated list. Public events need a cap (anyone can join) and "all
-  // friends" can be sizeable. Inner/Close are already capped by membership.
-  const allCircleId = circles.find((c) => c.type === "all")?.id ?? ""
-  const showLimit = isOpen || audience === allCircleId
-
   return (
     <div className="flex flex-col gap-3">
       {/* Public toggle + (conditional) guest-limit stepper. Limit only
@@ -2485,28 +2447,7 @@ function Stepper({
 
 // ----- Shared primitives -----
 
-function Section({
-  label,
-  children,
-  tight = false,
-}: {
-  label: string
-  children: React.ReactNode
-  tight?: boolean
-}) {
-  return (
-    <div className={tight ? "mt-4" : "mt-6"}>
-      <Label className="mb-2 block text-sm font-medium text-foreground">
-        {label}
-      </Label>
-      {children}
-    </div>
-  )
-}
 
-function ChipRow({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-wrap gap-2">{children}</div>
-}
 
 function Chip({
   selected,
