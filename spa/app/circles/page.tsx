@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react"
 import { BottomNav } from "@/components/bottom-nav"
+import { useActionFeedback } from "@/components/action-feedback"
 import { CircleStackIcon } from "@/components/circle-stack-icon"
 import { QrShareSheet } from "@/components/qr-share-sheet"
 import { useAuth } from "@/components/auth-provider"
@@ -71,6 +72,7 @@ export default function CirclesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
+  const { showActionFeedback } = useActionFeedback()
   const initialTab: Tab =
     searchParams.get("tab") === "people" ? "people" : "circles"
   const [tab, setTab] = useState<Tab>(initialTab)
@@ -178,6 +180,9 @@ export default function CirclesPage() {
 
   // After accepting a request, briefly surface an inline circle-picker on that row
   const [justAcceptedId, setJustAcceptedId] = useState<string | null>(null)
+  const [acceptingRequestIds, setAcceptingRequestIds] = useState<Set<string>>(
+    () => new Set()
+  )
 
   const connectionsById = useMemo(() => {
     const map = new Map<string, Connection>()
@@ -207,9 +212,12 @@ export default function CirclesPage() {
   const acceptRequest = (req: ConnectionRequest): void => {
     if (!apiEnabled) {
       setConnectionsError("Backend API is not configured.")
+      showActionFeedback("couldn't add friend", { tone: "error" })
       return
     }
 
+    setConnectionsError(null)
+    setAcceptingRequestIds((prev) => new Set(prev).add(req.id))
     void (async () => {
       await respondToApiConnectionRequest(req.id, "accepted")
 
@@ -225,10 +233,20 @@ export default function CirclesPage() {
       }
 
       setJustAcceptedId(req.user.id)
+      showActionFeedback("friend added")
       refreshBackendData()
-    })().catch((err) =>
-      setConnectionsError(getErrorMessage(err, "Could not accept request"))
-    )
+    })()
+      .catch((err) => {
+        setConnectionsError(getErrorMessage(err, "Could not accept request"))
+        showActionFeedback("couldn't add friend", { tone: "error" })
+      })
+      .finally(() => {
+        setAcceptingRequestIds((prev) => {
+          const next = new Set(prev)
+          next.delete(req.id)
+          return next
+        })
+      })
   }
 
   const declineRequest = (req: ConnectionRequest): void => {
@@ -958,48 +976,53 @@ export default function CirclesPage() {
                   requests
                 </p>
                 <ul className="flex flex-col gap-2">
-                  {requests.map((req) => (
-                    <li
-                      key={req.id}
-                      className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          router.push(`/profile/${req.user.username}`)
-                        }
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  {requests.map((req) => {
+                    const accepting = acceptingRequestIds.has(req.id)
+                    return (
+                      <li
+                        key={req.id}
+                        className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
                       >
-                        <Avatar name={req.user.displayName} />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">
-                            {req.user.displayName}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            @{req.user.username}
-                            {req.user.note ? ` · ${req.user.note}` : ""}
-                          </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            router.push(`/profile/${req.user.username}`)
+                          }
+                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                        >
+                          <Avatar name={req.user.displayName} />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">
+                              {req.user.displayName}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              @{req.user.username}
+                              {req.user.note ? ` · ${req.user.note}` : ""}
+                            </p>
+                          </div>
+                        </button>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            disabled={accepting}
+                            onClick={() => acceptRequest(req)}
+                            className="h-8 rounded-full bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
+                          >
+                            {accepting ? "accepting..." : "accept"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={accepting}
+                            onClick={() => declineRequest(req)}
+                            className="h-8 rounded-full px-3 text-xs"
+                          >
+                            decline
+                          </Button>
                         </div>
-                      </button>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        <Button
-                          size="sm"
-                          onClick={() => acceptRequest(req)}
-                          className="h-8 rounded-full bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
-                        >
-                          accept
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => declineRequest(req)}
-                          className="h-8 rounded-full px-3 text-xs"
-                        >
-                          decline
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
+                      </li>
+                    )
+                  })}
                 </ul>
               </section>
             )}

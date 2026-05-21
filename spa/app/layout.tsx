@@ -3,6 +3,7 @@ import { Bricolage_Grotesque } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/components/auth-provider'
 import { AuthGate } from '@/components/auth-gate'
+import { ActionFeedbackProvider } from '@/components/action-feedback'
 import { NewEventDrawerProvider } from '@/components/new-event-drawer-provider'
 import { ThemeProvider } from '@/components/theme-provider'
 
@@ -52,7 +53,9 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <AuthGate>
-              <NewEventDrawerProvider>{children}</NewEventDrawerProvider>
+              <ActionFeedbackProvider>
+                <NewEventDrawerProvider>{children}</NewEventDrawerProvider>
+              </ActionFeedbackProvider>
             </AuthGate>
           </AuthProvider>
         </ThemeProvider>

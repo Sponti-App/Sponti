@@ -45,6 +45,7 @@ import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
 import { EVENT_TYPES } from "@/types/utils"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/components/auth-provider"
 import { useTheme } from "next-themes"
 
 // Hex equivalent of --accent (oklch 0.8041 0.126 52.09). Google Maps overlays
@@ -149,11 +150,10 @@ function StaticMapFallback({
             className="absolute flex cursor-pointer flex-col items-center"
           >
             <div
-              className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${
-                isJoined(event, joinedIds)
+              className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${isJoined(event, joinedIds)
                   ? "ring-2 ring-accent ring-offset-2"
                   : ""
-              }`}
+                }`}
             >
               {eventIcon(event.type, event.host.avatar)}
             </div>
@@ -273,11 +273,10 @@ function GoogleMapContent({
                   />
                 )}
                 <div
-                  className={`relative flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${
-                    isJoined(event, joinedIds)
+                  className={`relative flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${isJoined(event, joinedIds)
                       ? "ring-2 ring-accent ring-offset-2"
                       : ""
-                  }`}
+                    }`}
                 >
                   {eventIcon(event.type, event.host.avatar)}
                 </div>
@@ -563,12 +562,9 @@ export function MapView({
     }
   }
 
-  // The "expanded" state keeps a strip of the map visible at the top instead
-  // of going full-screen, mirroring the new-event drawer behaviour. 80vh
-  // leaves room for the route pill and floating header chips above it.
   const sheetStyle: React.CSSProperties =
     peekState === "expanded"
-      ? { height: "80vh", bottom: 0 }
+      ? { height: "55vh", bottom: 0 }
       : peekState === "mini"
         ? { height: `${SHEET_PX.mini}px`, bottom: NAV_RESERVED_CSS }
         : { height: `${SHEET_PX.peek}px`, bottom: 0 }
@@ -669,9 +665,8 @@ export function MapView({
       {/* Bottom sheet — z-50 when expanded so it covers the nav pill */}
       <div
         style={sheetStyle}
-        className={`absolute right-0 left-0 rounded-t-3xl bg-background shadow-(--shadow-sheet) transition-all duration-300 ease-out ${
-          peekState === "expanded" ? "z-50" : "z-20"
-        }`}
+        className={`absolute right-0 left-0 rounded-t-3xl bg-background shadow-(--shadow-sheet) transition-all duration-300 ease-out ${peekState === "expanded" ? "z-50" : "z-20"
+          }`}
       >
         <div
           className="flex cursor-grab touch-none justify-center py-3 active:cursor-grabbing"
@@ -702,9 +697,8 @@ export function MapView({
             ref={scrollRef}
             onTouchStart={handleSheetTouchStart}
             onTouchEnd={handleSheetTouchEnd}
-            className={`h-[calc(100%-44px)] overflow-y-auto px-4 ${
-              peekState === "expanded" ? "pb-8" : "pb-24"
-            }`}
+            className={`h-[calc(100%-44px)] overflow-y-auto px-4 ${peekState === "expanded" ? "pb-8" : "pb-24"
+              }`}
           >
             {/* Pull-to-refresh indicator */}
             {isRefreshing && (
@@ -848,9 +842,8 @@ export function MapView({
                         {groupedEvents.ended.length} ended
                       </span>
                       <ChevronDown
-                        className={`h-4 w-4 transition-transform ${
-                          showEnded ? "rotate-180" : ""
-                        }`}
+                        className={`h-4 w-4 transition-transform ${showEnded ? "rotate-180" : ""
+                          }`}
                       />
                     </button>
                     {showEnded &&
@@ -1135,7 +1128,8 @@ function FlareCard({
     }
   }
 
-  const hostFirst = event.host.name.trim().split(/\s+/)[0]
+  const { user: authUser } = useAuth()
+  const hostFirst = event.host.id === authUser?.id ? "you" : event.host.name.trim().split(/\s+/)[0]
   const timeLabel = isLiveStatus
     ? endingInLabel(event)
     : isEnded
@@ -1158,11 +1152,10 @@ function FlareCard({
       )}
 
       <Card
-        className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 ${
-          isLiveStatus
+        className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 ${isLiveStatus
             ? "border-l-[3px] border-l-accent"
             : ""
-        } ${isEnded ? "border-border bg-muted/30" : "border-border"}`}
+          } ${isEnded ? "border-border bg-muted/30" : "border-border"}`}
         style={{
           transform: `translateX(${swipeX}px)`,
           transition: swipeX === 0 ? "transform 0.2s ease-out" : "none",
@@ -1174,11 +1167,10 @@ function FlareCard({
         onClick={swipeX > 4 ? undefined : onClick}
       >
         <div
-          className={`flex h-10 w-10 items-center justify-center rounded-full ${
-            isEnded
+          className={`flex h-10 w-10 items-center justify-center rounded-full ${isEnded
               ? "bg-muted text-muted-foreground"
               : "bg-muted text-foreground"
-          }`}
+            }`}
         >
           {(() => {
             const match = EVENT_TYPES.find((t) => t.value === event.type)
@@ -1190,9 +1182,8 @@ function FlareCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p
-              className={`truncate font-medium ${
-                isEnded ? "text-muted-foreground" : "text-foreground"
-              }`}
+              className={`truncate font-medium ${isEnded ? "text-muted-foreground" : "text-foreground"
+                }`}
             >
               {event.title.split("·", 2)[0]}
             </p>
@@ -1203,17 +1194,15 @@ function FlareCard({
             )}
           </div>
           <p
-            className={`truncate text-xs ${
-              isEnded ? "text-muted-foreground/70" : "text-muted-foreground"
-            }`}
+            className={`truncate text-xs ${isEnded ? "text-muted-foreground/70" : "text-muted-foreground"
+              }`}
           >
             {metaText}
           </p>
         </div>
         <ChevronRight
-          className={`h-5 w-5 shrink-0 ${
-            isEnded ? "text-muted-foreground/50" : "text-muted-foreground"
-          }`}
+          className={`h-5 w-5 shrink-0 ${isEnded ? "text-muted-foreground/50" : "text-muted-foreground"
+            }`}
         />
       </Card>
     </div>
@@ -1235,11 +1224,10 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-        active
+      className={`flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${active
           ? "border-accent bg-accent text-accent-foreground"
           : "border-border bg-background text-muted-foreground hover:text-foreground"
-      }`}
+        }`}
     >
       {Icon && <Icon className="h-3 w-3" />}
       {label}
