@@ -1,8 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, MapPin, Pencil, RotateCcw, Trash2 } from "lucide-react"
+import {
+  ArrowLeft,
+  MapPin,
+  Pencil,
+  RotateCcw,
+  Search,
+  Trash2,
+} from "lucide-react"
 import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +23,7 @@ import {
   reactivateEvent,
   updateEvent,
   type HostedEvent,
+  type UpdateEventRequest,
 } from "@/lib/api/events"
 
 const DURATION_OPTIONS = [
@@ -34,6 +42,48 @@ const RECENT_PLACES = [
 
 const MIN = 60_000
 
+type PlaceSuggestion = { placeId: string; label: string; address: string }
+type PlaceDetailsResponse = {
+  placeId: string
+  name: string
+  address: string | null
+  lat: number
+  lng: number
+}
+type SelectedPlaceLocation = {
+  name: string
+  address: string | null
+  coordinates: [number, number]
+}
+
+function isPlaceSuggestion(value: unknown): value is PlaceSuggestion {
+  if (!value || typeof value !== "object") return false
+  const suggestion = value as Record<string, unknown>
+  return (
+    typeof suggestion.placeId === "string" &&
+    suggestion.placeId.trim().length > 0 &&
+    typeof suggestion.label === "string" &&
+    suggestion.label.trim().length > 0 &&
+    typeof suggestion.address === "string"
+  )
+}
+
+function isPlaceDetailsResponse(value: unknown): value is PlaceDetailsResponse {
+  if (!value || typeof value !== "object") return false
+  const place = value as Record<string, unknown>
+  return (
+    typeof place.placeId === "string" &&
+    place.placeId.trim().length > 0 &&
+    typeof place.name === "string" &&
+    place.name.trim().length > 0 &&
+    (typeof place.address === "string" || place.address === null) &&
+    typeof place.lat === "number" &&
+    Number.isFinite(place.lat) &&
+    typeof place.lng === "number" &&
+    Number.isFinite(place.lng)
+  )
+}
+
 export default function EventEditPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
@@ -46,10 +96,107 @@ export default function EventEditPage() {
   const [durationMinutes, setDurationMinutes] = useState(60)
   const [locationLabel, setLocationLabel] = useState("")
   const [locationDetail, setLocationDetail] = useState("")
+  const [placeResults, setPlaceResults] = useState<PlaceSuggestion[]>([])
+  const [placesLoading, setPlacesLoading] = useState(false)
+  const [placeDetailsLoading, setPlaceDetailsLoading] = useState(false)
+  const [placeDetailsError, setPlaceDetailsError] = useState<string | null>(
+    null
+  )
+  const [selectedPlaceLocation, setSelectedPlaceLocation] =
+    useState<SelectedPlaceLocation | null>(null)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const placesSearchRequestRef = useRef(0)
+  const placeDetailsRequestRef = useRef(0)
+
+  const searchPlaces = useCallback(async (query: string, requestId: number) => {
+    if (query.trim().length < 2) {
+      if (placesSearchRequestRef.current !== requestId) return
+      setPlaceResults([])
+      setPlacesLoading(false)
+      return
+    }
+    setPlacesLoading(true)
+    try {
+      const resp = await fetch(
+        `/api/places?input=${encodeURIComponent(query.trim())}`
+      )
+      if (!resp.ok) throw new Error("places error")
+      const data = (await resp.json()) as { suggestions: PlaceSuggestion[] }
+      if (placesSearchRequestRef.current !== requestId) return
+      setPlaceResults(
+        Array.isArray(data.suggestions)
+          ? data.suggestions.filter(isPlaceSuggestion)
+          : []
+      )
+    } catch {
+      if (placesSearchRequestRef.current !== requestId) return
+      setPlaceResults([])
+    } finally {
+      if (placesSearchRequestRef.current !== requestId) return
+      setPlacesLoading(false)
+    }
+  }, [])
+
+  const handleLocationSearch = (value: string): void => {
+    const requestId = placesSearchRequestRef.current + 1
+    placesSearchRequestRef.current = requestId
+    placeDetailsRequestRef.current += 1
+    setLocationLabel(value)
+    setSelectedPlaceLocation(null)
+    setPlaceResults([])
+    setPlaceDetailsLoading(false)
+    setPlaceDetailsError(null)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      void searchPlaces(value, requestId)
+    }, 350)
+  }
+
+  const handlePickPlace = async (
+    suggestion: PlaceSuggestion
+  ): Promise<void> => {
+    const requestId = placeDetailsRequestRef.current + 1
+    placeDetailsRequestRef.current = requestId
+    placesSearchRequestRef.current += 1
+    setLocationLabel(suggestion.label)
+    setPlaceResults([])
+    setPlaceDetailsError(null)
+    setSelectedPlaceLocation(null)
+    setPlaceDetailsLoading(true)
+
+    try {
+      const resp = await fetch(
+        `/api/places/${encodeURIComponent(suggestion.placeId)}`
+      )
+      if (!resp.ok) throw new Error("Place details unavailable.")
+      const data: unknown = await resp.json()
+      if (!isPlaceDetailsResponse(data)) {
+        throw new Error("Place details unavailable.")
+      }
+      if (placeDetailsRequestRef.current !== requestId) return
+      setLocationLabel(data.name)
+      setLocationDetail(data.address ?? "")
+      setSelectedPlaceLocation({
+        name: data.name,
+        address: data.address,
+        coordinates: [data.lng, data.lat],
+      })
+    } catch {
+      if (placeDetailsRequestRef.current !== requestId) return
+      setSelectedPlaceLocation(null)
+      setPlaceDetailsError(
+        "That place could not be resolved. Try another result."
+      )
+    } finally {
+      if (placeDetailsRequestRef.current === requestId) {
+        setPlaceDetailsLoading(false)
+      }
+    }
+  }
 
   useEffect(() => {
     const ac = new AbortController()
@@ -78,7 +225,12 @@ export default function EventEditPage() {
         setLoading(false)
       })
 
-    return () => ac.abort()
+    return () => {
+      ac.abort()
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      placesSearchRequestRef.current += 1
+      placeDetailsRequestRef.current += 1
+    }
   }, [params.id])
 
   if (loading) {
@@ -126,7 +278,8 @@ export default function EventEditPage() {
       )
   const locationChanged =
     locationLabel.trim() !== original.locationLabel ||
-    (locationDetail.trim() || undefined) !== original.locationDetail
+    (locationDetail.trim() || undefined) !== original.locationDetail ||
+    selectedPlaceLocation !== null
 
   const dirty = titleChanged || timeChanged || locationChanged
 
@@ -134,13 +287,22 @@ export default function EventEditPage() {
     try {
       setSaving(true)
       setError(null)
-      await updateEvent(original.id, {
+      const updates: UpdateEventRequest = {
         title: title.trim() || original.title,
         startAt: nextStartAt,
         endAt: nextEndAt,
         locationName: locationLabel.trim() || original.locationLabel,
         locationAddress: locationDetail.trim() || null,
-      })
+      }
+      if (selectedPlaceLocation) {
+        updates.locationName = selectedPlaceLocation.name
+        updates.locationAddress = selectedPlaceLocation.address
+        updates.location = {
+          type: "Point",
+          coordinates: selectedPlaceLocation.coordinates,
+        }
+      }
+      await updateEvent(original.id, updates)
       showActionFeedback("flare updated")
       router.push("/event")
     } catch (err) {
@@ -295,16 +457,68 @@ export default function EventEditPage() {
         </Section>
 
         <Section label="where">
-          <Input
-            placeholder="search a place"
-            value={locationLabel}
-            onChange={(e) => setLocationLabel(e.target.value)}
-            disabled={isPast || isCancelled || saving}
-          />
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="search a place"
+              value={locationLabel}
+              onChange={(e) => handleLocationSearch(e.target.value)}
+              className="pl-9"
+              disabled={isPast || isCancelled || saving}
+            />
+          </div>
+          {placesLoading && (
+            <p className="mt-1.5 text-xs text-muted-foreground">searching...</p>
+          )}
+          {placeDetailsLoading && (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              checking place...
+            </p>
+          )}
+          {placeDetailsError && (
+            <p className="mt-1.5 text-xs text-destructive" role="alert">
+              {placeDetailsError}
+            </p>
+          )}
+          {selectedPlaceLocation && !placeDetailsLoading && (
+            <p className="mt-1.5 truncate text-xs text-muted-foreground">
+              selected -{" "}
+              {selectedPlaceLocation.address ?? selectedPlaceLocation.name}
+            </p>
+          )}
+          {!placesLoading &&
+            !placeDetailsLoading &&
+            placeResults.length > 0 &&
+            !isPast &&
+            !isCancelled && (
+              <ul className="mt-1.5 overflow-hidden rounded-lg border border-border bg-card">
+                {placeResults.map((result) => (
+                  <li key={result.placeId}>
+                    <button
+                      type="button"
+                      onClick={() => void handlePickPlace(result)}
+                      className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
+                      disabled={saving}
+                    >
+                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm">{result.label}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {result.address}
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           <Input
             placeholder="extra detail (optional)"
             value={locationDetail}
-            onChange={(e) => setLocationDetail(e.target.value)}
+            onChange={(e) => {
+              setLocationDetail(e.target.value)
+              setSelectedPlaceLocation(null)
+            }}
             maxLength={60}
             className="mt-2"
             disabled={isPast || isCancelled || saving}
@@ -318,6 +532,9 @@ export default function EventEditPage() {
                   onClick={() => {
                     setLocationLabel(p.label)
                     setLocationDetail(p.detail)
+                    setSelectedPlaceLocation(null)
+                    setPlaceResults([])
+                    setPlaceDetailsError(null)
                   }}
                   className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] hover:bg-secondary"
                   disabled={saving}

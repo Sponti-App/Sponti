@@ -63,6 +63,7 @@ function hostedEvent(overrides: Partial<HostedEvent> = {}): HostedEvent {
     visibility: "public",
     recurrence: "none",
     apiStatus: "active",
+    createdAt: "2099-05-01T12:00:00.000Z",
     updatedAt: "2099-05-01T12:00:00.000Z",
     ...overrides,
   }
