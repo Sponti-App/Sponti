@@ -325,7 +325,7 @@ export function NewEventDrawer({
   open: boolean
   onClose: () => void
 }) {
-  const { user } = useAuth()
+  const { user, status } = useAuth()
   const { showActionFeedback } = useActionFeedback()
   const hostName = user?.displayName?.trim() || "you"
   const {
@@ -534,7 +534,26 @@ export function NewEventDrawer({
   }, [circles, connections])
 
   useEffect(() => {
+    if (status !== "authenticated") {
+      let cancelled = false
+      queueMicrotask(() => {
+        if (cancelled) return
+        setCircles([])
+        setConnections([])
+        setAudienceLoading(false)
+        setAudienceError(null)
+      })
+      return () => {
+        cancelled = true
+      }
+    }
+
     const controller = new AbortController()
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return
+      setAudienceLoading(true)
+      setAudienceError(null)
+    })
     Promise.all([
       fetchAcceptedConnections(controller.signal),
       fetchMyCircles(controller.signal),
@@ -557,7 +576,7 @@ export function NewEventDrawer({
         setAudienceLoading(false)
       })
     return () => controller.abort()
-  }, [])
+  }, [status])
 
   // The drawer stays mounted in the provider, so transient view state (which
   // circle is being edited inline) would leak across open/close. Reset it
