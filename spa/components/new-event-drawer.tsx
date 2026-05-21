@@ -7,6 +7,7 @@ import {
   Check,
   MapPin,
   Minus,
+  Pencil,
   Plus,
   Search,
   Share2,
@@ -805,7 +806,7 @@ export function NewEventDrawer({
   }, [mode, endOffsetMin, startOffsetMin, endTimeMin, startTimeMin])
 
   const whereLabel = useMemo<string | null>(() => {
-    if (whereType === "current") return "current loc"
+    if (whereType === "current") return "my location"
     if (whereType === "search") {
       const v =
         selectedLocation?.name || pickedSearchAddress || searchQuery.trim()
@@ -1115,7 +1116,7 @@ export function NewEventDrawer({
                 onClick={() => toggleSection("when")}
               />
               <SectionChip
-                label={whereLabel ?? "current loc"}
+                label={whereLabel ?? "my location"}
                 active={expandedSection === "where"}
                 onClick={() => toggleSection("where")}
               />
@@ -1367,14 +1368,17 @@ function SectionChip({
       ? "border-destructive/40 bg-destructive/10 text-destructive"
       : active
         ? "border-accent bg-accent/10 text-accent"
-        : "border-border bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground"
+        : "border-muted-foreground/30 bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground"
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`shrink-0 truncate rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${toneClasses}`}
+      className={`inline-flex shrink-0 items-center gap-1 truncate rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${toneClasses}`}
     >
       {label}
+      {!active && tone !== "destructive" && (
+        <Pencil className="h-2.5 w-2.5 opacity-50" />
+      )}
     </button>
   )
 }
@@ -1784,7 +1788,7 @@ function WherePicker({
           <div className="flex items-center gap-2">
             <Chip selected onClick={() => undefined}>
               <MapPin className="h-3.5 w-3.5" />
-              current loc
+              my location
             </Chip>
             <button
               type="button"
@@ -1821,7 +1825,7 @@ function WherePicker({
             <button
               type="button"
               onClick={collapse}
-              aria-label="Use current location instead"
+              aria-label="Use my location instead"
               className="absolute top-1/2 right-2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
             >
               <X className="h-3 w-3" />
