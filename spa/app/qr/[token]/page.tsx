@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ArrowLeft, Check, Loader2, UserPlus, XCircle } from "lucide-react"
+import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -14,15 +15,15 @@ import { HttpError } from "@/lib/http"
 function relationshipLabel(result: QrContactResolveResult): string {
   switch (result.relationship) {
     case "self":
-      return "This is your QR code."
+      return "this is your qr code."
     case "connected":
-      return `You and ${result.profile.displayName} are already friends.`
+      return `you and ${result.profile.displayName} are already friends.`
     case "pending_outgoing":
-      return `Your request to ${result.profile.displayName} is already pending.`
+      return `your request to ${result.profile.displayName} is already pending.`
     case "pending_incoming":
       return `${result.profile.displayName} already sent you a request.`
     case "none":
-      return `Add ${result.profile.displayName} to your Sponti friends.`
+      return `add ${result.profile.displayName} to your sponti friends.`
   }
 }
 
@@ -30,6 +31,7 @@ export default function QrContactPage() {
   const router = useRouter()
   const params = useParams<{ token: string }>()
   const { status } = useAuth()
+  const { showActionFeedback } = useActionFeedback()
   const token = useMemo(() => decodeURIComponent(params.token), [params.token])
   const [resolved, setResolved] = useState<{
     token: string
@@ -59,15 +61,18 @@ export default function QrContactPage() {
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return
-        if (err instanceof HttpError && err.code === "QR_CONTACT_TOKEN_EXPIRED") {
+        if (
+          err instanceof HttpError &&
+          err.code === "QR_CONTACT_TOKEN_EXPIRED"
+        ) {
           setResolveError({
             token,
-            message: "This QR expired. Ask them to show a new code.",
+            message: "this qr expired. ask them to show a new code.",
           })
         } else {
           setResolveError({
             token,
-            message: "This QR code is no longer available.",
+            message: "this qr code is no longer available.",
           })
         }
       })
@@ -79,9 +84,17 @@ export default function QrContactPage() {
     setConnecting(true)
     setConnectError(null)
     try {
-      setResolved({ token, result: await resolveQrContactToken(token, true) })
+      const nextResult = await resolveQrContactToken(token, true)
+      setResolved({ token, result: nextResult })
+      showActionFeedback(
+        nextResult.connection?.autoAccepted ||
+          nextResult.relationship === "connected"
+          ? "friend added"
+          : "request sent"
+      )
     } catch {
-      setConnectError("Could not send the friend request. Try scanning again.")
+      setConnectError("could not send the friend request. try scanning again.")
+      showActionFeedback("couldn't add friend", { tone: "error" })
     } finally {
       setConnecting(false)
     }
@@ -104,14 +117,17 @@ export default function QrContactPage() {
         </button>
 
         <section className="flex flex-1 flex-col items-center justify-center text-center">
-          {status === "loading" || (status === "authenticated" && !result && !error) ? (
+          {status === "loading" ||
+          (status === "authenticated" && !result && !error) ? (
             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
           ) : status !== "authenticated" ? (
             <>
               <XCircle className="mb-4 h-10 w-10 text-muted-foreground" />
-              <h1 className="text-2xl font-semibold">Sign in to open this QR</h1>
+              <h1 className="text-2xl font-semibold">
+                sign in to open this qr
+              </h1>
               <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-                QR contacts only work for authenticated Sponti users.
+                qr contacts only work for authenticated sponti users.
               </p>
               <Button
                 onClick={() => router.push(signInPath)}
@@ -123,7 +139,7 @@ export default function QrContactPage() {
           ) : error && !result ? (
             <>
               <XCircle className="mb-4 h-10 w-10 text-muted-foreground" />
-              <h1 className="text-2xl font-semibold">QR unavailable</h1>
+              <h1 className="text-2xl font-semibold">qr unavailable</h1>
               <p className="mt-2 max-w-xs text-sm text-muted-foreground">
                 {error}
               </p>

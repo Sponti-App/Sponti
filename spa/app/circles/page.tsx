@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
@@ -174,6 +174,7 @@ export default function CirclesPage() {
   const [newCircleOpen, setNewCircleOpen] = useState(false)
   const [newCircleName, setNewCircleName] = useState("")
   const [newCircleMemberIds, setNewCircleMemberIds] = useState<string[]>([])
+  const circleNameBeforeEditRef = useRef<Record<string, string>>({})
 
   // Block confirmation
   const [pendingBlock, setPendingBlock] = useState<Connection | null>(null)
@@ -196,17 +197,20 @@ export default function CirclesPage() {
   ): void => {
     if (!apiEnabled) {
       setConnectionsError("Backend API is not configured.")
+      showActionFeedback("couldn't send request", { tone: "error" })
       return
     }
 
     void sendApiConnectionRequest(target.id)
       .then(() => {
         setPeopleQuery("")
+        showActionFeedback("request sent")
         refreshBackendData()
       })
-      .catch((err) =>
+      .catch((err) => {
         setConnectionsError(getErrorMessage(err, "Could not send request"))
-      )
+        showActionFeedback("couldn't send request", { tone: "error" })
+      })
   }
 
   const acceptRequest = (req: ConnectionRequest): void => {
@@ -252,56 +256,74 @@ export default function CirclesPage() {
   const declineRequest = (req: ConnectionRequest): void => {
     if (!apiEnabled) {
       setConnectionsError("Backend API is not configured.")
+      showActionFeedback("couldn't decline request", { tone: "error" })
       return
     }
 
     void respondToApiConnectionRequest(req.id, "rejected")
-      .then(refreshBackendData)
-      .catch((err) =>
+      .then(() => {
+        showActionFeedback("request declined")
+        refreshBackendData()
+      })
+      .catch((err) => {
         setConnectionsError(getErrorMessage(err, "Could not decline request"))
-      )
+        showActionFeedback("couldn't decline request", { tone: "error" })
+      })
   }
 
   const blockConnection = (target: Connection): void => {
     if (!apiEnabled) {
       setConnectionsError("Backend API is not configured.")
+      showActionFeedback("couldn't block person", { tone: "error" })
       return
     }
 
     void blockApiUser(target.id)
       .then(() => {
         setPendingBlock(null)
+        showActionFeedback("person blocked")
         refreshBackendData()
       })
-      .catch((err) =>
+      .catch((err) => {
         setConnectionsError(getErrorMessage(err, "Could not block user"))
-      )
+        showActionFeedback("couldn't block person", { tone: "error" })
+      })
   }
 
   const cancelSentRequest = (target: Connection): void => {
     if (!apiEnabled || !target.connectionId) {
       setConnectionsError("Could not cancel request.")
+      showActionFeedback("couldn't cancel request", { tone: "error" })
       return
     }
 
     void deleteApiConnection(target.connectionId)
-      .then(refreshBackendData)
-      .catch((err) =>
+      .then(() => {
+        showActionFeedback("request cancelled")
+        refreshBackendData()
+      })
+      .catch((err) => {
         setConnectionsError(getErrorMessage(err, "Could not cancel request"))
-      )
+        showActionFeedback("couldn't cancel request", { tone: "error" })
+      })
   }
 
   const unblock = (target: BlockedUser): void => {
     if (!apiEnabled) {
       setConnectionsError("Backend API is not configured.")
+      showActionFeedback("couldn't unblock person", { tone: "error" })
       return
     }
 
     void unblockApiUser(target.id)
-      .then(refreshBackendData)
-      .catch((err) =>
+      .then(() => {
+        showActionFeedback("person unblocked")
+        refreshBackendData()
+      })
+      .catch((err) => {
         setConnectionsError(getErrorMessage(err, "Could not unblock user"))
-      )
+        showActionFeedback("couldn't unblock person", { tone: "error" })
+      })
   }
 
   const updateCircleMembers = (
@@ -329,6 +351,7 @@ export default function CirclesPage() {
   ): void => {
     if (!apiEnabled) {
       setCirclesError("Backend API is not configured.")
+      showActionFeedback("couldn't add to circle", { tone: "error" })
       return
     }
 
@@ -343,15 +366,18 @@ export default function CirclesPage() {
           { ...(circle?.memberAddedAt ?? {}), [userId]: now }
         )
         onSuccess?.()
+        showActionFeedback("added to circle")
       })
-      .catch((err) =>
+      .catch((err) => {
         setCirclesError(getErrorMessage(err, "Could not add circle member"))
-      )
+        showActionFeedback("couldn't add to circle", { tone: "error" })
+      })
   }
 
   const removeMemberFromCircle = (circleId: string, userId: string): void => {
     if (!apiEnabled) {
       setCirclesError("Backend API is not configured.")
+      showActionFeedback("couldn't remove from circle", { tone: "error" })
       return
     }
 
@@ -365,10 +391,12 @@ export default function CirclesPage() {
           (memberIds) => memberIds.filter((id) => id !== userId),
           memberAddedAt
         )
+        showActionFeedback("removed from circle")
       })
-      .catch((err) =>
+      .catch((err) => {
         setCirclesError(getErrorMessage(err, "Could not remove circle member"))
-      )
+        showActionFeedback("couldn't remove from circle", { tone: "error" })
+      })
   }
 
   const moveConnectionToCircle = (
@@ -378,6 +406,7 @@ export default function CirclesPage() {
   ): void => {
     if (!apiEnabled) {
       setCirclesError("Backend API is not configured.")
+      showActionFeedback("couldn't move to circle", { tone: "error" })
       return
     }
 
@@ -410,31 +439,50 @@ export default function CirclesPage() {
           return circle
         })
       )
-    })().catch((err) =>
+      showActionFeedback("moved to circle")
+    })().catch((err) => {
       setCirclesError(getErrorMessage(err, "Could not move circle member"))
-    )
+      showActionFeedback("couldn't move to circle", { tone: "error" })
+    })
   }
 
   const saveCircleName = (circle: Circle): void => {
+    const previousName = circleNameBeforeEditRef.current[circle.id]
+    delete circleNameBeforeEditRef.current[circle.id]
+
     const name = circle.name.trim()
     if (!name) {
       refreshBackendData()
       return
     }
 
+    if (previousName !== undefined && name === previousName.trim()) {
+      setCircles((prev) =>
+        prev.map((c) => (c.id === circle.id ? { ...c, name: previousName } : c))
+      )
+      return
+    }
+
     void updateApiCircle(circle.id, { name })
-      .then((updated) =>
+      .then((updated) => {
         setCircles((prev) =>
           prev.map((c) =>
             c.id === circle.id
-              ? { ...c, ...updated, memberIds: c.memberIds, memberAddedAt: c.memberAddedAt }
+              ? {
+                  ...c,
+                  ...updated,
+                  memberIds: c.memberIds,
+                  memberAddedAt: c.memberAddedAt,
+                }
               : c
           )
         )
-      )
-      .catch((err) =>
+        showActionFeedback("circle renamed")
+      })
+      .catch((err) => {
         setCirclesError(getErrorMessage(err, "Could not update circle"))
-      )
+        showActionFeedback("couldn't rename circle", { tone: "error" })
+      })
   }
 
   const toggleNewCircleMember = (id: string): void => {
@@ -449,6 +497,7 @@ export default function CirclesPage() {
 
     if (!apiEnabled) {
       setCirclesError("Backend API is not configured.")
+      showActionFeedback("couldn't create circle", { tone: "error" })
       return
     }
 
@@ -463,10 +512,12 @@ export default function CirclesPage() {
         setNewCircleName("")
         setNewCircleMemberIds([])
         setNewCircleOpen(false)
+        showActionFeedback("circle created")
       })
-      .catch((err) =>
+      .catch((err) => {
         setCirclesError(getErrorMessage(err, "Could not create circle"))
-      )
+        showActionFeedback("couldn't create circle", { tone: "error" })
+      })
   }
 
   // Circles the user can still add a connection to (excludes "all" and circles they're already in)
@@ -627,6 +678,10 @@ export default function CirclesPage() {
                         <div className="flex flex-col gap-3 border-t border-border px-3 pt-3 pb-3">
                           <Input
                             value={circle.name}
+                            onFocus={() => {
+                              circleNameBeforeEditRef.current[circle.id] =
+                                circle.name
+                            }}
                             onChange={(e) =>
                               setCircles((prev) =>
                                 prev.map((c) =>
@@ -776,8 +831,10 @@ export default function CirclesPage() {
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          addMemberToCircle(circle.id, c.id, () =>
-                                            setMemberQuery("")
+                                          addMemberToCircle(
+                                            circle.id,
+                                            c.id,
+                                            () => setMemberQuery("")
                                           )
                                         }}
                                         className="flex w-full items-center gap-3 px-2 py-2 text-left hover:bg-secondary"

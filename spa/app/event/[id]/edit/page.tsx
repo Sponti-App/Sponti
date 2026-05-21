@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ArrowLeft, MapPin, Pencil, RotateCcw, Trash2 } from "lucide-react"
+import { useActionFeedback } from "@/components/action-feedback"
 import { BottomNav } from "@/components/bottom-nav"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,6 +38,7 @@ const MIN = 60_000
 export default function EventEditPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
+  const { showActionFeedback } = useActionFeedback()
   const [event, setEvent] = useState<HostedEvent | null>(null)
   const [original, setOriginal] = useState<HostedEvent | null>(null)
   const [title, setTitle] = useState("")
@@ -140,9 +142,11 @@ export default function EventEditPage() {
         locationName: locationLabel.trim() || original.locationLabel,
         locationAddress: locationDetail.trim() || null,
       })
+      showActionFeedback("flare updated")
       router.push("/event")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save changes")
+      showActionFeedback("couldn't update flare", { tone: "error" })
       setSaving(false)
     }
   }
@@ -160,9 +164,11 @@ export default function EventEditPage() {
       setSaving(true)
       setError(null)
       await cancelEvent(original.id)
+      showActionFeedback("flare cancelled")
       router.push("/event")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not cancel flare")
+      showActionFeedback("couldn't cancel flare", { tone: "error" })
       setSaving(false)
     }
   }
@@ -172,11 +178,13 @@ export default function EventEditPage() {
       setSaving(true)
       setError(null)
       await reactivateEvent(original.id)
+      showActionFeedback("flare reactivated")
       router.push("/event")
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Could not reactivate flare"
       )
+      showActionFeedback("couldn't reactivate flare", { tone: "error" })
       setSaving(false)
     }
   }
