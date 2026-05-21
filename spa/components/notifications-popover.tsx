@@ -92,7 +92,7 @@ export function NotificationsPopover({
   return (
     <>
       <div
-        className={`absolute inset-0 z-40 transition-opacity duration-200 ${
+        className={`fixed inset-0 z-40 transition-opacity duration-200 ${
           open ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={onClose}
@@ -100,7 +100,7 @@ export function NotificationsPopover({
       />
 
       <div
-        className={`absolute right-3 bottom-22 left-3 z-50 mx-auto max-w-90 origin-bottom overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-lg transition-all duration-200 ${
+        className={`fixed right-3 bottom-[calc(var(--sponti-nav-h,64px)_+_1.5rem)] left-3 z-50 mx-auto max-w-90 origin-bottom overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-lg transition-all duration-200 ${
           open
             ? "scale-100 opacity-100"
             : "pointer-events-none scale-95 opacity-0"
