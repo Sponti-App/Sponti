@@ -1684,7 +1684,7 @@ function DateStrip({
               }`}
             >
               <span
-                className={`text-[11px] ${selected ? "text-accent" : "text-muted-foreground"}`}
+                className={`text-xs ${selected ? "text-accent" : "text-muted-foreground"}`}
               >
                 {chip.weekday}
               </span>
@@ -2144,7 +2144,7 @@ function CircleChip({
       >
         {circle.name}
       </span>
-      <span className="shrink-0 text-[10px] text-muted-foreground/70">
+      <span className="shrink-0 text-xs text-muted-foreground/70">
         {circle.memberIds.length}
       </span>
     </button>
@@ -2329,7 +2329,7 @@ function FriendList({
                     <span className="block truncate text-sm">
                       {c.displayName}
                     </span>
-                    <span className="block truncate text-[11px] text-muted-foreground">
+                    <span className="block truncate text-xs text-muted-foreground">
                       @{c.username}
                     </span>
                   </span>

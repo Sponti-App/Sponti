@@ -1255,7 +1255,7 @@ export default function CirclesPage() {
       </Tabs>
 
       {/* Bottom Nav */}
-      <div className="pointer-events-none absolute right-0 bottom-6 left-0 z-10">
+      <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-10">
         <div className="pointer-events-auto">
           <BottomNav />
         </div>

@@ -312,7 +312,7 @@ export default function EventEditPage() {
                     setLocationLabel(p.label)
                     setLocationDetail(p.detail)
                   }}
-                  className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] hover:bg-secondary"
+                  className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1 text-xs hover:bg-secondary"
                   disabled={saving}
                 >
                   <MapPin className="h-3 w-3" />
@@ -391,7 +391,7 @@ function Section({
 }) {
   return (
     <div className="mt-5">
-      <Label className="mb-2 block text-[11px] tracking-wide text-muted-foreground uppercase">
+      <Label className="mb-2 block text-xs text-muted-foreground">
         {label}
       </Label>
       {children}

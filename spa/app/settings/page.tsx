@@ -588,7 +588,7 @@ function Section({
     <div>
       <div className="flex items-center gap-1.5 mb-3">
         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground">
           {label}
         </span>
       </div>

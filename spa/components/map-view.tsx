@@ -639,7 +639,7 @@ export function MapView({
         }}
         style={fabBottomStyle}
         aria-label="Light a flare"
-        className="absolute right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg transition-[bottom] duration-300 ease-out active:scale-95"
+        className="absolute right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg transition-[bottom,transform] duration-300 ease-out active:scale-95"
       >
         <Flame className="h-6 w-6" />
       </button>
@@ -656,7 +656,7 @@ export function MapView({
           }}
           style={recenterBottomStyle}
           aria-label="Recenter on my location"
-          className="absolute right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md transition-[bottom] duration-300 ease-out"
+          className="absolute right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md transition-[bottom,transform] duration-300 ease-out active:scale-95"
         >
           <LocateFixed className="h-5 w-5" />
         </button>
@@ -674,7 +674,7 @@ export function MapView({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         >
-          <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
+          <div className="h-1 w-10 rounded-full bg-muted-foreground/30 transition-transform active:scale-x-125" />
         </div>
 
         {peekState === "mini" ? (
@@ -1035,7 +1035,7 @@ function EmptyState({
         {onWiden && (
           <button
             onClick={onWiden}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary active:bg-muted"
           >
             <Expand className="h-4 w-4" /> search within {WIDE_RADIUS_KM} km
           </button>
@@ -1043,14 +1043,14 @@ function EmptyState({
         {onSeeCalendar && (
           <button
             onClick={onSeeCalendar}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary active:bg-muted"
           >
             <CalendarIcon className="h-4 w-4" /> see what&apos;s planned
           </button>
         )}
         <button
           onClick={onFindConnections}
-          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 active:scale-[0.97]"
         >
           <Flame className="h-4 w-4" /> connect with your friends
         </button>
@@ -1152,7 +1152,7 @@ function FlareCard({
       )}
 
       <Card
-        className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 ${isLiveStatus
+        className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 active:bg-muted ${isLiveStatus
             ? "border-l-[3px] border-l-accent"
             : ""
           } ${isEnded ? "border-border bg-muted/30" : "border-border"}`}
@@ -1188,7 +1188,7 @@ function FlareCard({
               {event.title.split("·", 2)[0]}
             </p>
             {joined && !isEnded && (
-              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
                 <Check className="h-2.5 w-2.5" /> going
               </span>
             )}
@@ -1224,7 +1224,7 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${active
+      className={`flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors active:scale-[0.97] ${active
           ? "border-accent bg-accent text-accent-foreground"
           : "border-border bg-background text-muted-foreground hover:text-foreground"
         }`}

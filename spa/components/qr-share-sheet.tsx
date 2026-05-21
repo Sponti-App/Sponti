@@ -90,7 +90,7 @@ export function QrShareSheet({
       />
       <div className="relative mt-auto bg-card rounded-t-3xl border-t border-border shadow-2xl flex flex-col">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <span className="text-[11px] tracking-wide uppercase text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             your qr
           </span>
           <button
