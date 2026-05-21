@@ -11,8 +11,7 @@
       "Bash(npx tsc *)",
       "Bash(npx eslint *)",
       "Bash(npm run *)",
-      "Bash(git rm *)",
-      "Bash(curl -s http://localhost:3000)"
+      "Bash(git rm *)"
     ]
   }
 }

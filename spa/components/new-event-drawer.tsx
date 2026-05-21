@@ -54,7 +54,6 @@ type PlaceDetailsResponse = {
 }
 
 const STEP_MIN = 15
-const NOW_MAX_OFFSET_MIN = 360
 const MAX_DURATION_MIN = 240
 const MIN_DURATION_MIN = 15
 const SCHEDULED_MAX_DAYS = 14
@@ -68,11 +67,6 @@ function formatDateInput(d: Date): string {
   const mm = String(d.getMonth() + 1).padStart(2, "0")
   const dd = String(d.getDate()).padStart(2, "0")
   return `${yyyy}-${mm}-${dd}`
-}
-
-function minutesNow(): number {
-  const n = new Date()
-  return n.getHours() * 60 + n.getMinutes()
 }
 
 function formatRelative(minutes: number): string {
@@ -388,12 +382,6 @@ export function NewEventDrawer({
   const inferredType = useMemo(() => inferEventType(title), [title])
   const effectiveType = resolveEventType(eventType, inferredType)
 
-  // Round to nearest STEP_MIN so every wheel label lands on a clean interval
-  // (e.g. 4:26 → 4:30 instead of 4:26).
-  const mountMinutes = useMemo(
-    () => Math.round(minutesNow() / STEP_MIN) * STEP_MIN,
-    []
-  )
   const [startOffsetMin, setStartOffsetMin] = useState(
     initialEventDraftState.startOffsetMin
   )
@@ -496,6 +484,7 @@ export function NewEventDrawer({
     initialEventDraftState.submitError
   )
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false)
 
   const resetEventDraft = useCallback((): void => {
     if (debounceRef.current) {
@@ -580,13 +569,6 @@ export function NewEventDrawer({
   }, [open])
 
   useEffect(() => {
-    if (!pendingPublicSubmit.current || !isOpen) return
-    pendingPublicSubmit.current = false
-    void handleSubmit()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen])
-
-  useEffect(() => {
     if (!open || whereType !== "current" || geoStatus !== "idle") return
     requestGeoLocation()
   }, [open, whereType, geoStatus, requestGeoLocation])
@@ -638,18 +620,6 @@ export function NewEventDrawer({
       .catch((error: unknown) => {
         setAudienceError(getErrorMessage(error))
       })
-  }
-
-  const handleStartOffset = (next: number): void => {
-    setStartOffsetMin(next)
-    setEndOffsetMin((prev) => {
-      if (prev === OPEN_ENDED) return OPEN_ENDED
-      const min = next + MIN_DURATION_MIN
-      const max = next + MAX_DURATION_MIN
-      if (prev < min) return min
-      if (prev > max) return max
-      return prev
-    })
   }
 
   const handleStartTime = (next: number): void => {
@@ -784,29 +754,6 @@ export function NewEventDrawer({
     }
   }
 
-  // Now-mode wheel options use absolute clock-time labels so the user sees
-  // "9:30pm" instead of "+30m", matching the scheduled-mode wheel behavior.
-  const nowStartOptions = useMemo(() => {
-    const out: { value: number; label: string }[] = []
-    for (let m = 0; m <= NOW_MAX_OFFSET_MIN; m += STEP_MIN) {
-      const wallMin = (((mountMinutes + m) % 1440) + 1440) % 1440
-      out.push({ value: m, label: m === 0 ? "now" : formatTimeOfDay(wallMin) })
-    }
-    return out
-  }, [mountMinutes])
-
-  const nowEndOptions = useMemo(() => {
-    const out: { value: number; label: string }[] = []
-    const min = startOffsetMin + MIN_DURATION_MIN
-    const max = startOffsetMin + MAX_DURATION_MIN
-    for (let m = min; m <= max; m += STEP_MIN) {
-      const wallMin = (((mountMinutes + m) % 1440) + 1440) % 1440
-      out.push({ value: m, label: formatTimeOfDay(wallMin) })
-    }
-    out.push({ value: OPEN_ENDED, label: "open" })
-    return out
-  }, [startOffsetMin, mountMinutes])
-
   const scheduledStartOptions = useMemo(() => {
     const out: { value: number; label: string }[] = []
     for (
@@ -835,15 +782,6 @@ export function NewEventDrawer({
     }
     return endTimeMin - startTimeMin
   }, [mode, endOffsetMin, startOffsetMin, endTimeMin, startTimeMin])
-
-  const wallTimeForNow = useMemo(() => {
-    const startMin = (((mountMinutes + startOffsetMin) % 1440) + 1440) % 1440
-    const endMin =
-      endOffsetMin === OPEN_ENDED
-        ? null
-        : (((mountMinutes + endOffsetMin) % 1440) + 1440) % 1440
-    return { startMin, endMin }
-  }, [mountMinutes, startOffsetMin, endOffsetMin])
 
   const whereLabel = useMemo<string | null>(() => {
     if (whereType === "current") return "current loc"
@@ -1046,6 +984,13 @@ export function NewEventDrawer({
       if (created) resetEventDraft()
     }
   }
+
+  useEffect(() => {
+    if (!pendingPublicSubmit.current || !isOpen) return
+    pendingPublicSubmit.current = false
+    void handleSubmit()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
 
   return (
     <Drawer.Root
@@ -1312,16 +1257,39 @@ export function NewEventDrawer({
                   <button
                     type="button"
                     className="text-xs font-medium text-accent hover:underline"
+                    onClick={async () => {
+                      const url =
+                        (
+                          process.env.NEXT_PUBLIC_PUBLIC_APP_URL?.trim() || ""
+                        ).replace(/\/+$/, "") || "https://sponti.fun"
+                      const text = `join me on sponti! ${url}`
+                      try {
+                        if (navigator.share) {
+                          await navigator.share({ title: "sponti", text, url })
+                        } else {
+                          await navigator.clipboard.writeText(url)
+                          setInviteLinkCopied(true)
+                          setTimeout(() => setInviteLinkCopied(false), 1600)
+                        }
+                      } catch {
+                        /* share cancelled */
+                      }
+                    }}
                   >
-                    <Share2 className="mr-1 inline h-3 w-3" />
-                    share invite link
+                    {inviteLinkCopied ? (
+                      <Check className="mr-1 inline h-3 w-3" />
+                    ) : (
+                      <Share2 className="mr-1 inline h-3 w-3" />
+                    )}
+                    {inviteLinkCopied ? "copied!" : "share invite link"}
                   </button>
                   <button
                     type="button"
-                    className="text-xs font-medium text-accent hover:underline"
+                    disabled
+                    className="text-xs font-medium text-muted-foreground/50"
                   >
                     <UserPlus className="mr-1 inline h-3 w-3" />
-                    import contacts
+                    import contacts (soon)
                   </button>
                 </div>
               </div>
@@ -1934,12 +1902,6 @@ function WhoBlock({
   const editingCircle = editingCircleId
     ? (circles.find((c) => c.id === editingCircleId) ?? null)
     : null
-
-  // The cap only matters when the headcount isn't already bounded by a
-  // curated list. Public events need a cap (anyone can join) and "all
-  // friends" can be sizeable. Inner/Close are already capped by membership.
-  const allCircleId = circles.find((c) => c.type === "all")?.id ?? ""
-  const showLimit = isOpen || audience === allCircleId
 
   return (
     <div className="flex flex-col gap-3">
