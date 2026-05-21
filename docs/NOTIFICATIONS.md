@@ -232,7 +232,7 @@ Notification fetching should live in a frontend API module and a shared hook:
 - API client: `spa/lib/api/notifications.ts`
 - Hook/cache layer: `spa/lib/use-notifications.ts`
 - Display component: `spa/components/notifications-popover.tsx`
-- Home integration: `spa/app/page.tsx`
+- App-shell integration: `spa/components/authenticated-app-shell.tsx`
 - Badge display: `spa/components/bottom-nav.tsx`
 
 Recommended strategy:
@@ -242,6 +242,7 @@ Recommended strategy:
 - When a read-batch succeeds, update local feed items with `readAt` and update the unread count from the response.
 - If the backend does not return a count from read-batch, refetch `GET /notifications/unread-count`.
 - Keep the feed and badge synced through the same hook/cache instead of separate local state.
+- `AuthenticatedAppShell` should be the only app-level owner of `BottomNav`, the notification popover, and the unread-count prop passed into the badge. Individual pages should not mount their own notification feed state.
 
 ## Navigation Behavior
 

@@ -29,8 +29,8 @@ export function BottomNav({
   onOpenNotifications,
   notificationsUnread = 0,
 }: {
-  // Optional: only the home page handles the popover inline. On other pages,
-  // tapping Feed routes back to home where notifications live.
+  // AuthenticatedAppShell owns the feed popover. The fallback keeps isolated
+  // story/test renders useful if no shell handler is supplied.
   onOpenNotifications?: () => void
   notificationsUnread?: number
 }) {

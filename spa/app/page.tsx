@@ -3,10 +3,8 @@
 import { useRef, useState } from "react"
 import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
-import { BottomNav } from "@/components/bottom-nav"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
 import { MenuDrawer } from "@/components/menu-drawer"
-import { NotificationsPopover } from "@/components/notifications-popover"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { Menu, Settings, Map, Calendar, Navigation, X } from "lucide-react"
@@ -18,8 +16,6 @@ import {
   updateMyRsvp,
   type EventItem,
 } from "@/lib/api/events"
-import type { Notification } from "@/lib/notifications"
-import { useNotifications } from "@/lib/use-notifications"
 import { haptic } from "@/lib/haptics"
 
 export default function Home() {
@@ -31,17 +27,6 @@ export default function Home() {
   const [routeEta, setRouteEta] = useState<string | null>(null)
   const [joinedIds, setJoinedIds] = useState<Set<string>>(() => new Set())
   const [menuOpen, setMenuOpen] = useState(false)
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const {
-    notifications,
-    unreadCount,
-    loading: notificationsLoading,
-    loadingMore: notificationsLoadingMore,
-    error: notificationsError,
-    hasMore: notificationsHasMore,
-    loadLatest: loadLatestNotifications,
-    loadMore: loadMoreNotifications,
-  } = useNotifications()
   const { user } = useAuth()
 
   // Left-edge swipe to open MenuDrawer
@@ -62,22 +47,6 @@ export default function Home() {
       haptic("selection")
       setMenuOpen(true)
     }
-  }
-
-  const handleOpenNotifications = () => {
-    setNotificationsOpen((v) => {
-      const next = !v
-      if (next) {
-        void loadLatestNotifications()
-      }
-      return next
-    })
-  }
-
-  const handleNotificationClick = (notification: Notification) => {
-    haptic("selection")
-    setNotificationsOpen(false)
-    router.push(notification.href)
   }
 
   const handleJoin = (event: EventItem, eta: string | null) => {
@@ -243,19 +212,6 @@ export default function Home() {
           </button>
         </div>
 
-        <NotificationsPopover
-          open={notificationsOpen}
-          onClose={() => setNotificationsOpen(false)}
-          notifications={notifications}
-          unreadCount={unreadCount}
-          loading={notificationsLoading}
-          loadingMore={notificationsLoadingMore}
-          error={notificationsError}
-          hasMore={notificationsHasMore}
-          onLoadMore={() => void loadMoreNotifications()}
-          onNotificationClick={handleNotificationClick}
-        />
-
         {/* Route active pill — tap to reopen details, X to clear.
             top-16 clears the floating header chip row (~56px + gap). */}
         {activeRoute && !selectedEvent && view === "map" && (
@@ -292,14 +248,6 @@ export default function Home() {
         onLeave={handleLeave}
         onSeeRoute={handleSeeRoute}
       />
-
-      {/* Bottom Nav — solid bar anchored to bottom (z-40) */}
-      <div className="absolute right-0 bottom-0 left-0 z-40">
-        <BottomNav
-          onOpenNotifications={handleOpenNotifications}
-          notificationsUnread={unreadCount}
-        />
-      </div>
 
       <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>
