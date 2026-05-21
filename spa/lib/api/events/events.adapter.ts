@@ -227,6 +227,7 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     myRsvp: api.myRsvp ?? null,
     recurrence: "none",
     apiStatus: api.status,
+    createdAt: api.createdAt ?? api.startAt,
     updatedAt: api.updatedAt ?? api.startAt,
   }
 }
@@ -259,10 +260,12 @@ export function inferEventStartShape(event: HostedEvent): {
   const start = new Date(event.startAt)
   const end = new Date(event.endAt)
   const durationMinutes = Math.round((end.getTime() - start.getTime()) / MIN)
-  const diffMin = Math.round((start.getTime() - Date.now()) / MIN)
+  const created = new Date(event.createdAt).getTime()
+  const startMs = start.getTime()
+  const createdStartDiffMin = Math.abs(startMs - created) / MIN
 
-  if (diffMin >= 0 && diffMin <= 360) {
-    return { mode: "now", startOffsetMinutes: diffMin, durationMinutes }
+  if (createdStartDiffMin <= 2) {
+    return { mode: "now", startOffsetMinutes: 0, durationMinutes }
   }
 
   const yyyy = start.getFullYear()
