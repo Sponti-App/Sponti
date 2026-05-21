@@ -102,7 +102,7 @@ export default function Home() {
     // PATCH /events/:id/me with declined — backend keeps the EventMember row
     // but updates rsvpStatus, so any future invite history is preserved.
     void updateMyRsvp(event.id, { rsvpStatus: "declined" })
-      .then(() => showActionFeedback("you're out"))
+      .then(() => showActionFeedback("not this one"))
       .catch((err) => {
         console.error("[Sponti] failed to RSVP declined", err)
         setJoinedIds((prev) => {

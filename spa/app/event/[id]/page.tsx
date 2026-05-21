@@ -101,7 +101,7 @@ export default function EventDetailPage() {
       setEvent((current) =>
         current ? { ...current, myRsvp: choice } : current
       )
-      showActionFeedback(choice === "going" ? "you're in" : "you're out")
+      showActionFeedback(choice === "going" ? "you're in" : "not this one")
     } catch (err) {
       setRsvp(previous)
       setRsvpError(err instanceof Error ? err.message : "could not update rsvp")

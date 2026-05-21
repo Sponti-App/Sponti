@@ -10,6 +10,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react"
+import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -86,6 +87,7 @@ function isPlaceDetailsResponse(value: unknown): value is PlaceDetailsResponse {
 export default function EventEditPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
+  const { showActionFeedback } = useActionFeedback()
   const [event, setEvent] = useState<HostedEvent | null>(null)
   const [original, setOriginal] = useState<HostedEvent | null>(null)
   const [title, setTitle] = useState("")
@@ -301,9 +303,11 @@ export default function EventEditPage() {
         }
       }
       await updateEvent(original.id, updates)
+      showActionFeedback("flare updated")
       router.push("/event")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save changes")
+      showActionFeedback("couldn't update flare", { tone: "error" })
       setSaving(false)
     }
   }
@@ -321,9 +325,11 @@ export default function EventEditPage() {
       setSaving(true)
       setError(null)
       await cancelEvent(original.id)
+      showActionFeedback("flare cancelled")
       router.push("/event")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not cancel flare")
+      showActionFeedback("couldn't cancel flare", { tone: "error" })
       setSaving(false)
     }
   }
@@ -333,11 +339,13 @@ export default function EventEditPage() {
       setSaving(true)
       setError(null)
       await reactivateEvent(original.id)
+      showActionFeedback("flare reactivated")
       router.push("/event")
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Could not reactivate flare"
       )
+      showActionFeedback("couldn't reactivate flare", { tone: "error" })
       setSaving(false)
     }
   }
