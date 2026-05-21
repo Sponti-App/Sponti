@@ -116,7 +116,7 @@ export default function PublicProfilePage({
         )}
       </div>
 
-      <div className="flex-1 flex flex-col items-center px-4 pt-10 gap-4">
+      <div className="flex-1 flex flex-col items-center px-4 pt-10 pb-28 gap-4">
         <span className="h-20 w-20 rounded-full bg-accent/10 text-accent border border-accent/20 flex items-center justify-center text-2xl font-semibold">
           {person ? initials(person.displayName) : "?"}
         </span>
@@ -170,7 +170,7 @@ export default function PublicProfilePage({
 
       {showBlockConfirm && connection && (
         <div
-          className="absolute inset-0 z-20 flex items-end bg-(--scrim)"
+          className="absolute inset-0 z-50 flex items-end bg-(--scrim)"
           onClick={() => setShowBlockConfirm(false)}
         >
           <div

@@ -34,7 +34,7 @@ export function CancelEventDialog({
       : "no notifications will fire."
 
   return (
-    <div className="absolute inset-0 z-40 flex items-end justify-center px-4 pb-6">
+    <div className="absolute inset-0 z-50 flex items-end justify-center px-4 pb-6">
       <button
         type="button"
         aria-label="Close"

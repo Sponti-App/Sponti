@@ -18,7 +18,6 @@ import {
   User,
 } from "lucide-react"
 import { useTheme } from "next-themes"
-import { BottomNav } from "@/components/bottom-nav"
 import { useActionFeedback } from "@/components/action-feedback"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -565,10 +564,6 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             </Button>
           </TabsContent>
         </Tabs>
-      </div>
-
-      <div className="absolute bottom-6 left-0 right-0 z-10">
-        <BottomNav />
       </div>
     </div>
   )

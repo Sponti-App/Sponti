@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, ChevronDown, ListFilter, Sparkles } from "lucide-react"
-import { BottomNav } from "@/components/bottom-nav"
 import { EventHostCard } from "@/components/event-host-card"
 import { Button } from "@/components/ui/button"
 import {
@@ -110,11 +109,6 @@ export default function EventHubPage() {
         </main>
       </div>
 
-      <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-10">
-        <div className="pointer-events-auto">
-          <BottomNav />
-        </div>
-      </div>
     </div>
   )
 }
