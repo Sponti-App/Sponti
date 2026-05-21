@@ -134,7 +134,7 @@ export function EventHostCard({
             className={cn(
               "line-clamp-2 min-w-0 text-base leading-snug font-semibold",
               event.apiStatus === "cancelled" &&
-                "text-muted-foreground line-through"
+              "text-muted-foreground line-through"
             )}
           >
             {event.title.toLowerCase()}
