@@ -13,7 +13,6 @@ import {
   UserPlus,
   X,
 } from "lucide-react"
-import { BottomNav } from "@/components/bottom-nav"
 import { useActionFeedback } from "@/components/action-feedback"
 import { CircleStackIcon } from "@/components/circle-stack-icon"
 import { QrShareSheet } from "@/components/qr-share-sheet"
@@ -1311,13 +1310,6 @@ export default function CirclesPage() {
         </div>
       </Tabs>
 
-      {/* Bottom Nav */}
-      <div className="pointer-events-none absolute right-0 bottom-6 left-0 z-10">
-        <div className="pointer-events-auto">
-          <BottomNav />
-        </div>
-      </div>
-
       {qrOpen && (
         <QrShareSheet
           displayName={user?.displayName ?? "you"}
@@ -1328,7 +1320,7 @@ export default function CirclesPage() {
 
       {pendingBlock && (
         <div
-          className="absolute inset-0 z-20 flex items-end bg-(--scrim)"
+          className="absolute inset-0 z-50 flex items-end bg-(--scrim)"
           onClick={() => setPendingBlock(null)}
         >
           <div

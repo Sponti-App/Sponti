@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ArrowLeft, MapPin, Pencil, RotateCcw, Trash2 } from "lucide-react"
 import { useActionFeedback } from "@/components/action-feedback"
-import { BottomNav } from "@/components/bottom-nav"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -371,12 +370,6 @@ export default function EventEditPage() {
           </Button>
         </div>
       )}
-
-      <div className="pointer-events-none absolute right-0 bottom-6 left-0 z-10">
-        <div className="pointer-events-auto">
-          <BottomNav />
-        </div>
-      </div>
 
       {confirmCancel && (
         <CancelEventDialog
