@@ -137,16 +137,15 @@ export default function EventDetailPage() {
   const canManage = Boolean(
     searchParams.get("manage") === "1" && user && event.hostId === user.id
   )
+  const isHost = Boolean(user && event.hostId === user.id)
   const hostName = (
-    event.hostName ??
-    event.hostUsername ??
-    (canManage ? user?.displayName : null) ??
-    "host"
+    isHost
+      ? "you"
+      : event.hostName ?? event.hostUsername ?? "host"
   ).toLowerCase()
-  const hostHandle =
-    event.hostUsername ?? (canManage ? user?.username : undefined)
-  const hostAvatarLabel = event.hostName ?? event.hostUsername ?? "host"
-  const hostAvatarUrl = canManage ? user?.avatarUrl : event.hostAvatarUrl
+  const hostHandle = event.hostUsername ?? (isHost ? user?.username : undefined)
+  const hostAvatarLabel = isHost ? "you" : event.hostName ?? event.hostUsername ?? "host"
+  const hostAvatarUrl = isHost ? user?.avatarUrl : event.hostAvatarUrl
   const description =
     event.description?.trim() ||
     "no description yet. the host can add more context from edit flare."
