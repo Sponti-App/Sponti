@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react"
 import { CircleStackIcon } from "@/components/circle-stack-icon"
+import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -331,6 +332,7 @@ export function NewEventDrawer({
   onClose: () => void
 }) {
   const { user } = useAuth()
+  const { showActionFeedback } = useActionFeedback()
   const hostName = user?.displayName?.trim() || "you"
   const {
     coords: geoCoords,
@@ -1033,10 +1035,11 @@ export function NewEventDrawer({
         }
         throw err
       }
-      haptic("success")
+      showActionFeedback("let's light it up")
       onClose()
     } catch (error) {
       setSubmitError(formatSubmitError(error))
+      showActionFeedback("couldn't light that flare", { tone: "error" })
     } finally {
       setIsSubmitting(false)
       if (created) resetEventDraft()

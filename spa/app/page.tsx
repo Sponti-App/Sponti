@@ -7,6 +7,7 @@ import { BottomNav } from "@/components/bottom-nav"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
 import { MenuDrawer } from "@/components/menu-drawer"
 import { NotificationsPopover } from "@/components/notifications-popover"
+import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { Menu, Settings, Map, Calendar, Navigation, X } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -23,6 +24,7 @@ import { haptic } from "@/lib/haptics"
 
 export default function Home() {
   const router = useRouter()
+  const { showActionFeedback } = useActionFeedback()
   const [view, setView] = useState<"map" | "calendar">("map")
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const [activeRoute, setActiveRoute] = useState<EventItem | null>(null)
@@ -91,18 +93,21 @@ export default function Home() {
     // memberWillArriveAt). The "let host know" ETA chip is the user's
     // committed arrival time; the Routes API ETA shown in the route pill is
     // separate (display-only, not persisted).
-    updateMyRsvp(event.id, {
+    void updateMyRsvp(event.id, {
       rsvpStatus: "going",
       memberWillArriveAt: etaToIso(eta),
-    }).catch((err) => {
-      // Revert the optimistic add so the UI matches server state.
-      console.error("[Sponti] failed to RSVP going", err)
-      setJoinedIds((prev) => {
-        const next = new Set(prev)
-        next.delete(event.id)
-        return next
-      })
     })
+      .then(() => showActionFeedback("you're in"))
+      .catch((err) => {
+        // Revert the optimistic add so the UI matches server state.
+        console.error("[Sponti] failed to RSVP going", err)
+        setJoinedIds((prev) => {
+          const next = new Set(prev)
+          next.delete(event.id)
+          return next
+        })
+        showActionFeedback("couldn't save that", { tone: "error" })
+      })
     if (isImminent(event) && event.location.coordinates) {
       setActiveRoute(event)
       setRouteEta(null) // Routes API will fill this in via onRouteReady
@@ -127,14 +132,17 @@ export default function Home() {
     })
     // PATCH /events/:id/me with declined — backend keeps the EventMember row
     // but updates rsvpStatus, so any future invite history is preserved.
-    updateMyRsvp(event.id, { rsvpStatus: "declined" }).catch((err) => {
-      console.error("[Sponti] failed to RSVP declined", err)
-      setJoinedIds((prev) => {
-        const next = new Set(prev)
-        next.add(event.id)
-        return next
+    void updateMyRsvp(event.id, { rsvpStatus: "declined" })
+      .then(() => showActionFeedback("you're out"))
+      .catch((err) => {
+        console.error("[Sponti] failed to RSVP declined", err)
+        setJoinedIds((prev) => {
+          const next = new Set(prev)
+          next.add(event.id)
+          return next
+        })
+        showActionFeedback("couldn't save that", { tone: "error" })
       })
-    })
     if (activeRoute?.id === event.id) {
       setActiveRoute(null)
       setRouteEta(null)

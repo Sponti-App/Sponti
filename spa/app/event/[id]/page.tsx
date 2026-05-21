@@ -13,6 +13,7 @@ import {
   Send,
 } from "lucide-react"
 import { BottomNav } from "@/components/bottom-nav"
+import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -44,6 +45,7 @@ export default function EventDetailPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
+  const { showActionFeedback } = useActionFeedback()
   const [event, setEvent] = useState<HostedEvent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -100,9 +102,11 @@ export default function EventDetailPage() {
       setEvent((current) =>
         current ? { ...current, myRsvp: choice } : current
       )
+      showActionFeedback(choice === "going" ? "you're in" : "you're out")
     } catch (err) {
       setRsvp(previous)
       setRsvpError(err instanceof Error ? err.message : "could not update rsvp")
+      showActionFeedback("couldn't save that", { tone: "error" })
     } finally {
       setRsvpSaving(false)
     }
