@@ -12,7 +12,6 @@ import {
   Pencil,
   Send,
 } from "lucide-react"
-import { BottomNav } from "@/components/bottom-nav"
 import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -323,11 +322,6 @@ export default function EventDetailPage() {
         </Tabs>
       </div>
 
-      <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-10">
-        <div className="pointer-events-auto">
-          <BottomNav />
-        </div>
-      </div>
     </div>
   )
 }

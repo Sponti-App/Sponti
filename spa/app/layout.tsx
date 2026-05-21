@@ -6,6 +6,7 @@ import { AuthGate } from '@/components/auth-gate'
 import { ActionFeedbackProvider } from '@/components/action-feedback'
 import { NewEventDrawerProvider } from '@/components/new-event-drawer-provider'
 import { ThemeProvider } from '@/components/theme-provider'
+import { AuthenticatedAppShell } from '@/components/authenticated-app-shell'
 
 const bricolageGrotesque = Bricolage_Grotesque({
   subsets: ['latin'],
@@ -54,7 +55,9 @@ export default function RootLayout({
           <AuthProvider>
             <AuthGate>
               <ActionFeedbackProvider>
-                <NewEventDrawerProvider>{children}</NewEventDrawerProvider>
+                <NewEventDrawerProvider>
+                  <AuthenticatedAppShell>{children}</AuthenticatedAppShell>
+                </NewEventDrawerProvider>
               </ActionFeedbackProvider>
             </AuthGate>
           </AuthProvider>

@@ -81,7 +81,7 @@ export function QrShareSheet({
   }
 
   return (
-    <div className="absolute inset-0 z-30 flex flex-col">
+    <div className="absolute inset-0 z-50 flex flex-col">
       <button
         type="button"
         aria-label="Close QR"
