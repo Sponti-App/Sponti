@@ -97,6 +97,7 @@ export type HostedEvent = {
   endAt: string
   locationLabel: string
   locationDetail?: string
+  locationCoordinates?: [number, number]
   audienceLabel: string
   attendeeCount: number
   attendingCount: number
