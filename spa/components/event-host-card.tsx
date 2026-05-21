@@ -92,7 +92,7 @@ export function EventHostCard({
     >
       <article
         className={cn(
-          "relative flex flex-col gap-2 rounded-xl border border-border bg-background p-3 text-card-foreground transition-colors",
+          "relative flex flex-col gap-2 rounded-xl border border-border bg-background p-3 text-card-foreground transition-all active:scale-[0.98]",
           event.apiStatus === "cancelled" && "bg-secondary/40"
         )}
       >

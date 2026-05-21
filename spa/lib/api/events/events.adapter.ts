@@ -213,6 +213,7 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     endAt: api.endAt,
     locationLabel: api.locationName,
     locationDetail: api.locationAddress ?? undefined,
+    locationCoordinates: api.location?.coordinates,
     audienceLabel: api.visibility,
     attendeeCount: api.memberCount ?? api.attendees?.length ?? 0,
     attendingCount: api.goingCount ?? 0,

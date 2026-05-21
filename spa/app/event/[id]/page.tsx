@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
@@ -8,9 +8,10 @@ import {
   Clock,
   Lock,
   MapPin,
+  MessageCircle,
   MoreVertical,
+  Navigation,
   Pencil,
-  Send,
 } from "lucide-react"
 import { BottomNav } from "@/components/bottom-nav"
 import { useActionFeedback } from "@/components/action-feedback"
@@ -22,7 +23,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/components/auth-provider"
 import { EventAvatarStack, initials } from "@/components/event-avatar-stack"
 import {
@@ -30,6 +30,7 @@ import {
   fetchHostedEventById,
   updateMyRsvp,
   type HostedEvent,
+  type EventCoordinates,
 } from "@/lib/api/events"
 import { cn } from "@/lib/utils"
 import type { LucideIcon } from "lucide-react"
@@ -37,9 +38,6 @@ import type { LucideIcon } from "lucide-react"
 type RsvpChoice = "going" | "declined" | null
 
 const MIN = 60_000
-const EVENT_TAB_TRIGGER_CLASS =
-  "text-sm hover:text-primary data-active:text-primary dark:hover:text-primary dark:data-active:text-primary"
-
 export default function EventDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
@@ -52,10 +50,6 @@ export default function EventDetailPage() {
   const [rsvp, setRsvp] = useState<RsvpChoice>(null)
   const [rsvpError, setRsvpError] = useState<string | null>(null)
   const [rsvpSaving, setRsvpSaving] = useState(false)
-  const [message, setMessage] = useState("")
-  const [threadMessages, setThreadMessages] = useState<string[]>([
-    "updates and replies will live here once backend thread support is added.",
-  ])
 
   useEffect(() => {
     const ac = new AbortController()
@@ -80,14 +74,6 @@ export default function EventDetailPage() {
 
     return () => ac.abort()
   }, [params.id])
-
-  const addMessage = (e: React.FormEvent<HTMLFormElement>): void => {
-    e.preventDefault()
-    const trimmed = message.trim()
-    if (!trimmed) return
-    setThreadMessages((current) => [...current, trimmed])
-    setMessage("")
-  }
 
   const handleRsvp = async (
     choice: Exclude<RsvpChoice, null>
@@ -248,11 +234,6 @@ export default function EventDetailPage() {
               title={formatTimeRange(event.startAt, event.endAt)}
               sub={durationLabel(event.startAt, event.endAt)}
             />
-            <InfoRow
-              icon={MapPin}
-              title={event.locationLabel.toLowerCase()}
-              sub={event.locationDetail?.toLowerCase()}
-            />
             <InfoRowGuests
               guests={guests}
               title={goingCountLabel(event)}
@@ -266,6 +247,12 @@ export default function EventDetailPage() {
             {description.toLowerCase()}
           </p>
         </section>
+
+        <LocationPreview
+          label={event.locationLabel}
+          detail={event.locationDetail}
+          coordinates={event.locationCoordinates}
+        />
 
         {!canManage && (
           <section className="px-4 pt-6">
@@ -295,32 +282,13 @@ export default function EventDetailPage() {
           </section>
         )}
 
-        <Tabs defaultValue="guests" className="pt-6">
-          <div className="px-4">
-            <TabsList className="h-9 w-full">
-              <TabsTrigger value="guests" className={EVENT_TAB_TRIGGER_CLASS}>
-                guests
-              </TabsTrigger>
-              <TabsTrigger value="thread" className={EVENT_TAB_TRIGGER_CLASS}>
-                thread
-              </TabsTrigger>
-            </TabsList>
+        <section className="px-4 pt-6 pb-6">
+          <GuestList guests={guests} count={event.attendingCount} />
+          <div className="mt-6 flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-3 text-xs text-muted-foreground">
+            <MessageCircle className="h-3.5 w-3.5" />
+            thread coming soon
           </div>
-
-          <div className="px-4 pt-1 pb-6">
-            <TabsContent value="guests" className="m-0">
-              <GuestList guests={guests} count={event.attendingCount} />
-            </TabsContent>
-            <TabsContent value="thread" className="m-0">
-              <ThreadBlock
-                message={message}
-                messages={threadMessages}
-                onMessage={setMessage}
-                onSubmit={addMessage}
-              />
-            </TabsContent>
-          </div>
-        </Tabs>
+        </section>
       </div>
 
       <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-10">
@@ -517,64 +485,68 @@ function GuestGroup({
   )
 }
 
-function ThreadBlock({
-  message,
-  messages,
-  onMessage,
-  onSubmit,
+function LocationPreview({
+  label,
+  detail,
+  coordinates,
 }: {
-  message: string
-  messages: string[]
-  onMessage: (value: string) => void
-  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
+  label: string
+  detail?: string
+  coordinates?: [number, number]
 }) {
-  const renderedMessages = useMemo(
-    () => messages.map((text, index) => ({ text, index })).reverse(),
-    [messages]
-  )
+  const coords: EventCoordinates | null = coordinates
+    ? { lat: coordinates[1], lng: coordinates[0] }
+    : null
+
+  const directionsHref = coords
+    ? `https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}`
+    : null
+
+  const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_ID
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+
+  const staticMapSrc =
+    coords && apiKey
+      ? `https://maps.googleapis.com/maps/api/staticmap?center=${coords.lat},${coords.lng}&zoom=15&size=600x200&scale=2&markers=color:0xf8b187%7C${coords.lat},${coords.lng}${mapId ? `&map_id=${mapId}` : ""}&key=${apiKey}`
+      : null
 
   return (
-    <section className="pt-4">
-      <form
-        onSubmit={onSubmit}
-        className="flex items-center gap-2 rounded-full bg-secondary py-1 pr-1.5 pl-3"
-      >
-        <input
-          value={message}
-          onChange={(e) => onMessage(e.target.value)}
-          placeholder="write an update..."
-          className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
-        />
-        <button
-          type="submit"
-          aria-label="post update"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground"
-        >
-          <Send className="h-3.5 w-3.5" />
-        </button>
-      </form>
-
-      <div className="mt-4 flex flex-col gap-3.5">
-        {renderedMessages.map((item, index) => (
-          <div key={`message-${item.index}`} className="flex gap-2.5">
-            <Avatar className="size-[30px]">
-              <AvatarFallback className="text-xs">
-                {index === renderedMessages.length - 1 ? "S" : "Y"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">
-                  {index === renderedMessages.length - 1 ? "sponti" : "you"}
-                </span>{" "}
-                · now
-              </p>
-              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                {item.text.toLowerCase()}
-              </p>
-            </div>
-          </div>
-        ))}
+    <section className="px-4 pt-6">
+      {staticMapSrc && (
+        <div className="mb-3 overflow-hidden rounded-xl border border-border">
+          <img
+            src={staticMapSrc}
+            alt={`map showing ${label}`}
+            className="block h-40 w-full object-cover"
+            loading="lazy"
+          />
+        </div>
+      )}
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
+          <MapPin className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">
+            {label.toLowerCase()}
+          </p>
+          {detail && (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {detail.toLowerCase()}
+            </p>
+          )}
+        </div>
+        {directionsHref && (
+          <a
+            href={directionsHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+          >
+            <Navigation className="h-3.5 w-3.5" />
+            directions
+          </a>
+        )}
       </div>
     </section>
   )

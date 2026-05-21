@@ -1152,7 +1152,7 @@ function FlareCard({
       )}
 
       <Card
-        className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 ${isLiveStatus
+        className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 active:scale-[0.98] ${isLiveStatus
             ? "border-l-[3px] border-l-accent"
             : ""
           } ${isEnded ? "border-border bg-muted/30" : "border-border"}`}
