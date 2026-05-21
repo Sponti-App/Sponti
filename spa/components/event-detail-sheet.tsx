@@ -11,6 +11,7 @@ import {
   Coffee,
   Users,
   Activity,
+  ChevronRight,
   Flame,
   Check,
   Navigation,
@@ -305,6 +306,20 @@ export function EventDetailSheet({
                   {` · ${formatEventTime(displayEvent)}`}
                 </Button>
               )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  onClose()
+                  router.push(
+                    `/event/${displayEvent.id}${isHost ? "?manage=1" : ""}`
+                  )
+                }}
+                className="mt-3 flex w-full items-center justify-center gap-1 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground active:scale-[0.98]"
+              >
+                see full details
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
           )}
         </Drawer.Content>
