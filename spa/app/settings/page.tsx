@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { BottomNav } from "@/components/bottom-nav"
+import { useActionFeedback } from "@/components/action-feedback"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -105,6 +106,7 @@ export default function SettingsPage() {
 function SettingsPageContent({ user }: { user: AuthUser }) {
   const router = useRouter()
   const { logout } = useAuth()
+  const { showActionFeedback } = useActionFeedback()
   const { resolvedTheme, setTheme } = useTheme()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const extras = readProfileExtras(user.id)
@@ -198,8 +200,10 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
       })
 
       // TODO: PATCH /api/users/me for profileVisibility once backend lands
+      showActionFeedback("profile saved")
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Could not save profile")
+      showActionFeedback("couldn't save that", { tone: "error" })
     } finally {
       setSavingAccount(false)
     }
@@ -217,6 +221,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
     // Destructure to send only the exact schema fields (omit confirmPassword etc.)
     // const { quietHoursEnabled, quietHoursStart, quietHoursEnd, eventReminders, invitationNotifications, notifyWhen, maxDistanceMiles } = notif
     // await apiFetch("/api/notification-settings", { method: "PATCH", body: JSON.stringify({ quietHoursEnabled, quietHoursStart, quietHoursEnd, eventReminders, invitationNotifications, notifyWhen, maxDistanceMiles }) })
+    showActionFeedback("preferences aren't ready yet", { tone: "error" })
   }
 
   const passwordValid =
@@ -396,7 +401,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
               disabled={savingAccount}
               onClick={() => void handleSaveAccount()}
             >
-              {savingAccount ? "Saving..." : "Save changes"}
+              {savingAccount ? "saving..." : "save changes"}
             </Button>
 
             {/* Password — POST /auth/change-password (not in users schema directly) */}
@@ -556,7 +561,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
               className="w-full rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
               onClick={handleSaveNotifications}
             >
-              Save preferences
+              save preferences
             </Button>
           </TabsContent>
         </Tabs>
