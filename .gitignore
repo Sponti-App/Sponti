@@ -4,6 +4,7 @@
 .env.*
 !.env.example
 .vscode
+qr-ui-session.json
 # os
 .DS_Store
 

@@ -1,7 +1,6 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
-import { BottomNav } from "@/components/bottom-nav"
 
 export function MenuPageShell({
   title,
@@ -20,7 +19,7 @@ export function MenuPageShell({
           <Link
             href={backHref}
             aria-label={backLabel}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground transition-colors hover:bg-secondary"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground transition-colors hover:bg-secondary active:scale-95"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
@@ -28,9 +27,7 @@ export function MenuPageShell({
           <div className="h-9 w-9" />
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 pb-4">{children}</main>
-
-        <BottomNav />
+        <main className="flex-1 overflow-y-auto px-4 pb-28">{children}</main>
     </div>
   )
 }

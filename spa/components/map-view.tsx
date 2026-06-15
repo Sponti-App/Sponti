@@ -45,11 +45,13 @@ import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
 import { EVENT_TYPES } from "@/types/utils"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/components/auth-provider"
 import { useTheme } from "next-themes"
 
-// Hex equivalent of --accent (oklch 0.55 0.19 25). Google Maps overlays can't
-// read CSS variables, so we mirror the token here. Keep in sync with globals.css.
-const ACCENT_HEX = "#c44040"
+// Hex equivalent of --accent (oklch 0.8041 0.126 52.09). Google Maps overlays
+// can't read CSS variables, so we mirror the token here. Keep in sync with
+// globals.css.
+const ACCENT_HEX = "#f8b187"
 
 function GoogleMapPolyline({ path }: { path: google.maps.LatLngLiteral[] }) {
   const map = useMap()
@@ -101,7 +103,7 @@ function eventIcon(type: EventType, avatar: string) {
 
   const Icon = match.icon
 
-  return <Icon className="h-5 w-5 shrink-0 text-accent-foreground" />
+  return <Icon className="h-5 w-5 shrink-0 text-accent" />
 }
 
 function StaticMapFallback({
@@ -148,11 +150,10 @@ function StaticMapFallback({
             className="absolute flex cursor-pointer flex-col items-center"
           >
             <div
-              className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${
-                isJoined(event, joinedIds)
+              className={`flex h-10 w-10 items-center justify-center rounded-full border-2 border-accent bg-background text-sm font-medium shadow-lg ${isJoined(event, joinedIds)
                   ? "ring-2 ring-accent ring-offset-2"
                   : ""
-              }`}
+                }`}
             >
               {eventIcon(event.type, event.host.avatar)}
             </div>
@@ -175,6 +176,8 @@ function StaticMapFallback({
 function GoogleMapContent({
   events,
   onEventSelect,
+  previewEvent,
+  setPreviewEvent,
   routeResult,
   routeDestination,
   joinedIds,
@@ -184,6 +187,8 @@ function GoogleMapContent({
 }: {
   events: EventItem[]
   onEventSelect: (event: EventItem) => void
+  previewEvent: EventItem | null
+  setPreviewEvent: React.Dispatch<React.SetStateAction<EventItem | null>>
   routeResult: RouteResult | null
   routeDestination: GeoCoords | null
   joinedIds: Set<string>
@@ -251,7 +256,10 @@ function GoogleMapContent({
     >
       {currentLocation && (
         <AdvancedMarker position={currentLocation}>
-          <div className="h-4 w-4 rounded-full border-2 border-background bg-accent shadow-lg" />
+          <div className="relative flex items-center justify-center">
+            <span className="absolute h-4 w-4 animate-ping rounded-full bg-blue-400/40" />
+            <div className="relative h-3.5 w-3.5 rounded-full border-2 border-white bg-blue-500 shadow-lg" />
+          </div>
         </AdvancedMarker>
       )}
       {events.map((event) => {
@@ -261,7 +269,7 @@ function GoogleMapContent({
           <AdvancedMarker
             key={event.id}
             position={coords}
-            onClick={() => onEventSelect(event)}
+            onClick={() => setPreviewEvent(prev => prev?.id === event.id ? null : event)}
           >
             <div className="flex cursor-pointer flex-col items-center">
               <div className="relative flex items-center justify-center">
@@ -272,11 +280,10 @@ function GoogleMapContent({
                   />
                 )}
                 <div
-                  className={`relative flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium shadow-lg ${event.host.color} ${avatarText(event.host.color)} ${
-                    isJoined(event, joinedIds)
+                  className={`relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent bg-background text-xs font-medium shadow-lg ${isJoined(event, joinedIds)
                       ? "ring-2 ring-accent ring-offset-2"
                       : ""
-                  }`}
+                    }`}
                 >
                   {eventIcon(event.type, event.host.avatar)}
                 </div>
@@ -290,6 +297,48 @@ function GoogleMapContent({
           </AdvancedMarker>
         )
       })}
+      {previewEvent && eventCoords(previewEvent) && (
+        <AdvancedMarker
+          position={eventCoords(previewEvent)!}
+          zIndex={1000}
+        >
+          <div className="relative mb-10 flex origin-bottom animate-[scale-in_150ms_ease-out] flex-col items-center">
+            <div className="relative w-52 rounded-2xl border border-border/60 bg-background p-3.5 shadow-xl">
+              <button
+                type="button"
+                onClick={() => setPreviewEvent(null)}
+                className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onEventSelect(previewEvent)
+                  setPreviewEvent(null)
+                }}
+                className="flex w-full flex-col items-center gap-1.5 text-center"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15">
+                  {eventIcon(previewEvent.type, previewEvent.host.avatar)}
+                </div>
+                <p className="line-clamp-2 text-sm font-semibold text-foreground">
+                  {previewEvent.title.split("·", 2)[0]}
+                </p>
+                <p className="line-clamp-1 text-xs text-muted-foreground">
+                  {previewEvent.location.name}
+                </p>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span>{previewEvent.going} going</span>
+                  <span className="text-border">·</span>
+                  <span>by {previewEvent.host.name.trim().split(/\s+/)[0]}</span>
+                </div>
+              </button>
+            </div>
+            <div className="h-0 w-0 border-x-[8px] border-t-[8px] border-x-transparent border-t-background" />
+          </div>
+        </AdvancedMarker>
+      )}
       {routeResult && <GoogleMapPolyline path={routeResult.path} />}
       {routeDestination && (
         <FitBoundsOnce
@@ -389,6 +438,7 @@ export function MapView({
     "all"
   )
   const [showEnded, setShowEnded] = useState(false)
+  const [previewEvent, setPreviewEvent] = useState<EventItem | null>(null)
   const [nowMs, setNowMs] = useState(0)
   useEffect(() => {
     const updateNow = () => setNowMs(Date.now())
@@ -562,12 +612,9 @@ export function MapView({
     }
   }
 
-  // The "expanded" state keeps a strip of the map visible at the top instead
-  // of going full-screen, mirroring the new-event drawer behaviour. 80vh
-  // leaves room for the route pill and floating header chips above it.
   const sheetStyle: React.CSSProperties =
     peekState === "expanded"
-      ? { height: "80vh", bottom: 0 }
+      ? { height: "55vh", bottom: 0 }
       : peekState === "mini"
         ? { height: `${SHEET_PX.mini}px`, bottom: NAV_RESERVED_CSS }
         : { height: `${SHEET_PX.peek}px`, bottom: 0 }
@@ -601,6 +648,8 @@ export function MapView({
           <GoogleMapContent
             events={mapEvents}
             onEventSelect={onEventSelect}
+            previewEvent={previewEvent}
+            setPreviewEvent={setPreviewEvent}
             routeResult={routeResult}
             routeDestination={routeDestination}
             joinedIds={joinedIds}
@@ -642,7 +691,7 @@ export function MapView({
         }}
         style={fabBottomStyle}
         aria-label="Light a flare"
-        className="absolute right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg transition-[bottom] duration-300 ease-out active:scale-95"
+        className="absolute right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg transition-[bottom,transform] duration-300 ease-out active:scale-95"
       >
         <Flame className="h-6 w-6" />
       </button>
@@ -659,7 +708,7 @@ export function MapView({
           }}
           style={recenterBottomStyle}
           aria-label="Recenter on my location"
-          className="absolute right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md transition-[bottom] duration-300 ease-out"
+          className="absolute right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md transition-[bottom,transform] duration-300 ease-out active:scale-95"
         >
           <LocateFixed className="h-5 w-5" />
         </button>
@@ -668,9 +717,8 @@ export function MapView({
       {/* Bottom sheet — z-50 when expanded so it covers the nav pill */}
       <div
         style={sheetStyle}
-        className={`absolute right-0 left-0 rounded-t-3xl bg-background shadow-(--shadow-sheet) transition-all duration-300 ease-out ${
-          peekState === "expanded" ? "z-50" : "z-20"
-        }`}
+        className={`absolute right-0 left-0 rounded-t-3xl bg-background shadow-(--shadow-sheet) transition-all duration-300 ease-out ${peekState === "expanded" ? "z-50" : "z-20"
+          }`}
       >
         <div
           className="flex cursor-grab touch-none justify-center py-3 active:cursor-grabbing"
@@ -678,7 +726,7 @@ export function MapView({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         >
-          <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
+          <div className="h-1 w-10 rounded-full bg-muted-foreground/30 transition-transform active:scale-x-125" />
         </div>
 
         {peekState === "mini" ? (
@@ -701,9 +749,8 @@ export function MapView({
             ref={scrollRef}
             onTouchStart={handleSheetTouchStart}
             onTouchEnd={handleSheetTouchEnd}
-            className={`h-[calc(100%-44px)] overflow-y-auto px-4 ${
-              peekState === "expanded" ? "pb-8" : "pb-24"
-            }`}
+            className={`h-[calc(100%-44px)] overflow-y-auto px-4 ${peekState === "expanded" ? "pb-8" : "pb-24"
+              }`}
           >
             {/* Pull-to-refresh indicator */}
             {isRefreshing && (
@@ -847,9 +894,8 @@ export function MapView({
                         {groupedEvents.ended.length} ended
                       </span>
                       <ChevronDown
-                        className={`h-4 w-4 transition-transform ${
-                          showEnded ? "rotate-180" : ""
-                        }`}
+                        className={`h-4 w-4 transition-transform ${showEnded ? "rotate-180" : ""
+                          }`}
                       />
                     </button>
                     {showEnded &&
@@ -1041,7 +1087,7 @@ function EmptyState({
         {onWiden && (
           <button
             onClick={onWiden}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary active:bg-muted"
           >
             <Expand className="h-4 w-4" /> search within {WIDE_RADIUS_KM} km
           </button>
@@ -1049,14 +1095,14 @@ function EmptyState({
         {onSeeCalendar && (
           <button
             onClick={onSeeCalendar}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary active:bg-muted"
           >
             <CalendarIcon className="h-4 w-4" /> see what&apos;s planned
           </button>
         )}
         <button
           onClick={onFindConnections}
-          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 active:scale-[0.97]"
         >
           <Flame className="h-4 w-4" /> connect with your friends
         </button>
@@ -1134,7 +1180,8 @@ function FlareCard({
     }
   }
 
-  const hostFirst = event.host.name.trim().split(/\s+/)[0]
+  const { user: authUser } = useAuth()
+  const hostFirst = event.host.id === authUser?.id ? "you" : event.host.name.trim().split(/\s+/)[0]
   const timeLabel = isLiveStatus
     ? endingInLabel(event)
     : isEnded
@@ -1157,11 +1204,10 @@ function FlareCard({
       )}
 
       <Card
-        className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 ${
-          isLiveStatus
+        className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 active:bg-muted ${isLiveStatus
             ? "border-l-[3px] border-l-accent"
             : ""
-        } ${isEnded ? "border-border bg-muted/30" : "border-border"}`}
+          } ${isEnded ? "border-border bg-muted/30" : "border-border"}`}
         style={{
           transform: `translateX(${swipeX}px)`,
           transition: swipeX === 0 ? "transform 0.2s ease-out" : "none",
@@ -1173,11 +1219,10 @@ function FlareCard({
         onClick={swipeX > 4 ? undefined : onClick}
       >
         <div
-          className={`flex h-10 w-10 items-center justify-center rounded-full ${
-            isEnded
+          className={`flex h-10 w-10 items-center justify-center rounded-full ${isEnded
               ? "bg-muted text-muted-foreground"
               : "bg-muted text-foreground"
-          }`}
+            }`}
         >
           {(() => {
             const match = EVENT_TYPES.find((t) => t.value === event.type)
@@ -1189,30 +1234,27 @@ function FlareCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p
-              className={`truncate font-medium ${
-                isEnded ? "text-muted-foreground" : "text-foreground"
-              }`}
+              className={`truncate font-medium ${isEnded ? "text-muted-foreground" : "text-foreground"
+                }`}
             >
               {event.title.split("·", 2)[0]}
             </p>
             {joined && !isEnded && (
-              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
                 <Check className="h-2.5 w-2.5" /> going
               </span>
             )}
           </div>
           <p
-            className={`truncate text-xs ${
-              isEnded ? "text-muted-foreground/70" : "text-muted-foreground"
-            }`}
+            className={`truncate text-xs ${isEnded ? "text-muted-foreground/70" : "text-muted-foreground"
+              }`}
           >
             {metaText}
           </p>
         </div>
         <ChevronRight
-          className={`h-5 w-5 shrink-0 ${
-            isEnded ? "text-muted-foreground/50" : "text-muted-foreground"
-          }`}
+          className={`h-5 w-5 shrink-0 ${isEnded ? "text-muted-foreground/50" : "text-muted-foreground"
+            }`}
         />
       </Card>
     </div>
@@ -1234,11 +1276,10 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-        active
+      className={`flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors active:scale-[0.97] ${active
           ? "border-accent bg-accent text-accent-foreground"
           : "border-border bg-background text-muted-foreground hover:text-foreground"
-      }`}
+        }`}
     >
       {Icon && <Icon className="h-3 w-3" />}
       {label}

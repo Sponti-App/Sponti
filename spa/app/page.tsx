@@ -3,10 +3,9 @@
 import { useRef, useState } from "react"
 import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
-import { BottomNav } from "@/components/bottom-nav"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
 import { MenuDrawer } from "@/components/menu-drawer"
-import { NotificationsPopover } from "@/components/notifications-popover"
+import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { Menu, Settings, Map, Calendar, Navigation, X } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -17,29 +16,17 @@ import {
   updateMyRsvp,
   type EventItem,
 } from "@/lib/api/events"
-import type { Notification } from "@/lib/notifications"
-import { useNotifications } from "@/lib/use-notifications"
 import { haptic } from "@/lib/haptics"
 
 export default function Home() {
   const router = useRouter()
+  const { showActionFeedback } = useActionFeedback()
   const [view, setView] = useState<"map" | "calendar">("map")
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const [activeRoute, setActiveRoute] = useState<EventItem | null>(null)
   const [routeEta, setRouteEta] = useState<string | null>(null)
   const [joinedIds, setJoinedIds] = useState<Set<string>>(() => new Set())
   const [menuOpen, setMenuOpen] = useState(false)
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const {
-    notifications,
-    unreadCount,
-    loading: notificationsLoading,
-    loadingMore: notificationsLoadingMore,
-    error: notificationsError,
-    hasMore: notificationsHasMore,
-    loadLatest: loadLatestNotifications,
-    loadMore: loadMoreNotifications,
-  } = useNotifications()
   const { user } = useAuth()
 
   // Left-edge swipe to open MenuDrawer
@@ -62,22 +49,6 @@ export default function Home() {
     }
   }
 
-  const handleOpenNotifications = () => {
-    setNotificationsOpen((v) => {
-      const next = !v
-      if (next) {
-        void loadLatestNotifications()
-      }
-      return next
-    })
-  }
-
-  const handleNotificationClick = (notification: Notification) => {
-    haptic("selection")
-    setNotificationsOpen(false)
-    router.push(notification.href)
-  }
-
   const handleJoin = (event: EventItem, eta: string | null) => {
     // Optimistic UI: flip the going-badge immediately. If the PATCH fails we
     // revert below. `joinedIds` is a local overlay on top of `event.myRsvp`
@@ -91,18 +62,21 @@ export default function Home() {
     // memberWillArriveAt). The "let host know" ETA chip is the user's
     // committed arrival time; the Routes API ETA shown in the route pill is
     // separate (display-only, not persisted).
-    updateMyRsvp(event.id, {
+    void updateMyRsvp(event.id, {
       rsvpStatus: "going",
       memberWillArriveAt: etaToIso(eta),
-    }).catch((err) => {
-      // Revert the optimistic add so the UI matches server state.
-      console.error("[Sponti] failed to RSVP going", err)
-      setJoinedIds((prev) => {
-        const next = new Set(prev)
-        next.delete(event.id)
-        return next
-      })
     })
+      .then(() => showActionFeedback("you're in"))
+      .catch((err) => {
+        // Revert the optimistic add so the UI matches server state.
+        console.error("[Sponti] failed to RSVP going", err)
+        setJoinedIds((prev) => {
+          const next = new Set(prev)
+          next.delete(event.id)
+          return next
+        })
+        showActionFeedback("couldn't save that", { tone: "error" })
+      })
     if (isImminent(event) && event.location.coordinates) {
       setActiveRoute(event)
       setRouteEta(null) // Routes API will fill this in via onRouteReady
@@ -127,14 +101,17 @@ export default function Home() {
     })
     // PATCH /events/:id/me with declined — backend keeps the EventMember row
     // but updates rsvpStatus, so any future invite history is preserved.
-    updateMyRsvp(event.id, { rsvpStatus: "declined" }).catch((err) => {
-      console.error("[Sponti] failed to RSVP declined", err)
-      setJoinedIds((prev) => {
-        const next = new Set(prev)
-        next.add(event.id)
-        return next
+    void updateMyRsvp(event.id, { rsvpStatus: "declined" })
+      .then(() => showActionFeedback("not this one"))
+      .catch((err) => {
+        console.error("[Sponti] failed to RSVP declined", err)
+        setJoinedIds((prev) => {
+          const next = new Set(prev)
+          next.add(event.id)
+          return next
+        })
+        showActionFeedback("couldn't save that", { tone: "error" })
       })
-    })
     if (activeRoute?.id === event.id) {
       setActiveRoute(null)
       setRouteEta(null)
@@ -185,7 +162,7 @@ export default function Home() {
               haptic("selection")
               setMenuOpen((v) => !v)
             }}
-            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md transition-colors active:bg-background/95 dark:bg-background/90"
+            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md active:scale-95 dark:bg-background/90"
           >
             <Menu className="h-4 w-4" />
           </button>
@@ -197,9 +174,9 @@ export default function Home() {
                 haptic("selection")
                 setView("map")
               }}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm active:scale-[0.97] ${
                 view === "map"
-                  ? "bg-card text-primary"
+                  ? "bg-card text-foreground font-semibold"
                   : "text-muted-foreground"
               }`}
             >
@@ -211,9 +188,9 @@ export default function Home() {
                 haptic("selection")
                 setView("calendar")
               }}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm active:scale-[0.97] ${
                 view === "calendar"
-                  ? "bg-card text-primary"
+                  ? "bg-card text-foreground font-semibold"
                   : "text-muted-foreground"
               }`}
             >
@@ -229,24 +206,11 @@ export default function Home() {
               router.push("/settings")
             }}
             aria-label="Settings"
-            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md transition-colors active:bg-background/95 dark:bg-background/90"
+            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md active:scale-95 dark:bg-background/90"
           >
             <Settings className="h-4 w-4" />
           </button>
         </div>
-
-        <NotificationsPopover
-          open={notificationsOpen}
-          onClose={() => setNotificationsOpen(false)}
-          notifications={notifications}
-          unreadCount={unreadCount}
-          loading={notificationsLoading}
-          loadingMore={notificationsLoadingMore}
-          error={notificationsError}
-          hasMore={notificationsHasMore}
-          onLoadMore={() => void loadMoreNotifications()}
-          onNotificationClick={handleNotificationClick}
-        />
 
         {/* Route active pill — tap to reopen details, X to clear.
             top-16 clears the floating header chip row (~56px + gap). */}
@@ -284,14 +248,6 @@ export default function Home() {
         onLeave={handleLeave}
         onSeeRoute={handleSeeRoute}
       />
-
-      {/* Bottom Nav — solid bar anchored to bottom (z-40) */}
-      <div className="absolute right-0 bottom-0 left-0 z-40">
-        <BottomNav
-          onOpenNotifications={handleOpenNotifications}
-          notificationsUnread={unreadCount}
-        />
-      </div>
 
       <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>

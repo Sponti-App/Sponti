@@ -129,6 +129,11 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: none;
+    -webkit-tap-highlight-color: transparent;
+    }
+  *::-webkit-scrollbar {
+    display: none;
     }
   body {
     @apply bg-background text-foreground;
@@ -140,6 +145,12 @@
   html {
     @apply font-sans;
     }
+  button, a, [role="button"] {
+    -webkit-touch-callout: none;
+    transition-property: transform, opacity, background-color, color, border-color;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    }
 }
 
 @keyframes pulse-ring {
@@ -150,4 +161,9 @@
 
 .animate-pulse-ring {
   animation: pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
 }

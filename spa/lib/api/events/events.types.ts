@@ -111,6 +111,7 @@ export type HostedEvent = {
   visibility: EventVisibility
   recurrence: Recurrence
   apiStatus: ApiEventStatus
+  createdAt: string
   updatedAt: string
 }
 

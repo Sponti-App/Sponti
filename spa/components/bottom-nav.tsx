@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { Home, Inbox, Users, Bell, Flame } from "lucide-react"
+import { Home, Zap, Users, Bell, Flame } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useMyFlares } from "@/lib/use-events"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
@@ -29,8 +29,8 @@ export function BottomNav({
   onOpenNotifications,
   notificationsUnread = 0,
 }: {
-  // Optional: only the home page handles the popover inline. On other pages,
-  // tapping Feed routes back to home where notifications live.
+  // AuthenticatedAppShell owns the feed popover. The fallback keeps isolated
+  // story/test renders useful if no shell handler is supplied.
   onOpenNotifications?: () => void
   notificationsUnread?: number
 }) {
@@ -55,15 +55,15 @@ export function BottomNav({
     {
       kind: "action",
       icon: Flame,
-      label: "Light a flare",
+      label: "flare",
       onClick: openDrawer,
       center: true,
     },
     { kind: "route", icon: Users, label: "Circles", href: "/circles" },
     {
       kind: "route",
-      icon: Inbox,
-      label: "My flares",
+      icon: Zap,
+      label: "my flares",
       href: "/event",
       badge: flaresBadge,
     },
@@ -116,9 +116,9 @@ export function BottomNav({
             type="button"
             onClick={handleClick}
             aria-label={item.label}
-            className={`relative flex min-h-11 min-w-11 max-w-20 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-[10px] font-medium transition-colors ${
+            className={`relative flex min-h-11 min-w-11 max-w-20 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-xs font-medium active:scale-95 active:opacity-80 ${
               active
-                ? "text-accent"
+                ? "text-accent [&_svg]:fill-current"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -127,10 +127,8 @@ export function BottomNav({
             {(item.badge ?? 0) > 0 && (
               <span
                 aria-label={`${item.badge} unread`}
-                className="absolute top-0.5 right-1/2 flex h-4 min-w-4 translate-x-3 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-accent-foreground"
-              >
-                {item.badge}
-              </span>
+                className="absolute top-1 left-1/2 ml-1.5 h-1.5 w-1.5 rounded-full bg-accent"
+              />
             )}
           </button>
         )

@@ -12,7 +12,7 @@ import {
   Pencil,
   Send,
 } from "lucide-react"
-import { BottomNav } from "@/components/bottom-nav"
+import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -44,6 +44,7 @@ export default function EventDetailPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
+  const { showActionFeedback } = useActionFeedback()
   const [event, setEvent] = useState<HostedEvent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -100,9 +101,11 @@ export default function EventDetailPage() {
       setEvent((current) =>
         current ? { ...current, myRsvp: choice } : current
       )
+      showActionFeedback(choice === "going" ? "you're in" : "not this one")
     } catch (err) {
       setRsvp(previous)
       setRsvpError(err instanceof Error ? err.message : "could not update rsvp")
+      showActionFeedback("couldn't save that", { tone: "error" })
     } finally {
       setRsvpSaving(false)
     }
@@ -133,16 +136,15 @@ export default function EventDetailPage() {
   const canManage = Boolean(
     searchParams.get("manage") === "1" && user && event.hostId === user.id
   )
+  const isHost = Boolean(user && event.hostId === user.id)
   const hostName = (
-    event.hostName ??
-    event.hostUsername ??
-    (canManage ? user?.displayName : null) ??
-    "host"
+    isHost
+      ? "you"
+      : event.hostName ?? event.hostUsername ?? "host"
   ).toLowerCase()
-  const hostHandle =
-    event.hostUsername ?? (canManage ? user?.username : undefined)
-  const hostAvatarLabel = event.hostName ?? event.hostUsername ?? "host"
-  const hostAvatarUrl = canManage ? user?.avatarUrl : event.hostAvatarUrl
+  const hostHandle = event.hostUsername ?? (isHost ? user?.username : undefined)
+  const hostAvatarLabel = isHost ? "you" : event.hostName ?? event.hostUsername ?? "host"
+  const hostAvatarUrl = isHost ? user?.avatarUrl : event.hostAvatarUrl
   const description =
     event.description?.trim() ||
     "no description yet. the host can add more context from edit flare."
@@ -320,11 +322,6 @@ export default function EventDetailPage() {
         </Tabs>
       </div>
 
-      <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-10">
-        <div className="pointer-events-auto">
-          <BottomNav />
-        </div>
-      </div>
     </div>
   )
 }

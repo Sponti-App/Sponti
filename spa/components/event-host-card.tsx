@@ -92,7 +92,7 @@ export function EventHostCard({
     >
       <article
         className={cn(
-          "relative flex flex-col gap-2 rounded-xl border border-border bg-background p-3 text-card-foreground transition-colors",
+          "relative flex flex-col gap-2 rounded-xl border border-border bg-background p-3 text-card-foreground transition-colors active:bg-muted",
           event.apiStatus === "cancelled" && "bg-secondary/40"
         )}
       >
@@ -134,7 +134,7 @@ export function EventHostCard({
             className={cn(
               "line-clamp-2 min-w-0 text-base leading-snug font-semibold",
               event.apiStatus === "cancelled" &&
-                "text-muted-foreground line-through"
+              "text-muted-foreground line-through"
             )}
           >
             {event.title.toLowerCase()}

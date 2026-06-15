@@ -3,8 +3,10 @@ import { Bricolage_Grotesque } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/components/auth-provider'
 import { AuthGate } from '@/components/auth-gate'
+import { ActionFeedbackProvider } from '@/components/action-feedback'
 import { NewEventDrawerProvider } from '@/components/new-event-drawer-provider'
 import { ThemeProvider } from '@/components/theme-provider'
+import { AuthenticatedAppShell } from '@/components/authenticated-app-shell'
 
 const bricolageGrotesque = Bricolage_Grotesque({
   subsets: ['latin'],
@@ -52,7 +54,11 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <AuthGate>
-              <NewEventDrawerProvider>{children}</NewEventDrawerProvider>
+              <ActionFeedbackProvider>
+                <NewEventDrawerProvider>
+                  <AuthenticatedAppShell>{children}</AuthenticatedAppShell>
+                </NewEventDrawerProvider>
+              </ActionFeedbackProvider>
             </AuthGate>
           </AuthProvider>
         </ThemeProvider>

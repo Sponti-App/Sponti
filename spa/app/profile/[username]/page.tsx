@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, MoreHorizontal } from "lucide-react"
+import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -32,6 +33,7 @@ export default function PublicProfilePage({
 }) {
   const { username } = use(params)
   const router = useRouter()
+  const { showActionFeedback } = useActionFeedback()
   const [connections, setConnections] = useState<Connection[]>([])
   const [sentRequests, setSentRequests] = useState<Connection[]>([])
   const [blocked, setBlocked] = useState<BlockedUser[]>([])
@@ -80,6 +82,49 @@ export default function PublicProfilePage({
         ? "blocked"
         : "stranger"
 
+  const cancelSentRequest = async (target: Connection): Promise<void> => {
+    if (!target.connectionId) {
+      setError("Could not cancel request")
+      showActionFeedback("couldn't cancel request", { tone: "error" })
+      return
+    }
+
+    try {
+      setError(null)
+      await deleteApiConnection(target.connectionId)
+      showActionFeedback("request cancelled")
+      router.back()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not cancel request")
+      showActionFeedback("couldn't cancel request", { tone: "error" })
+    }
+  }
+
+  const unblock = async (target: BlockedUser): Promise<void> => {
+    try {
+      setError(null)
+      await unblockApiUser(target.id)
+      showActionFeedback("person unblocked")
+      router.back()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not unblock user")
+      showActionFeedback("couldn't unblock person", { tone: "error" })
+    }
+  }
+
+  const block = async (target: Connection): Promise<void> => {
+    try {
+      setError(null)
+      await blockApiUser(target.id)
+      setVersion((current) => current + 1)
+      showActionFeedback("person blocked")
+      router.back()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not block user")
+      showActionFeedback("couldn't block person", { tone: "error" })
+    }
+  }
+
   return (
     <div className="min-h-dvh w-full bg-background flex flex-col relative">
       <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-border">
@@ -116,7 +161,7 @@ export default function PublicProfilePage({
         )}
       </div>
 
-      <div className="flex-1 flex flex-col items-center px-4 pt-10 gap-4">
+      <div className="flex-1 flex flex-col items-center px-4 pt-10 pb-28 gap-4">
         <span className="h-20 w-20 rounded-full bg-accent/10 text-accent border border-accent/20 flex items-center justify-center text-2xl font-semibold">
           {person ? initials(person.displayName) : "?"}
         </span>
@@ -137,12 +182,7 @@ export default function PublicProfilePage({
           {relationship === "sent" && sentRequest && (
             <Button
               variant="outline"
-              onClick={() => {
-                if (!sentRequest.connectionId) return
-                void deleteApiConnection(sentRequest.connectionId).then(() =>
-                  router.back()
-                )
-              }}
+              onClick={() => void cancelSentRequest(sentRequest)}
               className="rounded-full px-6"
             >
               cancel request
@@ -151,9 +191,7 @@ export default function PublicProfilePage({
           {relationship === "blocked" && blockedUser && (
             <Button
               variant="outline"
-              onClick={() => {
-                void unblockApiUser(blockedUser.id).then(() => router.back())
-              }}
+              onClick={() => void unblock(blockedUser)}
               className="rounded-full px-6"
             >
               unblock
@@ -170,7 +208,7 @@ export default function PublicProfilePage({
 
       {showBlockConfirm && connection && (
         <div
-          className="absolute inset-0 z-20 flex items-end bg-(--scrim)"
+          className="absolute inset-0 z-50 flex items-end bg-(--scrim)"
           onClick={() => setShowBlockConfirm(false)}
         >
           <div
@@ -186,12 +224,7 @@ export default function PublicProfilePage({
             </div>
             <div className="flex flex-col gap-2">
               <Button
-                onClick={() => {
-                  void blockApiUser(connection.id).then(() => {
-                    setVersion((current) => current + 1)
-                    router.back()
-                  })
-                }}
+                onClick={() => void block(connection)}
                 className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full"
               >
                 block

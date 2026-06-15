@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Drawer } from "vaul"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/components/auth-provider"
 import {
   MapPin,
   Coffee,
@@ -84,7 +85,12 @@ export function EventDetailSheet({
     prevOpen.current = open
   }, [open])
 
+  const { user } = useAuth()
   const imminent = displayEvent ? isImminent(displayEvent) : false
+
+  const hostLabel = user && displayEvent?.host?.id === user.id
+    ? "hosted by you"
+    : `hosted by ${displayEvent?.host?.name || "Host"}`
 
   return (
     <Drawer.Root
@@ -146,7 +152,7 @@ export function EventDetailSheet({
                     </div>
                   )}
                   <div className="flex-1">
-                    <div className="truncate text-sm font-medium">hosted by {displayEvent.host.name || "Host"}</div>
+                    <div className="truncate text-sm font-medium">{hostLabel}</div>
 
                     {displayEvent.host.note ? (
                       <div className="mt-0.5 text-sm text-muted-foreground">{displayEvent.host.note}</div>
