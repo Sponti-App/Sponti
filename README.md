@@ -208,7 +208,7 @@ Built in 16 days as a bootcamp final project — from concept to deployed cross-
 |------|------|-------|
 | **Patrick Caire** | UX/UI Lead | Initiated the concept. Led the MVP workshop defining core user stories and user flows. Designed wireframes, the visual system, and brand identity. Acted as Product Owner — reviewed all UX-affecting work before merge. Built frontend components and design QA. |
 | **Nil Angelats** | Technical Lead | Architected the monorepo, backend services, and auth system. Set up the Express + MongoDB + JWT stack, Capacitor integration, and Vercel deployment pipeline. Final technical vote on architecture decisions. |
-| **Samara** | Implementation Lead | Core feature delivery end-to-end: event creation, RSVP flow, detail pages, frontend/backend integration, data validation, and feature QA. |
+| **Samara Arzt** | Implementation Lead | Core feature delivery end-to-end: event creation, RSVP flow, detail pages, frontend/backend integration, data validation, and feature QA. |
 | **Martin Lindholm** | Project Coordinator | Scope management, sprint planning, acceptance criteria, QA/smoke testing, seed data, demo preparation, and stakeholder communication. |
 
 ---
