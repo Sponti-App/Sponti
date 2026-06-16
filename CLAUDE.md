@@ -34,6 +34,38 @@ Key differentiators: low-notification noise, granular privacy controls (per-list
 - Phone number auth + contact importing
 - React Native migration (Expo) — v1 ships as Capacitor WebView
 
+## Post-demo roadmap (tester build → app stores)
+
+The 7-item list above is built; the prototype is deployed. The operative plan now is to take it from "working demo" to a build we can hand to 5–10 friends who use it as a real app, then on to the stores.
+
+**Guiding principles:**
+
+- **Hide, never delete.** Unfinished or unwired surfaces are gated behind `spa/lib/feature-flags.ts` — one typed, compile-time profile that flips between "tester build" and "full app". Nothing is removed from the tree.
+- **Real data, not fake.** Empty-states-first. Any demo seed lives behind an off-by-default `seedDemoData` flag and is decoupled from `NEXT_PUBLIC_API_BASE_URL` (today, mock data is wrongly tied to "no backend configured").
+- **The core loop must be real:** sign in → light a flare → a friend sees it → joins (RSVP). Verified wired end-to-end; everything else can be thin.
+
+**Milestone 1 — Tester build (the shareable cut):**
+
+- Add `spa/lib/feature-flags.ts`. Hide behind flags: +1 / guest invites (backend done, no redemption UX), re-share / `allowForward` (frontend-only, unpersisted), social handles (localStorage-only), `socialBattery` (unrendered). **Keep custom circles** — fully wired.
+- Decouple demo data from `API_BASE`; add `seedDemoData` (off). Add real empty states for map, calendar, circles.
+- Wire stubbed settings to the backends that already exist: `profileVisibility` toggle and notification preferences (`GET/PATCH /notification-settings/me`); verify/hide change-password.
+- **Enforce profile privacy (discovery-only contract):** `userDirectoryService` must exclude `private` users from search — it is stored-but-ignored today. Private users stay viewable by connections or via direct link.
+- Resolve the circles/users cross-service coupling per `docs/decisions/circles-and-users-are-api-owned.md`. Minimum bar: align `MONGO_URI` + `DB_NAME` across `api/` and `auth-server/` so registration-seeded default circles don't vanish.
+- **🚩 Surface attendee ETAs to the host.** The "let host know" arrival time (`memberWillArriveAt`) is collected at join and stored on `EventMember`, but is **write-only** — the host never sees it. To fix for the tester build: (1) show each going attendee's ETA in the host's event view (`event-detail-sheet` "who's going" + `/event/[id]`); (2) include the ETA in the RSVP-change notification (`createEventRsvpChangeNotification` isn't passed `memberWillArriveAt` today); (3) fire a notification (or update) when a *going* member changes only their ETA — currently silent because it keys off `rsvpStatusChanged`; (4) null out `memberWillArriveAt` on `declined` so a stale arrival time doesn't linger. Signature differentiator, currently half-wired.
+
+**Milestone 2 — Native distribution (store-prep):**
+
+- TestFlight (Apple Developer Program, $99/yr; internal testing = up to 100 testers, no review) + Google Play internal testing ($25 one-time). These are pre-listing beta channels — no public store listing required to share.
+- `npm run build:mobile` → archive/upload → invite testers.
+
+**Milestone 3 — Push notifications (its own milestone, native-only):**
+
+- The **in-app notification feed already exists** and is sufficient for tester round 1. **Device push is not built**: no `@capacitor/push-notifications`, no APNs/FCM, no device-token registration. This milestone adds that infrastructure and wires notification preferences to gate delivery.
+
+**Deferred past the tester round:** +1 redemption UX, social-handles backend, `socialBattery` surfacing, richer profile (bio/avatar image/visibility indicator), QR polish.
+
+> Domain language and the rationale behind these decisions are captured in `CONTEXT-MAP.md`, the per-context `CONTEXT.md` files, and `docs/decisions/`.
+
 ## Platform strategy
 
 v1 is a **Next.js web app wrapped in Capacitor** for iOS/Android. The SPA is served as a web application and can be exported for mobile usage.
@@ -166,3 +198,19 @@ There is no separate "spontaneous" vs "planned" type — only timing determines 
 - Do not add private planning notes, raw meeting notes, or agent handoffs to this code repository.
 
 - When coding UI, use shadcn with the Nova preset and the Sponti tokens defined in [Brand & Design System](#brand--design-system) — Sponti overrides some Nova defaults (notably `--accent` for the warm-red brand color), so do not fall back to stock shadcn styling
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked as GitHub issues in `Sponti-App/Sponti` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default 1:1 vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context — per-package `CONTEXT.md` in `spa/`, `api/`, `auth-server/`, with system-wide decisions in `docs/decisions/`. See `docs/agents/domain.md`.
