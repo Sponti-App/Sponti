@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Roadmap & decisions
+    url: https://github.com/Sponti-App/Sponti/blob/main/CLAUDE.md
+    about: Read the post-demo roadmap and docs/decisions/ before filing larger work.

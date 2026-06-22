@@ -1,0 +1,49 @@
+name: Feature / task
+description: A unit of work — a feature, enhancement, or chore.
+labels: ["needs-triage"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences — what this delivers and why it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / why now
+      description: Link the roadmap milestone, a decision in docs/decisions/, or the user need behind it.
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable, checkable outcomes. An agent or teammate should know when this is done.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Files likely touched
+      description: Read these first. Helps the picker-upper build understanding of the slice before changing it.
+      placeholder: |
+        - spa/...
+        - api/...
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - spa
+        - api
+        - auth-server
+    validations:
+      required: true
