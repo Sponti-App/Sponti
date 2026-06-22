@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lesson 4 · Backend Layering</title>
+<style>
+  :root {
+    --ink: #2a2622; --muted: #6b6258; --line: #e4ddd3; --bg: #fbf8f3;
+    --peach: #e8915a; --peach-soft: #fbe9da; --card: #fff; --ok: #4a8a5c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font: 17px/1.7 "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--bg); margin: 0; padding: 3rem 1.25rem 5rem;
+  }
+  main { max-width: 680px; margin: 0 auto; }
+  .kicker { color: var(--peach); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; margin: 0 0 .3rem; }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; letter-spacing: -.02em; }
+  .win { background: var(--peach-soft); border-radius: 10px; padding: .85rem 1.1rem; font-size: .95rem; margin: 1.5rem 0 2rem; }
+  .win b { color: #b9602b; }
+  h2 { font-size: 1.2rem; margin: 2.2rem 0 .5rem; letter-spacing: -.01em; }
+  p { margin: .7rem 0; }
+  code { font: .85em "SF Mono", ui-monospace, Menlo, monospace; background: #f1ece4; padding: .08em .35em; border-radius: 4px; }
+  ol.layers { counter-reset: l; list-style: none; padding: 0; }
+  ol.layers > li { position: relative; padding: .5rem 0 .5rem 2.4rem; border-bottom: 1px solid var(--line); }
+  ol.layers > li::before { counter-increment: l; content: counter(l); position: absolute; left: 0; top: .55rem; width: 1.6rem; height: 1.6rem; background: var(--peach); color: #fff; border-radius: 50%; display: grid; place-items: center; font-size: .85rem; font-weight: 700; }
+  ol.layers b { display: block; }
+  ol.layers span { color: var(--muted); font-size: .9rem; }
+  .trace { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font: .82rem/1.5 "SF Mono", ui-monospace, Menlo, monospace; overflow-x: auto; }
+  .trace .step { display: flex; gap: .7rem; padding: .45rem 0; align-items: baseline; }
+  .trace .layer { color: var(--peach); font-weight: 700; min-width: 7rem; }
+  .trace .arrow { color: var(--muted); text-align: center; padding: .1rem 0; }
+  .trace .file { color: var(--muted); }
+  blockquote { border-left: 3px solid var(--peach); margin: 1.4rem 0; padding: .3rem 0 .3rem 1rem; }
+  blockquote .flag { color: #b9602b; font-weight: 600; }
+  .quiz { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1.2rem 1.4rem; margin: 1.6rem 0; }
+  .quiz h3 { margin: 0 0 .2rem; font-size: 1rem; }
+  .q { margin: 1rem 0 .3rem; font-weight: 600; }
+  .opts button { display: block; width: 100%; text-align: left; margin: .3rem 0; padding: .55rem .8rem; border: 1px solid var(--line); background: #fcfaf6; border-radius: 8px; font: inherit; font-size: .92rem; cursor: pointer; transition: .15s; }
+  .opts button:hover { border-color: var(--peach); }
+  .opts button.right { border-color: var(--ok); background: #eaf5ec; color: var(--ok); font-weight: 600; }
+  .opts button.wrong { border-color: #c9523f; background: #f8e8e4; color: #c9523f; }
+  .feedback { font-size: .88rem; color: var(--muted); margin-top: .5rem; min-height: 1.2em; }
+  .cite { color: var(--peach); text-decoration: none; border-bottom: 1px solid var(--peach-soft); }
+  .ask { background: var(--peach-soft); border-radius: 10px; padding: .9rem 1.1rem; font-size: .92rem; margin-top: 2.5rem; }
+  footer { margin-top: 2rem; color: var(--muted); font-size: .82rem; }
+  a { color: var(--peach); }
+</style>
+</head>
+<body>
+<main><p style="margin:0 0 1.2rem"><a href="../index.html" style="color:#e8915a;text-decoration:none;font-size:.85rem">&larr; learning center</a></p>
+  <p class="kicker">Lesson 4 · Crossing into the backend</p>
+  <h1>Backend layering</h1>
+
+  <div class="win"><b>Your win:</b> follow the <em>same</em> join from Lesson 2 past the network boundary and through <code>api/</code>'s four layers — and learn the one rule that tells you which file a given piece of logic belongs in.</div>
+
+  <p>In Lesson 2 the join ended at <code>PATCH /events/:id/me</code>. That's the network boundary. On the other side, <code>api/</code> is laid out in four layers that mirror the request's life: <strong>route → controller → service → model</strong>. Every endpoint follows the same shape, so once you can read one, you can read all of them.</p>
+
+  <h2>The four layers</h2>
+  <ol class="layers">
+    <li><b>Route</b><span>Maps a URL + method to a handler and stacks middleware: auth, then validation. <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/api/src/routes/eventRoutes.ts">routes/eventRoutes.ts</a></span></li>
+    <li><b>Controller</b><span>Thin. Pulls inputs off the request, calls the service, shapes the HTTP response. No business logic. <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/api/src/controllers/eventController.ts">controllers/eventController.ts</a></span></li>
+    <li><b>Service</b><span>Where the actual logic lives — the RSVP rules, notifications, transactions. <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/api/src/services/eventService.ts">services/eventService.ts</a></span></li>
+    <li><b>Model</b><span>The Mongoose schema — the shape persisted to MongoDB. <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/api/src/models/EventMember.ts">models/EventMember.ts</a></span></li>
+  </ol>
+
+  <h2>The trace, continued from Lesson 2</h2>
+  <p>The frontend sent <code>PATCH /events/:id/me</code> with <code>{ rsvpStatus, memberWillArriveAt }</code>. Here's its life inside <code>api/</code>:</p>
+  <div class="trace">
+    <div class="step"><span class="layer">route</span><span class="file">router.use(<code>requireAuth</code>) then <code>validateRequest({ params, body })</code> → controller</span></div>
+    <div class="arrow">↓ &nbsp;(rejected here if the token or body is bad — logic never runs)</div>
+    <div class="step"><span class="layer">controller</span><span class="file"><code>updateMyEventMembership</code>: <code>getAuthenticatedUserId(req)</code> + route param + <code>req.body</code> → service</span></div>
+    <div class="arrow">↓</div>
+    <div class="step"><span class="layer">service</span><span class="file"><code>updateMyRsvp</code>: load membership, set status/ETA, save, fire RSVP notification</span></div>
+    <div class="arrow">↓</div>
+    <div class="step"><span class="layer">model</span><span class="file"><code>EventMember</code> doc <code>.save()</code> → MongoDB</span></div>
+    <div class="arrow">↑ &nbsp;controller wraps the result as <code>res.json({ data })</code></div>
+  </div>
+
+  <h2>The rule: thin controllers, fat services</h2>
+  <p>Look at any controller method — they're almost identical and almost empty: grab inputs, call one service function, return <code>{ data }</code>. <strong>That emptiness is the design.</strong> All decisions live in the service, which means:</p>
+  <ul>
+    <li>Logic is testable without HTTP — and indeed <code>eventService.test.ts</code> exists, the controllers don't need tests.</li>
+    <li>Validation is done <em>before</em> the controller (the <code>validateRequest</code> middleware + a Zod schema), so the service can trust its inputs.</li>
+    <li>The same envelope — <code>{ data }</code> — comes back every time, which is why the frontend's <code>apiFetch</code> can blindly unwrap <code>.data</code>.</li>
+  </ul>
+  <p>So when you ask "where does X belong?": a URL/permission concern → route; pulling request fields or shaping the response → controller; an actual rule or side-effect → service; the stored shape → model.</p>
+
+  <blockquote>
+    <span class="flag">Gap-spotting instinct:</span> if you ever find business logic <em>in a controller</em> (an <code>if</code> deciding something, a DB query), that's a smell — it belongs one layer down. The privacy-enforcement bug (issue #88) is the mirror image: a rule that <em>should</em> be in the service/query but is missing entirely.
+  </blockquote>
+
+  <div class="quiz">
+    <h3>Retrieval practice</h3>
+    <p style="color:var(--muted);font-size:.85rem;margin:.2rem 0 0">From memory.</p>
+
+    <p class="q">1. A request with a malformed body is rejected at which layer?</p>
+    <div class="opts" data-correct="0">
+      <button>The route, by validation middleware</button>
+      <button>The service, after the logic runs</button>
+      <button>The model, when saving the doc</button>
+    </div>
+    <div class="feedback"></div>
+
+    <p class="q">2. Where do the RSVP rules and the host notification live?</p>
+    <div class="opts" data-correct="2">
+      <button>In the route definition file itself</button>
+      <button>In the thin controller handler method</button>
+      <button>In the service layer function logic</button>
+    </div>
+    <div class="feedback"></div>
+
+    <p class="q">3. Why are the controllers almost empty?</p>
+    <div class="opts" data-correct="1">
+      <button>They are unfinished and need work</button>
+      <button>Logic lives in services, by design</button>
+      <button>Express forbids logic inside them</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Keep going</h2>
+  <p>5-min primary source: open <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/api/src/controllers/eventController.ts">eventController.ts</a> and <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/api/src/routes/eventRoutes.ts">eventRoutes.ts</a> side by side — every endpoint is the same four-layer shape. Back to the <a class="cite" href="../index.html">learning center</a>.</p>
+
+  <div class="ask"><strong>Ask your teacher anything.</strong> Good next lessons: the <code>lib/api</code> layer (the frontend half of the boundary), or the auth/session flow across both servers. Just ask.</div>
+
+  <footer>Lesson 4 · grounded in the Sponti repo · this is the backend half of the join you traced in Lesson 2.</footer>
+</main>
+
+<script>
+  document.querySelectorAll('.opts').forEach(function (group) {
+    var correct = parseInt(group.dataset.correct, 10);
+    var fb = group.nextElementSibling;
+    group.querySelectorAll('button').forEach(function (btn, i) {
+      btn.addEventListener('click', function () {
+        if (group.dataset.done) return;
+        group.dataset.done = '1';
+        if (i === correct) {
+          btn.classList.add('right');
+          fb.textContent = 'Right. Route guards, controller delegates, service decides, model persists.';
+        } else {
+          btn.classList.add('wrong');
+          group.querySelectorAll('button')[correct].classList.add('right');
+          fb.textContent = 'Re-trace the four layers: the highlighted answer is the one.';
+        }
+      });
+    });
+  });
+</script>
+</body>
+</html>

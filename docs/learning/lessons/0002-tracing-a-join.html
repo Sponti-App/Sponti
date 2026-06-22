@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lesson 2 · Tracing a Join</title>
+<style>
+  :root {
+    --ink: #2a2622; --muted: #6b6258; --line: #e4ddd3; --bg: #fbf8f3;
+    --peach: #e8915a; --peach-soft: #fbe9da; --card: #fff; --ok: #4a8a5c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font: 17px/1.7 "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--bg); margin: 0; padding: 3rem 1.25rem 5rem;
+  }
+  main { max-width: 680px; margin: 0 auto; }
+  .kicker { color: var(--peach); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; margin: 0 0 .3rem; }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; letter-spacing: -.02em; }
+  .win { background: var(--peach-soft); border-radius: 10px; padding: .85rem 1.1rem; font-size: .95rem; margin: 1.5rem 0 2rem; }
+  .win b { color: #b9602b; }
+  h2 { font-size: 1.2rem; margin: 2.2rem 0 .5rem; letter-spacing: -.01em; }
+  p { margin: .7rem 0; }
+  code { font: .85em "SF Mono", ui-monospace, Menlo, monospace; background: #f1ece4; padding: .08em .35em; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .9rem; }
+  th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+  td code { background: none; padding: 0; color: var(--peach); }
+  .trace { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font: .82rem/1.5 "SF Mono", ui-monospace, Menlo, monospace; overflow-x: auto; }
+  .trace .step { display: flex; gap: .7rem; padding: .45rem 0; align-items: baseline; }
+  .trace .layer { color: var(--peach); font-weight: 700; min-width: 6.5rem; }
+  .trace .arrow { color: var(--muted); text-align: center; padding: .1rem 0; }
+  .trace .file { color: var(--muted); }
+  .branch { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .6rem 1.1rem; margin: 1rem 0; }
+  .branch li { padding: .35rem 0; border-bottom: 1px dotted var(--line); list-style: none; }
+  .branch li:last-child { border: 0; }
+  .branch .cond { color: var(--peach); font: .82rem "SF Mono", monospace; }
+  blockquote { border-left: 3px solid var(--peach); margin: 1.4rem 0; padding: .3rem 0 .3rem 1rem; }
+  blockquote .flag { color: #b9602b; font-weight: 600; }
+  .quiz { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1.2rem 1.4rem; margin: 1.6rem 0; }
+  .quiz h3 { margin: 0 0 .2rem; font-size: 1rem; }
+  .q { margin: 1rem 0 .3rem; font-weight: 600; }
+  .opts button { display: block; width: 100%; text-align: left; margin: .3rem 0; padding: .55rem .8rem; border: 1px solid var(--line); background: #fcfaf6; border-radius: 8px; font: inherit; font-size: .92rem; cursor: pointer; transition: .15s; }
+  .opts button:hover { border-color: var(--peach); }
+  .opts button.right { border-color: var(--ok); background: #eaf5ec; color: var(--ok); font-weight: 600; }
+  .opts button.wrong { border-color: #c9523f; background: #f8e8e4; color: #c9523f; }
+  .feedback { font-size: .88rem; color: var(--muted); margin-top: .5rem; min-height: 1.2em; }
+  .cite { color: var(--peach); text-decoration: none; border-bottom: 1px solid var(--peach-soft); }
+  .ask { background: var(--peach-soft); border-radius: 10px; padding: .9rem 1.1rem; font-size: .92rem; margin-top: 2.5rem; }
+  footer { margin-top: 2rem; color: var(--muted); font-size: .82rem; }
+  a { color: var(--peach); }
+</style>
+</head>
+<body>
+<main><p style="margin:0 0 1.2rem"><a href="../index.html" style="color:#e8915a;text-decoration:none;font-size:.85rem">&larr; learning center</a></p>
+  <p class="kicker">Lesson 2 · One component, end to end</p>
+  <h1>Tracing a join</h1>
+
+  <div class="win"><b>Your win:</b> follow a real user action — joining a flare — through all four layers, and see <b>why</b> <code>event-detail-sheet</code> contains zero business logic. This is the template for reading <em>any</em> action in the app.</div>
+
+  <p>In Lesson 1 you placed components into layers. Now we pick one <strong>flare-domain</strong> component — <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/spa/components/event-detail-sheet.tsx">event-detail-sheet.tsx</a>, the sheet that slides up when you tap a flare on the map — and watch a tap travel all the way to the database.</p>
+
+  <h2>1 · The sheet is "dumb" on purpose</h2>
+  <p>Open the file and look at its <code>Props</code>. Notice what it <em>doesn't</em> do: it never calls an API. Everything it can <em>do</em> is handed in from the parent as a callback:</p>
+  <table>
+    <tr><th>Prop</th><th>Direction</th><th>Meaning</th></tr>
+    <tr><td><code>event, joined, isHost</code></td><td>data in ↓</td><td>what to show</td></tr>
+    <tr><td><code>onJoin(event, eta)</code></td><td>event out ↑</td><td>"the user wants to join"</td></tr>
+    <tr><td><code>onLeave(event)</code></td><td>event out ↑</td><td>"the user backed out"</td></tr>
+    <tr><td><code>onSeeRoute / onClose</code></td><td>event out ↑</td><td>navigation intents</td></tr>
+  </table>
+  <p>The only state it owns is <em>UI</em> state: <code>selectedEta</code> (which chip is lit) and a mirror of the event so the drawer can animate closed gracefully. That's the Lesson 1 rule made concrete: <strong>logic flows down, events flow up.</strong> The sheet renders and reports; it doesn't decide.</p>
+
+  <h2>2 · The only "logic" it has is which button to show</h2>
+  <p>One genuinely clever part is the CTA — a 4-way branch on the props, nothing more:</p>
+  <div class="branch">
+    <ul>
+      <li><span class="cond">isHost</span> → "edit flare"</li>
+      <li><span class="cond">joined</span> → "see route" (if imminent) + "can't make it / leave"</li>
+      <li><span class="cond">imminent &amp;&amp; !joined</span> → ETA chips, button disabled until you pick one</li>
+      <li><span class="cond">else</span> → "I'm in · {time}"</li>
+    </ul>
+  </div>
+  <p>The ETA chips ("5 min … 1 hr") are the Sponti differentiator: joining an <em>imminent</em> flare isn't just a yes — it tells the host <em>when you'll arrive</em>. Hold that thought; it's the payload in step 3.</p>
+
+  <h2>3 · The trace: tap → database</h2>
+  <p>You tap <strong>"on the way · 15 min"</strong>. Here's the whole journey:</p>
+  <div class="trace">
+    <div class="step"><span class="layer">domain</span><span class="file">event-detail-sheet.tsx — onClick calls <code>onJoin(event, "15 min")</code></span></div>
+    <div class="arrow">↓ &nbsp;(event flows up to the parent)</div>
+    <div class="step"><span class="layer">page</span><span class="file">app/page.tsx — <code>handleJoin</code> turns "15 min" into an ISO time via <code>etaToIso()</code></span></div>
+    <div class="arrow">↓</div>
+    <div class="step"><span class="layer">lib/api</span><span class="file">events.ts — <code>updateMyRsvp(id, { rsvpStatus: "going", memberWillArriveAt })</code></span></div>
+    <div class="arrow">↓ &nbsp;<code>apiFetch</code> PATCH</div>
+    <div class="step"><span class="layer">backend</span><span class="file">api — <code>PATCH /events/:id/me</code> → controller → service → <code>EventMember</code></span></div>
+  </div>
+  <p>Four layers, one clean line. The component knew none of this — it only knew to shout <code>onJoin</code>. That separation is why you can restyle the sheet without fear of breaking the join, and rewire the join without touching the sheet.</p>
+
+  <h2>4 · A wiring observation for your mission</h2>
+  <p>There are <strong>two</strong> places a user can join: this map sheet (driven by <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/spa/app/page.tsx">app/page.tsx</a>) and the full route <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/spa/app/event/[id]/page.tsx">/event/[id]</a>. Good news — both funnel into the <em>same</em> <code>updateMyRsvp</code>. No duplicate join logic to drift apart.</p>
+  <blockquote>
+    <span class="flag">Gap-spotting instinct:</span> when you find two UI surfaces for one action, the first question is "do they share the API call, or did someone copy-paste it?" Here they share it. That's the healthy pattern — note it, move on.
+  </blockquote>
+
+  <div class="quiz">
+    <h3>Retrieval practice</h3>
+    <p style="color:var(--muted);font-size:.85rem;margin:.2rem 0 0">From memory.</p>
+
+    <p class="q">1. When you tap "I'm in" in the sheet, what does the component itself do?</p>
+    <div class="opts" data-correct="1">
+      <button>Sends the PATCH request to the backend</button>
+      <button>Calls the onJoin callback prop upward</button>
+      <button>Writes the RSVP into local storage</button>
+    </div>
+    <div class="feedback"></div>
+
+    <p class="q">2. Where does "15 min" become a real timestamp for the host?</p>
+    <div class="opts" data-correct="2">
+      <button>Inside the backend event service</button>
+      <button>In the reusable UI button primitive</button>
+      <button>In the page handler, via etaToIso</button>
+    </div>
+    <div class="feedback"></div>
+
+    <p class="q">3. The map sheet and the /event/[id] page both let you join. Why is that fine?</p>
+    <div class="opts" data-correct="0">
+      <button>They share one updateMyRsvp call</button>
+      <button>The second screen is actually dead code</button>
+      <button>Joining twice is silently ignored anyway</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Keep going</h2>
+  <p>5-min primary source: re-read <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/spa/components/event-detail-sheet.tsx">event-detail-sheet.tsx</a> lines 240–307 (the CTA branch) and <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/spa/app/page.tsx">app/page.tsx</a> <code>handleJoin</code> — now they'll read like a story. Back to the map anytime: <a class="cite" href="../reference/component-map.html">component-map.html</a>.</p>
+
+  <div class="ask"><strong>Ask me anything.</strong> Want me to actually run the app and show this sheet on the map? Or trace the <em>create</em> path next (<code>new-event-drawer</code> → <code>POST /events</code>) — the biggest component in the app and where most of the hide-able "fluff" lives?</div>
+
+  <footer>Lesson 2 · grounded in the Sponti repo · the join here is the same core-loop step we verified during the roadmap grill.</footer>
+</main>
+
+<script>
+  document.querySelectorAll('.opts').forEach(function (group) {
+    var correct = parseInt(group.dataset.correct, 10);
+    var fb = group.nextElementSibling;
+    group.querySelectorAll('button').forEach(function (btn, i) {
+      btn.addEventListener('click', function () {
+        if (group.dataset.done) return;
+        group.dataset.done = '1';
+        if (i === correct) {
+          btn.classList.add('right');
+          fb.textContent = 'Right. The sheet reports intent; the page wires it.';
+        } else {
+          btn.classList.add('wrong');
+          group.querySelectorAll('button')[correct].classList.add('right');
+          fb.textContent = 'Re-trace it: the highlighted answer is the one.';
+        }
+      });
+    });
+  });
+</script>
+</body>
+</html>
