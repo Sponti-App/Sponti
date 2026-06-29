@@ -71,10 +71,11 @@ Per service, in the Render dashboard:
 | --- | --- | --- |
 | Root Directory | `api` | `auth-server` |
 | Build Command | `npm install && npm run build` | `npm install && npm run build` |
-| Start Command | `npm start` | `npm start` |
+| Start Command | `node dist/server.js` | `node dist/app.js` |
 | Health check path | `/health` | `/health` |
 
 Notes:
+- **Start Command runs the built output directly — do NOT use `npm start` for `auth-server`.** Its `npm start` triggers a `prestart: npm run build`, which re-runs `tsc` at boot on the 512 MB runtime instance and **OOMs** (see Troubleshooting). The build already happens in the Build Command; recompiling at start is redundant and fatal. (`api` has no `prestart`, but we use the direct invocation for both for consistency.)
 - Render issues HTTPS URLs (e.g. `https://sponti-api.onrender.com`) — this is what makes the direct-URL frontend wiring below work without mixed-content issues.
 - **Free tier spins down on idle** (~50s cold start on first request). Fine for the tester round; revisit if testers hit it.
 - Render's outbound IPs are dynamic on lower tiers, so set the Atlas IP allowlist to `0.0.0.0/0` (or Render's static-IP add-on later).
@@ -107,6 +108,21 @@ NEXT_PUBLIC_API_BASE_URL=https://sponti-api.onrender.com
    - Atlas → verify IP allowlist permits the new host (serverless hosts are dynamic-IP; likely already `0.0.0.0/0`).
 7. **Repoint `sponti.fun` DNS** to the new SPA deployment so the public URL — and therefore OAuth origins, Maps referrers, CORS, and email sender — stay stable.
 8. **Verify the core loop end-to-end**: sign in → light a flare → a friend sees it → RSVP.
+
+## Troubleshooting (Render)
+
+Both backends run `connectDB()` **before** `app.listen` (`api/src/server.ts`, `auth-server/src/app.ts`). So **anything that crashes or hangs at startup means the port never binds**, and Render reports `No open ports detected, continuing to scan…` until the process dies. That message is a symptom, not the cause — always read the lines *above* it / before the exit code.
+
+| Symptom | Real cause | Fix |
+| --- | --- | --- |
+| `Exited with status 134` + `FATAL ERROR: … JavaScript heap out of memory` | `auth-server` Start Command was `npm start`, whose `prestart` re-runs `tsc` at boot and OOMs the 512 MB instance | Start Command = `node dist/app.js` (run the built output; don't rebuild at start). |
+| `No open ports detected, continuing to scan…` then exit | App crashed before `app.listen` (often the OOM above, or a Mongo failure) | Read the log lines above it; match to the rows here. |
+| `MongooseServerSelectionError` / `ETIMEDOUT` | Mongo unreachable — Atlas IP allowlist missing the host | Atlas → Network Access → `0.0.0.0/0`. |
+| `Error: MONGO_URI is not defined` | `MONGO_URI` unset / misnamed on that service | Set it (copy the working value from the other service). |
+| `MongoParseError` | `MONGO_URI` malformed (truncated paste / unencoded chars) | Re-paste the full URI from a working service. |
+| CORS error in browser, request blocked | `CORS_ORIGINS` doesn't exactly match the SPA origin | Set `CORS_ORIGINS` = SPA origin, scheme+host, no trailing slash. |
+
+> Debugging order that works: read the **last error before the exit code**, not the exit code itself. `134` = SIGABRT (usually OOM); `137` = SIGKILL (platform OOM-killer); the scan message = no port bound.
 
 ## After the tester round: rotate
 
