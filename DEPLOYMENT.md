@@ -34,13 +34,14 @@ External services (all team-reachable; **not** the departed member's personal ac
 
 | Account | Owner / where | Status |
 | --- | --- | --- |
-| Vercel (old `sponti-spa`/`sponti-api`/`sponti-auth` projects) | departed member's personal account | **Locked — being replaced.** |
-| Vercel (new, team-owned) | _fill in: team/owner_ | _set up in progress_ |
-| MongoDB Atlas | _fill in_ | team-reachable |
-| Cloudinary | _fill in_ | team-reachable |
-| Google Cloud project | _fill in_ | team-reachable |
-| Resend | _fill in_ | team-reachable |
-| Domain registrar / DNS (`sponti.fun`) | _fill in_ | team-controlled |
+| Vercel — new `sponti-spa` | team-owned _(add owner name)_ | ✅ deployed |
+| Render — `sponti-api` + `sponti-auth` | team-owned _(add owner name)_ | ✅ deployed |
+| Vercel — old `sponti-spa`/`sponti-api`/`sponti-auth` | departed member's personal account | **Locked — decommission once `sponti.fun` DNS is confirmed on the new SPA.** |
+| MongoDB Atlas (`cluster0.3yzmbp0`) | team-reachable _(add owner name)_ | in use |
+| Cloudinary | team-reachable _(add owner name)_ | in use |
+| Google Cloud project (Maps + OAuth) | team-reachable _(add owner name)_ | in use |
+| Resend | team-reachable _(add owner name)_ | in use |
+| Domain registrar / DNS (`sponti.fun`) | team-controlled _(add owner name)_ | in use |
 
 ---
 
