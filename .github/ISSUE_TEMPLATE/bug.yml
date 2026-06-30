@@ -1,0 +1,38 @@
+name: Bug
+description: Something is wrong, half-wired, or behaves unexpectedly.
+labels: ["bug", "needs-triage"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What's wrong
+      description: What happens, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: false
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Where it lives (if known)
+      description: File paths, endpoints, or the slice of code involved. Stored-but-ignored / write-only / frontend-only-state are common shapes here.
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - spa
+        - api
+        - auth-server
+    validations:
+      required: true

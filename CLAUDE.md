@@ -40,18 +40,25 @@ The 7-item list above is built; the prototype is deployed. The operative plan no
 
 **Guiding principles:**
 
-- **Hide, never delete.** Unfinished or unwired surfaces are gated behind `spa/lib/feature-flags.ts` — one typed, compile-time profile that flips between "tester build" and "full app". Nothing is removed from the tree.
+- **Understand before you change.** No sweeping refactors against code the team doesn't yet share an understanding of. Fixes are read-the-slice-first, small, and individually reviewable. Tracked as GitHub issues so each change is scoped and reviewed, not bundled.
+- **Hide, never delete.** Unfinished or unwired surfaces are eventually gated behind `spa/lib/feature-flags.ts` — one typed, compile-time profile that flips between "tester build" and "full app". Nothing is removed from the tree. **This is a Phase 1 step (see below), not an upfront refactor** — the internal team round needs no flags.
 - **Real data, not fake.** Empty-states-first. Any demo seed lives behind an off-by-default `seedDemoData` flag and is decoupled from `NEXT_PUBLIC_API_BASE_URL` (today, mock data is wrongly tied to "no backend configured").
 - **The core loop must be real:** sign in → light a flare → a friend sees it → joins (RSVP). Verified wired end-to-end; everything else can be thin.
 
-**Milestone 1 — Tester build (the shareable cut):**
+**Milestone 1 — Tester build (the shareable cut).** Sequenced in two phases so understanding precedes change:
 
-- Add `spa/lib/feature-flags.ts`. Hide behind flags: +1 / guest invites (backend done, no redemption UX), re-share / `allowForward` (frontend-only, unpersisted), social handles (localStorage-only), `socialBattery` (unrendered). **Keep custom circles** — fully wired.
-- Decouple demo data from `API_BASE`; add `seedDemoData` (off). Add real empty states for map, calendar, circles.
-- Wire stubbed settings to the backends that already exist: `profileVisibility` toggle and notification preferences (`GET/PATCH /notification-settings/me`); verify/hide change-password.
+_Phase 0 — Understand & fix (do first; supports the internal team round, no flags needed):_
+
+- **Shared codebase understanding pass** — the team walks the components, the core loop, and the `lib/api` → backend wiring before changing them (the `/teach` lessons seed this).
 - **Enforce profile privacy (discovery-only contract):** `userDirectoryService` must exclude `private` users from search — it is stored-but-ignored today. Private users stay viewable by connections or via direct link.
 - Resolve the circles/users cross-service coupling per `docs/decisions/circles-and-users-are-api-owned.md`. Minimum bar: align `MONGO_URI` + `DB_NAME` across `api/` and `auth-server/` so registration-seeded default circles don't vanish.
-- **🚩 Surface attendee ETAs to the host.** The "let host know" arrival time (`memberWillArriveAt`) is collected at join and stored on `EventMember`, but is **write-only** — the host never sees it. To fix for the tester build: (1) show each going attendee's ETA in the host's event view (`event-detail-sheet` "who's going" + `/event/[id]`); (2) include the ETA in the RSVP-change notification (`createEventRsvpChangeNotification` isn't passed `memberWillArriveAt` today); (3) fire a notification (or update) when a *going* member changes only their ETA — currently silent because it keys off `rsvpStatusChanged`; (4) null out `memberWillArriveAt` on `declined` so a stale arrival time doesn't linger. Signature differentiator, currently half-wired.
+- **🚩 Surface attendee ETAs to the host.** The "let host know" arrival time (`memberWillArriveAt`) is collected at join and stored on `EventMember`, but is **write-only** — the host never sees it. To fix: (1) show each going attendee's ETA in the host's event view (`event-detail-sheet` "who's going" + `/event/[id]`); (2) include the ETA in the RSVP-change notification (`createEventRsvpChangeNotification` isn't passed `memberWillArriveAt` today); (3) fire a notification (or update) when a *going* member changes only their ETA — currently silent because it keys off `rsvpStatusChanged`; (4) null out `memberWillArriveAt` on `declined` so a stale arrival time doesn't linger. Signature differentiator, currently half-wired.
+- Wire stubbed settings to the backends that already exist: `profileVisibility` toggle and notification preferences (`GET/PATCH /notification-settings/me`); verify/hide change-password.
+- Decouple demo data from `API_BASE`; add `seedDemoData` (off). Add real empty states for map, calendar, circles.
+
+_Phase 1 — Gate for external testers (just before the external handoff):_
+
+- Introduce `spa/lib/feature-flags.ts` and gate the half-wired/fluff surfaces: +1 / guest invites (backend done, no redemption UX), re-share / `allowForward` (frontend-only, unpersisted), social handles (localStorage-only), `socialBattery` (unrendered). **Keep custom circles** — fully wired. Done as **small, one-flag-per-PR changes** (a render-site guard, not code extraction), once Phase 0 understanding is in hand.
 
 **Milestone 2 — Native distribution (store-prep):**
 

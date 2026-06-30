@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reference · Sponti Component Map</title>
+<style>
+  :root {
+    --ink: #2a2622; --muted: #6b6258; --line: #e4ddd3; --bg: #fbf8f3;
+    --peach: #e8915a; --card: #fff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font: 16px/1.6 "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--bg); margin: 0; padding: 3rem 1.25rem 5rem;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 2rem; font-size: .95rem; }
+  h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; display: flex; align-items: baseline; gap: .5rem; }
+  h2 .n { color: var(--peach); font-variant-numeric: tabular-nums; font-weight: 700; }
+  .role { color: var(--muted); font-size: .85rem; margin: 0 0 .6rem; }
+  ul { margin: .2rem 0 0; padding-left: 0; list-style: none; }
+  li { padding: .15rem 0; border-bottom: 1px dotted var(--line); display: flex; justify-content: space-between; gap: 1rem; }
+  code { font: .82rem "SF Mono", ui-monospace, Menlo, monospace; color: var(--ink); }
+  .note { color: var(--muted); font-size: .78rem; text-align: right; }
+  .flow { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.2rem; margin: 1.5rem 0; font: .82rem "SF Mono", ui-monospace, Menlo, monospace; color: var(--muted); overflow-x: auto; white-space: pre; }
+  .flow b { color: var(--peach); font-weight: 700; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .8rem; }
+  a { color: var(--peach); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sponti Component Map</h1>
+  <p class="sub">~30 components in <code>spa/components/</code>, grouped into 6 layers. The lower the layer, the more reusable and dumb it is.</p>
+
+  <div class="flow">Provider nesting in <b>app/layout.tsx</b> (outermost → innermost):
+
+ThemeProvider › AuthProvider › AuthGate › ActionFeedbackProvider › NewEventDrawerProvider › <b>AuthenticatedAppShell</b> › {page}</div>
+
+  <h2><span class="n">1</span> Providers <span class="role">— cross-cutting context state</span></h2>
+  <p class="role">Wrap the whole tree. Anything that needs to be readable from anywhere lives here.</p>
+  <ul>
+    <li><code>theme-provider.tsx</code><span class="note">light/dark (next-themes)</span></li>
+    <li><code>auth-provider.tsx</code><span class="note">session status + user</span></li>
+    <li><code>action-feedback.tsx</code><span class="note">toast-style feedback</span></li>
+    <li><code>new-event-drawer-provider.tsx</code><span class="note">global "create flare" drawer</span></li>
+  </ul>
+
+  <h2><span class="n">2</span> Shell / chrome <span class="role">— app frame around every page</span></h2>
+  <p class="role">Rendered once, not per page. Owns the bottom nav + notifications (see ADR <em>App Shell Owns Bottom Nav</em>).</p>
+  <ul>
+    <li><code>authenticated-app-shell.tsx</code><span class="note">owns nav + notifications</span></li>
+    <li><code>bottom-nav.tsx</code><span class="note">tab bar + FAB</span></li>
+    <li><code>notifications-popover.tsx</code><span class="note">in-app feed</span></li>
+    <li><code>menu-drawer.tsx</code> · <code>menu-page-shell.tsx</code><span class="note">side menu + menu pages</span></li>
+    <li><code>auth-gate.tsx</code> · <code>auth-frame.tsx</code><span class="note">gates + frames auth screens</span></li>
+  </ul>
+
+  <h2><span class="n">3</span> Views <span class="role">— the two home surfaces of one flare</span></h2>
+  <p class="role">Same flare object, filtered by timing: map = now/imminent, calendar = upcoming.</p>
+  <ul>
+    <li><code>map-view.tsx</code><span class="note">live flares on a map</span></li>
+    <li><code>calendar-view.tsx</code> · <code>month-calendar.tsx</code><span class="note">upcoming flares</span></li>
+  </ul>
+
+  <h2><span class="n">4</span> Event (flare) domain <span class="role">— create / view / manage a flare</span></h2>
+  <ul>
+    <li><code>new-event-drawer.tsx</code><span class="note">create/edit form (large)</span></li>
+    <li><code>event-detail-sheet.tsx</code><span class="note">view + RSVP/join</span></li>
+    <li><code>event-host-card.tsx</code> · <code>event-avatar-stack.tsx</code><span class="note">host + attendees</span></li>
+    <li><code>cancel-event-dialog.tsx</code> · <code>recurring-scope-modal.tsx</code><span class="note">cancel / recurring scope</span></li>
+  </ul>
+
+  <h2><span class="n">5</span> Identity &amp; social <span class="role">— people, circles, sharing</span></h2>
+  <ul>
+    <li><code>account-avatar.tsx</code> · <code>menu-profile.tsx</code><span class="note">avatar + profile summary</span></li>
+    <li><code>circle-stack-icon.tsx</code><span class="note">circle visual</span></li>
+    <li><code>qr-share-sheet.tsx</code> · <code>google-auth-button.tsx</code><span class="note">QR add-friend + Google sign-in</span></li>
+  </ul>
+
+  <h2><span class="n">6</span> UI primitives <span class="role">— <code>components/ui/*</code>, shadcn + Radix</span></h2>
+  <p class="role">Dumb, reusable, styled with Sponti tokens. Never contain business logic.</p>
+  <ul>
+    <li><code>button · input · label · card · avatar · switch</code><span class="note">form + layout atoms</span></li>
+    <li><code>tabs · drawer · dropdown-menu · collapsible · radio-group</code><span class="note">interactive primitives</span></li>
+  </ul>
+
+  <p class="role" style="margin-top:1.5rem"><code>menu-items.ts</code> is a <em>data</em> module (menu config), not a component.</p>
+
+  <footer>
+    Mental rule: <strong>logic flows down, events flow up.</strong> Layers 1–2 hold state and context; layers 3–5 compose features; layer 6 is pure presentation.<br/>
+    Source of truth: <a href="https://github.com/Sponti-App/Sponti/tree/main/spa/components/">spa/components/</a> · <a href="https://github.com/Sponti-App/Sponti/blob/main/spa/app/layout.tsx">app/layout.tsx</a>
+  </footer>
+</main>
+</body>
+</html>

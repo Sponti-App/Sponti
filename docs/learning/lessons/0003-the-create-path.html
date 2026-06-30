@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lesson 3 · The Create Path</title>
+<style>
+  :root {
+    --ink: #2a2622; --muted: #6b6258; --line: #e4ddd3; --bg: #fbf8f3;
+    --peach: #e8915a; --peach-soft: #fbe9da; --card: #fff; --ok: #4a8a5c; --flag: #b9602b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font: 17px/1.7 "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--bg); margin: 0; padding: 3rem 1.25rem 5rem;
+  }
+  main { max-width: 680px; margin: 0 auto; }
+  .kicker { color: var(--peach); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; margin: 0 0 .3rem; }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; letter-spacing: -.02em; }
+  .win { background: var(--peach-soft); border-radius: 10px; padding: .85rem 1.1rem; font-size: .95rem; margin: 1.5rem 0 2rem; }
+  .win b { color: var(--flag); }
+  h2 { font-size: 1.2rem; margin: 2.2rem 0 .5rem; letter-spacing: -.01em; }
+  p { margin: .7rem 0; }
+  code { font: .85em "SF Mono", ui-monospace, Menlo, monospace; background: #f1ece4; padding: .08em .35em; border-radius: 4px; }
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin: 1.2rem 0; }
+  .compare > div { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1.1rem; }
+  .compare h4 { margin: 0 0 .4rem; font-size: .92rem; }
+  .compare .tag { font: .72rem "SF Mono", monospace; color: var(--peach); }
+  .compare ul { margin: .4rem 0 0; padding-left: 1.1rem; font-size: .85rem; color: var(--muted); }
+  .compare li { margin: .2rem 0; }
+  .trace { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font: .82rem/1.5 "SF Mono", ui-monospace, Menlo, monospace; overflow-x: auto; }
+  .trace .step { display: flex; gap: .7rem; padding: .45rem 0; align-items: baseline; }
+  .trace .layer { color: var(--peach); font-weight: 700; min-width: 6.5rem; }
+  .trace .arrow { color: var(--muted); text-align: center; padding: .1rem 0; }
+  .trace .file { color: var(--muted); }
+  blockquote { border-left: 3px solid var(--peach); margin: 1.4rem 0; padding: .3rem 0 .3rem 1rem; }
+  blockquote .flag { color: var(--flag); font-weight: 600; }
+  .quiz { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1.2rem 1.4rem; margin: 1.6rem 0; }
+  .quiz h3 { margin: 0 0 .2rem; font-size: 1rem; }
+  .q { margin: 1rem 0 .3rem; font-weight: 600; }
+  .opts button { display: block; width: 100%; text-align: left; margin: .3rem 0; padding: .55rem .8rem; border: 1px solid var(--line); background: #fcfaf6; border-radius: 8px; font: inherit; font-size: .92rem; cursor: pointer; transition: .15s; }
+  .opts button:hover { border-color: var(--peach); }
+  .opts button.right { border-color: var(--ok); background: #eaf5ec; color: var(--ok); font-weight: 600; }
+  .opts button.wrong { border-color: #c9523f; background: #f8e8e4; color: #c9523f; }
+  .feedback { font-size: .88rem; color: var(--muted); margin-top: .5rem; min-height: 1.2em; }
+  .cite { color: var(--peach); text-decoration: none; border-bottom: 1px solid var(--peach-soft); }
+  .ask { background: var(--peach-soft); border-radius: 10px; padding: .9rem 1.1rem; font-size: .92rem; margin-top: 2.5rem; }
+  footer { margin-top: 2rem; color: var(--muted); font-size: .82rem; }
+  a { color: var(--peach); }
+</style>
+</head>
+<body>
+<main><p style="margin:0 0 1.2rem"><a href="../index.html" style="color:#e8915a;text-decoration:none;font-size:.85rem">&larr; learning center</a></p>
+  <p class="kicker">Lesson 3 · The other kind of component</p>
+  <h1>The create path</h1>
+
+  <div class="win"><b>Your win:</b> recognise the <b>second</b> component archetype — the "smart" self-contained feature — and see the <b>adapter layer</b> that lets it talk to the backend. Plus: spot exactly where the hide-able "fluff" lives.</div>
+
+  <p>Lesson 2's <code>event-detail-sheet</code> was <em>dumb</em>: no state, no API calls, just props and callbacks. <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/spa/components/new-event-drawer.tsx">new-event-drawer.tsx</a> is its opposite — ~1,900 lines that own a whole form and call the backend themselves. Both are correct. Knowing <em>which</em> kind you're looking at is half of reading a React file fast.</p>
+
+  <div class="compare">
+    <div>
+      <h4>Dumb / presentational <span class="tag">Lesson 2</span></h4>
+      <p style="margin:.2rem 0;font-size:.85rem"><code>event-detail-sheet</code></p>
+      <ul>
+        <li>Props in, callbacks out</li>
+        <li>Only UI state</li>
+        <li>Parent owns the wiring</li>
+        <li>Reused in many places</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Smart / feature <span class="tag">Lesson 3</span></h4>
+      <p style="margin:.2rem 0;font-size:.85rem"><code>new-event-drawer</code></p>
+      <ul>
+        <li>Owns its form state</li>
+        <li>Calls the API itself</li>
+        <li>Self-contained feature</li>
+        <li>Rendered once, globally</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>1 · One drawer, opened from anywhere</h2>
+  <p>The drawer is mounted <em>once</em> by <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/spa/components/new-event-drawer-provider.tsx">NewEventDrawerProvider</a> (remember it from the Lesson 1 provider stack). Anything can open it via context:</p>
+  <div class="trace">
+    <div class="step"><span class="layer">FAB</span><span class="file">bottom-nav.tsx → <code>useNewEventDrawer().openDrawer()</code></span></div>
+    <div class="step"><span class="layer">URL</span><span class="file">/event/new → just calls <code>openDrawer()</code> over the home map (page stays behind it)</span></div>
+  </div>
+  <p>That's a neat trick: visiting <code>/event/new</code> directly doesn't render a separate page — it opens the same drawer on top of the map, so creation always feels lightweight. One create UI, two doors.</p>
+
+  <h2>2 · The trace: form → backend</h2>
+  <p>Fill the form, hit create. <code>handleSubmit</code> (<a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/spa/components/new-event-drawer.tsx">new-event-drawer.tsx:866</a>) runs:</p>
+  <div class="trace">
+    <div class="step"><span class="layer">state</span><span class="file">local form state: title, type, time range, location, audience, invite toggles…</span></div>
+    <div class="arrow">↓ &nbsp;build a <code>DraftEvent</code></div>
+    <div class="step"><span class="layer">adapter</span><span class="file">events.adapter.ts — <code>createEventRequestFromDraft(draft, audience, timeRange)</code></span></div>
+    <div class="arrow">↓ &nbsp;UI shape → API contract</div>
+    <div class="step"><span class="layer">lib/api</span><span class="file">events.ts — <code>createEvent(body)</code> → <code>apiFetch</code> POST <code>/events</code></span></div>
+    <div class="arrow">↓</div>
+    <div class="step"><span class="layer">backend</span><span class="file">eventRoutes — POST / → <code>validateRequest(createEventBodySchema)</code> → controller → service</span></div>
+  </div>
+
+  <h2>3 · Why the adapter exists</h2>
+  <p>The drawer thinks in <em>UI terms</em> (a "DraftEvent": chips, toggles, friendly labels). The backend thinks in <em>contract terms</em> (a "CreateEventRequest": <code>startAt</code>, <code>visibility</code>, <code>allowGuestInvites</code>, GeoJSON location). The <strong>adapter</strong> is the translator between them:</p>
+  <blockquote>
+    The adapters keep UI/prototype shapes separate from backend API contracts… this lets the form stay focused on UI state while the API module owns naming, defaults, invite modes, and payload structure.
+    <cite style="display:block;color:var(--muted);font-size:.82rem;margin-top:.3rem">— spa/lib/api/events/EVENTS_WIRING.md</cite>
+  </blockquote>
+  <p>This is why the form can be restyled without touching the API, and the API contract can change with edits confined to one adapter function. Same separation principle as Lesson 2 — just expressed as a <em>data</em> boundary instead of a <em>callback</em> boundary.</p>
+
+  <h2>4 · Where the hide-able fluff lives</h2>
+  <p>This component is exactly where the roadmap's "hide, don't delete" work happens. Inside the drawer's form state:</p>
+  <blockquote>
+    <span class="flag">Roadmap targets:</span> <code>allowForward</code> (re-share toggle — frontend-only, never sent to the backend) and the <code>+1 / guest-invite</code> controls (backend-wired but no redemption UX). When you build <code>feature-flags.ts</code>, these are the first fields you'll gate off — right here in <code>new-event-drawer.tsx</code>. <strong>Custom circles</strong>, also wired in this form, stays on.
+  </blockquote>
+
+  <div class="quiz">
+    <h3>Retrieval practice</h3>
+    <p style="color:var(--muted);font-size:.85rem;margin:.2rem 0 0">From memory.</p>
+
+    <p class="q">1. How does new-event-drawer differ from event-detail-sheet?</p>
+    <div class="opts" data-correct="2">
+      <button>It is a dumb presentational component too</button>
+      <button>It lives in the ui primitives folder</button>
+      <button>It owns state and calls the API itself</button>
+    </div>
+    <div class="feedback"></div>
+
+    <p class="q">2. What is the job of createEventRequestFromDraft?</p>
+    <div class="opts" data-correct="1">
+      <button>It saves the draft into local storage</button>
+      <button>It maps the UI shape to the API contract</button>
+      <button>It renders the create form on the screen</button>
+    </div>
+    <div class="feedback"></div>
+
+    <p class="q">3. Visiting /event/new directly does what, exactly?</p>
+    <div class="opts" data-correct="0">
+      <button>Opens the same drawer over the map</button>
+      <button>Renders a totally separate full page</button>
+      <button>Redirects the user back to login</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Keep going</h2>
+  <p>5-min primary source: <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/spa/components/new-event-drawer.tsx">new-event-drawer.tsx</a> around <code>handleSubmit</code> (line 866) + <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/spa/lib/api/events/EVENTS_WIRING.md">EVENTS_WIRING.md</a> — the design doc for this exact path. Map refresher: <a class="cite" href="../reference/component-map.html">component-map.html</a>.</p>
+
+  <div class="ask"><strong>Ask me anything.</strong> Two good next moves: (a) the <strong>lib/api layer</strong> — how <code>apiFetch</code>, auth tokens, and refresh actually work (the plumbing under every trace so far); or (b) run the app and create a flare live to watch this path fire. Your call.</div>
+
+  <footer>Lesson 3 · grounded in the Sponti repo · creation is the core-loop step before the join you traced in Lesson 2.</footer>
+</main>
+
+<script>
+  document.querySelectorAll('.opts').forEach(function (group) {
+    var correct = parseInt(group.dataset.correct, 10);
+    var fb = group.nextElementSibling;
+    group.querySelectorAll('button').forEach(function (btn, i) {
+      btn.addEventListener('click', function () {
+        if (group.dataset.done) return;
+        group.dataset.done = '1';
+        if (i === correct) {
+          btn.classList.add('right');
+          fb.textContent = 'Right. Smart feature component + adapter boundary.';
+        } else {
+          btn.classList.add('wrong');
+          group.querySelectorAll('button')[correct].classList.add('right');
+          fb.textContent = 'Re-check: the highlighted answer is the one.';
+        }
+      });
+    });
+  });
+</script>
+</body>
+</html>

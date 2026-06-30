@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sponti · Learning Center</title>
+<style>
+  :root {
+    --ink: #2a2622; --muted: #6b6258; --line: #e4ddd3; --bg: #fbf8f3;
+    --peach: #e8915a; --peach-soft: #fbe9da; --card: #fff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font: 17px/1.7 "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--bg); margin: 0; padding: 3.5rem 1.25rem 5rem;
+  }
+  main { max-width: 720px; margin: 0 auto; }
+  .flame { font-size: 2rem; }
+  h1 { font-size: 2.1rem; margin: .3rem 0 .2rem; letter-spacing: -.02em; }
+  .tagline { color: var(--muted); margin: 0 0 2rem; }
+  .mission { background: var(--peach-soft); border-radius: 12px; padding: 1.1rem 1.3rem; margin: 0 0 2.5rem; font-size: .95rem; }
+  .mission b { color: #b9602b; }
+  h2 { font-size: 1.05rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 2.5rem 0 1rem; }
+  .lessons { display: grid; gap: .8rem; }
+  a.card { display: block; text-decoration: none; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.2rem; transition: .15s; }
+  a.card:hover { border-color: var(--peach); transform: translateY(-1px); }
+  a.card .n { display: inline-block; font: .72rem "SF Mono", monospace; color: var(--peach); font-weight: 700; letter-spacing: .04em; }
+  a.card .title { font-size: 1.15rem; font-weight: 600; margin: .15rem 0; letter-spacing: -.01em; }
+  a.card .blurb { color: var(--muted); font-size: .9rem; margin: 0; }
+  .refs { display: grid; gap: .6rem; }
+  a.ref { display: flex; justify-content: space-between; align-items: baseline; text-decoration: none; color: inherit; border-bottom: 1px dotted var(--line); padding: .5rem .2rem; }
+  a.ref:hover { color: var(--peach); }
+  a.ref .what { color: var(--muted); font-size: .85rem; }
+  .how { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem 1.3rem; margin-top: 1rem; font-size: .92rem; color: var(--muted); }
+  .how b { color: var(--ink); }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }
+  a { color: var(--peach); }
+</style>
+</head>
+<body>
+<main>
+  <div class="flame">🔥</div>
+  <h1>Sponti Learning Center</h1>
+  <p class="tagline">An internal, hands-on tour of the codebase — built lesson by lesson, grounded in the real files.</p>
+
+  <div class="mission">
+    <b>Why this exists.</b> Understand the Sponti codebase well enough to take it from prototype to a polished, privacy-correct tester build and on to the stores — to locate, judge, and confidently change any part, and to spot wiring/UX gaps before testers do. Each lesson is short, has one takeaway, and links to the actual code.
+  </div>
+
+  <h2>Lessons</h2>
+  <div class="lessons">
+    <a class="card" href="lessons/0001-the-component-map.html">
+      <span class="n">01 · ORIENTATION</span>
+      <div class="title">The component map</div>
+      <p class="blurb">Place any of the ~30 components into one of 6 layers — and know what each layer is allowed to do.</p>
+    </a>
+    <a class="card" href="lessons/0002-tracing-a-join.html">
+      <span class="n">02 · ONE COMPONENT, END TO END</span>
+      <div class="title">Tracing a join</div>
+      <p class="blurb">Follow joining a flare through all four layers, and see why the detail sheet holds zero business logic.</p>
+    </a>
+    <a class="card" href="lessons/0003-the-create-path.html">
+      <span class="n">03 · THE OTHER KIND OF COMPONENT</span>
+      <div class="title">The create path</div>
+      <p class="blurb">The "smart" feature component and the adapter layer that lets it talk to the backend — plus where the hide-able fluff lives.</p>
+    </a>
+    <a class="card" href="lessons/0004-backend-layering.html">
+      <span class="n">04 · CROSSING INTO THE BACKEND</span>
+      <div class="title">Backend layering</div>
+      <p class="blurb">The same join, continued through api/'s route → controller → service → model, and the rule for where logic belongs.</p>
+    </a>
+  </div>
+
+  <h2>Reference cheat-sheets</h2>
+  <div class="refs">
+    <a class="ref" href="reference/component-map.html"><span>Component map</span><span class="what">the 6 layers, every component placed</span></a>
+  </div>
+
+  <h2>How to use this</h2>
+  <div class="how">
+    <p>Go in order — each lesson builds on the last. Do the <b>retrieval quiz</b> at the bottom of each from memory; that's what makes it stick. Lessons link out to the real files on GitHub.</p>
+    <p style="margin-bottom:0">Got a question while reading? <b>Ask the team's Claude session</b> — it wrote these and knows the codebase. More lessons get added as we go.</p>
+  </div>
+
+  <footer>
+    Internal onboarding material for the Sponti team · sources of truth: <a href="https://github.com/Sponti-App/Sponti/blob/main/CLAUDE.md">CLAUDE.md</a>, <a href="https://github.com/Sponti-App/Sponti/blob/main/CONTEXT-MAP.md">CONTEXT-MAP.md</a>, <a href="https://github.com/Sponti-App/Sponti/tree/main/docs/decisions">docs/decisions/</a>.
+  </footer>
+</main>
+</body>
+</html>
