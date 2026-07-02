@@ -52,7 +52,7 @@ _Phase 0 — Understand & fix (do first; supports the internal team round, no fl
 - **Shared codebase understanding pass** — the team walks the components, the core loop, and the `lib/api` → backend wiring before changing them (the `/teach` lessons seed this).
 - **Enforce profile privacy (discovery-only contract):** `userDirectoryService` must exclude `private` users from search — it is stored-but-ignored today. Private users stay viewable by connections or via direct link.
 - Resolve the circles/users cross-service coupling per `docs/decisions/circles-and-users-are-api-owned.md`. Minimum bar: align `MONGO_URI` + `DB_NAME` across `api/` and `auth-server/` so registration-seeded default circles don't vanish.
-- **🚩 Surface attendee ETAs to the host.** The "let host know" arrival time (`memberWillArriveAt`) is collected at join and stored on `EventMember`, but is **write-only** — the host never sees it. To fix: (1) show each going attendee's ETA in the host's event view (`event-detail-sheet` "who's going" + `/event/[id]`); (2) include the ETA in the RSVP-change notification (`createEventRsvpChangeNotification` isn't passed `memberWillArriveAt` today); (3) fire a notification (or update) when a *going* member changes only their ETA — currently silent because it keys off `rsvpStatusChanged`; (4) null out `memberWillArriveAt` on `declined` so a stale arrival time doesn't linger. Signature differentiator, currently half-wired.
+- **🚩 Surface attendee ETAs to the host.** The "let host know" arrival time (`memberWillArriveAt`) is collected at join and stored on `EventMember`, but is **write-only** — the host never sees it. To fix: (1) show each going attendee's ETA in the host's event view (`event-detail-sheet` "who's going" + `/event/[id]`); (2) include the ETA in the RSVP-change notification (`createEventRsvpChangeNotification` isn't passed `memberWillArriveAt` today); (3) fire a notification (or update) when a _going_ member changes only their ETA — currently silent because it keys off `rsvpStatusChanged`; (4) null out `memberWillArriveAt` on `declined` so a stale arrival time doesn't linger. Signature differentiator, currently half-wired.
 - Wire stubbed settings to the backends that already exist: `profileVisibility` toggle and notification preferences (`GET/PATCH /notification-settings/me`); verify/hide change-password.
 - Decouple demo data from `API_BASE`; add `seedDemoData` (off). Add real empty states for map, calendar, circles.
 
@@ -167,8 +167,7 @@ Canonical reference: [BRAND.md](./BRAND.md). Read it before touching styling.
 - Recurring patterns: `border-l-[3px] border-l-accent` for live/active rows, `bg-card text-primary` for selected segmented/tab states, FAB only on map view, ended/past states muted and folded behind a "show N ended" toggle.
 - Do not fall back to stock shadcn `--accent` — we override it with the brand peach in both modes.
 
-For full tokens (light + dark oklch tables), spacing rhythm, component recipes, voice rules, and "what to avoid" — see [BRAND.md](./BRAND.md).
----
+## For full tokens (light + dark oklch tables), spacing rhythm, component recipes, voice rules, and "what to avoid" — see [BRAND.md](./BRAND.md).
 
 ## Data model note
 
@@ -221,3 +220,21 @@ Default 1:1 vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-
 ### Domain docs
 
 Multi-context — per-package `CONTEXT.md` in `spa/`, `api/`, `auth-server/`, with system-wide decisions in `docs/decisions/`. See `docs/agents/domain.md`.
+
+---
+
+## Issue investigation levels
+
+Before creating or investigating a bug, implementation, refactoring, or technical-debt issue:
+
+- follow the workflow in [Issue Tracker](docs/agents/issue-tracker.md);
+- classify the issue using the [Issue Investigation Level Classification Standard](docs/agents/issue-investigation-levels.md);
+- apply exactly one investigation-level label using the vocabulary in [Triage Labels](docs/agents/triage-labels.md);
+- record the proposed level and a concise classification reason in the issue body;
+- apply mandatory Level 3 triggers;
+- use Level 2 when uncertain;
+- select the higher level when two levels appear equally reasonable.
+
+A newly created issue is not automatically approved for implementation. Use `needs-triage` as the default workflow status during initial issue capture, and do not apply `ready-for-agent` unless readiness has been explicitly established.
+
+When investigating an issue, validate its provisional classification before completing the investigation. Replace the investigation-level label when escalation is required, and explain the reclassification in the investigation report.
