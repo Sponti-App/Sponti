@@ -56,7 +56,9 @@ Source of truth: shared vault → mirrored into each host's env settings. `*.env
 `MONGO_URI`, `DB_NAME`, `PORT`, `CLIENT_BASE_URL`, `CORS_ORIGINS`, `ACCESS_JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_ID`.
 
 **`auth-server/`:**
-`MONGO_URI`, `DB_NAME`, `PORT`, `APP_URL`, `CORS_ORIGINS`, `ACCESS_JWT_SECRET`, `REFRESH_JWT_SECRET`, `GOOGLE_CLIENT_ID`, `RESEND_API_KEY`, `EMAIL_FROM`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
+`NODE_ENV`, `PORT`, `APP_URL`, `CORS_ORIGINS`, `MONGO_URI`, `DB_NAME`, `ACCESS_JWT_SECRET`, `REFRESH_JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
+
+Optional until Google sign-in is configured: `GOOGLE_CLIENT_ID`.
 
 > **Shared database contract:** `api` and `auth-server` must use the same `MONGO_URI` and `DB_NAME`. Default-circle seeding still happens in `auth-server`, so a mismatch makes newly seeded circles invisible to `api`.
 
@@ -121,7 +123,7 @@ Both backends run `connectDB()` **before** `app.listen` (`api/src/server.ts`, `a
 | `Exited with status 134` + `FATAL ERROR: … JavaScript heap out of memory` | `auth-server` Start Command was `npm start`, whose `prestart` re-runs `tsc` at boot and OOMs the 512 MB instance | Start Command = `node dist/app.js` (run the built output; don't rebuild at start). |
 | `No open ports detected, continuing to scan…` then exit | App crashed before `app.listen` (often the OOM above, or a Mongo failure) | Read the log lines above it; match to the rows here. |
 | `MongooseServerSelectionError` / `ETIMEDOUT` | Mongo unreachable — Atlas IP allowlist missing the host | Atlas → Network Access → `0.0.0.0/0`. |
-| `Error: MONGO_URI is not defined` | `MONGO_URI` unset / misnamed on that service | Set it (copy the working value from the other service). |
+| `Invalid auth-server environment: MONGO_URI: MONGO_URI is required` / `Error: MONGO_URI is not defined` | `MONGO_URI` unset / misnamed on that service | Set it (copy the working value from the other service). |
 | `MongoParseError` | `MONGO_URI` malformed (truncated paste / unencoded chars) | Re-paste the full URI from a working service. |
 | CORS error in browser, request blocked | `CORS_ORIGINS` doesn't exactly match the SPA origin | Set `CORS_ORIGINS` = SPA origin, scheme+host, no trailing slash. |
 
