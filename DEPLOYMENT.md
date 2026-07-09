@@ -56,7 +56,9 @@ Source of truth: shared vault → mirrored into each host's env settings. `*.env
 `MONGO_URI`, `DB_NAME`, `PORT`, `CLIENT_BASE_URL`, `CORS_ORIGINS`, `ACCESS_JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_ID`.
 
 **`auth-server/`:**
-`MONGO_URI`, `PORT`, `APP_URL`, `CORS_ORIGINS`, `ACCESS_JWT_SECRET`, `REFRESH_JWT_SECRET`, `GOOGLE_CLIENT_ID`, `RESEND_API_KEY`, `EMAIL_FROM`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
+`MONGO_URI`, `DB_NAME`, `PORT`, `APP_URL`, `CORS_ORIGINS`, `ACCESS_JWT_SECRET`, `REFRESH_JWT_SECRET`, `GOOGLE_CLIENT_ID`, `RESEND_API_KEY`, `EMAIL_FROM`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
+
+> **Shared database contract:** `api` and `auth-server` must use the same `MONGO_URI` and `DB_NAME`. Default-circle seeding still happens in `auth-server`, so a mismatch makes newly seeded circles invisible to `api`.
 
 > **CORS is env-driven.** Both backends read `CORS_ORIGINS` (comma-separated) first; the `sponti-spa.vercel.app` string in code is only a dev fallback. Set `CORS_ORIGINS` in each backend's env to the SPA's public origin(s) and you never touch code. See `api/src/app.ts` (`getAllowedCorsOrigins`) and `auth-server/src/app.ts`.
 
