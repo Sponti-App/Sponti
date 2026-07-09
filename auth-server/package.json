@@ -15,6 +15,10 @@
       "development": "./src/controllers/index.ts",
       "default": "./dist/controllers/index.js"
     },
+    "#config/*": {
+      "development": "./src/config/*.ts",
+      "default": "./dist/config/*.js"
+    },
     "#db": {
       "development": "./src/db/index.ts",
       "default": "./dist/db/index.js"

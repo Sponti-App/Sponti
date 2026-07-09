@@ -18,6 +18,7 @@ import {
   verifyRefreshToken,
 } from "#lib/tokens";
 import cloudinary from "#lib/cloudinary";
+import { env } from "#config/env";
 import streamfier from "streamifier";
 
 const googleClient = new OAuth2Client();
@@ -181,7 +182,7 @@ export const login = async (req: Request, res: Response) => {
 
 export const googleLogin = async (req: Request, res: Response) => {
   const { credential } = req.body as { credential: string };
-  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientId = env.GOOGLE_CLIENT_ID;
 
   if (!clientId) {
     throw new Error("GOOGLE_CLIENT_ID is not configured", {
@@ -370,7 +371,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
   await PasswordResetToken.create({ userId: user._id, tokenHash, expiresAt });
 
-  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const appUrl = env.APP_URL;
   const resetUrl = `${appUrl}/reset-password?token=${plainToken}`;
 
   await sendPasswordResetEmail(normalizedEmail, resetUrl);
