@@ -186,7 +186,7 @@ const TYPE_KEYWORDS: { type: EventType; pattern: RegExp }[] = [
   },
 ]
 
-function inferEventType(title: string): EventType | null {
+export function inferEventType(title: string): EventType | null {
   if (!title.trim()) return null
   for (const { type, pattern } of TYPE_KEYWORDS) {
     if (pattern.test(title)) return type
@@ -196,7 +196,7 @@ function inferEventType(title: string): EventType | null {
 
 // Computes the event type that will actually be submitted: the user's manual
 // pick wins, then the title-inferred type, then "hangout" as final fallback.
-function resolveEventType(
+export function resolveEventType(
   manual: EventType | null,
   inferred: EventType | null
 ): EventType {
@@ -230,7 +230,7 @@ function formatSubmitError(error: unknown): string {
   return getErrorMessage(error)
 }
 
-function buildTimeRange(args: {
+export function buildTimeRange(args: {
   mode: Mode
   createdAt: string
   startOffsetMin: number
@@ -254,8 +254,27 @@ function buildTimeRange(args: {
   }
 }
 
+// Snap-point detents for the Google-Maps-style bottom sheet.
+// Peek: compact compose card (title + chips + CTA). Pixel value so the
+// keyboard-shrunk viewport on mobile doesn't crush it.
+// Mid:  a section chip is expanded — extra room for the accordion content.
+// Tall: "pick a time" mode — date strip + time wheels need the most room.
+const SNAP_PEEK = "380px" as const
+const SNAP_MID = 0.7 as const
+const SNAP_TALL = 0.93 as const
+const SNAP_POINTS: (number | string)[] = [SNAP_PEEK, SNAP_MID, SNAP_TALL]
+const SNAP_OVERLAY_FROM = 1
+
+export function snapFloorForState(
+  expandedSection: ExpandedSection,
+  mode: Mode,
+): string | number {
+  if (mode === "scheduled") return SNAP_TALL
+  if (expandedSection !== null) return SNAP_MID
+  return SNAP_PEEK
+}
+
 type EventDraftStateDefaults = {
-  activeSnapPoint: number | string | null
   mode: Mode
   eventType: EventType | null
   typeOverrideOpen: boolean
@@ -288,7 +307,6 @@ type EventDraftStateDefaults = {
 function getInitialEventDraftState(): EventDraftStateDefaults {
   // Keep wall-clock defaults in a factory so reset uses "today" at reset time.
   return {
-    activeSnapPoint: 0.95,
     mode: "now",
     eventType: null,
     typeOverrideOpen: false,
@@ -340,29 +358,45 @@ export function NewEventDrawer({
   const [audienceLoading, setAudienceLoading] = useState(true)
   const [audienceError, setAudienceError] = useState<string | null>(null)
 
-  // Drawer
-  // Creation is a compose task, so it opens as a full-height sheet instead of
-  // starting as a cramped peek.
   const initialEventDraftState = useMemo(() => getInitialEventDraftState(), [])
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null)
+  const [activeSnap, setActiveSnap] = useState<number | string | null>(SNAP_PEEK)
   const handleClose = onClose
+
+  const raiseToFloor = useCallback(
+    (section: ExpandedSection, currentMode: Mode) => {
+      const floor = snapFloorForState(section, currentMode)
+      setActiveSnap((prev) => {
+        if (prev === null) return floor
+        const prevIdx = SNAP_POINTS.indexOf(prev)
+        const floorIdx = SNAP_POINTS.indexOf(floor)
+        return floorIdx > prevIdx ? floor : prev
+      })
+    },
+    [],
+  )
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const pendingPublicSubmit = useRef(false)
 
-  const toggleSection = useCallback((section: "when" | "where" | "who") => {
-    setExpandedSection((prev) => (prev === section ? null : section))
-    haptic("selection")
-  }, [])
-
-  // Mode
   const [mode, setMode] = useState<Mode>(initialEventDraftState.mode)
+
+  const toggleSection = useCallback((section: "when" | "where" | "who") => {
+    setExpandedSection((prev) => {
+      const next = prev === section ? null : section
+      raiseToFloor(next, mode)
+      return next
+    })
+    haptic("selection")
+  }, [mode, raiseToFloor])
+
   const handleModeChange = (v: string) => {
     const next = v as Mode
     setMode(next)
     if (next === "scheduled") {
       setExpandedSection("when")
     }
+    raiseToFloor(next === "scheduled" ? "when" : expandedSection, next)
   }
 
   // Event type — `eventType` holds the user's MANUAL pick (null = not picked
@@ -499,6 +533,7 @@ export function NewEventDrawer({
     placesSearchRequestRef.current += 1
     placeDetailsRequestRef.current += 1
     setExpandedSection(null)
+    setActiveSnap(SNAP_PEEK)
     setMode(initialState.mode)
     setEventType(initialState.eventType)
     setTypeOverrideOpen(initialState.typeOverrideOpen)
@@ -587,6 +622,7 @@ export function NewEventDrawer({
     queueMicrotask(() => {
       setEditingCircleId(null)
       setExpandedSection(null)
+      setActiveSnap(SNAP_PEEK)
     })
   }, [open])
 
@@ -1015,6 +1051,8 @@ export function NewEventDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
 
+  const isAtPeek = activeSnap === SNAP_PEEK
+
   return (
     <Drawer.Root
       open={open}
@@ -1025,17 +1063,21 @@ export function NewEventDrawer({
           onClose()
         }
       }}
+      snapPoints={SNAP_POINTS}
+      activeSnapPoint={activeSnap}
+      setActiveSnapPoint={setActiveSnap}
+      fadeFromIndex={SNAP_OVERLAY_FROM}
+      modal={false}
+      snapToSequentialPoint
       dismissible
     >
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-40 bg-black/40" />
         <Drawer.Content
-          className={`fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-3xl border-t border-border bg-card transition-[max-height] duration-300 ease-out ${
-            expandedSection ? "max-h-[75svh]" : "max-h-[50svh]"
-          }`}
+          className="fixed inset-x-0 z-50 flex flex-col rounded-t-3xl border-t border-border bg-card"
+          style={{ bottom: "var(--sponti-nav-h, 0px)" }}
         >
-          {/* Drag handle */}
-          <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
+          <Drawer.Handle className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
           <Drawer.Title className="sr-only">light a flare</Drawer.Title>
 
           {/* Header */}
@@ -1058,15 +1100,13 @@ export function NewEventDrawer({
           {/* Scrollable compose area */}
           <div
             ref={scrollRef}
-            className="min-h-0 flex-1 overflow-y-auto px-4 pb-4"
-            data-vaul-no-drag
+            className={`min-h-0 flex-1 px-4 pb-4 ${isAtPeek ? "overflow-y-hidden" : "overflow-y-auto"}`}
           >
             {/* Title input — hero of the compose card */}
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value.slice(0, 80))}
               placeholder="what's the plan? e.g. drinks after work"
-              autoFocus
             />
             {title.length > 60 && (
               <p className="mt-1 text-right text-xs text-muted-foreground">
@@ -1261,7 +1301,7 @@ export function NewEventDrawer({
           </div>
 
           {/* CTA pinned at the bottom */}
-          <div className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+          <div className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-3">
             {submitError && (
               <p
                 className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
@@ -1651,6 +1691,7 @@ function TimeWheel({
         role="listbox"
         aria-label={ariaLabel}
         className="no-scrollbar h-full snap-y snap-mandatory overflow-y-scroll"
+        data-vaul-no-drag
       >
         <div style={{ height: PAD }} aria-hidden />
         {options.map((o, i) => {
