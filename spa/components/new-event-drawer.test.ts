@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import {
   snapFloorForState,
+  snapVisibleHeightCss,
   inferEventType,
   resolveEventType,
   buildTimeRange,
@@ -21,6 +22,29 @@ describe("snapFloorForState", () => {
     expect(snapFloorForState(null, "scheduled")).toBe(0.93)
     expect(snapFloorForState("when", "scheduled")).toBe(0.93)
     expect(snapFloorForState("where", "scheduled")).toBe(0.93)
+  })
+})
+
+describe("snapVisibleHeightCss", () => {
+  it("subtracts the nav height from pixel snap points", () => {
+    expect(snapVisibleHeightCss("380px")).toBe(
+      "calc(380px - var(--sponti-nav-h, 0px))"
+    )
+  })
+
+  it("converts fractional snap points to viewport units", () => {
+    expect(snapVisibleHeightCss(0.7)).toBe(
+      "calc(0.7 * 100vh - var(--sponti-nav-h, 0px))"
+    )
+    expect(snapVisibleHeightCss(0.93)).toBe(
+      "calc(0.93 * 100vh - var(--sponti-nav-h, 0px))"
+    )
+  })
+
+  it("falls back to peek when the active snap is null", () => {
+    expect(snapVisibleHeightCss(null)).toBe(
+      "calc(380px - var(--sponti-nav-h, 0px))"
+    )
   })
 })
 
@@ -83,8 +107,7 @@ describe("buildTimeRange", () => {
       durationMin: 60,
     })
     expect(result.startAt).toBe("2026-07-15T12:00:00.000Z")
-    const endMs =
-      new Date("2026-07-15T12:00:00.000Z").getTime() + 60 * 60_000
+    const endMs = new Date("2026-07-15T12:00:00.000Z").getTime() + 60 * 60_000
     expect(result.endAt).toBe(new Date(endMs).toISOString())
   })
 

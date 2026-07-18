@@ -267,11 +267,22 @@ const SNAP_OVERLAY_FROM = 1
 
 export function snapFloorForState(
   expandedSection: ExpandedSection,
-  mode: Mode,
+  mode: Mode
 ): string | number {
   if (mode === "scheduled") return SNAP_TALL
   if (expandedSection !== null) return SNAP_MID
   return SNAP_PEEK
+}
+
+// Visible sheet height for a snap point, measured above the bottom nav. vaul
+// translates a viewport-height sheet down by (viewport − snap), so the inner
+// card is sized to the portion that remains on screen — keeping the pinned
+// CTA visible at every detent instead of below the fold.
+export function snapVisibleHeightCss(snap: number | string | null): string {
+  if (typeof snap === "number") {
+    return `calc(${snap} * 100vh - var(--sponti-nav-h, 0px))`
+  }
+  return `calc(${snap ?? SNAP_PEEK} - var(--sponti-nav-h, 0px))`
 }
 
 type EventDraftStateDefaults = {
@@ -360,7 +371,9 @@ export function NewEventDrawer({
 
   const initialEventDraftState = useMemo(() => getInitialEventDraftState(), [])
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null)
-  const [activeSnap, setActiveSnap] = useState<number | string | null>(SNAP_PEEK)
+  const [activeSnap, setActiveSnap] = useState<number | string | null>(
+    SNAP_PEEK
+  )
   const handleClose = onClose
 
   const raiseToFloor = useCallback(
@@ -373,7 +386,7 @@ export function NewEventDrawer({
         return floorIdx > prevIdx ? floor : prev
       })
     },
-    [],
+    []
   )
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -381,14 +394,17 @@ export function NewEventDrawer({
 
   const [mode, setMode] = useState<Mode>(initialEventDraftState.mode)
 
-  const toggleSection = useCallback((section: "when" | "where" | "who") => {
-    setExpandedSection((prev) => {
-      const next = prev === section ? null : section
-      raiseToFloor(next, mode)
-      return next
-    })
-    haptic("selection")
-  }, [mode, raiseToFloor])
+  const toggleSection = useCallback(
+    (section: "when" | "where" | "who") => {
+      setExpandedSection((prev) => {
+        const next = prev === section ? null : section
+        raiseToFloor(next, mode)
+        return next
+      })
+      haptic("selection")
+    },
+    [mode, raiseToFloor]
+  )
 
   const handleModeChange = (v: string) => {
     const next = v as Mode
@@ -624,6 +640,27 @@ export function NewEventDrawer({
       setExpandedSection(null)
       setActiveSnap(SNAP_PEEK)
     })
+  }, [open])
+
+  // vaul@1.1.2 restores body pointer-events only inside its own onOpenChange,
+  // which never fires when `open` is flipped from the provider (controlled
+  // prop). Radix still applies `pointer-events: none` to <body> — and does so
+  // a commit after this effect (portal mount) — freezing the whole app behind
+  // the non-modal sheet. Watch for the lock and undo it while open.
+  useEffect(() => {
+    if (!open) return
+    const restore = () => {
+      if (document.body.style.pointerEvents === "none") {
+        document.body.style.pointerEvents = "auto"
+      }
+    }
+    restore()
+    const observer = new MutationObserver(restore)
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["style"],
+    })
+    return () => observer.disconnect()
   }, [open])
 
   useEffect(() => {
@@ -1073,318 +1110,336 @@ export function NewEventDrawer({
     >
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-40 bg-black/40" />
+        {/* vaul's snap math assumes a viewport-height sheet: it slides the
+            content down by (viewport − snap). The outer node therefore fills
+            the viewport above the nav (no height ⇒ the sheet lands entirely
+            off-screen) and is click-through — the `!` beats vaul's inline
+            pointer-events so the nav stays tappable — while the inner card
+            carries the chrome, sized to the active snap's visible portion. */}
         <Drawer.Content
-          className="fixed inset-x-0 z-50 flex flex-col rounded-t-3xl border-t border-border bg-card"
-          style={{ bottom: "var(--sponti-nav-h, 0px)" }}
+          className="pointer-events-none! fixed inset-x-0 z-50"
+          style={{
+            bottom: "var(--sponti-nav-h, 0px)",
+            height: "calc(100% - var(--sponti-nav-h, 0px))",
+          }}
         >
-          <Drawer.Handle className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
-          <Drawer.Title className="sr-only">light a flare</Drawer.Title>
-
-          {/* Header */}
-          <div className="flex shrink-0 items-center justify-between px-4 pt-2 pb-3">
-            <button
-              type="button"
-              onClick={handleClose}
-              aria-label="Close"
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-secondary"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <div className="flex items-center gap-1.5 text-lg font-semibold">
-              <Sparkles className="h-4.5 w-4.5" />
-              <span>light a flare</span>
-            </div>
-            <div className="h-9 w-9" aria-hidden />
-          </div>
-
-          {/* Scrollable compose area */}
           <div
-            ref={scrollRef}
-            className={`min-h-0 flex-1 px-4 pb-4 ${isAtPeek ? "overflow-y-hidden" : "overflow-y-auto"}`}
+            className="pointer-events-auto flex flex-col overflow-hidden rounded-t-3xl border-t border-border bg-card transition-[height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+            style={{ height: snapVisibleHeightCss(activeSnap) }}
           >
-            {/* Title input — hero of the compose card */}
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value.slice(0, 80))}
-              placeholder="what's the plan? e.g. drinks after work"
-            />
-            {title.length > 60 && (
-              <p className="mt-1 text-right text-xs text-muted-foreground">
-                {80 - title.length} left
-              </p>
-            )}
-            <TypeInlineIndicator
-              effectiveType={effectiveType}
-              manualType={eventType}
-              isInferred={eventType === null && inferredType !== null}
-              overrideOpen={typeOverrideOpen}
-              onToggleOverride={() => setTypeOverrideOpen((v) => !v)}
-              onPick={(t) => {
-                setEventType(t)
-                setTypeOverrideOpen(false)
-              }}
-              onClearManual={() => {
-                setEventType(null)
-                setTypeOverrideOpen(false)
-              }}
-              detailsExpanded={detailsExpanded}
-              onExpandDetails={() => setDetailsExpanded(true)}
-            />
-            {detailsExpanded && (
-              <>
-                <textarea
-                  value={details}
-                  onChange={(e) => setDetails(e.target.value.slice(0, 200))}
-                  placeholder="dress code, what to bring, vibe…"
-                  rows={2}
-                  autoFocus
-                  className="mt-2 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                />
-                {details.length > 160 && (
-                  <p className="mt-1 text-right text-xs text-muted-foreground">
-                    {200 - details.length} left
-                  </p>
-                )}
-              </>
-            )}
+            <Drawer.Handle className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
+            <Drawer.Title className="sr-only">light a flare</Drawer.Title>
 
-            {/* Tappable default chips — these ARE the form controls */}
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              <SectionChip
-                label={whenLabel}
-                active={expandedSection === "when"}
-                onClick={() => toggleSection("when")}
-              />
-              <SectionChip
-                label={whereLabel ?? "my location"}
-                active={expandedSection === "where"}
-                onClick={() => toggleSection("where")}
-              />
-              <SectionChip
-                label={whoLabel}
-                active={expandedSection === "who"}
-                tone={isOverLimit ? "destructive" : "default"}
-                onClick={() => toggleSection("who")}
-              />
+            {/* Header */}
+            <div className="flex shrink-0 items-center justify-between px-4 pt-2 pb-3">
+              <button
+                type="button"
+                onClick={handleClose}
+                aria-label="Close"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-secondary"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <div className="flex items-center gap-1.5 text-lg font-semibold">
+                <Sparkles className="h-4.5 w-4.5" />
+                <span>light a flare</span>
+              </div>
+              <div className="h-9 w-9" aria-hidden />
             </div>
 
-            {/* Mode toggle */}
-            <Tabs value={mode} onValueChange={handleModeChange}>
-              <TabsList className="mt-3 h-8 w-full">
-                <TabsTrigger value="now" className="text-xs">
-                  right now
-                </TabsTrigger>
-                <TabsTrigger value="scheduled" className="text-xs">
-                  pick a time
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            {/* Accordion: expanded section content */}
-            {expandedSection === "when" && (
-              <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
-                {mode === "now" ? (
-                  <>
-                    <p className="mb-2 text-xs font-medium text-muted-foreground">
-                      how long?
-                    </p>
-                    <NowDurationChips
-                      value={endOffsetMin}
-                      onChange={(v) => {
-                        setStartOffsetMin(0)
-                        setEndOffsetMin(v)
-                      }}
-                    />
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      starts now
-                      {endOffsetMin === OPEN_ENDED
-                        ? " · open-ended"
-                        : ` · ${formatRelative(endOffsetMin)}`}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="mb-2 text-xs font-medium text-muted-foreground">
-                      date
-                    </p>
-                    <DateStrip
-                      days={dateStripDays}
-                      value={startDate}
-                      onChange={setStartDate}
-                    />
-                    <p className="mt-3 mb-2 text-xs font-medium text-muted-foreground">
-                      time
-                    </p>
-                    <TimeRange
-                      startOptions={scheduledStartOptions}
-                      endOptions={scheduledEndOptions}
-                      startValue={startTimeMin}
-                      endValue={endTimeMin}
-                      onStart={handleStartTime}
-                      onEnd={setEndTimeMin}
-                    />
-                    {durationMin !== null && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        lasts {formatRelative(durationMin)}
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            {expandedSection === "where" && (
-              <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
-                <WherePicker
-                  whereType={whereType}
-                  onWhereType={handleWhereType}
-                  searchQuery={searchQuery}
-                  onSearchQuery={handleSearchQuery}
-                  pickedSearchAddress={pickedSearchAddress}
-                  selectedLocation={selectedLocation}
-                  onPickSearch={(suggestion) => {
-                    void handlePickSearch(suggestion)
-                  }}
-                  placeResults={placeResults}
-                  placesLoading={placesLoading}
-                  placeDetailsLoading={placeDetailsLoading}
-                  placeDetailsError={placeDetailsError}
-                  geoStatus={geoStatus}
-                  geoErrorMessage={geoErrorMessage}
-                />
-              </div>
-            )}
-
-            {expandedSection === "who" && (
-              <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
-                {audienceLoading && (
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    loading your circles and friends…
-                  </p>
-                )}
-                {audienceError && (
-                  <p className="mb-2 text-xs text-destructive" role="alert">
-                    {audienceError}
-                  </p>
-                )}
-                <WhoBlock
-                  isOpen={isOpen}
-                  onOpen={setIsOpen}
-                  guestLimit={guestLimit}
-                  onGuestLimit={setGuestLimit}
-                  circles={circles}
-                  audience={audience}
-                  onSelectAudience={handleSelectAudience}
-                  connections={connections}
-                  directInviteConnections={directInviteConnections}
-                  editingCircleId={editingCircleId}
-                  onStartEditingCircle={setEditingCircleId}
-                  onCloseEditingCircle={() => setEditingCircleId(null)}
-                  onAddCircleMember={updateCircleMember}
-                  onRemoveCircleMember={removeCircleMember}
-                  directlyInvitedIds={directlyInvitedIds}
-                  onToggleDirectInvite={(id) => {
-                    if (selectedAudienceMemberIdSet.has(id)) return
-                    setDirectlyInvitedIds((prev) =>
-                      prev.includes(id)
-                        ? prev.filter((x) => x !== id)
-                        : [...prev, id]
-                    )
-                  }}
-                  allowForward={allowForward}
-                  onAllowForward={setAllowForward}
-                  allowPlusOne={allowPlusOne}
-                  onAllowPlusOne={setAllowPlusOne}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* CTA pinned at the bottom */}
-          <div className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-3">
-            {submitError && (
-              <p
-                className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-                role="alert"
-              >
-                {submitError}
-              </p>
-            )}
-            {!submitError && needsAudience && (
-              <div className="mb-2 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5">
-                <p className="text-xs text-muted-foreground">
-                  no friends on sponti yet? invite them or go public so anyone
-                  nearby can join.
-                </p>
-                <div className="mt-1.5 flex gap-2">
-                  <button
-                    type="button"
-                    className="text-xs font-medium text-accent hover:underline"
-                    onClick={async () => {
-                      const url =
-                        (
-                          process.env.NEXT_PUBLIC_PUBLIC_APP_URL?.trim() || ""
-                        ).replace(/\/+$/, "") || "https://sponti.fun"
-                      const text = `join me on sponti! ${url}`
-                      try {
-                        if (navigator.share) {
-                          await navigator.share({ title: "sponti", text, url })
-                        } else {
-                          await navigator.clipboard.writeText(url)
-                          setInviteLinkCopied(true)
-                          setTimeout(() => setInviteLinkCopied(false), 1600)
-                        }
-                      } catch {
-                        /* share cancelled */
-                      }
-                    }}
-                  >
-                    {inviteLinkCopied ? (
-                      <Check className="mr-1 inline h-3 w-3" />
-                    ) : (
-                      <Share2 className="mr-1 inline h-3 w-3" />
-                    )}
-                    {inviteLinkCopied ? "copied!" : "share invite link"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled
-                    className="text-xs font-medium text-muted-foreground/50"
-                  >
-                    <UserPlus className="mr-1 inline h-3 w-3" />
-                    import contacts (soon)
-                  </button>
-                </div>
-              </div>
-            )}
-            <Button
-              onClick={() => {
-                if (needsAudience) {
-                  pendingPublicSubmit.current = true
-                  setIsOpen(true)
-                  haptic("selection")
-                  return
-                }
-                void handleSubmit()
-              }}
-              disabled={
-                isSubmitting ||
-                (!isOpen &&
-                  !needsAudience &&
-                  (audienceLoading || Boolean(audienceError))) ||
-                (whereType === "search" && placeDetailsLoading) ||
-                (whereType === "current" &&
-                  geoStatus === "requesting" &&
-                  !currentLocation)
-              }
-              className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
+            {/* Scrollable compose area */}
+            <div
+              ref={scrollRef}
+              className={`min-h-0 flex-1 px-4 pb-4 ${isAtPeek ? "overflow-y-hidden" : "overflow-y-auto"}`}
             >
-              {isSubmitting
-                ? "lighting…"
-                : needsAudience
-                  ? "make it public & go live"
-                  : "light a flare"}
-            </Button>
+              {/* Title input — hero of the compose card */}
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value.slice(0, 80))}
+                placeholder="what's the plan? e.g. drinks after work"
+              />
+              {title.length > 60 && (
+                <p className="mt-1 text-right text-xs text-muted-foreground">
+                  {80 - title.length} left
+                </p>
+              )}
+              <TypeInlineIndicator
+                effectiveType={effectiveType}
+                manualType={eventType}
+                isInferred={eventType === null && inferredType !== null}
+                overrideOpen={typeOverrideOpen}
+                onToggleOverride={() => setTypeOverrideOpen((v) => !v)}
+                onPick={(t) => {
+                  setEventType(t)
+                  setTypeOverrideOpen(false)
+                }}
+                onClearManual={() => {
+                  setEventType(null)
+                  setTypeOverrideOpen(false)
+                }}
+                detailsExpanded={detailsExpanded}
+                onExpandDetails={() => setDetailsExpanded(true)}
+              />
+              {detailsExpanded && (
+                <>
+                  <textarea
+                    value={details}
+                    onChange={(e) => setDetails(e.target.value.slice(0, 200))}
+                    placeholder="dress code, what to bring, vibe…"
+                    rows={2}
+                    autoFocus
+                    className="mt-2 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  />
+                  {details.length > 160 && (
+                    <p className="mt-1 text-right text-xs text-muted-foreground">
+                      {200 - details.length} left
+                    </p>
+                  )}
+                </>
+              )}
+
+              {/* Tappable default chips — these ARE the form controls */}
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                <SectionChip
+                  label={whenLabel}
+                  active={expandedSection === "when"}
+                  onClick={() => toggleSection("when")}
+                />
+                <SectionChip
+                  label={whereLabel ?? "my location"}
+                  active={expandedSection === "where"}
+                  onClick={() => toggleSection("where")}
+                />
+                <SectionChip
+                  label={whoLabel}
+                  active={expandedSection === "who"}
+                  tone={isOverLimit ? "destructive" : "default"}
+                  onClick={() => toggleSection("who")}
+                />
+              </div>
+
+              {/* Mode toggle */}
+              <Tabs value={mode} onValueChange={handleModeChange}>
+                <TabsList className="mt-3 h-8 w-full">
+                  <TabsTrigger value="now" className="text-xs">
+                    right now
+                  </TabsTrigger>
+                  <TabsTrigger value="scheduled" className="text-xs">
+                    pick a time
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              {/* Accordion: expanded section content */}
+              {expandedSection === "when" && (
+                <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
+                  {mode === "now" ? (
+                    <>
+                      <p className="mb-2 text-xs font-medium text-muted-foreground">
+                        how long?
+                      </p>
+                      <NowDurationChips
+                        value={endOffsetMin}
+                        onChange={(v) => {
+                          setStartOffsetMin(0)
+                          setEndOffsetMin(v)
+                        }}
+                      />
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        starts now
+                        {endOffsetMin === OPEN_ENDED
+                          ? " · open-ended"
+                          : ` · ${formatRelative(endOffsetMin)}`}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mb-2 text-xs font-medium text-muted-foreground">
+                        date
+                      </p>
+                      <DateStrip
+                        days={dateStripDays}
+                        value={startDate}
+                        onChange={setStartDate}
+                      />
+                      <p className="mt-3 mb-2 text-xs font-medium text-muted-foreground">
+                        time
+                      </p>
+                      <TimeRange
+                        startOptions={scheduledStartOptions}
+                        endOptions={scheduledEndOptions}
+                        startValue={startTimeMin}
+                        endValue={endTimeMin}
+                        onStart={handleStartTime}
+                        onEnd={setEndTimeMin}
+                      />
+                      {durationMin !== null && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          lasts {formatRelative(durationMin)}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {expandedSection === "where" && (
+                <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
+                  <WherePicker
+                    whereType={whereType}
+                    onWhereType={handleWhereType}
+                    searchQuery={searchQuery}
+                    onSearchQuery={handleSearchQuery}
+                    pickedSearchAddress={pickedSearchAddress}
+                    selectedLocation={selectedLocation}
+                    onPickSearch={(suggestion) => {
+                      void handlePickSearch(suggestion)
+                    }}
+                    placeResults={placeResults}
+                    placesLoading={placesLoading}
+                    placeDetailsLoading={placeDetailsLoading}
+                    placeDetailsError={placeDetailsError}
+                    geoStatus={geoStatus}
+                    geoErrorMessage={geoErrorMessage}
+                  />
+                </div>
+              )}
+
+              {expandedSection === "who" && (
+                <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
+                  {audienceLoading && (
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      loading your circles and friends…
+                    </p>
+                  )}
+                  {audienceError && (
+                    <p className="mb-2 text-xs text-destructive" role="alert">
+                      {audienceError}
+                    </p>
+                  )}
+                  <WhoBlock
+                    isOpen={isOpen}
+                    onOpen={setIsOpen}
+                    guestLimit={guestLimit}
+                    onGuestLimit={setGuestLimit}
+                    circles={circles}
+                    audience={audience}
+                    onSelectAudience={handleSelectAudience}
+                    connections={connections}
+                    directInviteConnections={directInviteConnections}
+                    editingCircleId={editingCircleId}
+                    onStartEditingCircle={setEditingCircleId}
+                    onCloseEditingCircle={() => setEditingCircleId(null)}
+                    onAddCircleMember={updateCircleMember}
+                    onRemoveCircleMember={removeCircleMember}
+                    directlyInvitedIds={directlyInvitedIds}
+                    onToggleDirectInvite={(id) => {
+                      if (selectedAudienceMemberIdSet.has(id)) return
+                      setDirectlyInvitedIds((prev) =>
+                        prev.includes(id)
+                          ? prev.filter((x) => x !== id)
+                          : [...prev, id]
+                      )
+                    }}
+                    allowForward={allowForward}
+                    onAllowForward={setAllowForward}
+                    allowPlusOne={allowPlusOne}
+                    onAllowPlusOne={setAllowPlusOne}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* CTA pinned at the bottom */}
+            <div className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-3">
+              {submitError && (
+                <p
+                  className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                  role="alert"
+                >
+                  {submitError}
+                </p>
+              )}
+              {!submitError && needsAudience && (
+                <div className="mb-2 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5">
+                  <p className="text-xs text-muted-foreground">
+                    no friends on sponti yet? invite them or go public so anyone
+                    nearby can join.
+                  </p>
+                  <div className="mt-1.5 flex gap-2">
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-accent hover:underline"
+                      onClick={async () => {
+                        const url =
+                          (
+                            process.env.NEXT_PUBLIC_PUBLIC_APP_URL?.trim() || ""
+                          ).replace(/\/+$/, "") || "https://sponti.fun"
+                        const text = `join me on sponti! ${url}`
+                        try {
+                          if (navigator.share) {
+                            await navigator.share({
+                              title: "sponti",
+                              text,
+                              url,
+                            })
+                          } else {
+                            await navigator.clipboard.writeText(url)
+                            setInviteLinkCopied(true)
+                            setTimeout(() => setInviteLinkCopied(false), 1600)
+                          }
+                        } catch {
+                          /* share cancelled */
+                        }
+                      }}
+                    >
+                      {inviteLinkCopied ? (
+                        <Check className="mr-1 inline h-3 w-3" />
+                      ) : (
+                        <Share2 className="mr-1 inline h-3 w-3" />
+                      )}
+                      {inviteLinkCopied ? "copied!" : "share invite link"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled
+                      className="text-xs font-medium text-muted-foreground/50"
+                    >
+                      <UserPlus className="mr-1 inline h-3 w-3" />
+                      import contacts (soon)
+                    </button>
+                  </div>
+                </div>
+              )}
+              <Button
+                onClick={() => {
+                  if (needsAudience) {
+                    pendingPublicSubmit.current = true
+                    setIsOpen(true)
+                    haptic("selection")
+                    return
+                  }
+                  void handleSubmit()
+                }}
+                disabled={
+                  isSubmitting ||
+                  (!isOpen &&
+                    !needsAudience &&
+                    (audienceLoading || Boolean(audienceError))) ||
+                  (whereType === "search" && placeDetailsLoading) ||
+                  (whereType === "current" &&
+                    geoStatus === "requesting" &&
+                    !currentLocation)
+                }
+                className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
+              >
+                {isSubmitting
+                  ? "lighting…"
+                  : needsAudience
+                    ? "make it public & go live"
+                    : "light a flare"}
+              </Button>
+            </div>
           </div>
         </Drawer.Content>
       </Drawer.Portal>
@@ -2510,8 +2565,6 @@ function Stepper({
 }
 
 // ----- Shared primitives -----
-
-
 
 function Chip({
   selected,

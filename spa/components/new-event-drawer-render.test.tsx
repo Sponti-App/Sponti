@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
@@ -58,11 +58,14 @@ import { NewEventDrawer } from "./new-event-drawer"
 describe("NewEventDrawer render", () => {
   it("renders title and CTA when open", () => {
     render(<NewEventDrawer open onClose={vi.fn()} />)
-    expect(screen.getAllByText("light a flare").length).toBeGreaterThanOrEqual(1)
-    expect(
-      screen.getByPlaceholderText(/what's the plan/i),
-    ).toBeInTheDocument()
-    expect(screen.getByRole("dialog")).toHaveAttribute("data-vaul-snap-points", "true")
+    expect(screen.getAllByText("light a flare").length).toBeGreaterThanOrEqual(
+      1
+    )
+    expect(screen.getByPlaceholderText(/what's the plan/i)).toBeInTheDocument()
+    expect(screen.getByRole("dialog")).toHaveAttribute(
+      "data-vaul-snap-points",
+      "true"
+    )
   })
 
   it("renders mode toggle tabs", () => {
@@ -75,5 +78,24 @@ describe("NewEventDrawer render", () => {
     render(<NewEventDrawer open onClose={vi.fn()} />)
     const input = screen.getByPlaceholderText(/what's the plan/i)
     expect(input).not.toHaveFocus()
+  })
+
+  // vaul slides the sheet down by (viewport − snap); without an explicit
+  // viewport-filling height the sheet lands entirely below the viewport.
+  // Geometry itself needs a real browser — this locks in the height contract.
+  it("sizes the sheet to the viewport above the nav", () => {
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+    expect(screen.getByRole("dialog").style.height).toBe(
+      "calc(100% - var(--sponti-nav-h, 0px))"
+    )
+  })
+
+  // Radix locks <body> pointer-events on mount and vaul's non-modal cleanup
+  // never fires for controlled opens — the whole app freezes behind the sheet.
+  it("keeps body pointer-events interactive while open (non-modal)", async () => {
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+    await waitFor(() =>
+      expect(document.body.style.pointerEvents).not.toBe("none")
+    )
   })
 })
