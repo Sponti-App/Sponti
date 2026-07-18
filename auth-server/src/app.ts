@@ -3,6 +3,7 @@ import cors from "cors";
 import { authRoutes } from "#routes";
 import { errorHandler, notFoundHandler } from "#middleware";
 import { connectDB } from "#db";
+import { env } from "#config/env";
 
 const app = express();
 
@@ -15,8 +16,8 @@ const defaultOrigins = [
     "capacitor://localhost",
     "ionic://localhost",
 ];
-const allowedOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
+const allowedOrigins = env.CORS_ORIGINS
+    ? env.CORS_ORIGINS.split(",").map((o) => o.trim())
     : defaultOrigins;
 
 app.use(
@@ -38,9 +39,8 @@ app.get("/health", (req, res) => {
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-const PORT = Number(process.env.PORT) || 3001;
 await connectDB();
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+app.listen(env.PORT, () => {
+    console.log(`Server is running on port ${env.PORT}`);
 });

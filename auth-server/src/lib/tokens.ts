@@ -1,37 +1,18 @@
 import bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
 import jwt, { type JwtPayload } from "jsonwebtoken";
-
-const getAccessSecret = () => {
-    const secret = process.env.ACCESS_JWT_SECRET;
-
-    if (!secret) {
-        throw new Error("ACCESS_JWT_SECRET is not configured", { cause: { status: 500 } });
-    }
-
-    return secret;
-};
-
-const getRefreshSecret = () => {
-    const secret = process.env.REFRESH_JWT_SECRET;
-
-    if (!secret) {
-        throw new Error("REFRESH_JWT_SECRET is not configured", { cause: { status: 500 } });
-    }
-
-    return secret;
-};
+import { env } from "#config/env";
 
 export const createAccessToken = (userId: string) =>
-    jwt.sign({ userId }, getAccessSecret(), { expiresIn: "15m" });
+    jwt.sign({ userId }, env.ACCESS_JWT_SECRET, { expiresIn: "15m" });
 
 export const createRefreshToken = (userId: string) =>
-    jwt.sign({ userId }, getRefreshSecret(), { expiresIn: "7d", jwtid: randomUUID() });
+    jwt.sign({ userId }, env.REFRESH_JWT_SECRET, { expiresIn: "7d", jwtid: randomUUID() });
 
 export const verifyAccessToken = (token: string) =>
-    jwt.verify(token, getAccessSecret()) as JwtPayload & { userId: string };
+    jwt.verify(token, env.ACCESS_JWT_SECRET) as JwtPayload & { userId: string };
 
 export const verifyRefreshToken = (token: string) =>
-    jwt.verify(token, getRefreshSecret()) as JwtPayload & { userId: string };
+    jwt.verify(token, env.REFRESH_JWT_SECRET) as JwtPayload & { userId: string };
 
 export const hashRefreshToken = (token: string) => bcrypt.hash(token, 10);

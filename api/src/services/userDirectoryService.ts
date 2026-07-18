@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { Connection } from "#models/index";
 import { AppError } from "#utils/AppError";
 import { toObjectId } from "#utils/objectId";
 import { getBlockedRelationshipUserIds } from "#services/blockService";
@@ -62,15 +63,43 @@ export const getUsersByIds = async (userIds: string[]) => {
   return result;
 };
 
+const getAcceptedConnectionIds = async (userId: string) => {
+  const userObjectId = toObjectId(userId);
+  const connections = await Connection.find({
+    $or: [{ requesterId: userObjectId }, { receiverId: userObjectId }],
+    status: "accepted",
+  })
+    .select("requesterId receiverId")
+    .lean();
+
+  return connections.map((c) => {
+    const rid = c.requesterId.toString();
+    return rid === userId ? c.receiverId : c.requesterId;
+  });
+};
+
 export const searchUsers = async (requesterId: string, query: SearchUsersQuery) => {
-  const blockedIds = await getBlockedRelationshipUserIds(requesterId);
+  const [blockedIds, connectedIds] = await Promise.all([
+    getBlockedRelationshipUserIds(requesterId),
+    getAcceptedConnectionIds(requesterId),
+  ]);
   const excludedIds = [requesterId, ...blockedIds].map(toObjectId);
   const regex = new RegExp(escapeRegex(query.q), "i");
+  const isExactUsername = /^[a-zA-Z0-9._-]+$/.test(query.q);
 
   const users = await getUsersCollection()
     .find({
       _id: { $nin: excludedIds },
       $or: [{ username: regex }, { displayName: regex }],
+      $and: [
+        {
+          $or: [
+            { profileVisibility: { $ne: "private" } },
+            { _id: { $in: connectedIds } },
+            ...(isExactUsername ? [{ username: new RegExp(`^${escapeRegex(query.q)}$`, "i") }] : []),
+          ],
+        },
+      ],
     })
     .project(userProjection)
     .limit(query.limit)

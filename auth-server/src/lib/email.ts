@@ -1,8 +1,9 @@
 import { Resend } from "resend";
+import { env } from "#config/env";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(env.RESEND_API_KEY);
 
-const FROM_ADDRESS = process.env.EMAIL_FROM ?? "Sponti <noreply@sponti.app>";
+const FROM_ADDRESS = env.EMAIL_FROM;
 
 export const sendPasswordResetEmail = async (to: string, resetUrl: string) => {
     const { error } = await resend.emails.send({

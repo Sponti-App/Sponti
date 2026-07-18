@@ -172,6 +172,14 @@ sponti/
 
 ### Run locally
 
+Run all three services together (after `npm install` in each of `spa/`, `api/`, and `auth-server/`):
+
+```bash
+./scripts/dev.sh
+```
+
+Or start each individually:
+
 ```bash
 # Frontend
 cd spa
@@ -186,7 +194,7 @@ npm run dev              # → localhost:4000
 # Auth server
 cd auth-server
 npm install
-npm run dev              # → localhost:5000
+npm run dev              # → localhost:3001 (default; this repo's .env sets PORT=3002)
 ```
 
 ### Mobile (Capacitor)

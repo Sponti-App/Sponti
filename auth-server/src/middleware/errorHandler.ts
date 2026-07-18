@@ -1,4 +1,5 @@
 import type { ErrorRequestHandler } from "express";
+import { env } from "#config/env";
 
 type ErrorPayload = {
     message: string;
@@ -10,7 +11,7 @@ type ErrorCause = {
 };
 
 const handler: ErrorRequestHandler = (err, _req, res, _next) => {
-    if (process.env.NODE_ENV !== "production") {
+    if (env.NODE_ENV !== "production") {
         console.log(`\x1b[31m${err.stack}\x1b[0m`);
     }
 

@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lesson 1 · The Component Map</title>
+<style>
+  :root {
+    --ink: #2a2622; --muted: #6b6258; --line: #e4ddd3; --bg: #fbf8f3;
+    --peach: #e8915a; --peach-soft: #fbe9da; --card: #fff; --ok: #4a8a5c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font: 17px/1.7 "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--bg); margin: 0; padding: 3rem 1.25rem 5rem;
+  }
+  main { max-width: 680px; margin: 0 auto; }
+  .kicker { color: var(--peach); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; margin: 0 0 .3rem; }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; letter-spacing: -.02em; }
+  .win { background: var(--peach-soft); border-radius: 10px; padding: .85rem 1.1rem; font-size: .95rem; margin: 1.5rem 0 2rem; }
+  .win b { color: #b9602b; }
+  h2 { font-size: 1.2rem; margin: 2.2rem 0 .5rem; letter-spacing: -.01em; }
+  p { margin: .7rem 0; }
+  code { font: .85em "SF Mono", ui-monospace, Menlo, monospace; background: #f1ece4; padding: .08em .35em; border-radius: 4px; }
+  .stack { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font: .85rem/1.9 "SF Mono", ui-monospace, Menlo, monospace; overflow-x: auto; }
+  .stack .layer { color: var(--peach); font-weight: 700; }
+  .stack .dim { color: var(--muted); }
+  ol.layers { counter-reset: l; list-style: none; padding: 0; }
+  ol.layers > li { position: relative; padding: .5rem 0 .5rem 2.4rem; border-bottom: 1px solid var(--line); }
+  ol.layers > li::before { counter-increment: l; content: counter(l); position: absolute; left: 0; top: .55rem; width: 1.6rem; height: 1.6rem; background: var(--peach); color: #fff; border-radius: 50%; display: grid; place-items: center; font-size: .85rem; font-weight: 700; }
+  ol.layers b { display: block; }
+  ol.layers span { color: var(--muted); font-size: .9rem; }
+  blockquote { border-left: 3px solid var(--peach); margin: 1.4rem 0; padding: .3rem 0 .3rem 1rem; color: var(--ink); }
+  blockquote cite { display: block; color: var(--muted); font-size: .82rem; font-style: normal; margin-top: .3rem; }
+  .quiz { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1.2rem 1.4rem; margin: 1.4rem 0; }
+  .quiz h3 { margin: 0 0 .2rem; font-size: 1rem; }
+  .q { margin: 1rem 0 .3rem; font-weight: 600; }
+  .opts button { display: block; width: 100%; text-align: left; margin: .3rem 0; padding: .55rem .8rem; border: 1px solid var(--line); background: #fcfaf6; border-radius: 8px; font: inherit; font-size: .92rem; cursor: pointer; transition: .15s; }
+  .opts button:hover { border-color: var(--peach); }
+  .opts button.right { border-color: var(--ok); background: #eaf5ec; color: var(--ok); font-weight: 600; }
+  .opts button.wrong { border-color: #c9523f; background: #f8e8e4; color: #c9523f; }
+  .feedback { font-size: .88rem; color: var(--muted); margin-top: .5rem; min-height: 1.2em; }
+  .cite { color: var(--peach); text-decoration: none; border-bottom: 1px solid var(--peach-soft); }
+  .ask { background: var(--peach-soft); border-radius: 10px; padding: .9rem 1.1rem; font-size: .92rem; margin-top: 2.5rem; }
+  footer { margin-top: 2rem; color: var(--muted); font-size: .82rem; }
+  a { color: var(--peach); }
+</style>
+</head>
+<body>
+<main><p style="margin:0 0 1.2rem"><a href="../index.html" style="color:#e8915a;text-decoration:none;font-size:.85rem">&larr; learning center</a></p>
+  <p class="kicker">Lesson 1 · Orientation</p>
+  <h1>The component map</h1>
+
+  <div class="win"><b>Your win:</b> by the end you can take any of Sponti's ~30 components and drop it into one of <b>6 layers</b> — and know what that layer is allowed to do.</div>
+
+  <p>Sponti's whole UI lives in <a class="cite" href="https://github.com/Sponti-App/Sponti/tree/main/spa/components/">spa/components/</a>. Thirty files in one flat folder looks like a pile. It isn't — there's a hidden hierarchy. The trick to reading any React app fast is to stop seeing files and start seeing <em>layers</em>.</p>
+
+  <h2>The spine: how a page gets wrapped</h2>
+  <p>Every page is wrapped by a stack of providers and one shell, defined once in <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/spa/app/layout.tsx">app/layout.tsx</a>. This is the skeleton everything else hangs on:</p>
+
+  <div class="stack"><span class="layer">ThemeProvider</span>            <span class="dim">— light / dark</span>
+  <span class="layer">AuthProvider</span>          <span class="dim">— who am I, am I logged in</span>
+    <span class="layer">AuthGate</span>          <span class="dim">— redirect if not authed</span>
+      <span class="layer">ActionFeedbackProvider</span>   <span class="dim">— "flare created ✓" toasts</span>
+        <span class="layer">NewEventDrawerProvider</span> <span class="dim">— the global create-flare drawer</span>
+          <span class="layer">AuthenticatedAppShell</span> <span class="dim">— bottom nav + notifications</span>
+            { page }      <span class="dim">— the actual screen</span></div>
+
+  <p>Read it top-to-bottom as "things that must be true before the page renders." Theme, then identity, then the gate, then app-wide UI affordances, then the page itself.</p>
+
+  <h2>The 6 layers</h2>
+  <ol class="layers">
+    <li><b>Providers</b><span>Cross-cutting context. The four above. If state must be readable from anywhere, it lives here.</span></li>
+    <li><b>Shell / chrome</b><span>The frame around every page — <code>authenticated-app-shell</code>, <code>bottom-nav</code>, <code>notifications-popover</code>, the menu, auth frames. Rendered once.</span></li>
+    <li><b>Views</b><span>The two home surfaces of a flare: <code>map-view</code> (now) and <code>calendar-view</code> (upcoming). Same object, filtered by timing.</span></li>
+    <li><b>Event (flare) domain</b><span>Create/view/manage a flare: <code>new-event-drawer</code>, <code>event-detail-sheet</code>, host card, avatar stack, cancel/recurring modals.</span></li>
+    <li><b>Identity &amp; social</b><span>People and sharing: avatars, <code>menu-profile</code>, <code>circle-stack-icon</code>, <code>qr-share-sheet</code>, <code>google-auth-button</code>.</span></li>
+    <li><b>UI primitives</b><span><code>components/ui/*</code> — shadcn + Radix atoms (button, input, tabs, drawer…). Dumb, reusable, no business logic.</span></li>
+  </ol>
+
+  <h2>The one rule that explains the shape</h2>
+  <p>Why is the bottom nav in the shell and not on each page? Because the notification badge is <em>app-level</em> state. A real decision was made and written down:</p>
+  <blockquote>
+    Authenticated app chrome is owned by <code>AuthenticatedAppShell</code>. <code>BottomNav</code>, the unread badge, and <code>NotificationsPopover</code> are rendered once at the shell level instead of by individual pages.
+    <cite>— docs/decisions/app-shell-owns-bottom-nav.md</cite>
+  </blockquote>
+  <p>The shell even knows which routes should <em>hide</em> the chrome — <code>hidesAuthenticatedChrome()</code> strips it on auth pages, <code>/event/new</code>, and <code>/qr/*</code>. That's your first wiring instinct: chrome is a shell concern, never a page concern.</p>
+
+  <div class="quiz">
+    <h3>Retrieval practice</h3>
+    <p style="color:var(--muted);font-size:.85rem;margin:.2rem 0 0">Don't scroll up. Pull it from memory — that's what makes it stick.</p>
+
+    <p class="q">1. A new <code>event-detail-sheet</code> needs a styled toggle. Which layer should the toggle itself come from?</p>
+    <div class="opts" data-correct="1">
+      <button>The event flare domain layer code</button>
+      <button>The reusable UI primitives layer</button>
+      <button>The cross-cutting context provider</button>
+    </div>
+    <div class="feedback"></div>
+
+    <p class="q">2. Where is the bottom navigation bar rendered for every page?</p>
+    <div class="opts" data-correct="2">
+      <button>Inside each individual page file</button>
+      <button>Within the map and calendar</button>
+      <button>Once inside the app shell</button>
+    </div>
+    <div class="feedback"></div>
+
+    <p class="q">3. The map view and calendar view mostly show the same underlying thing. What is it?</p>
+    <div class="opts" data-correct="0">
+      <button>One flare, filtered by timing</button>
+      <button>Two distinct event record types</button>
+      <button>Cached copies of stale data</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Keep going</h2>
+  <p>Primary source to skim next (5 min): <a class="cite" href="https://github.com/Sponti-App/Sponti/blob/main/spa/components/authenticated-app-shell.tsx">authenticated-app-shell.tsx</a> — it's short and shows layers 1, 2, and the hide rule in one file. Lasting cheat-sheet: <a class="cite" href="../reference/component-map.html">reference/component-map.html</a>.</p>
+
+  <div class="ask"><strong>I'm your teacher — ask me anything.</strong> Stuck on why a component sits where it does, or want to see one rendered live? Just ask. Next lesson drills into <strong>one</strong> high-traffic component end-to-end — likely <code>event-detail-sheet</code> (the join/RSVP screen, straight from the core loop).</div>
+
+  <footer>Lesson 1 of an ongoing series · grounded in the Sponti repo, not generic React.</footer>
+</main>
+
+<script>
+  document.querySelectorAll('.opts').forEach(function (group) {
+    var correct = parseInt(group.dataset.correct, 10);
+    var fb = group.nextElementSibling;
+    group.querySelectorAll('button').forEach(function (btn, i) {
+      btn.addEventListener('click', function () {
+        if (group.dataset.done) return;
+        group.dataset.done = '1';
+        if (i === correct) {
+          btn.classList.add('right');
+          fb.textContent = 'Right. That layer separation is the whole mental model.';
+        } else {
+          btn.classList.add('wrong');
+          group.querySelectorAll('button')[correct].classList.add('right');
+          fb.textContent = 'Not quite — the highlighted answer is the one. Re-place it in your head.';
+        }
+      });
+    });
+  });
+</script>
+</body>
+</html>
