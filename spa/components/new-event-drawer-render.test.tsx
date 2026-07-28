@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
@@ -83,19 +83,33 @@ describe("NewEventDrawer render", () => {
   // vaul slides the sheet down by (viewport − snap); without an explicit
   // viewport-filling height the sheet lands entirely below the viewport.
   // Geometry itself needs a real browser — this locks in the height contract.
-  it("sizes the sheet to the viewport above the nav", () => {
+  //
+  // Regression guard for issue #94: vaul rewrites this node's inline
+  // `height`/`bottom` in px when the software keyboard opens, so the contract
+  // has to be expressed in classes it can safely clobber (bottom:0, h-full)
+  // rather than an inline offset it silently destroys.
+  it("anchors the sheet to the bottom at full viewport height", () => {
     render(<NewEventDrawer open onClose={vi.fn()} />)
-    expect(screen.getByRole("dialog").style.height).toBe(
-      "calc(100% - var(--sponti-nav-h, 0px))"
-    )
+    const dialog = screen.getByRole("dialog")
+    expect(dialog.className).toContain("bottom-0")
+    expect(dialog.className).toContain("h-full")
+    expect(dialog.style.height).toBe("")
+    expect(dialog.style.bottom).toBe("")
   })
 
-  // Radix locks <body> pointer-events on mount and vaul's non-modal cleanup
-  // never fires for controlled opens — the whole app freezes behind the sheet.
-  it("keeps body pointer-events interactive while open (non-modal)", async () => {
+  // The sheet must stay modal: vaul disables its entire iOS keyboard handling
+  // when `modal` is false (usePreventScroll's isDisabled includes `!modal`),
+  // which is what let Safari scroll the page out from under the fixed sheet in
+  // issue #94. An inert background is the cost, and the point.
+  //
+  // NB: the matching "…and is released on close" assertion is not testable
+  // here. Radix keeps the layer mounted until the exit animation ends, and
+  // jsdom mis-resolves vaul's attribute-selector CSS — it reports the
+  // `[data-vaul-snap-points=false]` close animation that never applies to a
+  // snap-point drawer in a real browser — so Presence never completes.
+  // Verified on device instead; see the PR checklist.
+  it("makes the background inert while open", () => {
     render(<NewEventDrawer open onClose={vi.fn()} />)
-    await waitFor(() =>
-      expect(document.body.style.pointerEvents).not.toBe("none")
-    )
+    expect(document.body.style.pointerEvents).toBe("none")
   })
 })
