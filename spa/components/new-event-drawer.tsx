@@ -5,8 +5,9 @@ import { Drawer } from "vaul"
 import { haptic } from "@/lib/haptics"
 import {
   VIEWPORT_HEIGHT_VAR,
-  useViewportHeightVar,
-} from "@/lib/use-viewport-height"
+  useViewportMetrics,
+  KEYBOARD_INSET_VAR,
+} from "@/lib/use-viewport-metrics"
 import { useSheetVisibleHeight } from "@/lib/use-sheet-visible-height"
 import {
   Check,
@@ -285,7 +286,7 @@ export function snapFloorForState(
 // instead of below the fold.
 //
 // The basis is --sponti-vvh (window.innerHeight, published by
-// useViewportHeightVar), NOT `vh`: on iOS Safari `100vh` is the large viewport
+// useViewportMetrics), NOT `vh`: on iOS Safari `100vh` is the large viewport
 // and overshoots vaul's own math by the height of the browser toolbar, which
 // is what pushed the CTA off screen in issue #94.
 export function snapVisibleHeightCss(snap: number | string | null): string {
@@ -293,6 +294,25 @@ export function snapVisibleHeightCss(snap: number | string | null): string {
     return `calc(${snap} * var(${VIEWPORT_HEIGHT_VAR}, 100vh))`
   }
   return `${snap ?? SNAP_PEEK}`
+}
+
+// How far to lift the sheet off the bottom of the viewport so the software
+// keyboard doesn't cover it.
+//
+// vaul pins the card's top edge at (viewport − snap) via its transform, so
+// lifting by B puts the top at (viewport − snap − B) and the bottom at
+// (viewport − B). We want the card resting on the keyboard, i.e. bottom at
+// (viewport − keyboard) — which wants B = keyboard — but only for as long as
+// that keeps the top edge on screen. Past that the sheet has run out of room:
+// it stops at the top of the viewport and useSheetVisibleHeight trims its
+// height to the space that's left, rather than sliding the header off the top.
+//
+// min() picks whichever limit binds. With no keyboard the inset is 0 and the
+// sheet sits flush on the bottom edge, exactly as before.
+export function sheetBottomCss(snap: number | string | null): string {
+  const size = snapVisibleHeightCss(snap)
+  const room = `calc(var(${VIEWPORT_HEIGHT_VAR}, 100vh) - ${size})`
+  return `min(var(${KEYBOARD_INSET_VAR}, 0px), ${room})`
 }
 
 type EventDraftStateDefaults = {
@@ -367,8 +387,9 @@ export function NewEventDrawer({
 }) {
   const { user, status } = useAuth()
   const { showActionFeedback } = useActionFeedback()
-  // Keeps --sponti-vvh in step with the viewport height vaul snaps against.
-  useViewportHeightVar()
+  // Keeps --sponti-vvh in step with the viewport height vaul snaps against,
+  // and --sponti-kb-inset in step with the software keyboard.
+  useViewportMetrics()
   const hostName = user?.displayName?.trim() || "you"
   const {
     coords: geoCoords,
@@ -1119,6 +1140,17 @@ export function NewEventDrawer({
       modal
       snapToSequentialPoint
       dismissible
+      // vaul's keyboard repositioning is wrong for a snapped drawer and is what
+      // made the sheet vanish in issue #94. Its handler measures the sheet's
+      // *transformed* rect, so for a viewport-height sheet translated down to
+      // its snap point it computes a height of (visual viewport − snap offset)
+      // — tens of px — and then a `bottom` that pushes that sliver below the
+      // fold entirely. It also skips its own snap correction at the peek
+      // detent, because the guard tests `activeSnapPointIndex` for truthiness
+      // and peek is index 0. useViewportMetrics + sheetBottomCss do the lift
+      // instead. The scroll lock is unaffected: that comes from Radix's
+      // RemoveScroll under Dialog.Content, not from this flag.
+      repositionInputs={false}
     >
       <Drawer.Portal>
         {/* Ladder: map sheet 50 < nav 40 … compose 60/61 … toast 70. The map's
@@ -1128,19 +1160,20 @@ export function NewEventDrawer({
             emit here (verified against the built CSS), `z-[61]` always does. */}
         <Drawer.Overlay className="fixed inset-0 z-[60] bg-black/40" />
         {/* vaul's snap math assumes a bottom-anchored, viewport-height sheet:
-            it slides the content down by (viewport − snap), and rewrites this
-            node's inline `height`/`bottom` in px when the software keyboard
-            opens. So the geometry here must be exactly what vaul expects —
-            bottom:0, full height, expressed as classes it can safely override.
-            Overriding those with a custom offset is what broke the sheet once
-            the keyboard had been opened (issue #94). The inner card carries the
-            chrome, and useSheetVisibleHeight measures it onto the slot that is
-            actually on screen — the snap point alone is not that slot once the
-            keyboard is up. The CSS height below is only the first-paint value,
-            before the first measurement lands. */}
+            it slides the content down by (viewport − snap). Height stays full
+            and keyboard-independent so that transform keeps landing where vaul
+            intends; `bottom` alone absorbs the keyboard. vaul no longer writes
+            either of them (see repositionInputs above), so an inline offset is
+            safe here now — it is exactly what the old code could not do. The
+            inner card carries the chrome, and useSheetVisibleHeight measures it
+            onto the slot that is actually on screen: once the sheet is lifted
+            as far as it can go, the remaining shortfall comes off the card's
+            height. The CSS height below is only the first-paint value, before
+            the first measurement lands. */}
         <Drawer.Content
           ref={sheetRef}
-          className="fixed inset-x-0 bottom-0 z-[61] h-full"
+          className="fixed inset-x-0 z-[61] h-full"
+          style={{ bottom: sheetBottomCss(activeSnap) }}
         >
           <div
             ref={cardRef}
