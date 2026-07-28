@@ -9,6 +9,7 @@ import {
   KEYBOARD_INSET_VAR,
 } from "@/lib/use-viewport-metrics"
 import { useSheetVisibleHeight } from "@/lib/use-sheet-visible-height"
+import { useFocusedFieldVisible } from "@/lib/use-focused-field-visible"
 import {
   Check,
   MapPin,
@@ -425,6 +426,9 @@ export function NewEventDrawer({
   const sheetRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   useSheetVisibleHeight(sheetRef, cardRef, open)
+  // The keyboard shrinks the card to whatever clears it; keep the field the
+  // user is typing in inside that slot rather than above it.
+  useFocusedFieldVisible(scrollRef, open)
   const pendingPublicSubmit = useRef(false)
 
   const [mode, setMode] = useState<Mode>(initialEventDraftState.mode)
