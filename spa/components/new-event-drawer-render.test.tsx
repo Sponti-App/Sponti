@@ -117,18 +117,21 @@ describe("NewEventDrawer render", () => {
   // The sheet used to only ever grow: expanding "how long?" raised it to mid
   // and collapsing it again left a tall sheet with a dead gap under the
   // controls. Tapping a chip should size the sheet to what that state needs.
+  // Probed via data-snap rather than the rendered height: the card's height is
+  // measured onto the on-screen slot at frame rate (useSheetVisibleHeight), so
+  // the inline style is only a first-paint fallback and not the live value.
   it("returns to peek when an expanded section is collapsed", async () => {
     const user = userEvent.setup()
     render(<NewEventDrawer open onClose={vi.fn()} />)
     const card = screen.getByRole("dialog").firstElementChild as HTMLElement
 
-    expect(card.style.height).toBe("380px")
+    expect(card.dataset.snap).toBe("380px")
 
     const whenChip = screen.getByRole("button", { name: /now · 1h/i })
     await user.click(whenChip)
-    expect(card.style.height).toBe("calc(0.7 * var(--sponti-vvh, 100vh))")
+    expect(card.dataset.snap).toBe("0.7")
 
     await user.click(whenChip)
-    expect(card.style.height).toBe("380px")
+    expect(card.dataset.snap).toBe("380px")
   })
 })
