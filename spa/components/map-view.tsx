@@ -396,7 +396,7 @@ export function MapView({
   onRouteReady?: (event: EventItem, etaLabel: string) => void
   onSeeCalendar?: () => void
 }) {
-  const { openDrawer } = useNewEventDrawer()
+  const { open: composeOpen, openDrawer } = useNewEventDrawer()
   const router = useRouter()
   const [peekState, setPeekState] = useState<PeekState>("peek")
   const dragStartY = useRef<number | null>(null)
@@ -682,23 +682,27 @@ export function MapView({
       )}
 
       {/* Primary FAB: light a flare. Sits in the natural thumb-reach spot,
-          above the bottom sheet. Recenter sits above it as a utility. */}
-      <button
-        type="button"
-        onClick={() => {
-          haptic("medium")
-          openDrawer()
-        }}
-        style={fabBottomStyle}
-        aria-label="Light a flare"
-        className="absolute right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg transition-[bottom,transform] duration-300 ease-out active:scale-95"
-      >
-        <Flame className="h-6 w-6" />
-      </button>
+          above the bottom sheet. Recenter sits above it as a utility.
+          Hidden while composing: it used to survive only by being occluded by
+          the compose sheet, so it reappeared the moment that sheet moved (#94). */}
+      {!composeOpen && (
+        <button
+          type="button"
+          onClick={() => {
+            haptic("medium")
+            openDrawer()
+          }}
+          style={fabBottomStyle}
+          aria-label="Light a flare"
+          className="absolute right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg transition-[bottom,transform] duration-300 ease-out active:scale-95"
+        >
+          <Flame className="h-6 w-6" />
+        </button>
+      )}
 
       {/* Recenter button — only meaningful on a real Google map; hidden in the
           static fallback where pan/zoom and panTo don't apply. */}
-      {hasInteractiveMap && (
+      {hasInteractiveMap && !composeOpen && (
         <button
           type="button"
           onClick={() => {
@@ -714,10 +718,13 @@ export function MapView({
         </button>
       )}
 
-      {/* Bottom sheet — z-50 when expanded so it covers the nav pill */}
+      {/* Bottom sheet — z-50 when expanded so it covers the nav pill. Hidden
+          while composing: two bottom sheets on screen at once was the most
+          confusing symptom of #94, and occlusion alone did not prevent it. */}
       <div
         style={sheetStyle}
-        className={`absolute right-0 left-0 rounded-t-3xl bg-background shadow-(--shadow-sheet) transition-all duration-300 ease-out ${peekState === "expanded" ? "z-50" : "z-20"
+        aria-hidden={composeOpen}
+        className={`absolute right-0 left-0 rounded-t-3xl bg-background shadow-(--shadow-sheet) transition-all duration-300 ease-out ${composeOpen ? "invisible" : ""} ${peekState === "expanded" ? "z-50" : "z-20"
           }`}
       >
         <div

@@ -387,15 +387,14 @@ export function NewEventDrawer({
   )
   const handleClose = onClose
 
-  const raiseToFloor = useCallback(
+  // Snap to the detent the new state needs, in both directions. Raising only
+  // meant that collapsing a section left the sheet tall with a dead gap under
+  // the controls — the sheet grew for "how long?" and never shrank back.
+  // Tapping a chip is an explicit request for a different amount of sheet, so
+  // following it down is what the user asked for; free dragging is untouched.
+  const snapToFloor = useCallback(
     (section: ExpandedSection, currentMode: Mode) => {
-      const floor = snapFloorForState(section, currentMode)
-      setActiveSnap((prev) => {
-        if (prev === null) return floor
-        const prevIdx = SNAP_POINTS.indexOf(prev)
-        const floorIdx = SNAP_POINTS.indexOf(floor)
-        return floorIdx > prevIdx ? floor : prev
-      })
+      setActiveSnap(snapFloorForState(section, currentMode))
     },
     []
   )
@@ -409,12 +408,12 @@ export function NewEventDrawer({
     (section: "when" | "where" | "who") => {
       setExpandedSection((prev) => {
         const next = prev === section ? null : section
-        raiseToFloor(next, mode)
+        snapToFloor(next, mode)
         return next
       })
       haptic("selection")
     },
-    [mode, raiseToFloor]
+    [mode, snapToFloor]
   )
 
   const handleModeChange = (v: string) => {
@@ -423,7 +422,7 @@ export function NewEventDrawer({
     if (next === "scheduled") {
       setExpandedSection("when")
     }
-    raiseToFloor(next === "scheduled" ? "when" : expandedSection, next)
+    snapToFloor(next === "scheduled" ? "when" : expandedSection, next)
   }
 
   // Event type — `eventType` holds the user's MANUAL pick (null = not picked
@@ -1118,7 +1117,12 @@ export function NewEventDrawer({
       dismissible
     >
       <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-40 bg-black/40" />
+        {/* Ladder: map sheet 50 < nav 40 … compose 60/61 … toast 70. The map's
+            expanded sheet is also z-50, and these live in different stacking
+            contexts, so the ordering held only by portal position — state it.
+            Bracket syntax deliberately: Tailwind's dynamic `z-70` does not
+            emit here (verified against the built CSS), `z-[61]` always does. */}
+        <Drawer.Overlay className="fixed inset-0 z-[60] bg-black/40" />
         {/* vaul's snap math assumes a bottom-anchored, viewport-height sheet:
             it slides the content down by (viewport − snap), and rewrites this
             node's inline `height`/`bottom` in px when the software keyboard
@@ -1127,7 +1131,7 @@ export function NewEventDrawer({
             Overriding those with a custom offset is what broke the sheet once
             the keyboard had been opened (issue #94). The inner card carries the
             chrome, sized to the active snap's visible portion. */}
-        <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 h-full">
+        <Drawer.Content className="fixed inset-x-0 bottom-0 z-[61] h-full">
           <div
             className="flex flex-col overflow-hidden rounded-t-3xl border-t border-border bg-card transition-[height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
             style={{ height: snapVisibleHeightCss(activeSnap) }}

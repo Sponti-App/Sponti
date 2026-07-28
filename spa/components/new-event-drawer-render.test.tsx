@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
@@ -111,5 +112,23 @@ describe("NewEventDrawer render", () => {
   it("makes the background inert while open", () => {
     render(<NewEventDrawer open onClose={vi.fn()} />)
     expect(document.body.style.pointerEvents).toBe("none")
+  })
+
+  // The sheet used to only ever grow: expanding "how long?" raised it to mid
+  // and collapsing it again left a tall sheet with a dead gap under the
+  // controls. Tapping a chip should size the sheet to what that state needs.
+  it("returns to peek when an expanded section is collapsed", async () => {
+    const user = userEvent.setup()
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+    const card = screen.getByRole("dialog").firstElementChild as HTMLElement
+
+    expect(card.style.height).toBe("380px")
+
+    const whenChip = screen.getByRole("button", { name: /now · 1h/i })
+    await user.click(whenChip)
+    expect(card.style.height).toBe("calc(0.7 * var(--sponti-vvh, 100vh))")
+
+    await user.click(whenChip)
+    expect(card.style.height).toBe("380px")
   })
 })
