@@ -26,25 +26,32 @@ describe("snapFloorForState", () => {
 })
 
 describe("snapVisibleHeightCss", () => {
-  it("subtracts the nav height from pixel snap points", () => {
-    expect(snapVisibleHeightCss("380px")).toBe(
-      "calc(380px - var(--sponti-nav-h, 0px))"
+  it("passes pixel snap points through unchanged", () => {
+    expect(snapVisibleHeightCss("380px")).toBe("380px")
+  })
+
+  // Regression guard for issue #94: `vh` is the *large* viewport on iOS Safari,
+  // so it overshoots the height vaul snapped against and hides the pinned CTA
+  // behind the browser toolbar. Fractional snaps must resolve against
+  // --sponti-vvh (window.innerHeight), which is vaul's own basis.
+  it("resolves fractional snap points against the measured viewport height", () => {
+    expect(snapVisibleHeightCss(0.7)).toBe(
+      "calc(0.7 * var(--sponti-vvh, 100vh))"
+    )
+    expect(snapVisibleHeightCss(0.93)).toBe(
+      "calc(0.93 * var(--sponti-vvh, 100vh))"
     )
   })
 
-  it("converts fractional snap points to viewport units", () => {
-    expect(snapVisibleHeightCss(0.7)).toBe(
-      "calc(0.7 * 100vh - var(--sponti-nav-h, 0px))"
-    )
-    expect(snapVisibleHeightCss(0.93)).toBe(
-      "calc(0.93 * 100vh - var(--sponti-nav-h, 0px))"
-    )
+  it("does not subtract the bottom nav height", () => {
+    // The sheet is modal and covers the nav, so the nav is neither visible nor
+    // interactive while composing; reserving space for it left a dead gap.
+    expect(snapVisibleHeightCss(0.7)).not.toContain("--sponti-nav-h")
+    expect(snapVisibleHeightCss("380px")).not.toContain("--sponti-nav-h")
   })
 
   it("falls back to peek when the active snap is null", () => {
-    expect(snapVisibleHeightCss(null)).toBe(
-      "calc(380px - var(--sponti-nav-h, 0px))"
-    )
+    expect(snapVisibleHeightCss(null)).toBe("380px")
   })
 })
 
