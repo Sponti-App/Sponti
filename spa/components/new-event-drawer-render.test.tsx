@@ -85,23 +85,31 @@ describe("NewEventDrawer render", () => {
   // viewport-filling height the sheet lands entirely below the viewport.
   // Geometry itself needs a real browser — this locks in the height contract.
   //
-  // Regression guard for issue #94: vaul rewrites this node's inline
-  // `height`/`bottom` in px when the software keyboard opens, so the contract
-  // has to be expressed in classes it can safely clobber (bottom:0, h-full)
-  // rather than an inline offset it silently destroys.
-  it("anchors the sheet to the bottom at full viewport height", () => {
+  // The height must also stay keyboard-independent, so vaul's transform keeps
+  // landing where it intends. Only `bottom` moves (see below).
+  it("anchors the sheet at full viewport height", () => {
     render(<NewEventDrawer open onClose={vi.fn()} />)
     const dialog = screen.getByRole("dialog")
-    expect(dialog.className).toContain("bottom-0")
     expect(dialog.className).toContain("h-full")
     expect(dialog.style.height).toBe("")
-    expect(dialog.style.bottom).toBe("")
   })
 
-  // The sheet must stay modal: vaul disables its entire iOS keyboard handling
-  // when `modal` is false (usePreventScroll's isDisabled includes `!modal`),
-  // which is what let Safari scroll the page out from under the fixed sheet in
-  // issue #94. An inert background is the cost, and the point.
+  // Regression guard for issue #94: vaul's keyboard repositioning computes a
+  // sliver height from the sheet's transformed rect and then pushes it below
+  // the fold, which made the sheet vanish outright. We opt out and lift the
+  // sheet ourselves, so this node must carry our inset rather than a bare
+  // bottom-0 that vaul would have overwritten.
+  it("lifts the sheet by the keyboard inset rather than vaul's offset", () => {
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+    const dialog = screen.getByRole("dialog")
+    expect(dialog.className).not.toContain("bottom-0")
+    expect(dialog.style.bottom).toContain("--sponti-kb-inset")
+  })
+
+  // The sheet must stay modal. The background has to be inert while composing,
+  // and the page-scroll lock that stops Safari sliding the page out from under
+  // the fixed sheet comes from Radix's RemoveScroll under Dialog.Content, which
+  // only applies on the modal path.
   //
   // NB: the matching "…and is released on close" assertion is not testable
   // here. Radix keeps the layer mounted until the exit animation ends, and
