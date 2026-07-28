@@ -7,6 +7,7 @@ import {
   VIEWPORT_HEIGHT_VAR,
   useViewportHeightVar,
 } from "@/lib/use-viewport-height"
+import { useSheetVisibleHeight } from "@/lib/use-sheet-visible-height"
 import {
   Check,
   MapPin,
@@ -400,6 +401,9 @@ export function NewEventDrawer({
   )
 
   const scrollRef = useRef<HTMLDivElement>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  useSheetVisibleHeight(sheetRef, cardRef, open)
   const pendingPublicSubmit = useRef(false)
 
   const [mode, setMode] = useState<Mode>(initialEventDraftState.mode)
@@ -1130,10 +1134,20 @@ export function NewEventDrawer({
             bottom:0, full height, expressed as classes it can safely override.
             Overriding those with a custom offset is what broke the sheet once
             the keyboard had been opened (issue #94). The inner card carries the
-            chrome, sized to the active snap's visible portion. */}
-        <Drawer.Content className="fixed inset-x-0 bottom-0 z-[61] h-full">
+            chrome, and useSheetVisibleHeight measures it onto the slot that is
+            actually on screen — the snap point alone is not that slot once the
+            keyboard is up. The CSS height below is only the first-paint value,
+            before the first measurement lands. */}
+        <Drawer.Content
+          ref={sheetRef}
+          className="fixed inset-x-0 bottom-0 z-[61] h-full"
+        >
           <div
-            className="flex flex-col overflow-hidden rounded-t-3xl border-t border-border bg-card transition-[height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+            ref={cardRef}
+            // The rendered height is measured, not declared, so the active
+            // detent is surfaced here for tests and for debugging on device.
+            data-snap={String(activeSnap)}
+            className="flex flex-col overflow-hidden rounded-t-3xl border-t border-border bg-card"
             style={{ height: snapVisibleHeightCss(activeSnap) }}
           >
             <Drawer.Handle className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
