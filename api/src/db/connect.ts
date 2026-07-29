@@ -1,42 +1,47 @@
 import mongoose from "mongoose";
 import { env } from "#config/env";
+import { Circle } from "#models/Circle";
 
-let connectionPromise: Promise<typeof mongoose> | null = null;
+let initializationPromise: Promise<typeof mongoose> | null = null;
+let indexesReady = false;
 
-export const connectDB = async () => {
-  // If MongoDb is already connected, just return existing mongoose instance.
-  if (mongoose.connection.readyState === mongoose.STATES.connected) {
-    return mongoose;
+const connectAndEnsureIndexes = async () => {
+  if (mongoose.connection.readyState !== mongoose.STATES.connected) {
+    indexesReady = false;
+    await mongoose.connect(env.MONGO_URI, {
+      dbName: env.DB_NAME,
+      autoIndex: env.NODE_ENV !== "production",
+    });
   }
 
-  /**
-   * It handles multiple connection attempts. In the firs request, connectionPromise is null, so it will
-   * start the connection with MongoDB. If the second and third request comes right after, during the connection.
-   * Because connectionPromise is not null anymore, but is creating the connection. The following requests
-   * wait for the first one to be fulfilled.
-   */
-  if (connectionPromise) {
-    await connectionPromise;
-    return mongoose;
-  }
-
-  connectionPromise = mongoose.connect(env.MONGO_URI, {
-    dbName: env.DB_NAME,
-    autoIndex: env.NODE_ENV !== "production",
-  });
-
-  try {
-    await connectionPromise;
-  } finally {
-    const isConnected =
-      Number(mongoose.connection.readyState) === Number(mongoose.STATES.connected);
-
-    // Clears the connectionPromise if the connection fails. Needed to restart the connection.
-    if (!isConnected) {
-      connectionPromise = null;
-    }
-  }
+  // Production disables Mongoose auto-indexing, so explicitly provision the
+  // API-owned Circle constraints before the server begins accepting requests.
+  await Circle.createIndexes();
+  indexesReady = true;
 
   console.log(`Connected to MongoDB database "${env.DB_NAME}"`);
   return mongoose;
+};
+
+export const connectDB = async () => {
+  if (initializationPromise) {
+    return initializationPromise;
+  }
+
+  if (mongoose.connection.readyState === mongoose.STATES.connected && indexesReady) {
+    return mongoose;
+  }
+
+  const pendingInitialization = connectAndEnsureIndexes();
+  initializationPromise = pendingInitialization;
+  try {
+    return await pendingInitialization;
+  } catch (error) {
+    indexesReady = false;
+    throw error;
+  } finally {
+    if (initializationPromise === pendingInitialization) {
+      initializationPromise = null;
+    }
+  }
 };
