@@ -2,10 +2,12 @@ import { describe, it, expect } from "vitest"
 import {
   snapFloorForState,
   snapVisibleHeightCss,
+  sheetBottomCss,
   inferEventType,
   resolveEventType,
   buildTimeRange,
 } from "./new-event-drawer"
+import { visibleSlotHeight } from "@/lib/use-sheet-visible-height"
 
 describe("snapFloorForState", () => {
   it("returns peek when no section is expanded and mode is now", () => {
@@ -26,25 +28,130 @@ describe("snapFloorForState", () => {
 })
 
 describe("snapVisibleHeightCss", () => {
-  it("subtracts the nav height from pixel snap points", () => {
-    expect(snapVisibleHeightCss("380px")).toBe(
-      "calc(380px - var(--sponti-nav-h, 0px))"
+  it("passes pixel snap points through unchanged", () => {
+    expect(snapVisibleHeightCss("380px")).toBe("380px")
+  })
+
+  // Regression guard for issue #94: `vh` is the *large* viewport on iOS Safari,
+  // so it overshoots the height vaul snapped against and hides the pinned CTA
+  // behind the browser toolbar. Fractional snaps must resolve against
+  // --sponti-vvh (window.innerHeight), which is vaul's own basis.
+  it("resolves fractional snap points against the measured viewport height", () => {
+    expect(snapVisibleHeightCss(0.7)).toBe(
+      "calc(0.7 * var(--sponti-vvh, 100vh))"
+    )
+    expect(snapVisibleHeightCss(0.93)).toBe(
+      "calc(0.93 * var(--sponti-vvh, 100vh))"
     )
   })
 
-  it("converts fractional snap points to viewport units", () => {
-    expect(snapVisibleHeightCss(0.7)).toBe(
-      "calc(0.7 * 100vh - var(--sponti-nav-h, 0px))"
-    )
-    expect(snapVisibleHeightCss(0.93)).toBe(
-      "calc(0.93 * 100vh - var(--sponti-nav-h, 0px))"
-    )
+  it("does not subtract the bottom nav height", () => {
+    // The sheet is modal and covers the nav, so the nav is neither visible nor
+    // interactive while composing; reserving space for it left a dead gap.
+    expect(snapVisibleHeightCss(0.7)).not.toContain("--sponti-nav-h")
+    expect(snapVisibleHeightCss("380px")).not.toContain("--sponti-nav-h")
   })
 
   it("falls back to peek when the active snap is null", () => {
-    expect(snapVisibleHeightCss(null)).toBe(
-      "calc(380px - var(--sponti-nav-h, 0px))"
+    expect(snapVisibleHeightCss(null)).toBe("380px")
+  })
+})
+
+// The sheet's on-screen position is CSS arithmetic over two custom properties
+// feeding vaul's transform, so resolve it numerically rather than
+// string-matching: `calc()` becomes a plain group and `min` becomes Math.min,
+// which makes the JS expression evaluate to the px value a browser would.
+function resolvePx(
+  css: string,
+  vars: { vvh: number; kbInset: number }
+): number {
+  const substituted = css
+    .replace(/var\(--sponti-vvh,[^)]*\)/g, `${vars.vvh}px`)
+    .replace(/var\(--sponti-kb-inset,[^)]*\)/g, `${vars.kbInset}px`)
+  if (substituted.includes("var(")) {
+    throw new Error(`unsubstituted custom property in: ${css}`)
+  }
+  const js = substituted
+    .replace(/\bcalc\(/g, "(")
+    .replace(/\bmin\(/g, "Math.min(")
+    .replace(/(\d)px\b/g, "$1")
+  return Function(`"use strict"; return (${js})`)() as number
+}
+
+describe("sheet geometry under the software keyboard", () => {
+  const VVH = 745
+  const KEYBOARD = 336
+
+  // Reproduces what the browser ends up rendering: vaul translates a
+  // viewport-height sheet down by (viewport − snap), sheetBottomCss lifts it,
+  // and useSheetVisibleHeight sizes the card to whatever of it is on screen.
+  function layout(snap: number | string, kbInset: number) {
+    const vars = { vvh: VVH, kbInset }
+    const snapPx = resolvePx(snapVisibleHeightCss(snap), vars)
+    const bottom = resolvePx(sheetBottomCss(snap), vars)
+
+    // `h-full` sheet, offset from the bottom edge, then vaul's transform.
+    const translate = VVH - snapPx
+    const sheet = {
+      top: -bottom + translate,
+      bottom: VVH - bottom + translate,
+    }
+    const viewport = { top: 0, bottom: VVH - kbInset }
+
+    const top = sheet.top
+    return { top, height: visibleSlotHeight(sheet, viewport), snapPx }
+  }
+
+  describe.each([
+    ["peek", "380px" as const],
+    ["mid", 0.7],
+    ["tall", 0.93],
+  ])("%s detent", (_label, snap) => {
+    it("sits flush on the bottom edge with no keyboard", () => {
+      const { top, height } = layout(snap, 0)
+      expect(top + height).toBe(VVH)
+    })
+
+    // Weaker than it looks — a sliver of sheet also satisfies this. The
+    // disappearance itself came from vaul's own writes, which this arithmetic
+    // cannot model; opting out of those is guarded in the render tests. What
+    // this pins is that our lift never pushes the header off the top.
+    it("stays on screen with a keyboard up", () => {
+      const { top, height } = layout(snap, KEYBOARD)
+      expect(top).toBeGreaterThanOrEqual(0)
+      expect(height).toBeGreaterThan(0)
+    })
+
+    it("rests the card on top of the keyboard", () => {
+      const { top, height } = layout(snap, KEYBOARD)
+      expect(top + height).toBe(VVH - KEYBOARD)
+    })
+
+    it("keeps the card as tall as the space allows", () => {
+      const { height, snapPx } = layout(snap, KEYBOARD)
+      expect(height).toBe(Math.min(snapPx, VVH - KEYBOARD))
+    })
+  })
+
+  it("holds peek at its full height, lifting rather than shrinking", () => {
+    // 380px fits above a 336px keyboard in a 745px viewport, so nothing is lost.
+    expect(layout("380px", KEYBOARD).height).toBe(380)
+    expect(layout("380px", KEYBOARD).top).toBe(
+      layout("380px", 0).top - KEYBOARD
     )
+  })
+
+  it("trades height for position once the sheet runs out of room", () => {
+    // Tall cannot fit above the keyboard: it stops at the top of the viewport
+    // and gives up height instead of sliding its header off the top.
+    expect(layout(0.93, KEYBOARD).top).toBe(0)
+    expect(layout(0.93, KEYBOARD).height).toBeLessThan(layout(0.93, 0).height)
+  })
+
+  it("does not lift the sheet at all when no keyboard is up", () => {
+    for (const snap of ["380px", 0.7, 0.93] as const) {
+      expect(resolvePx(sheetBottomCss(snap), { vvh: VVH, kbInset: 0 })).toBe(0)
+    }
   })
 })
 
