@@ -24,6 +24,17 @@ const DEFAULT_CIRCLES = [
 const isDuplicateKeyError = (error: unknown): error is { code: number } =>
   typeof error === "object" && error !== null && "code" in error && error.code === 11000;
 
+const findCircles = (ownerId: string) =>
+  Circle.find({ ownerId: toObjectId(ownerId) })
+    .sort({ createdAt: 1 })
+    .lean();
+
+const findMissingDefaultCircles = (circles: Awaited<ReturnType<typeof findCircles>>) => {
+  const existingTypes = new Set(circles.map((circle) => circle.type));
+
+  return DEFAULT_CIRCLES.filter((defaultCircle) => !existingTypes.has(defaultCircle.type));
+};
+
 const assertUniqueCircleName = async (ownerId: string, name: string, exceptCircleId?: string) => {
   const filter: Record<string, unknown> = {
     ownerId: toObjectId(ownerId),
@@ -83,10 +94,8 @@ const assertAcceptedConnectionMembers = async (ownerId: string, memberIds: strin
 };
 
 export const getMyCircles = async (ownerId: string) => {
-  await ensureDefaultCircles(ownerId);
-
   const ownerObjectId = toObjectId(ownerId);
-  const circles = await Circle.find({ ownerId: ownerObjectId }).sort({ createdAt: 1 }).lean();
+  const circles = await ensureDefaultCircles(ownerId);
   const circleIds = circles.map((circle) => circle._id);
   const members = await CircleMember.find({ ownerId: ownerObjectId, circleId: { $in: circleIds } })
     .sort({ createdAt: 1 })
@@ -110,12 +119,26 @@ export const getMyCircles = async (ownerId: string) => {
   }));
 };
 
+/**
+ *
+ * @param ownerId The ID of the user who created the circle
+ * It is a lazy setup function. It guarantees that every authenticated user has the tree built-in circles.
+ * It runs at the start of getMyCircles.
+ */
+
 export const ensureDefaultCircles = async (ownerId: string) => {
+  let circles = await findCircles(ownerId);
+  const missingDefaultCircles = findMissingDefaultCircles(circles);
+
+  if (missingDefaultCircles.length === 0) {
+    return circles;
+  }
+
   const ownerObjectId = toObjectId(ownerId);
   const now = new Date();
 
   await Promise.all(
-    DEFAULT_CIRCLES.map(async (defaultCircle) => {
+    missingDefaultCircles.map(async (defaultCircle) => {
       try {
         await Circle.updateOne(
           { ownerId: ownerObjectId, type: defaultCircle.type },
@@ -151,6 +174,9 @@ export const ensureDefaultCircles = async (ownerId: string) => {
       }
     })
   );
+
+  circles = await findCircles(ownerId);
+  return circles;
 };
 
 export const createCircle = async (ownerId: string, input: CreateCircleBody) => {
