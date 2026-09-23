@@ -594,6 +594,7 @@ export function NewEventDrawer({
     placeDetailsRequestRef.current += 1
     setExpandedSection(null)
     setActiveSnap(SNAP_PEEK)
+    setAudiencePromptDismissed(false)
     setMode(initialState.mode)
     setEventType(initialState.eventType)
     setTypeOverrideOpen(initialState.typeOverrideOpen)
@@ -619,7 +620,6 @@ export function NewEventDrawer({
     setAllowForward(initialState.allowForward)
     setAllowPlusOne(initialState.allowPlusOne)
     setSubmitError(initialState.submitError)
-    setAudiencePromptDismissed(false)
     if (connections.length === 0) {
       setIsOpen(true)
       setAudience(initialState.audience)
