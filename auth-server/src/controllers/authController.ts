@@ -4,7 +4,6 @@ import type { Request, Response } from "express";
 import { OAuth2Client, type LoginTicket } from "google-auth-library";
 import {
   User,
-  Circle,
   NotificationSettings,
   RefreshToken,
   PasswordResetToken,
@@ -56,27 +55,9 @@ const saveRefreshToken = async (userId: string, refreshToken: string) => {
   });
 };
 
+// Default circles are API-owned and seeded lazily by the api on first GET /circles
+// (see docs/decisions/circles-and-users-are-api-owned.md).
 const createDefaultUserRecords = async (userId: string) => {
-  await Circle.create([
-    {
-      ownerId: userId,
-      name: "close friends",
-      color: "#00FF00", // Green
-      type: "close",
-    },
-    {
-      ownerId: userId,
-      name: "all friends",
-      color: "#FF0000", // Red
-      type: "all",
-    },
-    {
-      ownerId: userId,
-      name: "inner circle",
-      color: "#FF0000", // Red
-      type: "inner",
-    },
-  ]);
   await NotificationSettings.create({
     userId,
   });

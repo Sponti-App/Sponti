@@ -60,7 +60,7 @@ Source of truth: shared vault → mirrored into each host's env settings. `*.env
 
 Optional until Google sign-in is configured: `GOOGLE_CLIENT_ID`.
 
-> **Shared database contract:** `api` and `auth-server` must use the same `MONGO_URI` and `DB_NAME`. Default-circle seeding still happens in `auth-server`, so a mismatch makes newly seeded circles invisible to `api`.
+> **Shared database contract:** `api` and `auth-server` must use the same `MONGO_URI` and `DB_NAME`. `api` reads the `users` collection that `auth-server` writes, so a mismatch makes users invisible to `api`. (Default circles are created by `api` itself on first `GET /circles` since #102.)
 
 > **CORS is env-driven.** Both backends read `CORS_ORIGINS` (comma-separated) first; the `sponti-spa.vercel.app` string in code is only a dev fallback. Set `CORS_ORIGINS` in each backend's env to the SPA's public origin(s) and you never touch code. See `api/src/app.ts` (`getAllowedCorsOrigins`) and `auth-server/src/app.ts`.
 

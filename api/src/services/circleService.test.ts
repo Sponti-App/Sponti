@@ -72,6 +72,22 @@ const mockAcceptedConnections = (connections: Array<Record<string, unknown>>) =>
   return { leanMock, selectMock };
 };
 
+// ensureDefaultCircles reads via Circle.find().sort().lean(); each call to
+// Circle.find resolves to the next list passed here.
+const mockCircleFind = (...lists: Array<Array<Record<string, unknown>>>) => {
+  for (const list of lists) {
+    const leanMock = vi.fn().mockResolvedValue(list);
+    const sortMock = vi.fn().mockReturnValue({ lean: leanMock });
+    circleFindMock.mockReturnValueOnce({ sort: sortMock });
+  }
+};
+
+const DEFAULT_CIRCLE_ROWS = [
+  { _id: "c1", type: "close", name: "close friends" },
+  { _id: "c2", type: "inner", name: "inner circle" },
+  { _id: "c3", type: "all", name: "all friends" },
+];
+
 const mockCircleTypeLookup = (type: "close" | "inner" | "all" | "custom" | null) => {
   const leanMock = vi.fn().mockResolvedValue(type ? { _id: CIRCLE_ID, type } : null);
   const selectMock = vi.fn().mockReturnValue({ lean: leanMock });
@@ -155,7 +171,27 @@ describe("circle request schemas", () => {
 });
 
 describe("circleService.ensureDefaultCircles", () => {
+  it("does not write when every protected default already exists", async () => {
+    mockCircleFind(DEFAULT_CIRCLE_ROWS);
+
+    await expect(ensureDefaultCircles(OWNER_ID)).resolves.toEqual(DEFAULT_CIRCLE_ROWS);
+
+    expect(circleUpdateOneMock).not.toHaveBeenCalled();
+    expect(circleFindMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("upserts only the missing protected defaults", async () => {
+    mockCircleFind(DEFAULT_CIRCLE_ROWS.slice(0, 1), DEFAULT_CIRCLE_ROWS);
+    circleUpdateOneMock.mockResolvedValue({ acknowledged: true });
+
+    await expect(ensureDefaultCircles(OWNER_ID)).resolves.toEqual(DEFAULT_CIRCLE_ROWS);
+
+    expect(circleUpdateOneMock).toHaveBeenCalledTimes(2);
+    expect(circleUpdateOneMock.mock.calls.map((call) => call[0].type)).toEqual(["inner", "all"]);
+  });
+
   it("upserts all protected defaults using insert-only values and stable timestamps", async () => {
+    mockCircleFind([], DEFAULT_CIRCLE_ROWS);
     circleUpdateOneMock.mockResolvedValue({ acknowledged: true });
 
     await ensureDefaultCircles(OWNER_ID);
@@ -197,8 +233,9 @@ describe("circleService.ensureDefaultCircles", () => {
       .mockRejectedValueOnce(duplicateKeyError)
       .mockResolvedValue({ acknowledged: true });
     circleExistsMock.mockResolvedValue({ _id: CIRCLE_ID });
+    mockCircleFind([], DEFAULT_CIRCLE_ROWS);
 
-    await expect(ensureDefaultCircles(OWNER_ID)).resolves.toBeUndefined();
+    await expect(ensureDefaultCircles(OWNER_ID)).resolves.toEqual(DEFAULT_CIRCLE_ROWS);
 
     expect(circleExistsMock).toHaveBeenCalledWith({
       ownerId: expect.objectContaining({ _bsontype: "ObjectId" }),
@@ -212,6 +249,7 @@ describe("circleService.ensureDefaultCircles", () => {
       .mockRejectedValueOnce(duplicateKeyError)
       .mockResolvedValue({ acknowledged: true });
     circleExistsMock.mockResolvedValue(null);
+    mockCircleFind([]);
 
     await expect(ensureDefaultCircles(OWNER_ID)).rejects.toBe(duplicateKeyError);
   });
@@ -219,10 +257,12 @@ describe("circleService.ensureDefaultCircles", () => {
   it("does not return an incomplete list after an unexpected database failure", async () => {
     const databaseError = new Error("database unavailable");
     circleUpdateOneMock.mockRejectedValue(databaseError);
+    mockCircleFind([]);
 
     await expect(getMyCircles(OWNER_ID)).rejects.toBe(databaseError);
 
-    expect(circleFindMock).not.toHaveBeenCalled();
+    // Only the initial read ran; the post-upsert re-read never happened.
+    expect(circleFindMock).toHaveBeenCalledTimes(1);
   });
 });
 
