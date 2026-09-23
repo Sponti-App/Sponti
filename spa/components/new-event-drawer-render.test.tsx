@@ -143,3 +143,48 @@ describe("NewEventDrawer render", () => {
     expect(card.dataset.snap).toBe("380px")
   })
 })
+
+// #135: the "no friends yet" prompt is pinned above the CTA and covered the
+// field being typed in. It must close on × or on a tap outside it.
+describe("NewEventDrawer no-friends audience prompt", () => {
+  const PROMPT = /no friends on sponti yet/i
+  // A friend exists but the default audience circle is empty, so the draft
+  // has nobody to invite and the prompt shows.
+  const renderWithEmptyAudience = async () => {
+    mocks.fetchAcceptedConnections.mockResolvedValue([
+      { id: "f1", displayName: "Friend", username: "friend" },
+    ])
+    mocks.fetchMyCircles.mockResolvedValue([
+      {
+        id: "all",
+        name: "all friends",
+        description: "",
+        type: "all",
+        memberIds: [],
+      },
+    ])
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+    expect(await screen.findByText(PROMPT)).toBeInTheDocument()
+  }
+
+  it("closes on its dismiss button", async () => {
+    const user = userEvent.setup()
+    await renderWithEmptyAudience()
+    await user.click(screen.getByRole("button", { name: "dismiss" }))
+    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
+  })
+
+  it("closes when tapping a field outside it", async () => {
+    const user = userEvent.setup()
+    await renderWithEmptyAudience()
+    await user.click(screen.getByPlaceholderText(/what's the plan/i))
+    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
+  })
+
+  it("stays open when tapping inside it", async () => {
+    const user = userEvent.setup()
+    await renderWithEmptyAudience()
+    await user.click(screen.getByText(PROMPT))
+    expect(screen.getByText(PROMPT)).toBeInTheDocument()
+  })
+})

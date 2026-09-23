@@ -577,6 +577,11 @@ export function NewEventDrawer({
   )
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false)
+  // The "no friends yet" prompt is pinned above the CTA and can cover the
+  // field being typed in (#135). It closes on its × or on any tap outside
+  // it, and stays closed until the next draft.
+  const [audiencePromptDismissed, setAudiencePromptDismissed] = useState(false)
+  const audiencePromptRef = useRef<HTMLDivElement>(null)
 
   const resetEventDraft = useCallback((): void => {
     if (debounceRef.current) {
@@ -614,6 +619,7 @@ export function NewEventDrawer({
     setAllowForward(initialState.allowForward)
     setAllowPlusOne(initialState.allowPlusOne)
     setSubmitError(initialState.submitError)
+    setAudiencePromptDismissed(false)
     if (connections.length === 0) {
       setIsOpen(true)
       setAudience(initialState.audience)
@@ -964,6 +970,20 @@ export function NewEventDrawer({
   const hasPrivateInvitees = isOpen || inviteeCount > 0
   const needsAudience =
     !isOpen && !audienceLoading && !audienceError && !hasPrivateInvitees
+  const showAudiencePrompt =
+    !submitError && needsAudience && !audiencePromptDismissed
+
+  useEffect(() => {
+    if (!showAudiencePrompt) return
+    const dismissOnOutsideTap = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (target && audiencePromptRef.current?.contains(target)) return
+      setAudiencePromptDismissed(true)
+    }
+    document.addEventListener("pointerdown", dismissOnOutsideTap)
+    return () =>
+      document.removeEventListener("pointerdown", dismissOnOutsideTap)
+  }, [showAudiencePrompt])
 
   // Compact audience label for the summary chip — folds headcount in so the
   // standalone "X people will see this" line can be dropped. Public events
@@ -1426,8 +1446,19 @@ export function NewEventDrawer({
                   {submitError}
                 </p>
               )}
-              {!submitError && needsAudience && (
-                <div className="mb-2 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5">
+              {showAudiencePrompt && (
+                <div
+                  ref={audiencePromptRef}
+                  className="relative mb-2 rounded-xl border border-accent/30 bg-accent/5 py-2.5 pr-9 pl-3"
+                >
+                  <button
+                    type="button"
+                    aria-label="dismiss"
+                    onClick={() => setAudiencePromptDismissed(true)}
+                    className="absolute top-1 right-1 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                   <p className="text-xs text-muted-foreground">
                     no friends on sponti yet? invite them or go public so anyone
                     nearby can join.
