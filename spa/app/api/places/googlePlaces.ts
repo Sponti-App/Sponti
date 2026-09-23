@@ -13,6 +13,48 @@ export type PlaceDetails = {
 }
 
 export const PLACES_API_BASE = "https://places.googleapis.com/v1"
+
+// Google caps a circular locationBias at 50 km.
+export const AUTOCOMPLETE_BIAS_RADIUS_M = 50_000
+
+export type LatLng = { lat: number; lng: number }
+
+/**
+ * Reads optional `lat`/`lng` query params. Returns null unless both are
+ * present and valid, so a bad value falls back to an unbiased search rather
+ * than an error.
+ */
+export function parseBiasParams(params: URLSearchParams): LatLng | null {
+  const rawLat = params.get("lat")
+  const rawLng = params.get("lng")
+  if (!rawLat || !rawLng) return null
+  const lat = Number(rawLat)
+  const lng = Number(rawLng)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
+  return { lat, lng }
+}
+
+/**
+ * Autocomplete request body. With a bias point, nearby places rank first
+ * (results elsewhere still appear) — without it Google ranks globally, so
+ * "coffee berlin" surfaced Connecticut and Oman ahead of Berlin.
+ */
+export function autocompleteRequestBody(input: string, bias: LatLng | null) {
+  return {
+    input: input.trim(),
+    ...(bias
+      ? {
+          locationBias: {
+            circle: {
+              center: { latitude: bias.lat, longitude: bias.lng },
+              radius: AUTOCOMPLETE_BIAS_RADIUS_M,
+            },
+          },
+        }
+      : {}),
+  }
+}
 export const AUTOCOMPLETE_FIELD_MASK =
   "suggestions.placePrediction.placeId,suggestions.placePrediction.structuredFormat,suggestions.placePrediction.text"
 export const PLACE_DETAILS_FIELD_MASK =
