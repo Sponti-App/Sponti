@@ -92,9 +92,11 @@ The dev `.env` points `NEXT_PUBLIC_AUTH_BASE_URL` / `NEXT_PUBLIC_API_BASE_URL` a
 Decision: **skip the proxy, use direct absolute backend URLs.** Since Render serves HTTPS and CORS is env-driven, the proxy's only purpose (avoiding mixed-content) is moot. In the SPA's Vercel env, set:
 
 ```
-NEXT_PUBLIC_AUTH_BASE_URL=https://sponti-auth.onrender.com
+NEXT_PUBLIC_AUTH_BASE_URL=https://sponti.onrender.com
 NEXT_PUBLIC_API_BASE_URL=https://sponti-api.onrender.com
 ```
+
+> ⚠️ The `auth-server` Render service's URL slug is `sponti`, **not** `sponti-auth` — its name doesn't match the `api`/`auth-server` naming used elsewhere in this doc and in the ownership map above. `https://sponti-auth.onrender.com` returns Render's "no-server" 404 for every path; it is not this project's service. Verify the real slug in the Render dashboard before wiring a fresh deploy, or rename the service to `sponti-auth` there to match convention.
 
 (`http.ts` `resolveConfiguredBaseUrl` accepts a comma-separated candidate list; a single absolute URL is the simplest valid case.) If you ever need same-origin calls or to hide backend URLs, re-add the proxy as committed `next.config` rewrites — never as dashboard-only config.
 
