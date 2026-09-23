@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import {
   AUTOCOMPLETE_FIELD_MASK,
   PLACES_API_BASE,
+  autocompleteRequestBody,
   getGooglePlacesApiKey,
   normalizeAutocompleteResponse,
+  parseBiasParams,
 } from "./googlePlaces"
 
 export async function GET(req: NextRequest) {
@@ -30,7 +32,12 @@ export async function GET(req: NextRequest) {
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask": AUTOCOMPLETE_FIELD_MASK,
       },
-      body: JSON.stringify({ input: input.trim() }),
+      body: JSON.stringify(
+        autocompleteRequestBody(
+          input,
+          parseBiasParams(req.nextUrl.searchParams)
+        )
+      ),
     })
   } catch (err) {
     console.error("[places] fetch failed", err)

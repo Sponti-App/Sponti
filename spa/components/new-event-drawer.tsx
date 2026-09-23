@@ -778,34 +778,41 @@ export function NewEventDrawer({
   }, [geoCoords])
 
   // Google Places search via /api/places proxy
-  const searchPlaces = useCallback(async (query: string, requestId: number) => {
-    if (query.trim().length < 2) {
-      if (placesSearchRequestRef.current !== requestId) return
-      setPlaceResults([])
-      setPlacesLoading(false)
-      return
-    }
-    setPlacesLoading(true)
-    try {
-      const resp = await fetch(
-        `/api/places?input=${encodeURIComponent(query.trim())}`
-      )
-      if (!resp.ok) throw new Error("places error")
-      const data = (await resp.json()) as { suggestions: PlaceSuggestion[] }
-      if (placesSearchRequestRef.current !== requestId) return
-      setPlaceResults(
-        Array.isArray(data.suggestions)
-          ? data.suggestions.filter(isPlaceSuggestion)
-          : []
-      )
-    } catch {
-      if (placesSearchRequestRef.current !== requestId) return
-      setPlaceResults([])
-    } finally {
-      if (placesSearchRequestRef.current !== requestId) return
-      setPlacesLoading(false)
-    }
-  }, [])
+  const searchPlaces = useCallback(
+    async (query: string, requestId: number) => {
+      if (query.trim().length < 2) {
+        if (placesSearchRequestRef.current !== requestId) return
+        setPlaceResults([])
+        setPlacesLoading(false)
+        return
+      }
+      setPlacesLoading(true)
+      try {
+        const params = new URLSearchParams({ input: query.trim() })
+        // Rank places near the user first when we know where they are.
+        if (geoCoords) {
+          params.set("lat", String(geoCoords.lat))
+          params.set("lng", String(geoCoords.lng))
+        }
+        const resp = await fetch(`/api/places?${params}`)
+        if (!resp.ok) throw new Error("places error")
+        const data = (await resp.json()) as { suggestions: PlaceSuggestion[] }
+        if (placesSearchRequestRef.current !== requestId) return
+        setPlaceResults(
+          Array.isArray(data.suggestions)
+            ? data.suggestions.filter(isPlaceSuggestion)
+            : []
+        )
+      } catch {
+        if (placesSearchRequestRef.current !== requestId) return
+        setPlaceResults([])
+      } finally {
+        if (placesSearchRequestRef.current !== requestId) return
+        setPlacesLoading(false)
+      }
+    },
+    [geoCoords]
+  )
 
   const handleSearchQuery = (v: string): void => {
     const requestId = placesSearchRequestRef.current + 1
