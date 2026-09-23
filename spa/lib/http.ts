@@ -11,7 +11,12 @@ export class HttpError extends Error {
   code?: string
   details?: unknown
 
-  constructor(status: number, message: string, code?: string, details?: unknown) {
+  constructor(
+    status: number,
+    message: string,
+    code?: string,
+    details?: unknown
+  ) {
     super(message)
     this.name = "HttpError"
     this.status = status
@@ -29,17 +34,52 @@ type RequestOptions = {
   timeoutMs?: number
 }
 
-type ErrorResponse = {
-  error?: {
-    message?: string
-    code?: string
-    details?: unknown
+type ErrorPayload = {
+  message: string
+  code?: string
+  details?: unknown
+}
+
+function asNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() !== "" ? value : undefined
+}
+
+/**
+ * Normalises the two error envelopes this app has to deal with.
+ *
+ * `api/` wraps errors as `{ error: { message, code, details } }`, while
+ * `auth-server/`'s error handler emits a flat `{ message }`. Reading only the
+ * nested form discarded every message the auth server sent and fell back to the
+ * HTTP status text, so a wrong password surfaced as "Unauthorized" rather than
+ * "Invalid email or password" — which reads as a broken app, not a typo.
+ */
+export function extractErrorPayload(
+  body: unknown,
+  fallbackMessage: string
+): ErrorPayload {
+  if (!body || typeof body !== "object") {
+    return { message: fallbackMessage }
+  }
+
+  const flat = body as Record<string, unknown>
+  const nested =
+    flat.error && typeof flat.error === "object"
+      ? (flat.error as Record<string, unknown>)
+      : undefined
+
+  return {
+    message:
+      asNonEmptyString(nested?.message) ??
+      asNonEmptyString(flat.message) ??
+      fallbackMessage,
+    code: asNonEmptyString(nested?.code) ?? asNonEmptyString(flat.code),
+    details: nested?.details ?? flat.details,
   }
 }
 
-async function parseError(res: Response): Promise<ErrorResponse | null> {
+async function parseError(res: Response): Promise<unknown> {
   try {
-    return (await res.json()) as ErrorResponse
+    return await res.json()
   } catch {
     return null
   }
@@ -156,7 +196,10 @@ async function request<T>(
 
   const timeoutMs = opts.timeoutMs ?? 12_000
   const requestController = new AbortController()
-  const timeoutId = window.setTimeout(() => requestController.abort(), timeoutMs)
+  const timeoutId = window.setTimeout(
+    () => requestController.abort(),
+    timeoutMs
+  )
 
   const handleExternalAbort = () => requestController.abort()
   if (opts.signal) {
@@ -193,12 +236,12 @@ async function request<T>(
         }
       }
 
-      const body = await parseError(res)
+      const payload = extractErrorPayload(await parseError(res), res.statusText)
       throw new HttpError(
         res.status,
-        body?.error?.message ?? res.statusText,
-        body?.error?.code,
-        body?.error?.details,
+        payload.message,
+        payload.code,
+        payload.details
       )
     }
 
@@ -214,7 +257,8 @@ async function request<T>(
     throw error
   } finally {
     window.clearTimeout(timeoutId)
-    if (opts.signal) opts.signal.removeEventListener("abort", handleExternalAbort)
+    if (opts.signal)
+      opts.signal.removeEventListener("abort", handleExternalAbort)
   }
 }
 
