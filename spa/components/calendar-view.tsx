@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
+import Link from "next/link"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -389,21 +390,36 @@ export function CalendarView({
         joinedIds={joinedIds}
         onSelect={onEventSelect}
         emptyAction={
-          <button
-            type="button"
-            onClick={openDrawer}
-            className="mt-3 flex w-full items-center gap-3 rounded-xl bg-card px-4 py-3 text-left transition-colors hover:bg-secondary"
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
-              <Flame className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">+ make a plan</p>
-              <p className="text-xs text-muted-foreground">
-                light a flare for any day this week
+          <>
+            <button
+              type="button"
+              onClick={openDrawer}
+              className="mt-3 flex w-full items-center gap-3 rounded-xl bg-card px-4 py-3 text-left transition-colors hover:bg-secondary"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
+                <Flame className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">+ make a plan</p>
+                <p className="text-xs text-muted-foreground">
+                  light a flare for any day this week
+                </p>
+              </div>
+            </button>
+            {/* First run: nothing anywhere on the calendar yet. Point new
+                testers at the thing that fills it: friends. */}
+            {!loading && !error && events.length === 0 && (
+              <p className="mt-3 text-center text-xs text-muted-foreground">
+                plans from your friends show up here ·{" "}
+                <Link
+                  href="/circles?tab=people"
+                  className="font-medium text-accent"
+                >
+                  connect with friends
+                </Link>
               </p>
-            </div>
-          </button>
+            )}
+          </>
         }
       />
 

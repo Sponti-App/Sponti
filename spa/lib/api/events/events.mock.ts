@@ -108,7 +108,7 @@ export const MOCK_EVENTS: EventItem[] = [
   },
 ]
 
-// Demo-mode events used when map event API calls fail.
+// Map demo events, served only when the `seedDemoData` flag is on.
 export const DEMO_MAP_EVENTS = MOCK_EVENTS.filter(
   (event) => !!event.location.coordinates
 )

@@ -850,6 +850,7 @@ export function MapView({
               !endedVisible &&
               !map.loading ? (
               <EmptyState
+                compact={peekState !== "expanded"}
                 radiusKm={searchRadiusKm}
                 onWiden={
                   searchRadiusKm < WIDE_RADIUS_KM
@@ -1062,10 +1063,14 @@ function ErrorPanel({
   message: string
   onRetry: () => void
 }) {
+  // Sized to fit the peek sheet (see EmptyState) so it doesn't scroll-clip.
   return (
-    <div className="rounded-xl border border-border p-4 text-center">
-      <AlertCircle className="mx-auto mb-2 h-5 w-5 text-destructive" />
-      <p className="mb-3 text-sm text-muted-foreground">{message}</p>
+    <div className="flex flex-col items-center gap-1 rounded-xl border border-border p-3 text-center">
+      <p className="flex items-center gap-1.5 text-sm font-medium">
+        <AlertCircle className="h-4 w-4 text-destructive" />
+        couldn&apos;t load flares
+      </p>
+      <p className="line-clamp-1 text-xs text-muted-foreground">{message}</p>
       <button onClick={onRetry} className="text-sm font-medium text-accent">
         try again
       </button>
@@ -1074,16 +1079,63 @@ function ErrorPanel({
 }
 
 function EmptyState({
+  compact,
   radiusKm,
   onWiden,
   onSeeCalendar,
   onFindConnections,
 }: {
+  compact: boolean
   radiusKm: number
   onWiden: (() => void) | null
   onSeeCalendar?: () => void
   onFindConnections: () => void
 }) {
+  // At peek the sheet leaves ~90px under the header. The full card doesn't
+  // fit there and would scroll-clip (#113), so show one line, the primary
+  // action, and the secondary options as text links. The empty map above
+  // already says "nothing here".
+  if (compact) {
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium">
+          no flares within {radiusKm} km
+          <span className="font-normal text-muted-foreground">
+            {" "}
+            · quiet right now
+          </span>
+        </p>
+        <button
+          onClick={onFindConnections}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground hover:opacity-90 active:scale-[0.97]"
+        >
+          <Flame className="h-4 w-4" /> connect with your friends
+        </button>
+        {(onWiden || onSeeCalendar) && (
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            {onWiden && (
+              <button
+                onClick={onWiden}
+                className="font-medium hover:text-foreground"
+              >
+                search {WIDE_RADIUS_KM} km
+              </button>
+            )}
+            {onWiden && onSeeCalendar && <span aria-hidden>·</span>}
+            {onSeeCalendar && (
+              <button
+                onClick={onSeeCalendar}
+                className="font-medium hover:text-foreground"
+              >
+                see what&apos;s planned
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-xl border border-dashed border-border p-5 text-center">
       <p className="mb-1 text-sm font-medium">no flares within {radiusKm} km</p>
