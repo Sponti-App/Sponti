@@ -402,6 +402,12 @@ export function NewEventDrawer({
   const [connections, setConnections] = useState<Connection[]>([])
   const [audienceLoading, setAudienceLoading] = useState(true)
   const [audienceError, setAudienceError] = useState<string | null>(null)
+  // Connections and circles are re-fetched every time the composer opens, so
+  // friends accepted or circles edited since sign-in show up (#134).
+  const audienceLoadedRef = useRef(false)
+  // Once the user picks an audience in this draft, refreshes stop applying
+  // the default (all friends, or public when there are no friends).
+  const audienceTouchedRef = useRef(false)
 
   const initialEventDraftState = useMemo(() => getInitialEventDraftState(), [])
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null)
@@ -543,6 +549,7 @@ export function NewEventDrawer({
   )
   const handleSelectAudience = useCallback(
     (circleId: string): void => {
+      audienceTouchedRef.current = true
       const nextAudience = audience === circleId ? "" : circleId
       setAudience(nextAudience)
 
@@ -620,6 +627,7 @@ export function NewEventDrawer({
     setAllowForward(initialState.allowForward)
     setAllowPlusOne(initialState.allowPlusOne)
     setSubmitError(initialState.submitError)
+    audienceTouchedRef.current = false
     if (connections.length === 0) {
       setIsOpen(true)
       setAudience(initialState.audience)
@@ -632,6 +640,9 @@ export function NewEventDrawer({
 
   useEffect(() => {
     if (status !== "authenticated") {
+      // A different account may sign in next; start its lists from scratch.
+      audienceLoadedRef.current = false
+      audienceTouchedRef.current = false
       let cancelled = false
       queueMicrotask(() => {
         if (cancelled) return
@@ -645,9 +656,14 @@ export function NewEventDrawer({
       }
     }
 
+    // Load once at sign-in so the first open is instant, then refresh on
+    // every open. A refresh keeps the current lists on screen meanwhile.
+    if (!open && audienceLoadedRef.current) return
+
     const controller = new AbortController()
+    const isRefresh = audienceLoadedRef.current
     queueMicrotask(() => {
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted || isRefresh) return
       setAudienceLoading(true)
       setAudienceError(null)
     })
@@ -657,23 +673,29 @@ export function NewEventDrawer({
     ])
       .then(([nextConnections, nextCircles]) => {
         if (controller.signal.aborted) return
+        audienceLoadedRef.current = true
         setConnections(nextConnections)
         setCircles(nextCircles)
         setAudienceLoading(false)
+        setAudienceError(null)
+        if (audienceTouchedRef.current) return
         if (nextConnections.length === 0) {
           setIsOpen(true)
         } else {
+          setIsOpen(false)
           const allCircle = nextCircles.find((c) => c.type === "all")
           if (allCircle) setAudience(allCircle.id)
         }
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
+        // A failed refresh keeps the lists we already have usable.
+        if (isRefresh) return
         setAudienceError(getErrorMessage(error))
         setAudienceLoading(false)
       })
     return () => controller.abort()
-  }, [status])
+  }, [status, open])
 
   // The drawer stays mounted in the provider, so transient view state (which
   // circle is being edited inline) would leak across open/close. Reset it
@@ -1411,7 +1433,10 @@ export function NewEventDrawer({
                   )}
                   <WhoBlock
                     isOpen={isOpen}
-                    onOpen={setIsOpen}
+                    onOpen={(next) => {
+                      audienceTouchedRef.current = true
+                      setIsOpen(next)
+                    }}
                     guestLimit={guestLimit}
                     onGuestLimit={setGuestLimit}
                     circles={circles}
@@ -1518,6 +1543,7 @@ export function NewEventDrawer({
               <Button
                 onClick={() => {
                   if (needsAudience) {
+                    audienceTouchedRef.current = true
                     pendingPublicSubmit.current = true
                     setIsOpen(true)
                     haptic("selection")
