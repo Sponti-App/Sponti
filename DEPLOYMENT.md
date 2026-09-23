@@ -50,7 +50,7 @@ External services (all team-reachable; **not** the departed member's personal ac
 Source of truth: shared vault → mirrored into each host's env settings. `*.env.example` in each package is the authoritative key list.
 
 **`spa/` (Vercel project env):**
-`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_ID`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_AUTH_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL`, `GOOGLE_MAPS_API_KEY` (server-only Places proxy).
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_ID`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_AUTH_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL`, `GOOGLE_MAPS_API_KEY` (server-only Places proxy). Optional: `NEXT_PUBLIC_SEED_DEMO_DATA=true` for an offline demo build only — never set it in production.
 
 **`api/`:**
 `MONGO_URI`, `DB_NAME`, `PORT`, `CLIENT_BASE_URL`, `CORS_ORIGINS`, `ACCESS_JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_ID`.

@@ -1,10 +1,9 @@
 "use client"
 
-// CONNECTION OK FETCH DATA. NOT OK USE MOCK DATA
-
-// Single hook the UI consumes for the home screen. Falls back to mock event
-// seed data when no API base URL is configured, so the prototype works offline.
-// When NEXT_PUBLIC_API_BASE_URL is set, it swaps to backend calls.
+// Single hook the UI consumes for the home screen. Events come from the api,
+// or from bundled demo data when the `seedDemoData` flag is on. The two never
+// mix: a failed or unconfigured api shows an error state, never demo flares,
+// so testers can't mistake made-up events for real ones.
 //
 // Keep this file as the only fetching decision point. The rest of the app reads
 // EventItem[] and is unaware of how it was sourced.
@@ -21,6 +20,7 @@ import {
   type EventsState,
   type MyFlaresState,
 } from "./api/events"
+import { featureFlags } from "./feature-flags"
 import { resolveConfiguredBaseUrl } from "./http"
 
 const API_BASE = resolveConfiguredBaseUrl(
@@ -46,7 +46,12 @@ export function subscribeToEventsChanged(
   }
 }
 
-function useApiEnabled() {
+const DEMO_MODE = featureFlags.seedDemoData
+
+// Shown instead of fetching when the build has no api URL and demo data is off.
+export const API_NOT_CONFIGURED_ERROR = "Backend API is not configured"
+
+function apiConfigured(): boolean {
   return API_BASE.length > 0
 }
 
@@ -79,27 +84,26 @@ export function useMapEvents(
   userCoords: GeoCoords | null,
   radiusKm = 25
 ): EventsState {
-  const apiEnabled = useApiEnabled()
   const queryKey = useMemo(
     () => (userCoords ? mapEventsCacheKey(userCoords, radiusKm) : null),
     [userCoords, radiusKm]
   )
   const [state, setState] = useState<MapEventsState>({
-    events: apiEnabled ? [] : DEMO_MAP_EVENTS,
+    events: DEMO_MODE ? DEMO_MAP_EVENTS : [],
     loading: false,
     refreshing: false,
-    error: null,
+    error: DEMO_MODE || apiConfigured() ? null : API_NOT_CONFIGURED_ERROR,
     cacheKey: null,
   })
   const [tick, setTick] = useState(0)
 
   useEffect(() => {
-    if (!apiEnabled) return
+    if (DEMO_MODE || !apiConfigured()) return
     return subscribeToEventsChanged(() => setTick((n) => n + 1))
-  }, [apiEnabled])
+  }, [])
 
   useEffect(() => {
-    if (!apiEnabled) return
+    if (DEMO_MODE || !apiConfigured()) return
     let cancelled = false
 
     if (!userCoords || !queryKey) {
@@ -160,16 +164,14 @@ export function useMapEvents(
       .catch((err) => {
         if (cancelled) return
         if (ac.signal.aborted) return
-        console.warn("[Sponti] map events fetch failed, using demo data:", err)
+        console.warn("[Sponti] map events fetch failed:", err)
         setState((current) => {
+          // Keep the last real result on screen for this query; otherwise
+          // show nothing and let the UI render the error state.
           const keepExisting =
             current.cacheKey === queryKey && current.events.length > 0
-          // API is configured but unreachable. Fall back to demo data only
-          // when there is no usable cached/current result to keep on screen.
           return {
-            events: keepExisting
-              ? current.events
-              : repositionMockEvents(DEMO_MAP_EVENTS, userCoords),
+            events: keepExisting ? current.events : [],
             loading: false,
             refreshing: false,
             error: errMessage(err),
@@ -181,16 +183,14 @@ export function useMapEvents(
       cancelled = true
       ac.abort()
     }
-  }, [apiEnabled, userCoords, radiusKm, queryKey, tick])
+  }, [userCoords, radiusKm, queryKey, tick])
 
-  // In mock mode, anchor seed events to the user's real coords so they appear
+  // In demo mode, anchor seed events to the user's real coords so they appear
   // near the user regardless of city. With real backend data this is a no-op.
   const events = useMemo(
     () =>
-      apiEnabled
-        ? state.events
-        : repositionMockEvents(state.events, userCoords),
-    [apiEnabled, state.events, userCoords]
+      DEMO_MODE ? repositionMockEvents(state.events, userCoords) : state.events,
+    [state.events, userCoords]
   )
 
   return {
@@ -203,22 +203,22 @@ export function useMapEvents(
 }
 
 export function useCalendarEvents(): EventsState {
-  const apiEnabled = useApiEnabled()
+  const fetchesFromApi = !DEMO_MODE && apiConfigured()
   const [state, setState] = useState<EventsState>({
-    events: apiEnabled ? [] : MOCK_EVENTS,
-    loading: apiEnabled,
-    error: null,
+    events: DEMO_MODE ? MOCK_EVENTS : [],
+    loading: fetchesFromApi,
+    error: DEMO_MODE || fetchesFromApi ? null : API_NOT_CONFIGURED_ERROR,
     refresh: () => {},
   })
   const [tick, setTick] = useState(0)
 
   useEffect(() => {
-    if (!apiEnabled) return
+    if (!fetchesFromApi) return
     return subscribeToEventsChanged(() => setTick((n) => n + 1))
-  }, [apiEnabled])
+  }, [fetchesFromApi])
 
   useEffect(() => {
-    if (!apiEnabled) return
+    if (!fetchesFromApi) return
     const ac = new AbortController()
     queueMicrotask(() => {
       if (ac.signal.aborted) return
@@ -235,20 +235,17 @@ export function useCalendarEvents(): EventsState {
       )
       .catch((err) => {
         if (ac.signal.aborted) return
-        // Same prototype safety net as useMapEvents.
-        console.warn(
-          "[Sponti] calendar events fetch failed, using demo data:",
-          err
-        )
-        setState({
-          events: MOCK_EVENTS,
+        console.warn("[Sponti] calendar events fetch failed:", err)
+        // Keep the last real result if there is one; never swap in demo data.
+        setState((s) => ({
+          ...s,
           loading: false,
           error: errMessage(err),
           refresh: () => setTick((n) => n + 1),
-        })
+        }))
       })
     return () => ac.abort()
-  }, [apiEnabled, tick])
+  }, [fetchesFromApi, tick])
 
   return {
     ...state,
@@ -261,7 +258,7 @@ export function useCalendarEvents(): EventsState {
  * hosted, invited, and recent past-hosted buckets.
  */
 export function useMyFlares(): MyFlaresState {
-  const apiEnabled = useApiEnabled()
+  const apiEnabled = apiConfigured()
   const [state, setState] = useState<MyFlaresState>({
     hostedByMe: [],
     invited: [],
@@ -273,7 +270,7 @@ export function useMyFlares(): MyFlaresState {
     // counts, and server-side host authorization. If we need offline demos
     // later, add a separate mock-only fixture here instead of resurrecting
     // localStorage as a source of truth.
-    error: apiEnabled ? null : "Backend API is not configured",
+    error: apiEnabled ? null : API_NOT_CONFIGURED_ERROR,
     refresh: () => {},
   })
   const [tick, setTick] = useState(0)
