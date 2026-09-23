@@ -1,5 +1,5 @@
 import { type ClientSession } from "mongoose";
-import { Circle, CircleMember, Connection } from "#models/index";
+import { Circle, CircleMember, Connection, type SystemCircleType } from "#models/index";
 import type {
   AddCircleMemberBody,
   CreateCircleBody,
@@ -11,6 +11,29 @@ import { getUsersByIds } from "#services/userDirectoryService";
 import { withTransactionFallback } from "#utils/transactions";
 
 const circleNameCollation = { locale: "en", strength: 2 } as const;
+const DEFAULT_CIRCLES = [
+  { type: "close", name: "close friends", color: "#00FF00" },
+  { type: "inner", name: "inner circle", color: "#FF0000" },
+  { type: "all", name: "all friends", color: "#FF0000" },
+] as const satisfies ReadonlyArray<{
+  type: SystemCircleType;
+  name: string;
+  color: string;
+}>;
+
+const isDuplicateKeyError = (error: unknown): error is { code: number } =>
+  typeof error === "object" && error !== null && "code" in error && error.code === 11000;
+
+const findCircles = (ownerId: string) =>
+  Circle.find({ ownerId: toObjectId(ownerId) })
+    .sort({ createdAt: 1 })
+    .lean();
+
+const findMissingDefaultCircles = (circles: Awaited<ReturnType<typeof findCircles>>) => {
+  const existingTypes = new Set(circles.map((circle) => circle.type));
+
+  return DEFAULT_CIRCLES.filter((defaultCircle) => !existingTypes.has(defaultCircle.type));
+};
 
 const assertUniqueCircleName = async (ownerId: string, name: string, exceptCircleId?: string) => {
   const filter: Record<string, unknown> = {
@@ -72,7 +95,7 @@ const assertAcceptedConnectionMembers = async (ownerId: string, memberIds: strin
 
 export const getMyCircles = async (ownerId: string) => {
   const ownerObjectId = toObjectId(ownerId);
-  const circles = await Circle.find({ ownerId: ownerObjectId }).sort({ createdAt: 1 }).lean();
+  const circles = await ensureDefaultCircles(ownerId);
   const circleIds = circles.map((circle) => circle._id);
   const members = await CircleMember.find({ ownerId: ownerObjectId, circleId: { $in: circleIds } })
     .sort({ createdAt: 1 })
@@ -96,7 +119,75 @@ export const getMyCircles = async (ownerId: string) => {
   }));
 };
 
+/**
+ *
+ * @param ownerId The ID of the user who created the circle
+ * It is a lazy setup function. It guarantees that every authenticated user has the tree built-in circles.
+ * It runs at the start of getMyCircles.
+ */
+
+export const ensureDefaultCircles = async (ownerId: string) => {
+  let circles = await findCircles(ownerId);
+  const missingDefaultCircles = findMissingDefaultCircles(circles);
+
+  if (missingDefaultCircles.length === 0) {
+    return circles;
+  }
+
+  const ownerObjectId = toObjectId(ownerId);
+  const now = new Date();
+
+  await Promise.all(
+    missingDefaultCircles.map(async (defaultCircle) => {
+      try {
+        await Circle.updateOne(
+          { ownerId: ownerObjectId, type: defaultCircle.type },
+          {
+            $setOnInsert: {
+              ownerId: ownerObjectId,
+              ...defaultCircle,
+              icon: null,
+              createdAt: now,
+              updatedAt: now,
+            },
+          },
+          {
+            upsert: true,
+            runValidators: true,
+            setDefaultsOnInsert: true,
+            timestamps: false,
+          }
+        );
+      } catch (error) {
+        if (!isDuplicateKeyError(error)) {
+          throw error;
+        }
+
+        const winningCircle = await Circle.exists({
+          ownerId: ownerObjectId,
+          type: defaultCircle.type,
+        });
+
+        if (!winningCircle) {
+          throw error;
+        }
+      }
+    })
+  );
+
+  circles = await findCircles(ownerId);
+  return circles;
+};
+
 export const createCircle = async (ownerId: string, input: CreateCircleBody) => {
+  if (input.type !== "custom") {
+    throw new AppError(
+      "Only custom circles can be created",
+      400,
+      "PROTECTED_CIRCLE_TYPE_FORBIDDEN"
+    );
+  }
+
   const memberIds = uniqueObjectIdStrings(input.memberIds);
 
   await assertUniqueCircleName(ownerId, input.name);
@@ -110,7 +201,7 @@ export const createCircle = async (ownerId: string, input: CreateCircleBody) => 
           ownerId: ownerObjectId,
           name: input.name,
           color: input.color ?? null,
-          type: input.type,
+          type: "custom",
           icon: input.icon ?? null,
         },
       ],
@@ -147,13 +238,22 @@ export const createCircle = async (ownerId: string, input: CreateCircleBody) => 
 };
 
 export const updateCircle = async (ownerId: string, circleId: string, input: UpdateCircleBody) => {
+  if ("type" in input) {
+    throw new AppError("A circle's type cannot be changed", 400, "CIRCLE_TYPE_IMMUTABLE");
+  }
+
   if (input.name) {
     await assertUniqueCircleName(ownerId, input.name, circleId);
   }
 
+  const editableFields = {
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.color !== undefined ? { color: input.color } : {}),
+    ...(input.icon !== undefined ? { icon: input.icon } : {}),
+  };
   const circle = await Circle.findOneAndUpdate(
     { _id: toObjectId(circleId), ownerId: toObjectId(ownerId) },
-    { $set: input },
+    { $set: editableFields },
     { new: true, runValidators: true }
   ).lean();
 
@@ -162,6 +262,52 @@ export const updateCircle = async (ownerId: string, circleId: string, input: Upd
   }
 
   return circle;
+};
+
+export const deleteCircle = async (ownerId: string, circleId: string) => {
+  const ownerObjectId = toObjectId(ownerId);
+  const circleObjectId = toObjectId(circleId);
+  const circle = await Circle.findOne({
+    _id: circleObjectId,
+    ownerId: ownerObjectId,
+  })
+    .select("type")
+    .lean();
+
+  if (!circle) {
+    throw new AppError("Circle not found", 404, "CIRCLE_NOT_FOUND");
+  }
+
+  if (circle.type !== "custom") {
+    throw new AppError(
+      "Protected circles cannot be deleted",
+      409,
+      "PROTECTED_CIRCLE_DELETE_FORBIDDEN"
+    );
+  }
+
+  await withTransactionFallback(async (session?: ClientSession) => {
+    const result = await Circle.deleteOne(
+      {
+        _id: circleObjectId,
+        ownerId: ownerObjectId,
+        type: "custom",
+      },
+      { session }
+    );
+
+    if (result.deletedCount === 0) {
+      throw new AppError("Circle not found", 404, "CIRCLE_NOT_FOUND");
+    }
+
+    await CircleMember.deleteMany(
+      {
+        circleId: circleObjectId,
+        ownerId: ownerObjectId,
+      },
+      { session }
+    );
+  });
 };
 
 export const addCircleMember = async (

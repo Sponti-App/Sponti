@@ -402,6 +402,12 @@ export function NewEventDrawer({
   const [connections, setConnections] = useState<Connection[]>([])
   const [audienceLoading, setAudienceLoading] = useState(true)
   const [audienceError, setAudienceError] = useState<string | null>(null)
+  // Connections and circles are re-fetched every time the composer opens, so
+  // friends accepted or circles edited since sign-in show up (#134).
+  const audienceLoadedRef = useRef(false)
+  // Once the user picks an audience in this draft, refreshes stop applying
+  // the default (all friends, or public when there are no friends).
+  const audienceTouchedRef = useRef(false)
 
   const initialEventDraftState = useMemo(() => getInitialEventDraftState(), [])
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null)
@@ -543,6 +549,7 @@ export function NewEventDrawer({
   )
   const handleSelectAudience = useCallback(
     (circleId: string): void => {
+      audienceTouchedRef.current = true
       const nextAudience = audience === circleId ? "" : circleId
       setAudience(nextAudience)
 
@@ -577,6 +584,11 @@ export function NewEventDrawer({
   )
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false)
+  // The "no friends yet" prompt is pinned above the CTA and can cover the
+  // field being typed in (#135). It closes on its × or on any tap outside
+  // it, and stays closed until the next draft.
+  const [audiencePromptDismissed, setAudiencePromptDismissed] = useState(false)
+  const audiencePromptRef = useRef<HTMLDivElement>(null)
 
   const resetEventDraft = useCallback((): void => {
     if (debounceRef.current) {
@@ -589,6 +601,7 @@ export function NewEventDrawer({
     placeDetailsRequestRef.current += 1
     setExpandedSection(null)
     setActiveSnap(SNAP_PEEK)
+    setAudiencePromptDismissed(false)
     setMode(initialState.mode)
     setEventType(initialState.eventType)
     setTypeOverrideOpen(initialState.typeOverrideOpen)
@@ -614,6 +627,7 @@ export function NewEventDrawer({
     setAllowForward(initialState.allowForward)
     setAllowPlusOne(initialState.allowPlusOne)
     setSubmitError(initialState.submitError)
+    audienceTouchedRef.current = false
     if (connections.length === 0) {
       setIsOpen(true)
       setAudience(initialState.audience)
@@ -626,6 +640,9 @@ export function NewEventDrawer({
 
   useEffect(() => {
     if (status !== "authenticated") {
+      // A different account may sign in next; start its lists from scratch.
+      audienceLoadedRef.current = false
+      audienceTouchedRef.current = false
       let cancelled = false
       queueMicrotask(() => {
         if (cancelled) return
@@ -639,9 +656,14 @@ export function NewEventDrawer({
       }
     }
 
+    // Load once at sign-in so the first open is instant, then refresh on
+    // every open. A refresh keeps the current lists on screen meanwhile.
+    if (!open && audienceLoadedRef.current) return
+
     const controller = new AbortController()
+    const isRefresh = audienceLoadedRef.current
     queueMicrotask(() => {
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted || isRefresh) return
       setAudienceLoading(true)
       setAudienceError(null)
     })
@@ -651,23 +673,29 @@ export function NewEventDrawer({
     ])
       .then(([nextConnections, nextCircles]) => {
         if (controller.signal.aborted) return
+        audienceLoadedRef.current = true
         setConnections(nextConnections)
         setCircles(nextCircles)
         setAudienceLoading(false)
+        setAudienceError(null)
+        if (audienceTouchedRef.current) return
         if (nextConnections.length === 0) {
           setIsOpen(true)
         } else {
+          setIsOpen(false)
           const allCircle = nextCircles.find((c) => c.type === "all")
           if (allCircle) setAudience(allCircle.id)
         }
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
+        // A failed refresh keeps the lists we already have usable.
+        if (isRefresh) return
         setAudienceError(getErrorMessage(error))
         setAudienceLoading(false)
       })
     return () => controller.abort()
-  }, [status])
+  }, [status, open])
 
   // The drawer stays mounted in the provider, so transient view state (which
   // circle is being edited inline) would leak across open/close. Reset it
@@ -778,34 +806,41 @@ export function NewEventDrawer({
   }, [geoCoords])
 
   // Google Places search via /api/places proxy
-  const searchPlaces = useCallback(async (query: string, requestId: number) => {
-    if (query.trim().length < 2) {
-      if (placesSearchRequestRef.current !== requestId) return
-      setPlaceResults([])
-      setPlacesLoading(false)
-      return
-    }
-    setPlacesLoading(true)
-    try {
-      const resp = await fetch(
-        `/api/places?input=${encodeURIComponent(query.trim())}`
-      )
-      if (!resp.ok) throw new Error("places error")
-      const data = (await resp.json()) as { suggestions: PlaceSuggestion[] }
-      if (placesSearchRequestRef.current !== requestId) return
-      setPlaceResults(
-        Array.isArray(data.suggestions)
-          ? data.suggestions.filter(isPlaceSuggestion)
-          : []
-      )
-    } catch {
-      if (placesSearchRequestRef.current !== requestId) return
-      setPlaceResults([])
-    } finally {
-      if (placesSearchRequestRef.current !== requestId) return
-      setPlacesLoading(false)
-    }
-  }, [])
+  const searchPlaces = useCallback(
+    async (query: string, requestId: number) => {
+      if (query.trim().length < 2) {
+        if (placesSearchRequestRef.current !== requestId) return
+        setPlaceResults([])
+        setPlacesLoading(false)
+        return
+      }
+      setPlacesLoading(true)
+      try {
+        const params = new URLSearchParams({ input: query.trim() })
+        // Rank places near the user first when we know where they are.
+        if (geoCoords) {
+          params.set("lat", String(geoCoords.lat))
+          params.set("lng", String(geoCoords.lng))
+        }
+        const resp = await fetch(`/api/places?${params}`)
+        if (!resp.ok) throw new Error("places error")
+        const data = (await resp.json()) as { suggestions: PlaceSuggestion[] }
+        if (placesSearchRequestRef.current !== requestId) return
+        setPlaceResults(
+          Array.isArray(data.suggestions)
+            ? data.suggestions.filter(isPlaceSuggestion)
+            : []
+        )
+      } catch {
+        if (placesSearchRequestRef.current !== requestId) return
+        setPlaceResults([])
+      } finally {
+        if (placesSearchRequestRef.current !== requestId) return
+        setPlacesLoading(false)
+      }
+    },
+    [geoCoords]
+  )
 
   const handleSearchQuery = (v: string): void => {
     const requestId = placesSearchRequestRef.current + 1
@@ -964,6 +999,20 @@ export function NewEventDrawer({
   const hasPrivateInvitees = isOpen || inviteeCount > 0
   const needsAudience =
     !isOpen && !audienceLoading && !audienceError && !hasPrivateInvitees
+  const showAudiencePrompt =
+    !submitError && needsAudience && !audiencePromptDismissed
+
+  useEffect(() => {
+    if (!showAudiencePrompt) return
+    const dismissOnOutsideTap = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (target && audiencePromptRef.current?.contains(target)) return
+      setAudiencePromptDismissed(true)
+    }
+    document.addEventListener("pointerdown", dismissOnOutsideTap)
+    return () =>
+      document.removeEventListener("pointerdown", dismissOnOutsideTap)
+  }, [showAudiencePrompt])
 
   // Compact audience label for the summary chip — folds headcount in so the
   // standalone "X people will see this" line can be dropped. Public events
@@ -1384,7 +1433,10 @@ export function NewEventDrawer({
                   )}
                   <WhoBlock
                     isOpen={isOpen}
-                    onOpen={setIsOpen}
+                    onOpen={(next) => {
+                      audienceTouchedRef.current = true
+                      setIsOpen(next)
+                    }}
                     guestLimit={guestLimit}
                     onGuestLimit={setGuestLimit}
                     circles={circles}
@@ -1426,8 +1478,19 @@ export function NewEventDrawer({
                   {submitError}
                 </p>
               )}
-              {!submitError && needsAudience && (
-                <div className="mb-2 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5">
+              {showAudiencePrompt && (
+                <div
+                  ref={audiencePromptRef}
+                  className="relative mb-2 rounded-xl border border-accent/30 bg-accent/5 py-2.5 pr-9 pl-3"
+                >
+                  <button
+                    type="button"
+                    aria-label="dismiss"
+                    onClick={() => setAudiencePromptDismissed(true)}
+                    className="absolute top-1 right-1 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                   <p className="text-xs text-muted-foreground">
                     no friends on sponti yet? invite them or go public so anyone
                     nearby can join.
@@ -1480,6 +1543,7 @@ export function NewEventDrawer({
               <Button
                 onClick={() => {
                   if (needsAudience) {
+                    audienceTouchedRef.current = true
                     pendingPublicSubmit.current = true
                     setIsOpen(true)
                     haptic("selection")

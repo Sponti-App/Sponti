@@ -50,7 +50,7 @@ External services (all team-reachable; **not** the departed member's personal ac
 Source of truth: shared vault → mirrored into each host's env settings. `*.env.example` in each package is the authoritative key list.
 
 **`spa/` (Vercel project env):**
-`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_ID`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_AUTH_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL`, `GOOGLE_MAPS_API_KEY` (server-only Places proxy).
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_ID`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_AUTH_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL`, `GOOGLE_MAPS_API_KEY` (server-only Places proxy). Optional: `NEXT_PUBLIC_SEED_DEMO_DATA=true` for an offline demo build only — never set it in production.
 
 **`api/`:**
 `MONGO_URI`, `DB_NAME`, `PORT`, `CLIENT_BASE_URL`, `CORS_ORIGINS`, `ACCESS_JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_ID`.
@@ -60,7 +60,7 @@ Source of truth: shared vault → mirrored into each host's env settings. `*.env
 
 Optional until Google sign-in is configured: `GOOGLE_CLIENT_ID`.
 
-> **Shared database contract:** `api` and `auth-server` must use the same `MONGO_URI` and `DB_NAME`. Default-circle seeding still happens in `auth-server`, so a mismatch makes newly seeded circles invisible to `api`.
+> **Shared database contract:** `api` and `auth-server` must use the same `MONGO_URI` and `DB_NAME`. `api` reads the `users` collection that `auth-server` writes, so a mismatch makes users invisible to `api`. (Default circles are created by `api` itself on first `GET /circles` since #102.)
 
 > **CORS is env-driven.** Both backends read `CORS_ORIGINS` (comma-separated) first; the `sponti-spa.vercel.app` string in code is only a dev fallback. Set `CORS_ORIGINS` in each backend's env to the SPA's public origin(s) and you never touch code. See `api/src/app.ts` (`getAllowedCorsOrigins`) and `auth-server/src/app.ts`.
 

@@ -51,3 +51,6 @@ defaults, invite modes, and backend payload structure.
 
 - `/event` uses `GET /api/v1/events/mine/upcoming` for the "your flares"
   dashboard. The local hosted-event store has been removed.
+- Map and calendar demo events (`events.mock.ts`) are served only when
+  `NEXT_PUBLIC_SEED_DEMO_DATA=true` (`lib/feature-flags.ts`). They are never a
+  fallback: a failed or unconfigured api shows an error state instead.

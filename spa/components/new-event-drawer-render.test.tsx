@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
@@ -57,6 +57,41 @@ vi.mock("@/lib/haptics", () => ({
 import { NewEventDrawer } from "./new-event-drawer"
 
 describe("NewEventDrawer render", () => {
+  // #134: the composer stays mounted, so it used to load friends once at
+  // sign-in. A friend accepted later never appeared until a full reload.
+  it("refreshes friends and circles every time it opens", async () => {
+    const friend = { id: "f1", displayName: "Friend", username: "friend" }
+    const circle = (memberIds: string[]) => ({
+      id: "all",
+      name: "all friends",
+      description: "",
+      type: "all" as const,
+      memberIds,
+    })
+    mocks.fetchAcceptedConnections
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([friend])
+    mocks.fetchMyCircles
+      .mockResolvedValueOnce([circle([])])
+      .mockResolvedValue([circle(["f1"])])
+
+    const { rerender } = render(
+      <NewEventDrawer open={false} onClose={vi.fn()} />
+    )
+    await waitFor(() =>
+      expect(mocks.fetchAcceptedConnections).toHaveBeenCalledTimes(1)
+    )
+
+    rerender(<NewEventDrawer open onClose={vi.fn()} />)
+
+    await waitFor(() =>
+      expect(mocks.fetchAcceptedConnections).toHaveBeenCalledTimes(2)
+    )
+    // With no friends the draft defaulted to public; the refresh moves an
+    // untouched draft back to all friends, now including the new friend.
+    expect(await screen.findByText(/all friends · 1/i)).toBeInTheDocument()
+  })
+
   it("renders title and CTA when open", () => {
     render(<NewEventDrawer open onClose={vi.fn()} />)
     expect(screen.getAllByText("light a flare").length).toBeGreaterThanOrEqual(
@@ -141,5 +176,50 @@ describe("NewEventDrawer render", () => {
 
     await user.click(whenChip)
     expect(card.dataset.snap).toBe("380px")
+  })
+})
+
+// #135: the "no friends yet" prompt is pinned above the CTA and covered the
+// field being typed in. It must close on × or on a tap outside it.
+describe("NewEventDrawer no-friends audience prompt", () => {
+  const PROMPT = /no friends on sponti yet/i
+  // A friend exists but the default audience circle is empty, so the draft
+  // has nobody to invite and the prompt shows.
+  const renderWithEmptyAudience = async () => {
+    mocks.fetchAcceptedConnections.mockResolvedValue([
+      { id: "f1", displayName: "Friend", username: "friend" },
+    ])
+    mocks.fetchMyCircles.mockResolvedValue([
+      {
+        id: "all",
+        name: "all friends",
+        description: "",
+        type: "all",
+        memberIds: [],
+      },
+    ])
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+    expect(await screen.findByText(PROMPT)).toBeInTheDocument()
+  }
+
+  it("closes on its dismiss button", async () => {
+    const user = userEvent.setup()
+    await renderWithEmptyAudience()
+    await user.click(screen.getByRole("button", { name: "dismiss" }))
+    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
+  })
+
+  it("closes when tapping a field outside it", async () => {
+    const user = userEvent.setup()
+    await renderWithEmptyAudience()
+    await user.click(screen.getByPlaceholderText(/what's the plan/i))
+    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
+  })
+
+  it("stays open when tapping inside it", async () => {
+    const user = userEvent.setup()
+    await renderWithEmptyAudience()
+    await user.click(screen.getByText(PROMPT))
+    expect(screen.getByText(PROMPT)).toBeInTheDocument()
   })
 })
