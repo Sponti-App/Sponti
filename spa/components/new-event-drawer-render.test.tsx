@@ -179,6 +179,30 @@ describe("NewEventDrawer render", () => {
   })
 })
 
+// #160: a failing places proxy (for example a missing server key) used to look
+// like "no matches". It must say the search is unavailable.
+describe("NewEventDrawer place search", () => {
+  it("says place search is unavailable when the proxy fails", async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 500 }))
+
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+    await user.click(screen.getByRole("button", { name: /my location/i }))
+    await user.click(
+      screen.getByRole("button", { name: /search for a place/i })
+    )
+    await user.type(screen.getByPlaceholderText("search for a place"), "coffee")
+
+    expect(
+      await screen.findByText(/place search isn't available/i)
+    ).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalled()
+    fetchMock.mockRestore()
+  })
+})
+
 // #135: the "no friends yet" prompt is pinned above the CTA and covered the
 // field being typed in. It must close on × or on a tap outside it.
 describe("NewEventDrawer no-friends audience prompt", () => {
