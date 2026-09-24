@@ -1,7 +1,7 @@
 import mongoose, { Types } from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { Circle, CircleMember } from "#models/index";
+import { Circle, CircleMember, Connection } from "#models/index";
 import type { UpdateCircleBody } from "#schemas/circleSchemas";
 import {
   createCircle,
@@ -27,11 +27,15 @@ beforeAll(async () => {
   await mongoose.connect(mongoServer.getUri(), {
     dbName: "sponti_circle_service_test",
   });
-  await Promise.all([Circle.syncIndexes(), CircleMember.syncIndexes()]);
+  await Promise.all([Circle.syncIndexes(), CircleMember.syncIndexes(), Connection.syncIndexes()]);
 }, 120_000);
 
 afterEach(async () => {
-  await Promise.all([Circle.deleteMany({}), CircleMember.deleteMany({})]);
+  await Promise.all([
+    Circle.deleteMany({}),
+    CircleMember.deleteMany({}),
+    Connection.deleteMany({}),
+  ]);
 });
 
 afterAll(async () => {
@@ -247,5 +251,64 @@ describe("circleService database behavior", () => {
     expect(await Circle.countDocuments({ ownerId: new Types.ObjectId(OWNER_ID) })).toBe(4);
     expect(await Circle.countDocuments({ ownerId: new Types.ObjectId(OTHER_OWNER_ID) })).toBe(3);
     expect((await Circle.findById(customCircle._id).orFail()).color).toBeNull();
+  });
+});
+
+describe("circleService 'all friends' database behavior (#154)", () => {
+  const FRIEND_ONE_ID = new Types.ObjectId().toString();
+  const FRIEND_TWO_ID = new Types.ObjectId().toString();
+
+  // Mirrors how respondToConnectionRequest stores an accepted connection:
+  // one row per direction, both status "accepted".
+  const acceptConnection = (otherId: string) =>
+    Connection.create([
+      {
+        requesterId: new Types.ObjectId(OWNER_ID),
+        receiverId: new Types.ObjectId(otherId),
+        status: "accepted",
+        type: "qr",
+      },
+      {
+        requesterId: new Types.ObjectId(otherId),
+        receiverId: new Types.ObjectId(OWNER_ID),
+        status: "accepted",
+        type: "qr",
+      },
+    ]);
+
+  it("reports the live connection count and member ids for 'all friends', not a stale stored list", async () => {
+    // A leftover CircleMember row from before this fix (or a stale manual
+    // add) must not be double-counted or otherwise change the result.
+    await ensureDefaultCircles(OWNER_ID);
+    const allCircle = await Circle.findOne({
+      ownerId: new Types.ObjectId(OWNER_ID),
+      type: "all",
+    }).orFail();
+    await CircleMember.create({
+      circleId: allCircle._id,
+      ownerId: new Types.ObjectId(OWNER_ID),
+      userId: new Types.ObjectId(MEMBER_ID),
+    });
+
+    await acceptConnection(FRIEND_ONE_ID);
+    await acceptConnection(FRIEND_TWO_ID);
+
+    const circles = await getMyCircles(OWNER_ID);
+    const all = circlesByType(circles).get("all");
+
+    expect(all?.members).toHaveLength(2);
+    expect(new Set(all?.members.map((member) => String(member.userId)))).toEqual(
+      new Set([FRIEND_ONE_ID, FRIEND_TWO_ID])
+    );
+  });
+
+  it("drops a friend from 'all friends' as soon as the connection is gone", async () => {
+    await ensureDefaultCircles(OWNER_ID);
+    await acceptConnection(FRIEND_ONE_ID);
+
+    await Connection.deleteMany({});
+
+    const circles = await getMyCircles(OWNER_ID);
+    expect(circlesByType(circles).get("all")?.members).toEqual([]);
   });
 });

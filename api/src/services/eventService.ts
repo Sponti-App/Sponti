@@ -11,6 +11,7 @@ import type {
   UpdateMyEventMembershipBody,
 } from "#schemas/eventSchemas";
 import { getBlockedInviteeIds, getBlockedRelationshipUserIds } from "#services/blockService";
+import { getAcceptedConnectionUserIds } from "#services/connectionService";
 import { getUsersByIds, type UserSummary } from "#services/userDirectoryService";
 import {
   createEventGuestRemovedNotification,
@@ -288,7 +289,7 @@ const resolveInviteCandidates = async (hostId: string, input: InviteSelection) =
       _id: { $in: circleObjectIds },
       ownerId: toObjectId(hostId),
     })
-      .select("_id")
+      .select("_id type")
       .lean();
 
     if (ownedCircles.length !== circleIds.length) {
@@ -296,25 +297,62 @@ const resolveInviteCandidates = async (hostId: string, input: InviteSelection) =
     }
 
     const circleInputById = new Map(input.circles.map((circle) => [circle.circleId, circle]));
-    const circleMembers = await CircleMember.find({
-      circleId: { $in: circleObjectIds },
-      ownerId: toObjectId(hostId),
-    })
-      .select("circleId userId")
-      .lean();
 
-    for (const circleMember of circleMembers) {
-      const circleInput = circleInputById.get(circleMember.circleId.toString());
+    // "all friends" isn't a membership list the api keeps in sync — it's
+    // every accepted, unblocked connection of the host, resolved live here
+    // (#154). Any CircleMember rows still stored against the "all" circle
+    // (from before this fix, or a stale manual add) are intentionally left
+    // out of the expansion below rather than unioned in, so a host can never
+    // re-invite someone they've since unfriended or blocked just because an
+    // old row lingers.
+    const allCircleIds = ownedCircles
+      .filter((circle) => circle.type === "all")
+      .map((circle) => circle._id.toString());
+    const nonAllCircleObjectIds = ownedCircles
+      .filter((circle) => circle.type !== "all")
+      .map((circle) => circle._id);
 
-      if (!circleInput) {
-        continue;
+    if (allCircleIds.length > 0) {
+      const connectionUserIds = await getAcceptedConnectionUserIds(hostId);
+
+      for (const allCircleId of allCircleIds) {
+        const circleInput = circleInputById.get(allCircleId);
+
+        if (!circleInput) {
+          continue;
+        }
+
+        for (const userId of connectionUserIds) {
+          mergeInviteCandidate(candidates, {
+            userId,
+            role: circleInput.role,
+            canInviteGuests: input.allowGuestInvites !== "none",
+          });
+        }
       }
+    }
 
-      mergeInviteCandidate(candidates, {
-        userId: circleMember.userId.toString(),
-        role: circleInput.role,
-        canInviteGuests: input.allowGuestInvites !== "none",
-      });
+    if (nonAllCircleObjectIds.length > 0) {
+      const circleMembers = await CircleMember.find({
+        circleId: { $in: nonAllCircleObjectIds },
+        ownerId: toObjectId(hostId),
+      })
+        .select("circleId userId")
+        .lean();
+
+      for (const circleMember of circleMembers) {
+        const circleInput = circleInputById.get(circleMember.circleId.toString());
+
+        if (!circleInput) {
+          continue;
+        }
+
+        mergeInviteCandidate(candidates, {
+          userId: circleMember.userId.toString(),
+          role: circleInput.role,
+          canInviteGuests: input.allowGuestInvites !== "none",
+        });
+      }
     }
   }
 
