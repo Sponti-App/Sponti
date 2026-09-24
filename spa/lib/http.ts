@@ -6,6 +6,13 @@ import {
   setSession,
 } from "./auth-store"
 
+// A warm backend answers in well under this. #171: Render's free tier puts
+// idle services to sleep, and the first request after that can take 30-60s
+// to wake one up, so a plain request gets one longer retry (GETs only —
+// see `request`) before it's treated as a real failure.
+export const DEFAULT_TIMEOUT_MS = 15_000
+export const COLD_START_TIMEOUT_MS = 45_000
+
 export class HttpError extends Error {
   status: number
   code?: string
@@ -152,6 +159,30 @@ type RefreshOutcome =
   // the request that triggered this surfaces its own error instead.
   | { status: "error" }
 
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && err.name === "AbortError"
+}
+
+async function postRefresh(
+  refreshToken: string,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(`${AUTH_BASE}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refreshToken }),
+      signal: controller.signal,
+    })
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+}
+
 // Cross-tab race guard (#167): both tabs of the same account hold the same
 // refresh token in localStorage. If this tab is about to spend it, a
 // `storage` event from another tab that got there first means a fresh pair
@@ -234,16 +265,16 @@ async function performRefresh(
 
   let res: Response
   try {
-    res = await fetch(`${AUTH_BASE}/auth/refresh`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ refreshToken }),
-    })
-  } catch {
-    // Network error — keep the session, this request fails.
-    return { status: "error" }
+    res = await postRefresh(refreshToken, DEFAULT_TIMEOUT_MS)
+  } catch (err) {
+    if (!isAbortError(err)) return { status: "error" }
+    // Cold start (#171): give the refresh one longer, second attempt before
+    // treating it as a network failure.
+    try {
+      res = await postRefresh(refreshToken, COLD_START_TIMEOUT_MS)
+    } catch {
+      return { status: "error" }
+    }
   }
 
   if (res.status === 401 || res.status === 403) {
@@ -271,11 +302,18 @@ async function performRefresh(
   return { status: "ok", accessToken: body.accessToken }
 }
 
+type RetryState = {
+  // A 401 was already retried once against a fresh access token.
+  hasRetriedAuth?: boolean
+  // A client-side timeout was already retried once with a longer window.
+  hasRetriedTimeout?: boolean
+}
+
 async function request<T>(
   baseUrl: string,
   path: string,
   opts: RequestOptions,
-  hasRetried = false
+  state: RetryState = {}
 ): Promise<T> {
   if (!baseUrl) {
     throw new HttpError(0, `Missing base URL for request to ${path}`)
@@ -290,7 +328,8 @@ async function request<T>(
     if (usedAccessToken) headers.Authorization = `Bearer ${usedAccessToken}`
   }
 
-  const timeoutMs = opts.timeoutMs ?? 12_000
+  const method = opts.method ?? "GET"
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const requestController = new AbortController()
   const timeoutId = window.setTimeout(
     () => requestController.abort(),
@@ -308,7 +347,7 @@ async function request<T>(
 
   try {
     const res = await fetch(`${baseUrl}${path}`, {
-      method: opts.method ?? "GET",
+      method,
       headers,
       body: opts.formData
         ? (opts.body as FormData)
@@ -322,13 +361,16 @@ async function request<T>(
       if (
         opts.auth &&
         res.status === 401 &&
-        !hasRetried &&
+        !state.hasRetriedAuth &&
         path !== "/auth/refresh"
       ) {
         const refreshResult = await refreshSession(usedAccessToken)
 
         if (refreshResult.status === "ok") {
-          return request<T>(baseUrl, path, opts, true)
+          return request<T>(baseUrl, path, opts, {
+            ...state,
+            hasRetriedAuth: true,
+          })
         }
 
         if (refreshResult.status === "error") {
@@ -362,6 +404,20 @@ async function request<T>(
       if (opts.signal?.aborted) {
         throw new HttpError(0, `Request to ${path} was cancelled`)
       }
+
+      // Cold start (#171): a Render free-tier instance can take 30-60s to
+      // wake from idle. Retrying a non-idempotent request blindly could
+      // duplicate a side effect, so only GETs (and internally, the refresh
+      // call — see postRefresh) get the extra, longer attempt.
+      if (method === "GET" && !state.hasRetriedTimeout) {
+        return request<T>(
+          baseUrl,
+          path,
+          { ...opts, timeoutMs: COLD_START_TIMEOUT_MS },
+          { ...state, hasRetriedTimeout: true }
+        )
+      }
+
       throw new HttpError(0, `Request to ${path} timed out`)
     }
     throw error

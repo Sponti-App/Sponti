@@ -40,6 +40,7 @@ import {
   type GeoStatus,
 } from "@/lib/geolocation"
 import { useMapEvents } from "@/lib/use-events"
+import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 import { haptic } from "@/lib/haptics"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
@@ -447,6 +448,9 @@ export function MapView({
     return () => window.clearInterval(id)
   }, [])
   const map = useMapEvents(cameraCenter, searchRadiusKm)
+  // #171: the first flares fetch after a cold backend can take up to a
+  // minute — say so instead of a "loading" label that just sits there.
+  const mapWakingUp = useSlowRequestHint(map.loading)
   const mapEvents = useMemo(
     () => map.events.filter((e) => !!e.location.coordinates),
     [map.events]
@@ -748,7 +752,8 @@ export function MapView({
               Boolean(map.refreshing),
               mapEvents.length,
               map.error,
-              !cameraCenter
+              !cameraCenter,
+              mapWakingUp
             )}
           </button>
         ) : (
@@ -773,7 +778,9 @@ export function MapView({
                 {!cameraCenter
                   ? locationStatusLabel(geo.status)
                   : map.loading
-                    ? "loading..."
+                    ? mapWakingUp
+                      ? "waking up the server…"
+                      : "loading..."
                     : map.refreshing
                       ? "updating..."
                       : `${activeCount} active`}
@@ -1175,11 +1182,12 @@ function sheetSummary(
   refreshing: boolean,
   count: number,
   error: string | null,
-  needsLocation: boolean
+  needsLocation: boolean,
+  wakingUp = false
 ): string {
   if (needsLocation) return "finding your location"
   if (error) return "tap to retry"
-  if (loading) return "loading flares..."
+  if (loading) return wakingUp ? "waking up the server…" : "loading flares..."
   if (refreshing && count > 0) return `${count} updating`
   if (count === 0) return "no flares near you"
   return `${count} flare${count === 1 ? "" : "s"} near you`
