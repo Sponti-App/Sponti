@@ -144,28 +144,123 @@ export function resolveConfiguredBaseUrl(rawValue: string): string {
   return candidates[0]
 }
 
-async function refreshSession(): Promise<string | null> {
-  if (!AUTH_BASE) return null
+type RefreshOutcome =
+  | { status: "ok"; accessToken: string }
+  // The refresh token really is invalid/expired — the session was cleared.
+  | { status: "invalid" }
+  // 5xx, a network error, or a client-side timeout — the session is kept;
+  // the request that triggered this surfaces its own error instead.
+  | { status: "error" }
 
+// Cross-tab race guard (#167): both tabs of the same account hold the same
+// refresh token in localStorage. If this tab is about to spend it, a
+// `storage` event from another tab that got there first means a fresh pair
+// is already sitting in storage — wait briefly for it instead of racing the
+// single-use token against the other tab.
+function waitForTokenRotation(
+  previousRefreshToken: string,
+  timeoutMs = 1500
+): Promise<string | null> {
+  if (typeof window === "undefined") return Promise.resolve(null)
+
+  return new Promise((resolve) => {
+    const onStorage = () => check()
+
+    const timeoutId = window.setTimeout(() => {
+      cleanup()
+      resolve(null)
+    }, timeoutMs)
+
+    const cleanup = () => {
+      window.removeEventListener("storage", onStorage)
+      window.clearTimeout(timeoutId)
+    }
+
+    function check(): boolean {
+      const current = getRefreshToken()
+      if (current && current !== previousRefreshToken) {
+        cleanup()
+        resolve(getToken())
+        return true
+      }
+      return false
+    }
+
+    window.addEventListener("storage", onStorage)
+    check()
+  })
+}
+
+// Only one refresh runs at a time per tab. Every 401 that arrives while one
+// is in flight awaits this same promise instead of spending the single-use
+// refresh token again (#167).
+let inFlightRefresh: Promise<RefreshOutcome> | null = null
+
+async function refreshSession(
+  failedAccessToken: string | null
+): Promise<RefreshOutcome> {
+  if (!AUTH_BASE) return { status: "invalid" }
+
+  if (!inFlightRefresh) {
+    inFlightRefresh = performRefresh(failedAccessToken).finally(() => {
+      inFlightRefresh = null
+    })
+  }
+  return inFlightRefresh
+}
+
+async function performRefresh(
+  failedAccessToken: string | null
+): Promise<RefreshOutcome> {
   const refreshToken = getRefreshToken()
   const user = getUser()
 
   if (!refreshToken || !user) {
     clearSession()
-    return null
+    return { status: "invalid" }
   }
 
-  const res = await fetch(`${AUTH_BASE}/auth/refresh`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ refreshToken }),
-  })
+  // Someone else (another request in this tab, deduped above, or another
+  // tab) may have already rotated the pair by the time we get here. Re-read
+  // storage before spending another single-use refresh token.
+  const currentAccessToken = getToken()
+  if (
+    failedAccessToken &&
+    currentAccessToken &&
+    currentAccessToken !== failedAccessToken
+  ) {
+    return { status: "ok", accessToken: currentAccessToken }
+  }
+
+  let res: Response
+  try {
+    res = await fetch(`${AUTH_BASE}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refreshToken }),
+    })
+  } catch {
+    // Network error — keep the session, this request fails.
+    return { status: "error" }
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    // Our token may have just been consumed by another tab's refresh that
+    // raced ahead of us. Give the storage write a brief window to land
+    // before treating this as a genuinely invalid session.
+    const rotatedAccessToken = await waitForTokenRotation(refreshToken)
+    if (rotatedAccessToken) {
+      return { status: "ok", accessToken: rotatedAccessToken }
+    }
+    clearSession()
+    return { status: "invalid" }
+  }
 
   if (!res.ok) {
-    clearSession()
-    return null
+    // 5xx or anything unexpected — keep the session, this request fails.
+    return { status: "error" }
   }
 
   const body = (await res.json()) as {
@@ -173,7 +268,7 @@ async function refreshSession(): Promise<string | null> {
     refreshToken: string
   }
   setSession(body.accessToken, body.refreshToken, user)
-  return body.accessToken
+  return { status: "ok", accessToken: body.accessToken }
 }
 
 async function request<T>(
@@ -189,9 +284,10 @@ async function request<T>(
   const headers: Record<string, string> = {}
   if (!opts.formData && opts.body !== undefined)
     headers["Content-Type"] = "application/json"
+  let usedAccessToken: string | null = null
   if (opts.auth) {
-    const token = getToken()
-    if (token) headers.Authorization = `Bearer ${token}`
+    usedAccessToken = getToken()
+    if (usedAccessToken) headers.Authorization = `Bearer ${usedAccessToken}`
   }
 
   const timeoutMs = opts.timeoutMs ?? 12_000
@@ -229,11 +325,25 @@ async function request<T>(
         !hasRetried &&
         path !== "/auth/refresh"
       ) {
-        const nextAccessToken = await refreshSession()
+        const refreshResult = await refreshSession(usedAccessToken)
 
-        if (nextAccessToken) {
+        if (refreshResult.status === "ok") {
           return request<T>(baseUrl, path, opts, true)
         }
+
+        if (refreshResult.status === "error") {
+          // A 5xx or network/timeout failure refreshing — the session is
+          // still good, so don't sign the user out. Surface a distinct
+          // error for this one request instead of the misleading
+          // "Unauthorized" the original 401 carries (#167).
+          throw new HttpError(
+            0,
+            "Couldn't refresh your session — try again",
+            "SESSION_REFRESH_FAILED"
+          )
+        }
+        // "invalid" — the refresh token really is bad and the session was
+        // cleared. Fall through and throw the original 401 below.
       }
 
       const payload = extractErrorPayload(await parseError(res), res.statusText)
