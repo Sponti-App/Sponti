@@ -30,6 +30,8 @@ type Listener = () => void
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
 const PAGE_SIZE = 10
 const READ_AFTER_SHOWN_MS = 900
+// How often the unread badge re-checks while the app is visible (#157).
+const UNREAD_POLL_MS = 30_000
 
 const listeners = new Set<Listener>()
 const pendingReadIds = new Set<string>()
@@ -245,4 +247,29 @@ export function useNotifications(): NotificationsSnapshot {
 
 export function useUnreadNotificationCount(): number {
   return useNotifications().unreadCount
+}
+
+/**
+ * Keeps the unread badge fresh while the app stays open: re-checks when the tab
+ * or app regains focus and on a slow timer while it's visible. Mount it once
+ * (the app shell does); the count itself is shared through the store.
+ */
+export function useUnreadCountRefresh(): void {
+  useEffect(() => {
+    if (!apiEnabled()) return
+
+    const refreshIfVisible = (): void => {
+      if (document.visibilityState === "visible") void refreshUnreadCount()
+    }
+
+    const timer = window.setInterval(refreshIfVisible, UNREAD_POLL_MS)
+    document.addEventListener("visibilitychange", refreshIfVisible)
+    window.addEventListener("focus", refreshIfVisible)
+
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", refreshIfVisible)
+      window.removeEventListener("focus", refreshIfVisible)
+    }
+  }, [])
 }
