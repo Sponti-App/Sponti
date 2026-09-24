@@ -1,8 +1,10 @@
 import mongoose, { Types } from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { Block, Connection, Event, EventMember, Notification } from "#models/index";
+import { Block, Circle, Connection, Event, EventMember, Notification } from "#models/index";
 import {
+  createEvent,
+  getCircleUpcomingEvents,
   getEventById,
   getEventMembers,
   getEvents,
@@ -32,6 +34,7 @@ beforeAll(async () => {
   });
   await Promise.all([
     Block.syncIndexes(),
+    Circle.syncIndexes(),
     Connection.syncIndexes(),
     Event.syncIndexes(),
     EventMember.syncIndexes(),
@@ -42,6 +45,7 @@ beforeAll(async () => {
 afterEach(async () => {
   await Promise.all([
     Block.deleteMany({}),
+    Circle.deleteMany({}),
     Connection.deleteMany({}),
     Event.deleteMany({}),
     EventMember.deleteMany({}),
@@ -344,5 +348,150 @@ describe("eventService public/private switching database behavior", () => {
     await updateEvent(HOST_ID, eventId, { title: "friday drinks, moved" });
 
     expect(await EventMember.countDocuments({ eventId, userId: OTHER_STRANGER_ID })).toBe(1);
+  });
+});
+
+describe("eventService circle-growth prompt database behavior (#150)", () => {
+  const HOUR = 3_600_000;
+
+  const makeCircle = (ownerId = HOST_ID, name = "close friends") =>
+    Circle.create({ ownerId: new Types.ObjectId(ownerId), name, type: "custom", color: "#00FF00" });
+
+  const makeFlare = (overrides: Record<string, unknown> = {}) =>
+    Event.create({
+      hostId: new Types.ObjectId(HOST_ID),
+      title: "friday drinks",
+      type: "drinks",
+      startAt: new Date(Date.now() + 2 * HOUR),
+      endAt: new Date(Date.now() + 4 * HOUR),
+      locationName: "the annex",
+      location: { type: "Point", coordinates: [9.99, 53.55] },
+      visibility: "private",
+      allowGuestInvites: "none",
+      guestInviteLimit: 0,
+      status: "active",
+      ...overrides,
+    });
+
+  it("remembers the circle a flare was posted to, even an empty one, and lists it", async () => {
+    const circle = await makeCircle();
+
+    const { event } = await createEvent(HOST_ID, {
+      title: "friday drinks",
+      description: null,
+      type: "drinks",
+      startAt: new Date(Date.now() + 2 * HOUR),
+      endAt: new Date(Date.now() + 4 * HOUR),
+      locationName: "the annex",
+      locationAddress: null,
+      location: { type: "Point", coordinates: [9.99, 53.55] },
+      visibility: "private",
+      allowGuestInvites: "none",
+      guestInviteLimit: 0,
+      members: [],
+      circles: [{ circleId: String(circle._id), role: "guest" }],
+    });
+
+    const flares = await getCircleUpcomingEvents(HOST_ID, String(circle._id));
+    expect(flares.map((flare) => String(flare._id))).toEqual([String(event._id)]);
+  });
+
+  it("remembers a circle invited later from edit flare", async () => {
+    const circle = await makeCircle();
+    const flare = await makeFlare();
+    expect(await getCircleUpcomingEvents(HOST_ID, String(circle._id))).toHaveLength(0);
+
+    await inviteEventMembers(HOST_ID, String(flare._id), {
+      members: [],
+      circles: [{ circleId: String(circle._id), role: "guest" }],
+    });
+
+    const listed = await getCircleUpcomingEvents(HOST_ID, String(circle._id));
+    expect(listed.map((f) => String(f._id))).toEqual([String(flare._id)]);
+    // Inviting the same circle again doesn't record it twice.
+    await inviteEventMembers(HOST_ID, String(flare._id), {
+      members: [],
+      circles: [{ circleId: String(circle._id), role: "guest" }],
+    });
+    expect((await Event.findById(flare._id).lean())?.invitedCircleIds).toHaveLength(1);
+  });
+
+  it("lists only upcoming, active flares for that circle, soonest first", async () => {
+    const circle = await makeCircle();
+    const otherCircle = await makeCircle(HOST_ID, "inner circle");
+    const circleIds = [circle._id];
+    const later = await makeFlare({
+      title: "later",
+      invitedCircleIds: circleIds,
+      startAt: new Date(Date.now() + 30 * HOUR),
+      endAt: new Date(Date.now() + 32 * HOUR),
+    });
+    const sooner = await makeFlare({ title: "sooner", invitedCircleIds: circleIds });
+    // Live right now (started, not ended) still counts.
+    const live = await makeFlare({
+      title: "live",
+      invitedCircleIds: circleIds,
+      startAt: new Date(Date.now() - HOUR),
+      endAt: new Date(Date.now() + HOUR),
+    });
+    // None of these should appear.
+    await makeFlare({
+      title: "ended",
+      invitedCircleIds: circleIds,
+      startAt: new Date(Date.now() - 5 * HOUR),
+      endAt: new Date(Date.now() - 3 * HOUR),
+    });
+    await makeFlare({ title: "cancelled", invitedCircleIds: circleIds, status: "cancelled" });
+    await makeFlare({ title: "other circle", invitedCircleIds: [otherCircle._id] });
+    await makeFlare({ title: "posted before circles were recorded" });
+
+    const listed = await getCircleUpcomingEvents(HOST_ID, String(circle._id));
+
+    expect(listed.map((flare) => flare.title)).toEqual(["live", "sooner", "later"]);
+    expect(listed.map((flare) => String(flare._id))).toEqual([
+      String(live._id),
+      String(sooner._id),
+      String(later._id),
+    ]);
+  });
+
+  it("leaves out flares the person is already on, or was removed from", async () => {
+    const circle = await makeCircle();
+    const onIt = await makeFlare({ title: "already on it", invitedCircleIds: [circle._id] });
+    const removed = await makeFlare({ title: "was removed", invitedCircleIds: [circle._id] });
+    await makeFlare({ title: "not on it", invitedCircleIds: [circle._id] });
+    await EventMember.create([
+      {
+        eventId: onIt._id,
+        userId: new Types.ObjectId(NEW_GUEST_ID),
+        invitedBy: new Types.ObjectId(HOST_ID),
+        role: "guest",
+        rsvpStatus: "invited",
+      },
+      {
+        eventId: removed._id,
+        userId: new Types.ObjectId(NEW_GUEST_ID),
+        invitedBy: new Types.ObjectId(HOST_ID),
+        role: "guest",
+        rsvpStatus: "going",
+        removedAt: new Date(),
+      },
+    ]);
+
+    const listed = await getCircleUpcomingEvents(HOST_ID, String(circle._id), {
+      userId: NEW_GUEST_ID,
+    });
+
+    expect(listed.map((flare) => flare.title)).toEqual(["not on it"]);
+  });
+
+  it("only lets the circle's owner ask, and only about their own flares", async () => {
+    const circle = await makeCircle();
+    await makeFlare({ invitedCircleIds: [circle._id] });
+
+    await expect(getCircleUpcomingEvents(STRANGER_ID, String(circle._id))).rejects.toMatchObject({
+      statusCode: 404,
+      code: "CIRCLE_NOT_FOUND",
+    });
   });
 });

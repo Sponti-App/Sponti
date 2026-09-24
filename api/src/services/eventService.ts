@@ -358,6 +358,13 @@ export const createEvent = async (hostId: string, input: CreateEventBody) => {
           visibility: input.visibility,
           allowGuestInvites: input.allowGuestInvites,
           guestInviteLimit: input.guestInviteLimit,
+          // Public flares don't expand circles, so there's nothing to record.
+          invitedCircleIds:
+            input.visibility === "public"
+              ? []
+              : uniqueObjectIdStrings(input.circles.map((circle) => circle.circleId)).map(
+                  toObjectId
+                ),
           status: "active",
         },
       ],
@@ -680,13 +687,31 @@ export const inviteEventMembers = async (
     allowGuestInvites: event.allowGuestInvites,
   });
 
+  const hostObjectId = toObjectId(hostId);
+  const circleObjectIds = uniqueObjectIdStrings(input.circles.map((circle) => circle.circleId)).map(
+    toObjectId
+  );
+
+  // Remember which circles the flare went to, even if they were empty or
+  // everyone in them is already on it: someone added to the circle later can
+  // then be offered the flare.
+  const recordCircles = async (session?: ClientSession) => {
+    if (circleObjectIds.length === 0) return;
+    await Event.updateOne(
+      { _id: event._id },
+      { $addToSet: { invitedCircleIds: { $each: circleObjectIds } } },
+      { session }
+    );
+  };
+
   if (candidates.length === 0) {
+    await recordCircles();
     return { invitedUserIds: [] };
   }
 
-  const hostObjectId = toObjectId(hostId);
-
   return withTransactionFallback(async (session?: ClientSession) => {
+    await recordCircles(session);
+
     const removed = (await EventMember.find({
       eventId: event._id,
       userId: { $in: candidates.map((candidate) => toObjectId(candidate.userId)) },
@@ -761,6 +786,48 @@ export const inviteEventMembers = async (
 
     return { invitedUserIds };
   });
+};
+
+/**
+ * The host's flares that were sent to a circle and are still worth inviting
+ * someone to: active and not ended, soonest first. Pass `userId` to leave out
+ * flares that person is already on (or was removed from). Backs the "add them
+ * to your flares too?" prompt when a circle grows.
+ */
+export const getCircleUpcomingEvents = async (
+  hostId: string,
+  circleId: string,
+  query: { userId?: string } = {}
+) => {
+  const hostObjectId = toObjectId(hostId);
+  const circleObjectId = toObjectId(circleId);
+
+  const circle = await Circle.exists({ _id: circleObjectId, ownerId: hostObjectId });
+
+  if (!circle) {
+    throw new AppError("Circle not found", 404, "CIRCLE_NOT_FOUND");
+  }
+
+  const conditions: EventFilter = {
+    hostId: hostObjectId,
+    invitedCircleIds: circleObjectId,
+    status: "active",
+    endAt: { $gt: new Date() },
+  };
+
+  if (query.userId) {
+    const alreadyOn = await EventMember.distinct("eventId", { userId: toObjectId(query.userId) });
+
+    if (alreadyOn.length > 0) {
+      conditions._id = { $nin: alreadyOn };
+    }
+  }
+
+  return Event.find(conditions)
+    .select("_id title startAt endAt")
+    .sort({ startAt: 1 })
+    .limit(50)
+    .lean();
 };
 
 /**

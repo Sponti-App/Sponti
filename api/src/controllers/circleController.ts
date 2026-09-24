@@ -1,9 +1,11 @@
 import type {
   AddCircleMemberBody,
+  CircleEventsQuery,
   CreateCircleBody,
   UpdateCircleBody,
 } from "#schemas/circleSchemas";
 import * as circleService from "#services/circleService";
+import * as eventService from "#services/eventService";
 import { asyncHandler } from "#utils/asyncHandler";
 import { getAuthenticatedUserId, getRouteParam } from "#utils/requestUser";
 
@@ -50,4 +52,14 @@ export const removeCircleMember = asyncHandler(async (req, res) => {
   );
 
   res.status(204).send();
+});
+
+export const getCircleEvents = asyncHandler(async (req, res) => {
+  const data = await eventService.getCircleUpcomingEvents(
+    getAuthenticatedUserId(req),
+    getRouteParam(req, "id"),
+    req.query as CircleEventsQuery
+  );
+
+  res.json({ data });
 });

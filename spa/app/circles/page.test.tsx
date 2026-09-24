@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   createCircle: vi.fn(),
   fetchAcceptedConnections: vi.fn(),
   fetchBlockedUsers: vi.fn(),
+  fetchCircleFlares: vi.fn(),
+  inviteEventGuests: vi.fn(),
   fetchIncomingConnectionRequests: vi.fn(),
   fetchMyCircles: vi.fn(),
   fetchOutgoingConnectionRequests: vi.fn(),
@@ -46,6 +48,8 @@ vi.mock("@/lib/api/circles", async (importOriginal) => {
     ...actual,
     addCircleMember: mocks.addCircleMember,
     createCircle: mocks.createCircle,
+    fetchCircleFlares: (...args: unknown[]) =>
+      mocks.fetchCircleFlares(...args) ?? Promise.resolve([]),
     fetchMyCircles: mocks.fetchMyCircles,
     removeCircleMember: mocks.removeCircleMember,
     updateCircle: mocks.updateCircle,
@@ -67,6 +71,14 @@ vi.mock("@/lib/api/blocks", async (importOriginal) => {
   return {
     ...actual,
     fetchBlockedUsers: mocks.fetchBlockedUsers,
+  }
+})
+
+vi.mock("@/lib/api/events", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/events")>()
+  return {
+    ...actual,
+    inviteEventGuests: mocks.inviteEventGuests,
   }
 })
 
@@ -301,5 +313,181 @@ describe("CirclesPage add friends to a circle", () => {
     expect(
       await screen.findByText("everyone's already in this circle")
     ).toBeInTheDocument()
+  })
+})
+
+// #150: circles are snapshots, so someone added to a circle later isn't on the
+// flares it was already invited to. Offer to add them, opt-in.
+describe("CirclesPage add to flares prompt", () => {
+  const bob: Connection = {
+    id: "user-2",
+    displayName: "Bob Ross",
+    username: "bob",
+  }
+  const flares = [
+    {
+      id: "flare-1",
+      title: "friday drinks",
+      startAt: "2099-06-05T18:00:00.000Z",
+      endAt: "2099-06-05T21:00:00.000Z",
+    },
+    {
+      id: "flare-2",
+      title: "sunday run",
+      startAt: "2099-06-07T08:00:00.000Z",
+      endAt: "2099-06-07T09:00:00.000Z",
+    },
+  ]
+
+  async function addBobToStudioCrew(user: ReturnType<typeof userEvent.setup>) {
+    renderCirclesPage()
+    await user.click(
+      await screen.findByRole("button", { name: /studio crew/i })
+    )
+    await user.click(await screen.findByRole("button", { name: /Bob Ross/ }))
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.fetchAcceptedConnections.mockResolvedValue([ada, bob])
+    mocks.fetchIncomingConnectionRequests.mockResolvedValue([])
+    mocks.fetchOutgoingConnectionRequests.mockResolvedValue([])
+    mocks.fetchBlockedUsers.mockResolvedValue([])
+    mocks.fetchMyCircles.mockResolvedValue([circle({ memberIds: [ada.id] })])
+    mocks.addCircleMember.mockResolvedValue(undefined)
+    mocks.fetchCircleFlares.mockResolvedValue(flares)
+    mocks.inviteEventGuests.mockResolvedValue({ invitedUserIds: [bob.id] })
+  })
+
+  it("offers the circle's upcoming flares, all ticked, and adds the person to them", async () => {
+    const user = userEvent.setup()
+    await addBobToStudioCrew(user)
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "add Bob Ross to your flares too?",
+    })
+    expect(mocks.fetchCircleFlares).toHaveBeenCalledWith("circle-1", "user-2")
+    expect(
+      within(dialog).getByText("studio crew is invited to 2 upcoming flares")
+    ).toBeInTheDocument()
+    const boxes = within(dialog).getAllByRole("checkbox")
+    expect(boxes.map((box) => box.getAttribute("aria-checked"))).toEqual([
+      "true",
+      "true",
+    ])
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "add to flares" })
+    )
+
+    await waitFor(() =>
+      expect(mocks.inviteEventGuests).toHaveBeenCalledTimes(2)
+    )
+    expect(mocks.inviteEventGuests).toHaveBeenCalledWith("flare-1", {
+      members: [{ userId: "user-2", role: "guest" }],
+    })
+    expect(mocks.inviteEventGuests).toHaveBeenCalledWith("flare-2", {
+      members: [{ userId: "user-2", role: "guest" }],
+    })
+    await waitFor(() =>
+      expect(mocks.showActionFeedback).toHaveBeenCalledWith(
+        "added Bob Ross to 2 flares"
+      )
+    )
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("only adds them to the flares that are still ticked", async () => {
+    const user = userEvent.setup()
+    await addBobToStudioCrew(user)
+
+    const dialog = await screen.findByRole("dialog")
+    await user.click(
+      within(dialog).getByRole("checkbox", { name: /sunday run/ })
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "add to flares" })
+    )
+
+    await waitFor(() =>
+      expect(mocks.inviteEventGuests).toHaveBeenCalledTimes(1)
+    )
+    expect(mocks.inviteEventGuests).toHaveBeenCalledWith(
+      "flare-1",
+      expect.anything()
+    )
+    expect(mocks.showActionFeedback).toHaveBeenCalledWith(
+      "added Bob Ross to the flare"
+    )
+  })
+
+  it("does nothing to the flares when the host picks just the circle", async () => {
+    const user = userEvent.setup()
+    await addBobToStudioCrew(user)
+
+    await user.click(
+      await screen.findByRole("button", { name: "just the circle" })
+    )
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(mocks.inviteEventGuests).not.toHaveBeenCalled()
+    // He was still added to the circle itself.
+    expect(mocks.addCircleMember).toHaveBeenCalledWith("circle-1", "user-2")
+  })
+
+  it("can't add to flares with nothing ticked", async () => {
+    const user = userEvent.setup()
+    await addBobToStudioCrew(user)
+
+    const dialog = await screen.findByRole("dialog")
+    for (const box of within(dialog).getAllByRole("checkbox"))
+      await user.click(box)
+
+    expect(
+      within(dialog).getByRole("button", { name: "add to flares" })
+    ).toBeDisabled()
+  })
+
+  it("doesn't ask when the circle has no upcoming flares", async () => {
+    const user = userEvent.setup()
+    mocks.fetchCircleFlares.mockResolvedValue([])
+    await addBobToStudioCrew(user)
+
+    await waitFor(() => expect(mocks.fetchCircleFlares).toHaveBeenCalled())
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("stays quiet if the flares can't be loaded", async () => {
+    const user = userEvent.setup()
+    mocks.fetchCircleFlares.mockRejectedValue(new Error("offline"))
+    await addBobToStudioCrew(user)
+
+    await waitFor(() =>
+      expect(mocks.showActionFeedback).toHaveBeenCalledWith("added to circle")
+    )
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(mocks.showActionFeedback).not.toHaveBeenCalledWith(
+      expect.anything(),
+      { tone: "error" }
+    )
+  })
+
+  it("says so when some of the flares couldn't take them", async () => {
+    const user = userEvent.setup()
+    mocks.inviteEventGuests
+      .mockResolvedValueOnce({ invitedUserIds: [bob.id] })
+      .mockRejectedValueOnce(new Error("that flare has ended"))
+    await addBobToStudioCrew(user)
+
+    await user.click(
+      await screen.findByRole("button", { name: "add to flares" })
+    )
+
+    await waitFor(() =>
+      expect(mocks.showActionFeedback).toHaveBeenCalledWith(
+        "couldn't add them to every flare",
+        { tone: "error" }
+      )
+    )
   })
 })
