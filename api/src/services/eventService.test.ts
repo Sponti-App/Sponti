@@ -9,6 +9,7 @@ const eventMemberCreateMock = vi.hoisted(() => vi.fn());
 const eventMemberDistinctMock = vi.hoisted(() => vi.fn());
 const eventMemberFindMock = vi.hoisted(() => vi.fn());
 const eventMemberFindOneMock = vi.hoisted(() => vi.fn());
+const eventMemberFindOneAndUpdateMock = vi.hoisted(() => vi.fn());
 const eventMemberUpdateManyMock = vi.hoisted(() => vi.fn());
 const circleFindMock = vi.hoisted(() => vi.fn());
 const circleMemberFindMock = vi.hoisted(() => vi.fn());
@@ -37,6 +38,7 @@ vi.mock("#models/index", () => ({
     distinct: eventMemberDistinctMock,
     find: eventMemberFindMock,
     findOne: eventMemberFindOneMock,
+    findOneAndUpdate: eventMemberFindOneAndUpdateMock,
     updateMany: eventMemberUpdateManyMock,
   },
   Notification: {
@@ -70,6 +72,7 @@ const {
   getMyUpcomingEvents,
   inviteEventMembers,
   reactivateEvent,
+  removeEventMember,
   updateMyEventMembership,
 } = await import("#services/eventService");
 
@@ -272,6 +275,10 @@ describe("eventService.createEvent", () => {
 describe("eventService.inviteEventMembers", () => {
   const OTHER_GUEST_ID = "507f1f77bcf86cd799439016";
 
+  // The lookup for previously removed members among the people being invited.
+  const mockRemovedMembers = (userIds: string[] = []) =>
+    mockEventMembersForNotifications(userIds.map((userId) => ({ userId })));
+
   const mockInvitableEvent = (overrides: Record<string, unknown> = {}) =>
     mockEventFindOneSelectLean({
       _id: EVENT_ID,
@@ -285,6 +292,7 @@ describe("eventService.inviteEventMembers", () => {
 
   it("adds new invitees from friends and circles and notifies only the ones added", async () => {
     mockInvitableEvent();
+    mockRemovedMembers();
     mockCircleFindLean([{ _id: CIRCLE_ID }]);
     mockCircleMemberFindLean([
       { circleId: CIRCLE_ID, userId: GUEST_ID },
@@ -333,6 +341,7 @@ describe("eventService.inviteEventMembers", () => {
 
   it("sends no notifications when everyone picked is already on the flare", async () => {
     mockInvitableEvent();
+    mockRemovedMembers();
     mockAcceptedConnections([{ requesterId: USER_ID, receiverId: GUEST_ID }]);
     eventMemberBulkWriteMock.mockResolvedValue({ upsertedIds: {} });
 
@@ -402,6 +411,155 @@ describe("eventService.inviteEventMembers", () => {
   });
 });
 
+describe("eventService.inviteEventMembers restoring removed guests", () => {
+  it("restores a removed guest as a fresh invitee and notifies them again", async () => {
+    mockEventFindOneSelectLean({
+      _id: EVENT_ID,
+      hostId: USER_ID,
+      title: "friday drinks",
+      status: "active",
+      endAt: new Date("2026-05-14T14:00:00.000Z"),
+      allowGuestInvites: "none",
+    });
+    mockEventMembersForNotifications([{ userId: GUEST_ID }]);
+    mockAcceptedConnections([{ requesterId: USER_ID, receiverId: GUEST_ID }]);
+    mockExistingNotifications([]);
+    notificationCreateMock.mockResolvedValue([{}]);
+    eventMemberUpdateManyMock.mockResolvedValue({ modifiedCount: 1 });
+    // The row already exists (it was only marked removed), so nothing is inserted.
+    eventMemberBulkWriteMock.mockResolvedValue({ upsertedIds: {} });
+
+    const result = await inviteEventMembers(USER_ID, EVENT_ID, {
+      members: [{ userId: GUEST_ID, role: "guest" }],
+      circles: [],
+    });
+
+    expect(result).toEqual({ invitedUserIds: [GUEST_ID] });
+    expect(eventMemberUpdateManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ removedAt: { $ne: null } }),
+      {
+        $set: expect.objectContaining({
+          removedAt: null,
+          rsvpStatus: "invited",
+          memberWillArriveAt: null,
+        }),
+      },
+      { session: transactionSessionMock }
+    );
+    // Restored people are notified even though they already had an invite notice.
+    expect(notificationFindMock).not.toHaveBeenCalled();
+    expect(notificationCreateMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("eventService.removeEventMember", () => {
+  const removableEvent = (overrides: Record<string, unknown> = {}) =>
+    mockEventFindOneSelectLean({
+      _id: EVENT_ID,
+      hostId: USER_ID,
+      title: "friday drinks",
+      status: "active",
+      startAt: new Date("2026-05-15T18:00:00.000Z"),
+      ...overrides,
+    });
+
+  it("removes a going guest and sends them one neutral notice that doesn't name the host", async () => {
+    removableEvent();
+    eventMemberFindOneAndUpdateMock.mockResolvedValue({ rsvpStatus: "going" });
+    notificationCreateMock.mockResolvedValue([{}]);
+
+    const result = await removeEventMember(USER_ID, EVENT_ID, GUEST_ID);
+
+    expect(result).toEqual({ removedUserId: GUEST_ID, notified: true });
+    expect(eventMemberFindOneAndUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ role: { $ne: "host" }, removedAt: null }),
+      { $set: { removedAt: expect.any(Date) } },
+      { session: transactionSessionMock, returnDocument: "before" }
+    );
+    const docs = notificationCreateMock.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(docs).toHaveLength(1);
+    expect(docs[0]).toMatchObject({
+      type: "event_guest_removed",
+      actorId: null,
+      title: "You're no longer on the guest list",
+      message: "for friday drinks",
+    });
+    expect(String(docs[0]?.userId)).toBe(GUEST_ID);
+  });
+
+  it.each(["invited", "declined"])("removes a %s guest without telling them", async (rsvp) => {
+    removableEvent();
+    eventMemberFindOneAndUpdateMock.mockResolvedValue({ rsvpStatus: rsvp });
+
+    const result = await removeEventMember(USER_ID, EVENT_ID, GUEST_ID);
+
+    expect(result).toEqual({ removedUserId: GUEST_ID, notified: false });
+    expect(notificationCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the guest isn't on the flare or was already removed", async () => {
+    removableEvent();
+    eventMemberFindOneAndUpdateMock.mockResolvedValue(null);
+
+    await expect(removeEventMember(USER_ID, EVENT_ID, GUEST_ID)).rejects.toMatchObject({
+      statusCode: 404,
+      code: "EVENT_MEMBER_NOT_FOUND",
+    });
+    expect(notificationCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 to anyone but the host", async () => {
+    mockEventFindOneSelectLean(null);
+
+    await expect(removeEventMember(GUEST_ID, EVENT_ID, ADMIN_ID)).rejects.toMatchObject({
+      statusCode: 404,
+      code: "EVENT_NOT_FOUND",
+    });
+    expect(eventMemberFindOneAndUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses to remove the host", async () => {
+    await expect(removeEventMember(USER_ID, EVENT_ID, USER_ID)).rejects.toMatchObject({
+      statusCode: 400,
+      code: "CANNOT_REMOVE_HOST",
+    });
+    expect(eventFindOneMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["cancelled", { status: "cancelled" }],
+    ["already started", { startAt: new Date("2026-05-14T11:00:00.000Z") }],
+  ])("locks the guest list once the flare is %s", async (_label, overrides) => {
+    removableEvent(overrides);
+
+    await expect(removeEventMember(USER_ID, EVENT_ID, GUEST_ID)).rejects.toMatchObject({
+      statusCode: 409,
+      code: "EVENT_GUEST_LIST_LOCKED",
+    });
+    expect(eventMemberFindOneAndUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("eventService visibility for removed guests", () => {
+  it("excludes flares a guest was removed from, even public ones", async () => {
+    const removedEventId = "507f1f77bcf86cd799439099";
+    eventMemberDistinctMock
+      .mockResolvedValueOnce([]) // events they're a member of
+      .mockResolvedValueOnce([removedEventId]); // events they were removed from
+    mockPagedEventFind([]);
+
+    await getEvents(GUEST_ID, { page: 1, limit: 20 } as never);
+
+    const filter = eventFindMock.mock.calls[0]?.[0] as { $and: Array<Record<string, unknown>> };
+    expect(eventMemberDistinctMock).toHaveBeenCalledWith("eventId", {
+      userId: expect.anything(),
+      removedAt: { $ne: null },
+    });
+    expect(JSON.stringify(filter)).toContain(removedEventId);
+    expect(JSON.stringify(filter)).toContain("$nin");
+  });
+});
+
 describe("eventService.getEventMembers", () => {
   const mockMemberFind = (members: Array<Record<string, unknown>>) => {
     const leanMock = vi.fn().mockResolvedValue(members);
@@ -425,6 +583,7 @@ describe("eventService.getEventMembers", () => {
     expect(eventMemberFindMock).toHaveBeenCalledWith({
       eventId: EVENT_ID,
       role: { $ne: "host" },
+      removedAt: null,
     });
     expect(result).toEqual([
       {

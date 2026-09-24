@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   showActionFeedback: vi.fn(),
   fetchEventGuests: vi.fn(),
   inviteEventGuests: vi.fn(),
+  removeEventGuest: vi.fn(),
   fetchMyCircles: vi.fn(),
   fetchAcceptedConnections: vi.fn(),
 }))
@@ -18,6 +19,7 @@ vi.mock("@/components/action-feedback", () => ({
 vi.mock("@/lib/api/events", () => ({
   fetchEventGuests: mocks.fetchEventGuests,
   inviteEventGuests: mocks.inviteEventGuests,
+  removeEventGuest: mocks.removeEventGuest,
 }))
 
 vi.mock("@/lib/api/circles", () => ({
@@ -62,6 +64,10 @@ describe("EventGuestsSection", () => {
       },
     ])
     mocks.inviteEventGuests.mockResolvedValue({ invitedUserIds: ["u-lee"] })
+    mocks.removeEventGuest.mockResolvedValue({
+      removedUserId: "u-sam",
+      notified: false,
+    })
   })
 
   it("lists guests going first with a status summary", async () => {
@@ -127,5 +133,76 @@ describe("EventGuestsSection", () => {
     expect(
       screen.queryByRole("button", { name: /invite more/i })
     ).not.toBeInTheDocument()
+  })
+
+  // #148: removing a guest is quiet for someone who hasn't committed, and
+  // slower for someone who said they're going (they'll be told).
+  describe("removing a guest", () => {
+    it("removes an invited guest straight away, without a confirm step", async () => {
+      const user = userEvent.setup()
+      render(<EventGuestsSection eventId="e1" canInvite canRemove />)
+
+      await user.click(
+        await screen.findByRole("button", { name: "remove sam" })
+      )
+
+      expect(mocks.removeEventGuest).toHaveBeenCalledWith("e1", "u-sam")
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+      await waitFor(() =>
+        expect(mocks.showActionFeedback).toHaveBeenCalledWith("removed sam")
+      )
+      // The list is reloaded so they disappear from it.
+      expect(mocks.fetchEventGuests).toHaveBeenCalledTimes(2)
+    })
+
+    it("asks first when the guest said they're going, and only removes on confirm", async () => {
+      const user = userEvent.setup()
+      render(<EventGuestsSection eventId="e1" canInvite canRemove />)
+
+      await user.click(
+        await screen.findByRole("button", { name: "remove ana" })
+      )
+      expect(
+        screen.getByRole("dialog", { name: "remove ana?" })
+      ).toBeInTheDocument()
+      expect(mocks.removeEventGuest).not.toHaveBeenCalled()
+
+      await user.click(screen.getByRole("button", { name: "keep them" }))
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+      expect(mocks.removeEventGuest).not.toHaveBeenCalled()
+
+      await user.click(screen.getByRole("button", { name: "remove ana" }))
+      await user.click(screen.getByRole("button", { name: "remove" }))
+      expect(mocks.removeEventGuest).toHaveBeenCalledWith("e1", "u-ana")
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+      )
+    })
+
+    it("says so when removing fails", async () => {
+      const user = userEvent.setup()
+      mocks.removeEventGuest.mockRejectedValue(new Error("nope"))
+      render(<EventGuestsSection eventId="e1" canInvite canRemove />)
+
+      await user.click(
+        await screen.findByRole("button", { name: "remove sam" })
+      )
+
+      await waitFor(() =>
+        expect(mocks.showActionFeedback).toHaveBeenCalledWith(
+          "couldn't remove sam",
+          { tone: "error" }
+        )
+      )
+    })
+
+    it("offers no remove buttons once the guest list is locked", async () => {
+      render(<EventGuestsSection eventId="e1" canInvite canRemove={false} />)
+
+      await screen.findByText("1 going · 1 invited")
+      expect(
+        screen.queryByRole("button", { name: /^remove / })
+      ).not.toBeInTheDocument()
+    })
   })
 })

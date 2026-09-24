@@ -77,6 +77,16 @@ export const inviteEventMembers = asyncHandler(async (req, res) => {
   res.json({ data });
 });
 
+export const removeEventMember = asyncHandler(async (req, res) => {
+  const data = await eventService.removeEventMember(
+    getAuthenticatedUserId(req),
+    getRouteParam(req, "eventId"),
+    getRouteParam(req, "userId")
+  );
+
+  res.json({ data });
+});
+
 export const cancelEvent = asyncHandler(async (req, res) => {
   const data = await eventService.cancelEvent(
     getAuthenticatedUserId(req),

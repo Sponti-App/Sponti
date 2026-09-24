@@ -183,6 +183,12 @@ export type InviteEventMembersRequest = {
   circles?: EventCircleInviteRequest[]
 }
 
+export type RemoveEventGuestResponse = {
+  removedUserId: string
+  /** True when the guest had said "going" and was told they were removed. */
+  notified: boolean
+}
+
 export type InviteEventMembersResponse = {
   invitedUserIds: string[]
 }

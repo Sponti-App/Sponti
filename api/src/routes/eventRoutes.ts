@@ -6,6 +6,7 @@ import {
   activeMapEventsQuerySchema,
   createEventBodySchema,
   eventIdParamSchema,
+  eventMemberParamSchema,
   getEventsQuerySchema,
   inviteEventMembersBodySchema,
   myUpcomingEventsQuerySchema,
@@ -54,6 +55,11 @@ router.post(
   "/:eventId/members",
   validateRequest({ params: eventIdParamSchema, body: inviteEventMembersBodySchema }),
   eventController.inviteEventMembers
+);
+router.delete(
+  "/:eventId/members/:userId",
+  validateRequest({ params: eventMemberParamSchema }),
+  eventController.removeEventMember
 );
 router.patch(
   "/:eventId/cancel",

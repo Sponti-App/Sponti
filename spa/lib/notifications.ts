@@ -30,6 +30,7 @@ const EVENT_NOTIFICATION_TYPES: ApiNotificationType[] = [
   "event_cancelled",
   "event_reactivated",
   "event_rsvp_change",
+  "event_guest_removed",
 ]
 
 function actorName(notification: ApiNotification): string | null {
@@ -57,6 +58,7 @@ function intentFor(type: ApiNotificationType): NotificationIntent {
       return "rsvp"
     case "event_invitation":
     case "event_reactivated":
+    case "event_guest_removed":
       return "event"
   }
 }

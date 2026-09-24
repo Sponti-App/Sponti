@@ -36,6 +36,14 @@ const eventMemberSchema = new Schema(
       type: Date,
       default: null,
     },
+    // Set when the host removes the guest. The row is kept (not deleted) so a
+    // removed person can't find or rejoin the flare, even a public one. Every
+    // "is a member" query filters on `removedAt: null`; the host can restore
+    // someone by inviting them again.
+    removedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     collection: "event_members",
