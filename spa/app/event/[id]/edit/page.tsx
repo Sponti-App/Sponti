@@ -38,13 +38,6 @@ const DURATION_OPTIONS = [
   { label: "3h", minutes: 180 },
 ] as const
 
-const RECENT_PLACES = [
-  { label: "the annex", detail: "rooftop bar" },
-  { label: "courtyard", detail: "23 Allenby St" },
-  { label: "north park", detail: "south entrance" },
-  { label: "downtown loft", detail: "" },
-]
-
 const MIN = 60_000
 
 type PlaceSuggestion = { placeId: string; label: string; address: string }
@@ -560,28 +553,6 @@ export default function EventEditPage() {
             className="mt-2"
             disabled={isPast || isCancelled || saving}
           />
-          {!isPast && !isCancelled && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {RECENT_PLACES.map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  onClick={() => {
-                    setLocationLabel(p.label)
-                    setLocationDetail(p.detail)
-                    setSelectedPlaceLocation(null)
-                    setPlaceResults([])
-                    setPlaceDetailsError(null)
-                  }}
-                  className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1 text-xs hover:bg-secondary"
-                  disabled={saving}
-                >
-                  <MapPin className="h-3 w-3" />
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          )}
         </Section>
 
         <Section label="who can see it">
