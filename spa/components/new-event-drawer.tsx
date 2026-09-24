@@ -2305,7 +2305,7 @@ function useLongPress({
 // Three compact chips for the system circles. Inner/Close are editable — tap
 // selects the audience, hold (or right-click) opens the inline editor. The
 // pencil hint in the corner is the visible affordance for the gesture.
-function CircleCards({
+export function CircleCards({
   circles,
   audience,
   onSelect,
@@ -2314,7 +2314,8 @@ function CircleCards({
   circles: Circle[]
   audience: Audience
   onSelect: (circleId: string) => void
-  onEdit: (circleId: string) => void
+  // Omit to make every chip a plain tap target (no membership editor).
+  onEdit?: (circleId: string) => void
 }) {
   const systemCircles = circles.filter(
     (c) => c.type === "inner" || c.type === "close" || c.type === "all"
@@ -2336,7 +2337,7 @@ function CircleCards({
           circle={c}
           selected={c.id === audience}
           onSelect={() => onSelect(c.id)}
-          onEdit={c.type === "all" ? undefined : () => onEdit(c.id)}
+          onEdit={c.type === "all" || !onEdit ? undefined : () => onEdit(c.id)}
         />
       ))}
     </div>
@@ -2516,7 +2517,7 @@ function DirectInviteSearch({
 // Used by CircleEditor (membership edit) and DirectInviteSearch (per-event
 // invite). Stateless from the parent's perspective — selectedIds in,
 // onToggle out.
-function FriendList({
+export function FriendList({
   connections,
   selectedIds,
   onToggle,

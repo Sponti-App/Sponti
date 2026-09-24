@@ -4,9 +4,12 @@ import type {
   ApiEvent,
   CreateEventRequest,
   CreateEventResponse,
+  EventGuest,
   FetchCalendarEventsParams,
   FetchCalendarEventsResult,
   FetchMapEventsParams,
+  InviteEventMembersRequest,
+  InviteEventMembersResponse,
   MyFlaresResult,
   Paginated,
   RsvpStatus,
@@ -122,6 +125,34 @@ export function reactivateEvent(id: string) {
   return apiFetch<{ data: ApiEvent }>(`/events/${id}/reactivate`, {
     method: "PATCH",
   }).then((response) => adaptApiHostedEvent(response.data))
+}
+
+/**
+ * GET /events/:id/members
+ * Host-only guest list (everyone but the host) with each guest's RSVP.
+ */
+export function fetchEventGuests(
+  eventId: string,
+  signal?: AbortSignal
+): Promise<EventGuest[]> {
+  return apiFetch<{ data: EventGuest[] }>(`/events/${eventId}/members`, {
+    signal,
+  }).then((response) => response.data)
+}
+
+/**
+ * POST /events/:id/members
+ * Invites more friends and circles to a posted flare. Only people who weren't
+ * on the flare yet are added and notified; their ids come back.
+ */
+export function inviteEventGuests(
+  eventId: string,
+  body: InviteEventMembersRequest
+): Promise<InviteEventMembersResponse> {
+  return apiFetch<{ data: InviteEventMembersResponse }>(
+    `/events/${eventId}/members`,
+    { method: "POST", body }
+  ).then((response) => response.data)
 }
 
 /**

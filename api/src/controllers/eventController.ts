@@ -2,6 +2,7 @@ import type {
   ActiveMapEventsQuery,
   CreateEventBody,
   GetEventsQuery,
+  InviteEventMembersBody,
   MyUpcomingEventsQuery,
   UpcomingCalendarEventsQuery,
   UpdateEventBody,
@@ -52,6 +53,25 @@ export const updateEvent = asyncHandler(async (req, res) => {
     getAuthenticatedUserId(req),
     getRouteParam(req, "eventId"),
     req.body as UpdateEventBody
+  );
+
+  res.json({ data });
+});
+
+export const getEventMembers = asyncHandler(async (req, res) => {
+  const data = await eventService.getEventMembers(
+    getAuthenticatedUserId(req),
+    getRouteParam(req, "eventId")
+  );
+
+  res.json({ data });
+});
+
+export const inviteEventMembers = asyncHandler(async (req, res) => {
+  const data = await eventService.inviteEventMembers(
+    getAuthenticatedUserId(req),
+    getRouteParam(req, "eventId"),
+    req.body as InviteEventMembersBody
   );
 
   res.json({ data });
