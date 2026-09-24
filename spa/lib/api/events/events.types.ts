@@ -203,6 +203,8 @@ export type EventGuest = {
   }
   role: EventInviteRole
   rsvpStatus: EventRsvp
+  /** Joined a public flare on their own instead of being invited. */
+  joinedWithoutInvite: boolean
 }
 
 export type ApiEventMember = {

@@ -1,18 +1,22 @@
 import mongoose, { Types } from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { Connection, Event, EventMember, Notification } from "#models/index";
+import { Block, Connection, Event, EventMember, Notification } from "#models/index";
 import {
   getEventById,
   getEventMembers,
   getEvents,
   inviteEventMembers,
   removeEventMember,
+  updateEvent,
+  updateMyEventMembership,
 } from "#services/eventService";
 
 const HOST_ID = new Types.ObjectId().toString();
 const GOING_GUEST_ID = new Types.ObjectId().toString();
 const NEW_GUEST_ID = new Types.ObjectId().toString();
+const STRANGER_ID = new Types.ObjectId().toString();
+const OTHER_STRANGER_ID = new Types.ObjectId().toString();
 
 let mongoServer: MongoMemoryReplSet;
 
@@ -27,6 +31,7 @@ beforeAll(async () => {
     dbName: "sponti_event_service_test",
   });
   await Promise.all([
+    Block.syncIndexes(),
     Connection.syncIndexes(),
     Event.syncIndexes(),
     EventMember.syncIndexes(),
@@ -36,6 +41,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
   await Promise.all([
+    Block.deleteMany({}),
     Connection.deleteMany({}),
     Event.deleteMany({}),
     EventMember.deleteMany({}),
@@ -187,5 +193,156 @@ describe("eventService remove-guest database behavior", () => {
         type: "event_invitation",
       })
     ).toBe(1);
+  });
+});
+
+describe("eventService public flare joining database behavior", () => {
+  const rsvpNotices = (eventId: string) =>
+    Notification.find({ targetId: eventId, type: "event_rsvp_change" }).lean();
+
+  it("lets someone who isn't invited join a public flare, and tells the host once", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("public");
+    const before = await getEventById(HOST_ID, eventId);
+
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" });
+
+    const row = await EventMember.findOne({ eventId, userId: STRANGER_ID }).lean();
+    expect(row).toMatchObject({
+      role: "guest",
+      rsvpStatus: "going",
+      invitedBy: null,
+      canInviteGuests: false,
+      removedAt: null,
+    });
+
+    const seen = await getEventById(STRANGER_ID, eventId);
+    expect(seen.myRsvp).toBe("going");
+    expect(seen.goingCount).toBe(before.goingCount + 1);
+
+    const notices = await rsvpNotices(eventId);
+    expect(notices).toHaveLength(1);
+    expect(String(notices[0]?.userId)).toBe(HOST_ID);
+    expect(String(notices[0]?.actorId)).toBe(STRANGER_ID);
+
+    // The host sees them flagged as having joined without an invite.
+    const guests = await getEventMembers(HOST_ID, eventId);
+    expect(guests.find((g) => g.user._id === STRANGER_ID)?.joinedWithoutInvite).toBe(true);
+    expect(guests.find((g) => g.user._id === GOING_GUEST_ID)?.joinedWithoutInvite).toBe(false);
+  });
+
+  it("copes with a double tap: two simultaneous joins leave one member", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("public");
+
+    await Promise.all([
+      updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" }),
+      updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" }),
+    ]);
+
+    expect(await EventMember.countDocuments({ eventId, userId: STRANGER_ID })).toBe(1);
+  });
+
+  it("doesn't tell the host when a stranger declines, but keeps the answer", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("public");
+
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "declined" });
+
+    expect(await EventMember.findOne({ eventId, userId: STRANGER_ID })).toMatchObject({
+      rsvpStatus: "declined",
+    });
+    expect(await rsvpNotices(eventId)).toHaveLength(0);
+  });
+
+  it("refuses a stranger on a private flare", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("private");
+
+    await expect(
+      updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ statusCode: 404, code: "EVENT_MEMBERSHIP_NOT_FOUND" });
+    expect(await EventMember.countDocuments({ eventId, userId: STRANGER_ID })).toBe(0);
+  });
+
+  it("doesn't make someone a guest just for sending an arrival time", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("public");
+
+    await expect(
+      updateMyEventMembership(STRANGER_ID, eventId, {
+        memberWillArriveAt: new Date(Date.now() + 3600_000),
+      })
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("refuses someone the host has blocked", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("public");
+    await Block.create({
+      blockerId: new Types.ObjectId(HOST_ID),
+      blockedId: new Types.ObjectId(STRANGER_ID),
+    });
+
+    await expect(
+      updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("doesn't let a guest the host removed come back through the public door", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("public");
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" });
+    await removeEventMember(HOST_ID, eventId, STRANGER_ID);
+
+    await expect(
+      updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe("eventService public/private switching database behavior", () => {
+  it("keeps going joiners and invited guests when a flare goes private, and hides it from everyone else", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("public");
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" });
+    await updateMyEventMembership(OTHER_STRANGER_ID, eventId, { rsvpStatus: "declined" });
+    // A guest the host invites and who hasn't answered yet.
+    await inviteEventMembers(HOST_ID, eventId, {
+      members: [{ userId: NEW_GUEST_ID, role: "guest" }],
+      circles: [],
+    });
+
+    await updateEvent(HOST_ID, eventId, { visibility: "private" });
+
+    const rows = await EventMember.find({ eventId }).lean();
+    const byUser = new Map(rows.map((row) => [String(row.userId), row]));
+    // Kept: the host, both invited guests, the uninvited joiner who's going.
+    expect(byUser.has(HOST_ID)).toBe(true);
+    expect(byUser.has(GOING_GUEST_ID)).toBe(true);
+    expect(byUser.get(NEW_GUEST_ID)).toMatchObject({ rsvpStatus: "invited" });
+    expect(byUser.has(STRANGER_ID)).toBe(true);
+    // Dropped: the uninvited joiner who declined.
+    expect(byUser.has(OTHER_STRANGER_ID)).toBe(false);
+
+    // Members still see it; anyone else no longer does.
+    expect((await getEventById(STRANGER_ID, eventId)).myRsvp).toBe("going");
+    await expect(getEventById(OTHER_STRANGER_ID, eventId)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it("keeps the invite list when a private flare goes public", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("private");
+
+    await updateEvent(HOST_ID, eventId, { visibility: "public" });
+
+    const guests = await getEventMembers(HOST_ID, eventId);
+    expect(guests.map((g) => g.user._id)).toEqual([GOING_GUEST_ID]);
+    // Anyone can now see it, and join.
+    expect((await getEventById(STRANGER_ID, eventId)).myRsvp).toBeNull();
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" });
+    expect(await EventMember.countDocuments({ eventId })).toBe(3);
+  });
+
+  it("doesn't touch guests on edits that don't switch public to private", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("public");
+    await updateMyEventMembership(OTHER_STRANGER_ID, eventId, { rsvpStatus: "declined" });
+
+    await updateEvent(HOST_ID, eventId, { title: "friday drinks, moved" });
+
+    expect(await EventMember.countDocuments({ eventId, userId: OTHER_STRANGER_ID })).toBe(1);
   });
 });

@@ -14,11 +14,14 @@ import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { MakePrivateDialog } from "@/components/make-private-dialog"
 import { CancelEventDialog } from "@/components/cancel-event-dialog"
 import { EventGuestsSection } from "@/components/event-guests-section"
 import {
   cancelEvent,
   deriveStatus,
+  fetchEventGuests,
   fetchHostedEventById,
   inferEventStartShape,
   reactivateEvent,
@@ -106,6 +109,10 @@ export default function EventEditPage() {
   )
   const [selectedPlaceLocation, setSelectedPlaceLocation] =
     useState<SelectedPlaceLocation | null>(null)
+  const [isPublic, setIsPublic] = useState(false)
+  // Set when making a public flare private would keep people who joined on
+  // their own; the host confirms before we save.
+  const [confirmPrivate, setConfirmPrivate] = useState<number | null>(null)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -221,6 +228,7 @@ export default function EventEditPage() {
         setDurationMinutes(shape.durationMinutes)
         setLocationLabel(nextEvent.locationLabel)
         setLocationDetail(nextEvent.locationDetail ?? "")
+        setIsPublic(nextEvent.visibility === "public")
         setLoading(false)
       })
       .catch((err) => {
@@ -285,7 +293,10 @@ export default function EventEditPage() {
     (locationDetail.trim() || undefined) !== original.locationDetail ||
     selectedPlaceLocation !== null
 
-  const dirty = titleChanged || timeChanged || locationChanged
+  const visibilityChanged = isPublic !== (original.visibility === "public")
+
+  const dirty =
+    titleChanged || timeChanged || locationChanged || visibilityChanged
 
   const persistChanges = async (): Promise<void> => {
     try {
@@ -297,6 +308,9 @@ export default function EventEditPage() {
         endAt: nextEndAt,
         locationName: locationLabel.trim() || original.locationLabel,
         locationAddress: locationDetail.trim() || null,
+      }
+      if (visibilityChanged) {
+        updates.visibility = isPublic ? "public" : "private"
       }
       if (selectedPlaceLocation) {
         updates.locationName = selectedPlaceLocation.name
@@ -316,11 +330,30 @@ export default function EventEditPage() {
     }
   }
 
-  const handleSaveClick = (): void => {
+  const handleSaveClick = async (): Promise<void> => {
     if (!dirty) {
       router.push("/event")
       return
     }
+
+    // Making a public flare private keeps anyone who joined without an invite
+    // and is going, so tell the host how many before it happens.
+    if (visibilityChanged && !isPublic) {
+      try {
+        const guests = await fetchEventGuests(original.id)
+        const joiners = guests.filter(
+          (guest) => guest.joinedWithoutInvite && guest.rsvpStatus === "going"
+        ).length
+        if (joiners > 0) {
+          setConfirmPrivate(joiners)
+          return
+        }
+      } catch {
+        // If the check fails we save anyway: the server keeps going joiners
+        // either way, so nobody is dropped by mistake.
+      }
+    }
+
     void persistChanges()
   }
 
@@ -551,6 +584,27 @@ export default function EventEditPage() {
           )}
         </Section>
 
+        <Section label="who can see it">
+          <div className="flex items-center gap-3 rounded-xl border border-border p-3">
+            <Switch
+              id="edit-public"
+              checked={isPublic}
+              onCheckedChange={setIsPublic}
+              disabled={isPast || isCancelled || saving}
+            />
+            <div className="min-w-0 flex-1">
+              <Label htmlFor="edit-public" className="text-sm font-medium">
+                public
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {isPublic
+                  ? "anyone can find it on the map and join"
+                  : "only the people you invite can see it"}
+              </p>
+            </div>
+          </div>
+        </Section>
+
         <Section label="who">
           <EventGuestsSection
             eventId={original.id}
@@ -591,13 +645,24 @@ export default function EventEditPage() {
       {!isPast && !isCancelled && (
         <div className="absolute right-0 bottom-24 left-0 z-20 px-4">
           <Button
-            onClick={handleSaveClick}
+            onClick={() => void handleSaveClick()}
             disabled={!dirty || saving}
             className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
           >
             {saving ? "saving..." : dirty ? "save changes" : "no changes yet"}
           </Button>
         </div>
+      )}
+
+      {confirmPrivate !== null && (
+        <MakePrivateDialog
+          joiners={confirmPrivate}
+          onConfirm={() => {
+            setConfirmPrivate(null)
+            void persistChanges()
+          }}
+          onClose={() => setConfirmPrivate(null)}
+        />
       )}
 
       {confirmCancel && (

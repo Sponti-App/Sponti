@@ -221,9 +221,11 @@ function GuestRow({
       </Avatar>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm">{name}</span>
-        {guest.user.username && (
+        {(guest.user.username || guest.joinedWithoutInvite) && (
           <span className="block truncate text-xs text-muted-foreground">
-            @{guest.user.username}
+            {guest.user.username && `@${guest.user.username}`}
+            {guest.user.username && guest.joinedWithoutInvite && " · "}
+            {guest.joinedWithoutInvite && "joined on their own"}
           </span>
         )}
       </span>
