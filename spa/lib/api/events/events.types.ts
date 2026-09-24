@@ -178,6 +178,27 @@ export type UpdateEventRequest = Partial<
   >
 >
 
+export type InviteEventMembersRequest = {
+  members?: EventMemberInviteRequest[]
+  circles?: EventCircleInviteRequest[]
+}
+
+export type InviteEventMembersResponse = {
+  invitedUserIds: string[]
+}
+
+/** One row of a flare's guest list, as returned to its host. */
+export type EventGuest = {
+  user: {
+    _id: string
+    displayName?: string
+    username?: string
+    avatarUrl?: string | null
+  }
+  role: EventInviteRole
+  rsvpStatus: EventRsvp
+}
+
 export type ApiEventMember = {
   _id: string
   eventId: string

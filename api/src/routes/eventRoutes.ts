@@ -7,6 +7,7 @@ import {
   createEventBodySchema,
   eventIdParamSchema,
   getEventsQuerySchema,
+  inviteEventMembersBodySchema,
   myUpcomingEventsQuerySchema,
   updateEventBodySchema,
   updateMyEventMembershipBodySchema,
@@ -43,6 +44,16 @@ router.patch(
   "/:eventId",
   validateRequest({ params: eventIdParamSchema, body: updateEventBodySchema }),
   eventController.updateEvent
+);
+router.get(
+  "/:eventId/members",
+  validateRequest({ params: eventIdParamSchema }),
+  eventController.getEventMembers
+);
+router.post(
+  "/:eventId/members",
+  validateRequest({ params: eventIdParamSchema, body: inviteEventMembersBodySchema }),
+  eventController.inviteEventMembers
 );
 router.patch(
   "/:eventId/cancel",

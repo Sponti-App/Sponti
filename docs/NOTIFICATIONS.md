@@ -8,14 +8,14 @@ They appear in the frontend notification popover opened from the bottom navigati
 
 ## Notification Types
 
-| Type                  | Trigger                                                                                             | Recipient                                                                               | Actor                            | Target                                                          | Example message intent                                           |
-| --------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `event_invitation`    | A host creates an event with concrete invitees, either direct users or users expanded from circles. | Each invited non-host user.                                                             | The host or inviter.             | `targetType: "event"`, `targetId: event._id`                    | "Maya invited you to rooftop drinks."                            |
-| `event_cancelled`     | A host changes an event from `active` to `cancelled`.                                               | Non-host event members with relevant RSVP status: `invited`, `going`. Never `declined`. | The host.                        | `targetType: "event"`, `targetId: event._id`                    | "Rooftop drinks was cancelled."                                  |
-| `event_reactivated`   | A host changes an event from `cancelled` back to `active`.                                          | Non-host event members with relevant RSVP status: `invited`, `going`. Never `declined`. | The host.                        | `targetType: "event"`, `targetId: event._id`                    | "Rooftop drinks was reactivated."                                |
-| `connection_request`  | User A sends User B a connection request.                                                           | User B.                                                                                 | User A.                          | `targetType: "connection"`, `targetId: connection._id`          | "Maya wants to connect."                                         |
-| `connection_accepted` | User B accepts User A's connection request.                                                         | User A, the original requester.                                                         | User B, the accepting user.      | `targetType: "connection"`, `targetId: accepted connection._id` | "Maya accepted your request. Now you can add @maya to a circle." |
-| `event_rsvp_change`   | An invited attendee changes RSVP status for an active event.                                        | The event host.                                                                         | The attendee whose RSVP changed. | `targetType: "event"`, `targetId: event._id`                    | "Jordan is going to rooftop drinks."                             |
+| Type                  | Trigger                                                                                                                           | Recipient                                                                               | Actor                            | Target                                                          | Example message intent                                           |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `event_invitation`    | A host creates an event with concrete invitees, either direct users or users expanded from circles, or invites more people later. | Each invited non-host user.                                                             | The host or inviter.             | `targetType: "event"`, `targetId: event._id`                    | "Maya invited you to rooftop drinks."                            |
+| `event_cancelled`     | A host changes an event from `active` to `cancelled`.                                                                             | Non-host event members with relevant RSVP status: `invited`, `going`. Never `declined`. | The host.                        | `targetType: "event"`, `targetId: event._id`                    | "Rooftop drinks was cancelled."                                  |
+| `event_reactivated`   | A host changes an event from `cancelled` back to `active`.                                                                        | Non-host event members with relevant RSVP status: `invited`, `going`. Never `declined`. | The host.                        | `targetType: "event"`, `targetId: event._id`                    | "Rooftop drinks was reactivated."                                |
+| `connection_request`  | User A sends User B a connection request.                                                                                         | User B.                                                                                 | User A.                          | `targetType: "connection"`, `targetId: connection._id`          | "Maya wants to connect."                                         |
+| `connection_accepted` | User B accepts User A's connection request.                                                                                       | User A, the original requester.                                                         | User B, the accepting user.      | `targetType: "connection"`, `targetId: accepted connection._id` | "Maya accepted your request. Now you can add @maya to a circle." |
+| `event_rsvp_change`   | An invited attendee changes RSVP status for an active event.                                                                      | The event host.                                                                         | The attendee whose RSVP changed. | `targetType: "event"`, `targetId: event._id`                    | "Jordan is going to rooftop drinks."                             |
 
 ## Data Model
 
@@ -90,6 +90,13 @@ Safeguards:
 
 - Exclude the host.
 - Avoid duplicates when a user appears through both direct invitation and circle invitation.
+
+### Host Invites More People To A Posted Event
+
+`POST /events/:eventId/members` follows the same rules as creation, with one addition:
+
+- Only users who were not already event members are added and notified. Existing members keep their RSVP and get no notification.
+- Repeating the same invite creates nothing and notifies no one.
 - Avoid duplicates if an invitation/member row already exists.
 
 ### RSVP Changed

@@ -1,16 +1,10 @@
 import { type ClientSession } from "mongoose";
-import {
-  Block,
-  Circle,
-  CircleMember,
-  Connection,
-  Event,
-  EventMember,
-} from "#models/index";
+import { Block, Circle, CircleMember, Connection, Event, EventMember } from "#models/index";
 import type {
   ActiveMapEventsQuery,
   CreateEventBody,
   GetEventsQuery,
+  InviteEventMembersBody,
   MyUpcomingEventsQuery,
   UpcomingCalendarEventsQuery,
   UpdateEventBody,
@@ -30,6 +24,7 @@ import { withTransactionFallback } from "#utils/transactions";
 
 type EventFilter = Record<string, unknown>;
 type InviteRole = "admin" | "guest";
+type InviteSelection = Pick<CreateEventBody, "members" | "circles" | "allowGuestInvites">;
 type InviteCandidate = {
   userId: string;
   role: InviteRole;
@@ -190,9 +185,7 @@ const attachEventPeople = async <T extends { _id: unknown; hostId: unknown }>(
     .lean();
 
   const userIds = uniqueObjectIdStrings([
-    ...events
-      .map((event) => extractHostId(event.hostId))
-      .filter((id): id is string => id !== null),
+    ...events.map((event) => extractHostId(event.hostId)).filter((id): id is string => id !== null),
     ...goingMembers.map((member) => String(member.userId)),
   ]);
   const users = await getUsersByIds(userIds);
@@ -265,7 +258,7 @@ const assertAcceptedConnectionInvitees = async (hostId: string, inviteeIds: stri
   }
 };
 
-const resolveInviteCandidates = async (hostId: string, input: CreateEventBody) => {
+const resolveInviteCandidates = async (hostId: string, input: InviteSelection) => {
   const candidates = new Map<string, InviteCandidate>();
 
   for (const member of input.members) {
@@ -579,6 +572,112 @@ export const updateEvent = async (hostId: string, eventId: string, input: Update
   await event.save();
 
   return event;
+};
+
+/**
+ * Returns a flare's guest list for its host: every member except the host,
+ * with their RSVP, in the order they were invited. Anyone else gets 404 so the
+ * list isn't disclosed.
+ */
+export const getEventMembers = async (hostId: string, eventId: string) => {
+  const event = await Event.findOne({ _id: toObjectId(eventId), hostId: toObjectId(hostId) })
+    .select("_id")
+    .lean();
+
+  if (!event) {
+    throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
+  }
+
+  const members = await EventMember.find({ eventId: event._id, role: { $ne: "host" } })
+    .select("userId role rsvpStatus")
+    .sort({ createdAt: 1 })
+    .lean();
+  const userIds = members.map((member) => String(member.userId));
+  const users = await getUsersByIds(uniqueObjectIdStrings(userIds));
+
+  return members.map((member) => {
+    const userId = String(member.userId);
+
+    return {
+      user: toEventUserIdentity(userId, users.get(userId)),
+      role: member.role,
+      rsvpStatus: member.rsvpStatus,
+    };
+  });
+};
+
+/**
+ * Invites more friends and circles to a posted flare. Circles are expanded to
+ * their current members, the same snapshot rule as creation. People already on
+ * the flare keep their RSVP untouched, and only newly added invitees are
+ * notified. Upserting keeps a repeated request from creating duplicates.
+ */
+export const inviteEventMembers = async (
+  hostId: string,
+  eventId: string,
+  input: InviteEventMembersBody
+) => {
+  const event = await Event.findOne({ _id: toObjectId(eventId), hostId: toObjectId(hostId) })
+    .select("_id title status endAt allowGuestInvites")
+    .lean();
+
+  if (!event) {
+    throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
+  }
+
+  if (event.status !== "active" || event.endAt.getTime() <= Date.now()) {
+    throw new AppError(
+      "Only active events that haven't ended can take new invitees",
+      409,
+      "EVENT_NOT_INVITABLE"
+    );
+  }
+
+  const candidates = await resolveInviteCandidates(hostId, {
+    ...input,
+    allowGuestInvites: event.allowGuestInvites,
+  });
+
+  if (candidates.length === 0) {
+    return { invitedUserIds: [] };
+  }
+
+  const hostObjectId = toObjectId(hostId);
+
+  return withTransactionFallback(async (session?: ClientSession) => {
+    const result = await EventMember.bulkWrite(
+      candidates.map((candidate) => ({
+        updateOne: {
+          filter: { eventId: event._id, userId: toObjectId(candidate.userId) },
+          update: {
+            $setOnInsert: {
+              invitedBy: hostObjectId,
+              role: candidate.role,
+              rsvpStatus: "invited",
+              canInviteGuests: candidate.canInviteGuests,
+            },
+          },
+          upsert: true,
+        },
+      })),
+      { session, ordered: true }
+    );
+    const invitedUserIds = Object.keys(result.upsertedIds)
+      .map((index) => candidates[Number(index)]?.userId)
+      .filter((userId): userId is string => userId !== undefined);
+
+    if (invitedUserIds.length > 0) {
+      await createEventInvitationNotifications({
+        eventId: String(event._id),
+        hostId,
+        eventTitle: event.title,
+        inviteeIds: invitedUserIds,
+        session,
+      });
+    }
+
+    return { invitedUserIds };
+  });
 };
 
 /**
