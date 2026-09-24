@@ -571,8 +571,9 @@ describe("eventService.getEventMembers", () => {
   it("returns the guest list with identities and RSVPs, excluding the host", async () => {
     mockEventFindOneSelectLean({ _id: EVENT_ID });
     mockMemberFind([
-      { userId: GUEST_ID, role: "guest", rsvpStatus: "going" },
-      { userId: ADMIN_ID, role: "admin", rsvpStatus: "invited" },
+      { userId: GUEST_ID, role: "guest", rsvpStatus: "going", invitedBy: USER_ID },
+      // No invitedBy: this guest joined a public flare on their own.
+      { userId: ADMIN_ID, role: "admin", rsvpStatus: "invited", invitedBy: null },
     ]);
     getUsersByIdsMock.mockResolvedValue(
       new Map([[GUEST_ID, { _id: GUEST_ID, displayName: "sam", username: "sam" }]])
@@ -590,11 +591,13 @@ describe("eventService.getEventMembers", () => {
         user: { _id: GUEST_ID, displayName: "sam", username: "sam", avatarUrl: null },
         role: "guest",
         rsvpStatus: "going",
+        joinedWithoutInvite: false,
       },
       {
         user: { _id: ADMIN_ID, displayName: "guest", username: undefined, avatarUrl: null },
         role: "admin",
         rsvpStatus: "invited",
+        joinedWithoutInvite: true,
       },
     ]);
   });

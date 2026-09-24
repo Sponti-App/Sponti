@@ -49,6 +49,9 @@ type EventWithHostProfile<T> = Omit<T, "hostId"> & {
   hostId: string | EventUserIdentity | null;
 };
 
+const isDuplicateKeyError = (error: unknown): error is { code: number } =>
+  typeof error === "object" && error !== null && "code" in error && error.code === 11000;
+
 const roleRank: Record<InviteRole, number> = {
   guest: 1,
   admin: 2,
@@ -575,9 +578,32 @@ export const updateEvent = async (hostId: string, eventId: string, input: Update
     throw new AppError("endAt must be strictly after startAt", 400, "INVALID_EVENT_TIME_RANGE");
   }
 
+  const wasPublic = event.visibility === "public";
+
   Object.assign(event, input);
 
-  await event.save();
+  if (!(wasPublic && event.visibility === "private")) {
+    await event.save();
+    return event;
+  }
+
+  // Going public -> private: anyone who joined from the map and is going keeps
+  // their spot, but joiners who aren't going (and were never invited) are
+  // dropped so the flare stops showing for them. Invited guests, removed guests
+  // and the host are untouched.
+  await withTransactionFallback(async (session?: ClientSession) => {
+    await event.save({ session });
+    await EventMember.deleteMany(
+      {
+        eventId: event._id,
+        role: { $ne: "host" },
+        invitedBy: null,
+        rsvpStatus: { $ne: "going" },
+        removedAt: null,
+      },
+      { session }
+    );
+  });
 
   return event;
 };
@@ -601,7 +627,7 @@ export const getEventMembers = async (hostId: string, eventId: string) => {
     role: { $ne: "host" },
     removedAt: null,
   })
-    .select("userId role rsvpStatus")
+    .select("userId role rsvpStatus invitedBy")
     .sort({ createdAt: 1 })
     .lean();
   const userIds = members.map((member) => String(member.userId));
@@ -614,6 +640,8 @@ export const getEventMembers = async (hostId: string, eventId: string) => {
       user: toEventUserIdentity(userId, users.get(userId)),
       role: member.role,
       rsvpStatus: member.rsvpStatus,
+      // Joined a public flare on their own rather than being invited.
+      joinedWithoutInvite: member.invitedBy == null,
     };
   });
 };
@@ -890,26 +918,54 @@ export const updateMyEventMembership = async (
   input: UpdateMyEventMembershipBody
 ) => {
   const event = await Event.findOne({ _id: toObjectId(eventId), status: "active" })
-    .select("_id hostId title")
+    .select("_id hostId title visibility")
     .lean();
 
   if (!event) {
     throw new AppError("Active event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  const membership = await EventMember.findOne({
+  let membership = await EventMember.findOne({
     eventId: event._id,
     userId: toObjectId(userId),
-    removedAt: null,
   });
 
-  if (!membership) {
+  // A guest the host removed can't answer, and can't rejoin a public flare.
+  if (membership?.removedAt) {
     throw new AppError("Event membership not found", 404, "EVENT_MEMBERSHIP_NOT_FOUND");
+  }
+
+  // Someone who isn't on the guest list can only join a public flare, by
+  // answering going or declined, unless they're blocked from the host.
+  let joinedPublicFlare = false;
+
+  if (!membership) {
+    if (
+      event.visibility !== "public" ||
+      input.rsvpStatus === undefined ||
+      (await isUserBlockedFromEventHost(userId, String(event.hostId)))
+    ) {
+      throw new AppError("Event membership not found", 404, "EVENT_MEMBERSHIP_NOT_FOUND");
+    }
+
+    membership = new EventMember({
+      eventId: event._id,
+      userId: toObjectId(userId),
+      invitedBy: null,
+      role: "guest",
+      rsvpStatus: "invited",
+      canInviteGuests: false,
+    });
+    joinedPublicFlare = true;
   }
 
   const previousRsvpStatus = membership.rsvpStatus;
   const nextRsvpStatus = input.rsvpStatus;
-  const rsvpStatusChanged = nextRsvpStatus !== undefined && nextRsvpStatus !== previousRsvpStatus;
+  // A stranger declining a public flare isn't news to the host; only a join is.
+  const rsvpStatusChanged =
+    nextRsvpStatus !== undefined &&
+    nextRsvpStatus !== previousRsvpStatus &&
+    !(joinedPublicFlare && nextRsvpStatus === "declined");
 
   if (input.rsvpStatus) {
     membership.rsvpStatus = input.rsvpStatus;
@@ -919,7 +975,32 @@ export const updateMyEventMembership = async (
     membership.memberWillArriveAt = input.memberWillArriveAt ?? null;
   }
 
-  await membership.save();
+  try {
+    await membership.save();
+  } catch (error) {
+    if (!joinedPublicFlare || !isDuplicateKeyError(error)) {
+      throw error;
+    }
+
+    // Two join requests raced (a double tap or a retry) and the other created
+    // the row first. Apply this answer to that row instead of failing.
+    const existing = await EventMember.findOne({
+      eventId: event._id,
+      userId: toObjectId(userId),
+      removedAt: null,
+    });
+
+    if (!existing) {
+      throw error;
+    }
+
+    existing.rsvpStatus = membership.rsvpStatus;
+    if ("memberWillArriveAt" in input) {
+      existing.memberWillArriveAt = membership.memberWillArriveAt;
+    }
+    await existing.save();
+    membership = existing;
+  }
 
   if (rsvpStatusChanged && nextRsvpStatus) {
     await createEventRsvpChangeNotification({

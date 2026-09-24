@@ -128,6 +128,14 @@ Safeguards:
 - Do not notify the actor if they are also the host.
 - Do not allow RSVP edits on cancelled events.
 
+#### Joining a public event
+
+Someone who isn't on the guest list can join a **public** event by sending `PATCH /events/:eventId/me` with `rsvpStatus` (`going` or `declined`). That creates their member row (`role: guest`, `invitedBy: null`).
+
+- Joining as `going` notifies the host like any other RSVP change.
+- Declining as a non-member creates the row but does not notify the host.
+- Not allowed on private events, for someone the host removed, or for someone blocked by or blocking the host (all answer 404).
+
 ### Event Cancelled Or Reactivated
 
 When a host changes status:

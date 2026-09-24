@@ -47,7 +47,8 @@ Error:
 
 - Event updates and cancellations are host-only.
 - Private events are visible only to the host and invited members.
-- Public events still require login.
+- Public events still require login. Anyone who can see a public event can join it by answering going or declined; people the host removed or who are blocked either way can't. Private events can only be answered by people on the guest list.
+- When a host switches an event from public to private, guests who joined on their own and are `going` keep their spot; joiners who aren't going are dropped. Invited guests are never touched. Switching private to public keeps the invite list.
 - Only the host can list, add and remove event guests. A removed guest can't see or rejoin the event, even a public one, until the host invites them again.
 - Circles can only be managed by their owner.
 - Circle members must be accepted directional connections of the owner.
