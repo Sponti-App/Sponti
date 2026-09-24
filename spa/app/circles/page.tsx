@@ -818,11 +818,15 @@ export default function CirclesPage() {
                                 className="pl-9"
                               />
                             </div>
-                            {memberQuery.trim() && (
-                              <ul className="overflow-hidden rounded-lg border border-border">
+                            {/* The friends who can be added are listed straight away
+                                (#156); the search field only narrows them down. */}
+                            {(memberQuery.trim() || connections.length > 0) && (
+                              <ul className="max-h-56 overflow-y-auto overscroll-contain rounded-lg border border-border">
                                 {addable.length === 0 ? (
                                   <li className="px-3 py-2.5 text-xs text-muted-foreground">
-                                    no matches
+                                    {memberQuery.trim()
+                                      ? "no matches"
+                                      : "everyone's already in this circle"}
                                   </li>
                                 ) : (
                                   addable.map((c) => (

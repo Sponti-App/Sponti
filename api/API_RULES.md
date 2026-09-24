@@ -48,6 +48,7 @@ Error:
 - Event updates and cancellations are host-only.
 - Private events are visible only to the host and invited members.
 - Public events still require login.
+- Only the host can list, add and remove event guests. A removed guest can't see or rejoin the event, even a public one, until the host invites them again.
 - Circles can only be managed by their owner.
 - Circle members must be accepted directional connections of the owner.
 - Blocks are stealthy: blocked invitation attempts return a generic processed response.

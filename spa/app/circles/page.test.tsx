@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import CirclesPage from "./page"
@@ -227,5 +227,79 @@ describe("CirclesPage action feedback", () => {
       "couldn't send request",
       { tone: "error" }
     )
+  })
+})
+
+// #156: adding a friend to a circle used to need typing a name first.
+describe("CirclesPage add friends to a circle", () => {
+  const bob: Connection = {
+    id: "user-2",
+    displayName: "Bob Ross",
+    username: "bob",
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.fetchAcceptedConnections.mockResolvedValue([ada, bob])
+    mocks.fetchIncomingConnectionRequests.mockResolvedValue([])
+    mocks.fetchOutgoingConnectionRequests.mockResolvedValue([])
+    mocks.fetchBlockedUsers.mockResolvedValue([])
+    mocks.addCircleMember.mockResolvedValue(undefined)
+  })
+
+  it("lists friends who aren't in the circle without typing, and adds on tap", async () => {
+    const user = userEvent.setup()
+    mocks.fetchMyCircles.mockResolvedValue([circle({ memberIds: [ada.id] })])
+    renderCirclesPage()
+
+    await user.click(
+      await screen.findByRole("button", { name: /studio crew/i })
+    )
+
+    // Bob is offered straight away; Ada is already a member, so she isn't.
+    const bobRow = await screen.findByRole("button", { name: /Bob Ross/ })
+    const addSection = screen
+      .getByPlaceholderText("add a friend…")
+      .closest("div.flex-col") as HTMLElement
+    expect(
+      within(addSection).queryByRole("button", { name: /Ada Lovelace/ })
+    ).not.toBeInTheDocument()
+
+    await user.click(bobRow)
+    expect(mocks.addCircleMember).toHaveBeenCalledWith("circle-1", bob.id)
+  })
+
+  it("still narrows the list with the search field", async () => {
+    const user = userEvent.setup()
+    mocks.fetchMyCircles.mockResolvedValue([circle()])
+    renderCirclesPage()
+
+    await user.click(
+      await screen.findByRole("button", { name: /studio crew/i })
+    )
+    await user.type(screen.getByPlaceholderText("add a friend…"), "ada")
+
+    expect(
+      await screen.findByRole("button", { name: /Ada Lovelace/ })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /Bob Ross/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it("says so when everyone is already in the circle", async () => {
+    const user = userEvent.setup()
+    mocks.fetchMyCircles.mockResolvedValue([
+      circle({ memberIds: [ada.id, bob.id] }),
+    ])
+    renderCirclesPage()
+
+    await user.click(
+      await screen.findByRole("button", { name: /studio crew/i })
+    )
+
+    expect(
+      await screen.findByText("everyone's already in this circle")
+    ).toBeInTheDocument()
   })
 })

@@ -26,6 +26,7 @@ import {
   type HostedEvent,
   type UpdateEventRequest,
 } from "@/lib/api/events"
+import { PLACE_SEARCH_UNAVAILABLE } from "@/lib/place-search"
 
 const DURATION_OPTIONS = [
   { label: "30m", minutes: 30 },
@@ -136,6 +137,8 @@ export default function EventEditPage() {
     } catch {
       if (placesSearchRequestRef.current !== requestId) return
       setPlaceResults([])
+      // Say so, rather than looking like "no matches" (#160).
+      setPlaceDetailsError(PLACE_SEARCH_UNAVAILABLE)
     } finally {
       if (placesSearchRequestRef.current !== requestId) return
       setPlacesLoading(false)
@@ -552,6 +555,7 @@ export default function EventEditPage() {
           <EventGuestsSection
             eventId={original.id}
             canInvite={!isPast && !isCancelled}
+            canRemove={!isPast && !isCancelled && !isLive}
           />
         </Section>
 

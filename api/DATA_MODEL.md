@@ -211,6 +211,8 @@ Table event_members {
 
   memberWillArriveAt datetime // The time, calculate it before (null if it's the host)
 
+  removedAt datetime // Set when the host removes the guest; the row is kept so they can't rejoin. Null otherwise
+
   createdAt datetime
   updatedAt datetime
 
@@ -361,6 +363,7 @@ Enum NotificationType {
   event_cancelled // An event was cancelled
   connection_request // Someone sent a connection request to me
   event_rsvp_change // Someone changed the rsvpStatus for the event I'm hosting
+  event_guest_removed // The host removed me from an event I had said I was going to
 }
 
 Enum NotificationTargetType {

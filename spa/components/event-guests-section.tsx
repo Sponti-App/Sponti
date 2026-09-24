@@ -1,16 +1,18 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { UserPlus, X } from "lucide-react"
+import { UserMinus, UserPlus, X } from "lucide-react"
 import { useActionFeedback } from "@/components/action-feedback"
 import { CircleCards, FriendList } from "@/components/new-event-drawer"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { RemoveGuestDialog } from "@/components/remove-guest-dialog"
 import { fetchMyCircles } from "@/lib/api/circles"
 import { fetchAcceptedConnections } from "@/lib/api/connections"
 import {
   fetchEventGuests,
   inviteEventGuests,
+  removeEventGuest,
   type EventGuest,
   type EventRsvp,
 } from "@/lib/api/events"
@@ -32,14 +34,19 @@ const RSVP_ORDER: Record<EventRsvp, number> = {
 export function EventGuestsSection({
   eventId,
   canInvite,
+  canRemove = false,
 }: {
   eventId: string
   canInvite: boolean
+  /** Guests can be removed until the flare starts (and while it's active). */
+  canRemove?: boolean
 }) {
   const { showActionFeedback } = useActionFeedback()
   const [guests, setGuests] = useState<EventGuest[] | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [confirming, setConfirming] = useState<EventGuest | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
 
   const loadGuests = useCallback(
     (signal?: AbortSignal) =>
@@ -60,6 +67,35 @@ export function EventGuestsSection({
     void loadGuests(ac.signal)
     return () => ac.abort()
   }, [loadGuests])
+
+  const guestName = (guest: EventGuest): string =>
+    guest.user.displayName ?? guest.user.username ?? "guest"
+
+  const removeGuest = async (guest: EventGuest): Promise<void> => {
+    setRemovingId(guest.user._id)
+    try {
+      await removeEventGuest(eventId, guest.user._id)
+      setConfirming(null)
+      showActionFeedback(`removed ${guestName(guest)}`)
+      await loadGuests()
+    } catch {
+      showActionFeedback(`couldn't remove ${guestName(guest)}`, {
+        tone: "error",
+      })
+    } finally {
+      setRemovingId(null)
+    }
+  }
+
+  // Someone who said "going" gets a confirm step (they'll be told); anyone
+  // else is removed straight away, quietly.
+  const handleRemoveClick = (guest: EventGuest): void => {
+    if (guest.rsvpStatus === "going") {
+      setConfirming(guest)
+      return
+    }
+    void removeGuest(guest)
+  }
 
   if (loadError) {
     return (
@@ -84,7 +120,12 @@ export function EventGuestsSection({
       {sorted.length > 0 && (
         <ul className="flex flex-col gap-1">
           {sorted.map((guest) => (
-            <GuestRow key={guest.user._id} guest={guest} />
+            <GuestRow
+              key={guest.user._id}
+              guest={guest}
+              onRemove={canRemove ? () => handleRemoveClick(guest) : undefined}
+              removing={removingId === guest.user._id}
+            />
           ))}
         </ul>
       )}
@@ -120,6 +161,15 @@ export function EventGuestsSection({
             invite more
           </button>
         ))}
+
+      {confirming && (
+        <RemoveGuestDialog
+          name={guestName(confirming)}
+          busy={removingId === confirming.user._id}
+          onConfirm={() => void removeGuest(confirming)}
+          onClose={() => setConfirming(null)}
+        />
+      )}
     </div>
   )
 }
@@ -144,7 +194,15 @@ function GuestSummary({ guests }: { guests: EventGuest[] }) {
   )
 }
 
-function GuestRow({ guest }: { guest: EventGuest }) {
+function GuestRow({
+  guest,
+  onRemove,
+  removing,
+}: {
+  guest: EventGuest
+  onRemove?: () => void
+  removing?: boolean
+}) {
   const name = guest.user.displayName ?? guest.user.username ?? "guest"
   const declined = guest.rsvpStatus === "declined"
 
@@ -179,6 +237,17 @@ function GuestRow({ guest }: { guest: EventGuest }) {
       >
         {guest.rsvpStatus === "declined" ? "can't make it" : guest.rsvpStatus}
       </span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={removing}
+          aria-label={`remove ${name}`}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-40"
+        >
+          <UserMinus className="h-3.5 w-3.5" />
+        </button>
+      )}
     </li>
   )
 }

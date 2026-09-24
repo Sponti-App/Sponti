@@ -91,6 +91,13 @@ export const updateEventBodySchema = z
     }
   );
 
+export const eventMemberParamSchema = z
+  .object({
+    eventId: objectIdSchema,
+    userId: objectIdSchema,
+  })
+  .strict();
+
 export const inviteEventMembersBodySchema = z
   .object({
     members: z.array(eventMemberInviteSchema).default([]),

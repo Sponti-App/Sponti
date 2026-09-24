@@ -244,6 +244,7 @@ describe("notificationService creation helpers", () => {
     expect(eventMemberFindMock).toHaveBeenCalledWith({
       eventId: expect.anything(),
       rsvpStatus: { $in: ["invited", "going"] },
+      removedAt: null,
     });
     expect(notificationCreateMock).toHaveBeenCalledWith(expect.any(Array), {
       session: notificationSession,

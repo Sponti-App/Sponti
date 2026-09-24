@@ -7,6 +7,7 @@ export const NOTIFICATION_TYPES = [
   "connection_request",
   "connection_accepted",
   "event_rsvp_change",
+  "event_guest_removed",
 ] as const;
 
 export const NOTIFICATION_TARGET_TYPES = ["event", "connection", "user"] as const;

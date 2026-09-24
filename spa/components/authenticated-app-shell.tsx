@@ -7,7 +7,10 @@ import { NotificationsPopover } from "@/components/notifications-popover"
 import { useAuth } from "@/components/auth-provider"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import type { Notification } from "@/lib/notifications"
-import { useNotifications } from "@/lib/use-notifications"
+import {
+  useNotifications,
+  useUnreadCountRefresh,
+} from "@/lib/use-notifications"
 import { haptic } from "@/lib/haptics"
 
 const AUTH_PATHS = [
@@ -59,6 +62,7 @@ function AuthenticatedChrome({ children }: { children: React.ReactNode }) {
     loadLatest,
     loadMore,
   } = useNotifications()
+  useUnreadCountRefresh()
   const notificationsOpen =
     notificationsState.open && notificationsState.pathname === pathname
 

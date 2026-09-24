@@ -162,6 +162,7 @@ const createMissingRecipientNotifications = async ({
   targetId,
   build,
   session,
+  repeat = false,
 }: {
   recipientIds: string[];
   actorId?: string | null;
@@ -170,6 +171,9 @@ const createMissingRecipientNotifications = async ({
   targetId: string;
   build: (recipientId: string) => Pick<CreateNotificationInput, "title" | "message" | "metadata">;
   session?: ClientSession;
+  // Notify even if the recipient already has this notification (for example
+  // someone who was removed from an event and invited again).
+  repeat?: boolean;
 }) => {
   const recipients = uniqueObjectIdStrings(recipientIds);
 
@@ -177,15 +181,17 @@ const createMissingRecipientNotifications = async ({
     return { created: 0 };
   }
 
-  const existing = (await Notification.find({
-    userId: { $in: recipients.map(toObjectId) },
-    type,
-    targetType,
-    targetId: toObjectId(targetId),
-  })
-    .select("userId")
-    .session(session ?? null)
-    .lean()) as Array<{ userId: unknown }>;
+  const existing = repeat
+    ? []
+    : ((await Notification.find({
+        userId: { $in: recipients.map(toObjectId) },
+        type,
+        targetType,
+        targetId: toObjectId(targetId),
+      })
+        .select("userId")
+        .session(session ?? null)
+        .lean()) as Array<{ userId: unknown }>);
   const existingRecipientIds = new Set(existing.map((doc) => String(doc.userId)));
   const inputs = recipients
     .filter((recipientId) => !existingRecipientIds.has(recipientId))
@@ -343,12 +349,14 @@ export const createEventInvitationNotifications = async ({
   eventTitle,
   inviteeIds,
   session,
+  repeat,
 }: {
   eventId: string;
   hostId: string;
   eventTitle: string;
   inviteeIds: string[];
   session?: ClientSession;
+  repeat?: boolean;
 }) => {
   const users = await getUsersByIds([hostId]);
   const host = users.get(hostId);
@@ -364,6 +372,7 @@ export const createEventInvitationNotifications = async ({
     targetType: "event",
     targetId: eventId,
     session,
+    repeat,
     build: () => ({
       title: `${hostName} invited you`,
       message: `to ${eventTitle}`,
@@ -418,6 +427,41 @@ export const createEventRsvpChangeNotification = async ({
   );
 };
 
+/**
+ * Tells a guest who said they were going that the host took them off the guest
+ * list. Deliberately neutral: no actor is attached, so the host isn't named,
+ * and there's no reason. Not deduplicated, so a second removal after a
+ * re-invite is still reported.
+ */
+export const createEventGuestRemovedNotification = async ({
+  eventId,
+  guestId,
+  eventTitle,
+  session,
+}: {
+  eventId: string;
+  guestId: string;
+  eventTitle: string;
+  session?: ClientSession;
+}) =>
+  createNotifications(
+    [
+      {
+        userId: guestId,
+        actorId: null,
+        type: "event_guest_removed",
+        targetType: "event",
+        targetId: eventId,
+        title: "You're no longer on the guest list",
+        message: `for ${eventTitle}`,
+        metadata: {
+          eventTitle,
+        },
+      },
+    ],
+    session
+  );
+
 export const createEventStatusNotifications = async ({
   eventId,
   hostId,
@@ -430,6 +474,7 @@ export const createEventStatusNotifications = async ({
   const members = (await EventMember.find({
     eventId: eventObjectId,
     rsvpStatus: { $in: RELEVANT_EVENT_STATUS_RSVPS },
+    removedAt: null,
   })
     .select("userId rsvpStatus")
     .session(session ?? null)

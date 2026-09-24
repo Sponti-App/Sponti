@@ -49,6 +49,7 @@ export const getMyInbox = async (userId: string) => {
         $match: {
           userId: userObjectId,
           rsvpStatus: "invited",
+          removedAt: null,
         },
       },
       {

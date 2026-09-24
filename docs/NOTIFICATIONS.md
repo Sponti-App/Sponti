@@ -15,6 +15,7 @@ They appear in the frontend notification popover opened from the bottom navigati
 | `event_reactivated`   | A host changes an event from `cancelled` back to `active`.                                                                        | Non-host event members with relevant RSVP status: `invited`, `going`. Never `declined`. | The host.                        | `targetType: "event"`, `targetId: event._id`                    | "Rooftop drinks was reactivated."                                |
 | `connection_request`  | User A sends User B a connection request.                                                                                         | User B.                                                                                 | User A.                          | `targetType: "connection"`, `targetId: connection._id`          | "Maya wants to connect."                                         |
 | `connection_accepted` | User B accepts User A's connection request.                                                                                       | User A, the original requester.                                                         | User B, the accepting user.      | `targetType: "connection"`, `targetId: accepted connection._id` | "Maya accepted your request. Now you can add @maya to a circle." |
+| `event_guest_removed` | A host removes a guest who had said `going` from an event's guest list.                                                           | The removed guest.                                                                      | None (the host is never named).  | `targetType: "event"`, `targetId: event._id`                    | "You're no longer on the guest list for rooftop drinks."         |
 | `event_rsvp_change`   | An invited attendee changes RSVP status for an active event.                                                                      | The event host.                                                                         | The attendee whose RSVP changed. | `targetType: "event"`, `targetId: event._id`                    | "Jordan is going to rooftop drinks."                             |
 
 ## Data Model
@@ -97,6 +98,17 @@ Safeguards:
 
 - Only users who were not already event members are added and notified. Existing members keep their RSVP and get no notification.
 - Repeating the same invite creates nothing and notifies no one.
+- Someone the host removed earlier is restored as a fresh `invited` member and gets a new `event_invitation`, even if they already had one.
+
+### Host Removes A Guest
+
+`DELETE /events/:eventId/members/:userId`:
+
+- Only the host can remove a guest, and only while the event is `active` and has not started. Otherwise it returns 409.
+- The member row is kept with `removedAt` set, so the person can no longer see or rejoin the event, even a public one, until the host invites them again.
+- A guest whose `rsvpStatus` was `going` gets one `event_guest_removed`. Guests who were `invited` or `declined` are removed without any notification.
+- The notification has no `actorId` and no reason; the host is never named.
+- Removed members are excluded from event status notifications (`event_cancelled`, `event_reactivated`).
 - Avoid duplicates if an invitation/member row already exists.
 
 ### RSVP Changed

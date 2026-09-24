@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Sparkles,
   UserCheck,
+  UserMinus,
   UserPlus,
   X,
   type LucideIcon,
@@ -33,6 +34,10 @@ const TYPE_VISUAL: Record<Notification["type"], Visual> = {
   event_rsvp_change: {
     icon: Sparkles,
     ring: "border-foreground/15 text-foreground",
+  },
+  event_guest_removed: {
+    icon: UserMinus,
+    ring: "border-foreground/15 text-muted-foreground",
   },
   connection_request: {
     icon: UserPlus,
