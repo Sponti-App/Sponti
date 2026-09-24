@@ -48,6 +48,7 @@ import { HttpError } from "@/lib/http"
 import { useGeolocation, type GeoStatus } from "@/lib/geolocation"
 import { emitEventsChanged } from "@/lib/use-events"
 import { type Circle, type Connection } from "@/lib/circles"
+import { PLACE_SEARCH_UNAVAILABLE } from "@/lib/place-search"
 import { EVENT_TYPES } from "@/types/utils"
 
 type Mode = "now" | "scheduled"
@@ -834,6 +835,8 @@ export function NewEventDrawer({
       } catch {
         if (placesSearchRequestRef.current !== requestId) return
         setPlaceResults([])
+        // Say so, rather than looking like "no matches" (#160).
+        setPlaceDetailsError(PLACE_SEARCH_UNAVAILABLE)
       } finally {
         if (placesSearchRequestRef.current !== requestId) return
         setPlacesLoading(false)
