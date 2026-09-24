@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CancelEventDialog } from "@/components/cancel-event-dialog"
+import { EventGuestsSection } from "@/components/event-guests-section"
 import {
   cancelEvent,
   deriveStatus,
@@ -545,6 +546,13 @@ export default function EventEditPage() {
               ))}
             </div>
           )}
+        </Section>
+
+        <Section label="who">
+          <EventGuestsSection
+            eventId={original.id}
+            canInvite={!isPast && !isCancelled}
+          />
         </Section>
 
         {/* Recurrence is intentionally omitted until the V2 backend model exists. */}

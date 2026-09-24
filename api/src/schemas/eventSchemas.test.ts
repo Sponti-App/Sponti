@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createEventBodySchema, updateMyEventMembershipBodySchema } from "./eventSchemas.js";
+import {
+  createEventBodySchema,
+  inviteEventMembersBodySchema,
+  updateMyEventMembershipBodySchema,
+} from "./eventSchemas.js";
 
 const baseCreateEventBody = {
   title: "coffee after class",
@@ -36,5 +40,24 @@ describe("updateMyEventMembershipBodySchema", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+describe("inviteEventMembersBodySchema", () => {
+  it("defaults the role to guest for friends and circles", () => {
+    const result = inviteEventMembersBodySchema.parse({
+      members: [{ userId: "507f1f77bcf86cd799439013" }],
+      circles: [{ circleId: "507f1f77bcf86cd799439015" }],
+    });
+
+    expect(result.members[0]?.role).toBe("guest");
+    expect(result.circles[0]?.role).toBe("guest");
+  });
+
+  it("rejects an empty invite", () => {
+    expect(inviteEventMembersBodySchema.safeParse({}).success).toBe(false);
+    expect(inviteEventMembersBodySchema.safeParse({ members: [], circles: [] }).success).toBe(
+      false
+    );
   });
 });

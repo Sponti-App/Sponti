@@ -4,6 +4,7 @@ const eventCreateMock = vi.hoisted(() => vi.fn());
 const eventCountDocumentsMock = vi.hoisted(() => vi.fn());
 const eventFindMock = vi.hoisted(() => vi.fn());
 const eventFindOneMock = vi.hoisted(() => vi.fn());
+const eventMemberBulkWriteMock = vi.hoisted(() => vi.fn());
 const eventMemberCreateMock = vi.hoisted(() => vi.fn());
 const eventMemberDistinctMock = vi.hoisted(() => vi.fn());
 const eventMemberFindMock = vi.hoisted(() => vi.fn());
@@ -31,6 +32,7 @@ vi.mock("#models/index", () => ({
     findOne: eventFindOneMock,
   },
   EventMember: {
+    bulkWrite: eventMemberBulkWriteMock,
     create: eventMemberCreateMock,
     distinct: eventMemberDistinctMock,
     find: eventMemberFindMock,
@@ -63,8 +65,10 @@ const {
   createEvent,
   getActiveMapEvents,
   getEventById,
+  getEventMembers,
   getEvents,
   getMyUpcomingEvents,
+  inviteEventMembers,
   reactivateEvent,
   updateMyEventMembership,
 } = await import("#services/eventService");
@@ -262,6 +266,188 @@ describe("eventService.createEvent", () => {
     });
     const docs = eventMemberCreateMock.mock.calls[0]?.[0] as Array<{ userId: unknown }>;
     expect(docs.map((doc) => String(doc.userId))).toEqual([USER_ID, GUEST_ID, ADMIN_ID]);
+  });
+});
+
+describe("eventService.inviteEventMembers", () => {
+  const OTHER_GUEST_ID = "507f1f77bcf86cd799439016";
+
+  const mockInvitableEvent = (overrides: Record<string, unknown> = {}) =>
+    mockEventFindOneSelectLean({
+      _id: EVENT_ID,
+      hostId: USER_ID,
+      title: "friday drinks",
+      status: "active",
+      endAt: new Date("2026-05-14T14:00:00.000Z"),
+      allowGuestInvites: "none",
+      ...overrides,
+    });
+
+  it("adds new invitees from friends and circles and notifies only the ones added", async () => {
+    mockInvitableEvent();
+    mockCircleFindLean([{ _id: CIRCLE_ID }]);
+    mockCircleMemberFindLean([
+      { circleId: CIRCLE_ID, userId: GUEST_ID },
+      { circleId: CIRCLE_ID, userId: OTHER_GUEST_ID },
+    ]);
+    mockAcceptedConnections([
+      { requesterId: USER_ID, receiverId: GUEST_ID },
+      { requesterId: USER_ID, receiverId: OTHER_GUEST_ID },
+      { requesterId: USER_ID, receiverId: ADMIN_ID },
+    ]);
+    mockExistingNotifications([]);
+    notificationCreateMock.mockResolvedValue([{}, {}]);
+    // ADMIN_ID (index 0) and OTHER_GUEST_ID (index 2) are new; GUEST_ID was
+    // already on the flare, so the upsert matched and inserted nothing.
+    eventMemberBulkWriteMock.mockResolvedValue({ upsertedIds: { 0: "m1", 2: "m2" } });
+
+    const result = await inviteEventMembers(USER_ID, EVENT_ID, {
+      members: [{ userId: ADMIN_ID, role: "guest" }],
+      circles: [{ circleId: CIRCLE_ID, role: "guest" }],
+    });
+
+    expect(result).toEqual({ invitedUserIds: [ADMIN_ID, OTHER_GUEST_ID] });
+
+    const [ops, options] = eventMemberBulkWriteMock.mock.calls[0] as [
+      Array<{ updateOne: { filter: { userId: unknown }; update: unknown; upsert: boolean } }>,
+      unknown,
+    ];
+    expect(ops.map((op) => String(op.updateOne.filter.userId))).toEqual([
+      ADMIN_ID,
+      GUEST_ID,
+      OTHER_GUEST_ID,
+    ]);
+    expect(ops[0]?.updateOne).toMatchObject({
+      upsert: true,
+      update: { $setOnInsert: { rsvpStatus: "invited", role: "guest" } },
+    });
+    expect(options).toEqual({ session: transactionSessionMock, ordered: true });
+
+    const notificationDocs = notificationCreateMock.mock.calls[0]?.[0] as Array<{
+      userId: unknown;
+      type: string;
+    }>;
+    expect(notificationDocs.map((doc) => String(doc.userId))).toEqual([ADMIN_ID, OTHER_GUEST_ID]);
+    expect(notificationDocs.every((doc) => doc.type === "event_invitation")).toBe(true);
+  });
+
+  it("sends no notifications when everyone picked is already on the flare", async () => {
+    mockInvitableEvent();
+    mockAcceptedConnections([{ requesterId: USER_ID, receiverId: GUEST_ID }]);
+    eventMemberBulkWriteMock.mockResolvedValue({ upsertedIds: {} });
+
+    const result = await inviteEventMembers(USER_ID, EVENT_ID, {
+      members: [{ userId: GUEST_ID, role: "guest" }],
+      circles: [],
+    });
+
+    expect(result).toEqual({ invitedUserIds: [] });
+    expect(notificationCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the caller is not the host", async () => {
+    mockEventFindOneSelectLean(null);
+
+    await expect(
+      inviteEventMembers(GUEST_ID, EVENT_ID, {
+        members: [{ userId: ADMIN_ID, role: "guest" }],
+        circles: [],
+      })
+    ).rejects.toMatchObject({ statusCode: 404, code: "EVENT_NOT_FOUND" });
+    expect(eventMemberBulkWriteMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["cancelled", { status: "cancelled" }],
+    ["ended", { endAt: new Date("2026-05-14T11:00:00.000Z") }],
+  ])("rejects invites to a %s flare", async (_label, overrides) => {
+    mockInvitableEvent(overrides);
+
+    await expect(
+      inviteEventMembers(USER_ID, EVENT_ID, {
+        members: [{ userId: GUEST_ID, role: "guest" }],
+        circles: [],
+      })
+    ).rejects.toMatchObject({ statusCode: 409, code: "EVENT_NOT_INVITABLE" });
+    expect(eventMemberBulkWriteMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects people who aren't accepted connections, as on create", async () => {
+    mockInvitableEvent();
+    mockAcceptedConnections([]);
+
+    await expect(
+      inviteEventMembers(USER_ID, EVENT_ID, {
+        members: [{ userId: GUEST_ID, role: "guest" }],
+        circles: [],
+      })
+    ).rejects.toMatchObject({ statusCode: 403, code: "EVENT_INVITEE_NOT_ACCEPTED_CONNECTION" });
+    expect(eventMemberBulkWriteMock).not.toHaveBeenCalled();
+  });
+
+  it("silently skips blocked users and never invites the host", async () => {
+    mockInvitableEvent();
+    getBlockedInviteeIdsMock.mockResolvedValue(new Set([GUEST_ID]));
+
+    const result = await inviteEventMembers(USER_ID, EVENT_ID, {
+      members: [
+        { userId: GUEST_ID, role: "guest" },
+        { userId: USER_ID, role: "guest" },
+      ],
+      circles: [],
+    });
+
+    expect(result).toEqual({ invitedUserIds: [] });
+    expect(eventMemberBulkWriteMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("eventService.getEventMembers", () => {
+  const mockMemberFind = (members: Array<Record<string, unknown>>) => {
+    const leanMock = vi.fn().mockResolvedValue(members);
+    const sortMock = vi.fn().mockReturnValue({ lean: leanMock });
+    const selectMock = vi.fn().mockReturnValue({ sort: sortMock });
+    eventMemberFindMock.mockReturnValue({ select: selectMock });
+  };
+
+  it("returns the guest list with identities and RSVPs, excluding the host", async () => {
+    mockEventFindOneSelectLean({ _id: EVENT_ID });
+    mockMemberFind([
+      { userId: GUEST_ID, role: "guest", rsvpStatus: "going" },
+      { userId: ADMIN_ID, role: "admin", rsvpStatus: "invited" },
+    ]);
+    getUsersByIdsMock.mockResolvedValue(
+      new Map([[GUEST_ID, { _id: GUEST_ID, displayName: "sam", username: "sam" }]])
+    );
+
+    const result = await getEventMembers(USER_ID, EVENT_ID);
+
+    expect(eventMemberFindMock).toHaveBeenCalledWith({
+      eventId: EVENT_ID,
+      role: { $ne: "host" },
+    });
+    expect(result).toEqual([
+      {
+        user: { _id: GUEST_ID, displayName: "sam", username: "sam", avatarUrl: null },
+        role: "guest",
+        rsvpStatus: "going",
+      },
+      {
+        user: { _id: ADMIN_ID, displayName: "guest", username: undefined, avatarUrl: null },
+        role: "admin",
+        rsvpStatus: "invited",
+      },
+    ]);
+  });
+
+  it("returns 404 to anyone but the host", async () => {
+    mockEventFindOneSelectLean(null);
+
+    await expect(getEventMembers(GUEST_ID, EVENT_ID)).rejects.toMatchObject({
+      statusCode: 404,
+      code: "EVENT_NOT_FOUND",
+    });
+    expect(eventMemberFindMock).not.toHaveBeenCalled();
   });
 });
 

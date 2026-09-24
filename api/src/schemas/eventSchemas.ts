@@ -91,6 +91,16 @@ export const updateEventBodySchema = z
     }
   );
 
+export const inviteEventMembersBodySchema = z
+  .object({
+    members: z.array(eventMemberInviteSchema).default([]),
+    circles: z.array(eventCircleInviteSchema).default([]),
+  })
+  .strict()
+  .refine((body) => body.members.length > 0 || body.circles.length > 0, {
+    message: "At least one member or circle must be provided",
+  });
+
 export const updateMyEventMembershipBodySchema = z
   .object({
     rsvpStatus: z.enum(["going", "declined"]).optional(),
@@ -132,6 +142,7 @@ export const upcomingCalendarEventsQuerySchema = paginationQuerySchema;
 
 export type CreateEventBody = z.infer<typeof createEventBodySchema>;
 export type UpdateEventBody = z.infer<typeof updateEventBodySchema>;
+export type InviteEventMembersBody = z.infer<typeof inviteEventMembersBodySchema>;
 export type UpdateMyEventMembershipBody = z.infer<typeof updateMyEventMembershipBodySchema>;
 export type GetEventsQuery = z.infer<typeof getEventsQuerySchema>;
 export type MyUpcomingEventsQuery = z.infer<typeof myUpcomingEventsQuerySchema>;
