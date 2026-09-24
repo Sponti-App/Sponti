@@ -203,6 +203,86 @@ describe("NewEventDrawer place search", () => {
   })
 })
 
+// #172: custom circles created on the Circles page never showed up as an
+// audience option in the composer — CircleCards only rendered the three
+// system circles (inner/close/all) and silently dropped anything typed
+// "custom", even though the API already returns and accepts them.
+describe("NewEventDrawer custom circle audience", () => {
+  it("lists a custom circle alongside the system circles and selects it as the audience", async () => {
+    const user = userEvent.setup()
+    mocks.fetchAcceptedConnections.mockResolvedValue([
+      { id: "f1", displayName: "Friend", username: "friend" },
+      { id: "f2", displayName: "Other", username: "other" },
+    ])
+    mocks.fetchMyCircles.mockResolvedValue([
+      {
+        id: "all",
+        name: "all friends",
+        description: "",
+        type: "all",
+        memberIds: ["f1", "f2"],
+      },
+      {
+        id: "c-custom",
+        name: "book club",
+        description: "custom circle",
+        type: "custom",
+        memberIds: ["f1"],
+      },
+    ])
+
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+
+    // Open the "who" section — its trigger chip shows the current audience
+    // summary, defaulting to "all friends".
+    await user.click(
+      await screen.findByRole("button", { name: /all friends · 2/i })
+    )
+
+    const customChip = await screen.findByRole("button", {
+      name: /book club/i,
+    })
+    // Member count is shown on the chip, same as the system circles.
+    expect(customChip).toHaveTextContent("1")
+
+    await user.click(customChip)
+
+    // Selecting the custom circle swaps it in as the audience, and its
+    // member is invited.
+    expect(await screen.findByText(/book club · 1/i)).toBeInTheDocument()
+  })
+
+  it("shows a custom circle even when no system circle was returned", async () => {
+    // At least one accepted connection, so the composer defaults to private
+    // (public-only kicks in with zero friends) — the case under test is the
+    // circle row itself, not that fallback.
+    mocks.fetchAcceptedConnections.mockResolvedValue([
+      { id: "f1", displayName: "Friend", username: "friend" },
+    ])
+    mocks.fetchMyCircles.mockResolvedValue([
+      {
+        id: "c-custom-only",
+        name: "solo custom",
+        description: "custom circle",
+        type: "custom",
+        memberIds: [],
+      },
+    ])
+
+    const user = userEvent.setup()
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+
+    await user.click(await screen.findByRole("button", { name: /friends/i }))
+
+    expect(
+      await screen.findByRole("button", { name: /solo custom/i })
+    ).toBeInTheDocument()
+    // No system circles were returned, so the "no circles available" empty
+    // state must not show up merely because the system row is empty.
+    expect(screen.queryByText("no circles available")).not.toBeInTheDocument()
+  })
+})
+
 // #135: the "no friends yet" prompt is pinned above the CTA and covered the
 // field being typed in. It must close on × or on a tap outside it.
 describe("NewEventDrawer no-friends audience prompt", () => {

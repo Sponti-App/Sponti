@@ -272,6 +272,36 @@ describe("eventService.createEvent", () => {
     const docs = eventMemberCreateMock.mock.calls[0]?.[0] as Array<{ userId: unknown }>;
     expect(docs.map((doc) => String(doc.userId))).toEqual([USER_ID, GUEST_ID, ADMIN_ID]);
   });
+
+  // #172: the audience picker now offers custom circles too. Ownership is
+  // enforced generically for every circle type — resolveInviteCandidates
+  // never looks at `type` — so a circle id the caller doesn't own must be
+  // rejected the same way whether it's a system or a custom circle.
+  it("rejects a circle the caller doesn't own", async () => {
+    // The host asked for CIRCLE_ID, but the owned-circles lookup comes back
+    // empty — nothing with that id belongs to this host.
+    mockCircleFindLean([]);
+
+    await expect(
+      createEvent(USER_ID, {
+        title: "beer",
+        description: null,
+        type: "drinks",
+        startAt: new Date("2026-05-20T10:30:00.000Z"),
+        endAt: new Date("2026-05-20T13:45:00.000Z"),
+        locationName: "Saint Pauli",
+        locationAddress: "St Pauli, Hamburg, Germany",
+        location: { type: "Point", coordinates: [9.9699353, 53.5508628] },
+        visibility: "private",
+        allowGuestInvites: "none",
+        guestInviteLimit: 5,
+        members: [],
+        circles: [{ circleId: CIRCLE_ID, role: "guest" }],
+      })
+    ).rejects.toMatchObject({ statusCode: 404, code: "CIRCLE_NOT_FOUND" });
+
+    expect(eventCreateMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("eventService.inviteEventMembers", () => {

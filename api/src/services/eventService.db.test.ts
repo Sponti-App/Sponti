@@ -1,7 +1,15 @@
 import mongoose, { Types } from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { Block, Circle, Connection, Event, EventMember, Notification } from "#models/index";
+import {
+  Block,
+  Circle,
+  CircleMember,
+  Connection,
+  Event,
+  EventMember,
+  Notification,
+} from "#models/index";
 import {
   createEvent,
   getCircleUpcomingEvents,
@@ -35,6 +43,7 @@ beforeAll(async () => {
   await Promise.all([
     Block.syncIndexes(),
     Circle.syncIndexes(),
+    CircleMember.syncIndexes(),
     Connection.syncIndexes(),
     Event.syncIndexes(),
     EventMember.syncIndexes(),
@@ -46,6 +55,7 @@ afterEach(async () => {
   await Promise.all([
     Block.deleteMany({}),
     Circle.deleteMany({}),
+    CircleMember.deleteMany({}),
     Connection.deleteMany({}),
     Event.deleteMany({}),
     EventMember.deleteMany({}),
@@ -493,5 +503,83 @@ describe("eventService circle-growth prompt database behavior (#150)", () => {
       statusCode: 404,
       code: "CIRCLE_NOT_FOUND",
     });
+  });
+});
+
+// #172: custom circles used to be filtered out of the audience picker
+// entirely on the frontend. The API side of the contract — accepting any
+// circle the host owns, regardless of type, and rejecting one they don't —
+// already worked; these tests pin that down at the database level.
+describe("eventService custom circle audience database behavior (#172)", () => {
+  const HOUR = 3_600_000;
+
+  const createEventInput = (overrides: Record<string, unknown> = {}) => ({
+    title: "book club",
+    description: null,
+    type: "drinks" as const,
+    startAt: new Date(Date.now() + 2 * HOUR),
+    endAt: new Date(Date.now() + 4 * HOUR),
+    locationName: "the annex",
+    locationAddress: null,
+    location: { type: "Point" as const, coordinates: [9.99, 53.55] as [number, number] },
+    visibility: "private" as const,
+    allowGuestInvites: "none" as const,
+    guestInviteLimit: 0,
+    members: [],
+    circles: [],
+    ...overrides,
+  });
+
+  const makeCustomCircle = async (ownerId: string, memberIds: string[] = []) => {
+    const circle = await Circle.create({
+      ownerId: new Types.ObjectId(ownerId),
+      name: "book club circle",
+      type: "custom",
+      color: "#00FF00",
+    });
+    if (memberIds.length > 0) {
+      await CircleMember.create(
+        memberIds.map((userId) => ({
+          circleId: circle._id,
+          ownerId: new Types.ObjectId(ownerId),
+          userId: new Types.ObjectId(userId),
+        }))
+      );
+    }
+    return circle;
+  };
+
+  it("invites a custom circle's members when it's picked as the flare's sole audience", async () => {
+    await Connection.create({
+      requesterId: new Types.ObjectId(HOST_ID),
+      receiverId: new Types.ObjectId(NEW_GUEST_ID),
+      status: "accepted",
+      type: "qr",
+    });
+    const circle = await makeCustomCircle(HOST_ID, [NEW_GUEST_ID]);
+
+    const { event } = await createEvent(
+      HOST_ID,
+      createEventInput({ circles: [{ circleId: String(circle._id), role: "guest" }] })
+    );
+
+    const members = await EventMember.find({ eventId: event._id }).lean();
+    expect(members.map((m) => String(m.userId)).sort()).toEqual([HOST_ID, NEW_GUEST_ID].sort());
+
+    const stored = await Event.findById(event._id).lean();
+    expect(stored?.invitedCircleIds?.map((id) => String(id))).toEqual([String(circle._id)]);
+  });
+
+  it("rejects a custom circle owned by someone else", async () => {
+    const strangerCircle = await makeCustomCircle(STRANGER_ID);
+
+    await expect(
+      createEvent(
+        HOST_ID,
+        createEventInput({ circles: [{ circleId: String(strangerCircle._id), role: "guest" }] })
+      )
+    ).rejects.toMatchObject({ statusCode: 404, code: "CIRCLE_NOT_FOUND" });
+
+    expect(await Event.countDocuments({})).toBe(0);
   });
 });

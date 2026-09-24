@@ -2305,9 +2305,14 @@ function useLongPress({
   }
 }
 
-// Three compact chips for the system circles. Inner/Close are editable — tap
-// selects the audience, hold (or right-click) opens the inline editor. The
-// pencil hint in the corner is the visible affordance for the gesture.
+// Three compact chips for the system circles, plus a wrapped row of custom
+// circles the user has created on the Circles page (#172 — custom circles
+// used to be silently dropped here even though the API already accepts
+// them as an audience). Inner/Close are editable — tap selects the
+// audience, hold (or right-click) opens the inline editor. The pencil hint
+// in the corner is the visible affordance for the gesture. Custom circles
+// are plain tap targets — membership is managed on the Circles page, not
+// inline here.
 export function CircleCards({
   circles,
   audience,
@@ -2323,8 +2328,9 @@ export function CircleCards({
   const systemCircles = circles.filter(
     (c) => c.type === "inner" || c.type === "close" || c.type === "all"
   )
+  const customCircles = circles.filter((c) => c.type === "custom")
 
-  if (systemCircles.length === 0) {
+  if (systemCircles.length === 0 && customCircles.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
         no circles available
@@ -2333,16 +2339,34 @@ export function CircleCards({
   }
 
   return (
-    <div className="grid grid-cols-3 gap-2">
-      {systemCircles.map((c) => (
-        <CircleChip
-          key={c.id}
-          circle={c}
-          selected={c.id === audience}
-          onSelect={() => onSelect(c.id)}
-          onEdit={c.type === "all" || !onEdit ? undefined : () => onEdit(c.id)}
-        />
-      ))}
+    <div className="flex flex-col gap-2">
+      {systemCircles.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          {systemCircles.map((c) => (
+            <CircleChip
+              key={c.id}
+              circle={c}
+              selected={c.id === audience}
+              onSelect={() => onSelect(c.id)}
+              onEdit={
+                c.type === "all" || !onEdit ? undefined : () => onEdit(c.id)
+              }
+            />
+          ))}
+        </div>
+      )}
+      {customCircles.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {customCircles.map((c) => (
+            <CircleChip
+              key={c.id}
+              circle={c}
+              selected={c.id === audience}
+              onSelect={() => onSelect(c.id)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
