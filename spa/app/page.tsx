@@ -17,6 +17,7 @@ import {
   type EventItem,
 } from "@/lib/api/events"
 import { haptic } from "@/lib/haptics"
+import { HttpError } from "@/lib/http"
 
 export default function Home() {
   const router = useRouter()
@@ -75,7 +76,14 @@ export default function Home() {
           next.delete(event.id)
           return next
         })
-        showActionFeedback("couldn't save that", { tone: "error" })
+        // #181: the flare filled up between opening the sheet and tapping
+        // join — a distinct, expected state, not a generic save failure.
+        showActionFeedback(
+          err instanceof HttpError && err.code === "EVENT_FULL"
+            ? "full"
+            : "couldn't save that",
+          { tone: "error" }
+        )
       })
     if (isImminent(event) && event.location.coordinates) {
       setActiveRoute(event)

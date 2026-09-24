@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const eventCreateMock = vi.hoisted(() => vi.fn());
 const eventCountDocumentsMock = vi.hoisted(() => vi.fn());
+const eventExistsMock = vi.hoisted(() => vi.fn());
 const eventFindMock = vi.hoisted(() => vi.fn());
 const eventFindOneMock = vi.hoisted(() => vi.fn());
+const eventFindOneAndUpdateMock = vi.hoisted(() => vi.fn());
 const eventUpdateOneMock = vi.hoisted(() => vi.fn());
 const eventMemberBulkWriteMock = vi.hoisted(() => vi.fn());
 const eventMemberCreateMock = vi.hoisted(() => vi.fn());
@@ -30,8 +32,10 @@ vi.mock("#models/index", () => ({
   Event: {
     countDocuments: eventCountDocumentsMock,
     create: eventCreateMock,
+    exists: eventExistsMock,
     find: eventFindMock,
     findOne: eventFindOneMock,
+    findOneAndUpdate: eventFindOneAndUpdateMock,
     updateOne: eventUpdateOneMock,
   },
   EventMember: {
@@ -102,6 +106,23 @@ afterEach(() => {
 const mockEventFindOneSession = (event: unknown) => {
   const sessionMock = vi.fn().mockResolvedValue(event);
   eventFindOneMock.mockReturnValue({ session: sessionMock });
+  return sessionMock;
+};
+
+// #181: updateMyEventMembership reserves/releases a "going" spot through
+// Event.exists/findOneAndUpdate/updateOne. These tests exercise notification
+// behavior, not the guest-limit gate itself (that's covered against a real
+// database in eventService.db.test.ts), so default to "already synced,
+// reservation granted" and let a membership row resolve via `.session()`.
+const mockGoingSpotReservationGranted = () => {
+  eventExistsMock.mockReturnValue({ session: vi.fn().mockResolvedValue(true) });
+  eventFindOneAndUpdateMock.mockResolvedValue({ _id: EVENT_ID });
+  eventUpdateOneMock.mockResolvedValue({ acknowledged: true });
+};
+
+const mockEventMemberFindOneSession = (membership: unknown) => {
+  const sessionMock = vi.fn().mockResolvedValue(membership);
+  eventMemberFindOneMock.mockReturnValue({ session: sessionMock });
   return sessionMock;
 };
 
@@ -860,7 +881,8 @@ describe("eventService.updateMyEventMembership", () => {
       rsvpStatus: "invited",
       save: vi.fn().mockResolvedValue(undefined),
     };
-    eventMemberFindOneMock.mockResolvedValue(membership);
+    mockEventMemberFindOneSession(membership);
+    mockGoingSpotReservationGranted();
     notificationCreateMock.mockResolvedValue([{}]);
 
     await updateMyEventMembership(GUEST_ID, EVENT_ID, {
@@ -892,10 +914,11 @@ describe("eventService.updateMyEventMembership", () => {
       hostId: USER_ID,
       title: "coffee after class",
     });
-    eventMemberFindOneMock.mockResolvedValue({
+    mockEventMemberFindOneSession({
       rsvpStatus: "going",
       save: vi.fn().mockResolvedValue(undefined),
     });
+    mockGoingSpotReservationGranted();
 
     await updateMyEventMembership(GUEST_ID, EVENT_ID, {
       memberWillArriveAt: new Date("2026-05-14T13:10:00.000Z"),
@@ -906,6 +929,9 @@ describe("eventService.updateMyEventMembership", () => {
     });
 
     expect(notificationCreateMock).not.toHaveBeenCalled();
+    // Neither call transitioned into `going` (already going both times), so
+    // no spot should have been reserved either.
+    expect(eventFindOneAndUpdateMock).not.toHaveBeenCalled();
   });
 
   it("does not notify when the host updates their own RSVP", async () => {
@@ -914,10 +940,11 @@ describe("eventService.updateMyEventMembership", () => {
       hostId: USER_ID,
       title: "coffee after class",
     });
-    eventMemberFindOneMock.mockResolvedValue({
+    mockEventMemberFindOneSession({
       rsvpStatus: "invited",
       save: vi.fn().mockResolvedValue(undefined),
     });
+    mockGoingSpotReservationGranted();
 
     await updateMyEventMembership(USER_ID, EVENT_ID, {
       rsvpStatus: "going",
