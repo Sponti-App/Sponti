@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { HttpError } from "@/lib/http"
+import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 
 function ResetSuccessBanner() {
   const searchParams = useSearchParams()
@@ -31,6 +32,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [googleSubmitting, setGoogleSubmitting] = useState(false)
+  const wakingUp = useSlowRequestHint(submitting)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -130,7 +132,14 @@ export default function LoginPage() {
           disabled={submitting || !email || !password}
           className="mt-2 w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
         >
-          {submitting ? "signing in…" : "sign in"}
+          {/* #171: a cold backend can take up to a minute to answer the
+              first request — say so instead of a button that spins long
+              enough to look stuck. */}
+          {submitting
+            ? wakingUp
+              ? "waking up the server…"
+              : "signing in…"
+            : "sign in"}
         </Button>
 
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
