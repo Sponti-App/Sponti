@@ -51,6 +51,7 @@ Error:
 - When a host switches an event from public to private, guests who joined on their own and are `going` keep their spot; joiners who aren't going are dropped. Invited guests are never touched. Switching private to public keeps the invite list.
 - Only the host can list, add and remove event guests. A removed guest can't see or rejoin the event, even a public one, until the host invites them again.
 - Circles can only be managed by their owner.
+- Circles are snapshots: sending a flare to a circle copies its members into the flare at that moment. The flare remembers which circles it was sent to (`invitedCircleIds`) only so the host can be asked whether someone added to the circle later should be invited too; that is always an explicit host action (`POST /events/:id/members`), never automatic. `GET /circles/:id/events` lists the owner's upcoming flares for a circle.
 - Circle members must be accepted directional connections of the owner.
 - Blocks are stealthy: blocked invitation attempts return a generic processed response.
 
