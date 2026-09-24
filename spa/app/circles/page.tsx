@@ -236,17 +236,8 @@ export default function CirclesPage() {
     void (async () => {
       await respondToApiConnectionRequest(req.id, "accepted")
 
-      const allCircle = circles.find((circle) => circle.type === "all")
-      if (allCircle && !allCircle.memberIds.includes(req.user.id)) {
-        try {
-          await addApiCircleMember(allCircle.id, req.user.id)
-        } catch (error) {
-          setCirclesError(
-            getErrorMessage(error, "Could not add connection to all friends")
-          )
-        }
-      }
-
+      // "all friends" is resolved live from accepted connections at invite
+      // time (#154) — no membership row to write here.
       setJustAcceptedId(req.user.id)
       showActionFeedback("friend added")
       refreshBackendData()

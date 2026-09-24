@@ -27,6 +27,10 @@ const GOING_GUEST_ID = new Types.ObjectId().toString();
 const NEW_GUEST_ID = new Types.ObjectId().toString();
 const STRANGER_ID = new Types.ObjectId().toString();
 const OTHER_STRANGER_ID = new Types.ObjectId().toString();
+const PENDING_FRIEND_ID = new Types.ObjectId().toString();
+const REJECTED_FRIEND_ID = new Types.ObjectId().toString();
+const HOST_BLOCKED_FRIEND_ID = new Types.ObjectId().toString();
+const FRIEND_BLOCKED_HOST_ID = new Types.ObjectId().toString();
 
 let mongoServer: MongoMemoryReplSet;
 
@@ -581,5 +585,181 @@ describe("eventService custom circle audience database behavior (#172)", () => {
     ).rejects.toMatchObject({ statusCode: 404, code: "CIRCLE_NOT_FOUND" });
 
     expect(await Event.countDocuments({})).toBe(0);
+  });
+});
+
+describe("eventService 'all friends' database behavior (#154)", () => {
+  const HOUR = 3_600_000;
+
+  const makeAllCircle = (ownerId: string = HOST_ID) =>
+    Circle.create({
+      ownerId: new Types.ObjectId(ownerId),
+      name: "all friends",
+      type: "all",
+      color: "#FF0000",
+    });
+
+  // Mirrors how respondToConnectionRequest stores an accepted connection:
+  // one row per direction, both status "accepted".
+  const acceptConnection = (otherId: string) =>
+    Connection.create([
+      {
+        requesterId: new Types.ObjectId(HOST_ID),
+        receiverId: new Types.ObjectId(otherId),
+        status: "accepted",
+        type: "qr",
+      },
+      {
+        requesterId: new Types.ObjectId(otherId),
+        receiverId: new Types.ObjectId(HOST_ID),
+        status: "accepted",
+        type: "qr",
+      },
+    ]);
+
+  const seedMixedNetwork = async () => {
+    const allCircle = await makeAllCircle();
+    await acceptConnection(GOING_GUEST_ID);
+    await acceptConnection(NEW_GUEST_ID);
+    await Connection.create({
+      requesterId: new Types.ObjectId(PENDING_FRIEND_ID),
+      receiverId: new Types.ObjectId(HOST_ID),
+      status: "pending",
+      type: "qr",
+    });
+    await Connection.create({
+      requesterId: new Types.ObjectId(REJECTED_FRIEND_ID),
+      receiverId: new Types.ObjectId(HOST_ID),
+      status: "rejected",
+      type: "qr",
+    });
+    // Accepted, but the host blocked them.
+    await acceptConnection(HOST_BLOCKED_FRIEND_ID);
+    await Block.create({
+      blockerId: new Types.ObjectId(HOST_ID),
+      blockedId: new Types.ObjectId(HOST_BLOCKED_FRIEND_ID),
+    });
+    // Accepted, but they blocked the host.
+    await acceptConnection(FRIEND_BLOCKED_HOST_ID);
+    await Block.create({
+      blockerId: new Types.ObjectId(FRIEND_BLOCKED_HOST_ID),
+      blockedId: new Types.ObjectId(HOST_ID),
+    });
+
+    return allCircle;
+  };
+
+  it("invites every accepted, unblocked connection when posted to 'all friends', and notifies only them", async () => {
+    const allCircle = await seedMixedNetwork();
+
+    const { event } = await createEvent(HOST_ID, {
+      title: "friday drinks",
+      description: null,
+      type: "drinks",
+      startAt: new Date(Date.now() + 2 * HOUR),
+      endAt: new Date(Date.now() + 4 * HOUR),
+      locationName: "the annex",
+      locationAddress: null,
+      location: { type: "Point", coordinates: [9.99, 53.55] },
+      visibility: "private",
+      allowGuestInvites: "none",
+      guestInviteLimit: 0,
+      members: [],
+      circles: [{ circleId: String(allCircle._id), role: "guest" }],
+    });
+
+    const memberUserIds = (await EventMember.find({ eventId: event._id }).lean()).map((member) =>
+      String(member.userId)
+    );
+    expect(new Set(memberUserIds)).toEqual(
+      new Set([HOST_ID, GOING_GUEST_ID, NEW_GUEST_ID])
+    );
+
+    const notifiedUserIds = (
+      await Notification.find({ targetId: String(event._id), type: "event_invitation" }).lean()
+    ).map((doc) => String(doc.userId));
+    expect(new Set(notifiedUserIds)).toEqual(new Set([GOING_GUEST_ID, NEW_GUEST_ID]));
+  });
+
+  it("adds only people not already on the flare when 'invite more' targets 'all friends'", async () => {
+    const allCircle = await seedMixedNetwork();
+    const flare = await Event.create({
+      hostId: new Types.ObjectId(HOST_ID),
+      title: "friday drinks",
+      type: "drinks",
+      startAt: new Date(Date.now() + 2 * HOUR),
+      endAt: new Date(Date.now() + 4 * HOUR),
+      locationName: "the annex",
+      location: { type: "Point", coordinates: [9.99, 53.55] },
+      visibility: "private",
+      allowGuestInvites: "none",
+      guestInviteLimit: 0,
+      status: "active",
+    });
+    await EventMember.create({
+      eventId: flare._id,
+      userId: new Types.ObjectId(HOST_ID),
+      role: "host",
+      rsvpStatus: "going",
+    });
+    // Already on the flare with a live RSVP — inviting "all friends" again
+    // must not touch it.
+    await EventMember.create({
+      eventId: flare._id,
+      userId: new Types.ObjectId(GOING_GUEST_ID),
+      invitedBy: new Types.ObjectId(HOST_ID),
+      role: "guest",
+      rsvpStatus: "going",
+    });
+
+    const result = await inviteEventMembers(HOST_ID, String(flare._id), {
+      members: [],
+      circles: [{ circleId: String(allCircle._id), role: "guest" }],
+    });
+
+    expect(result).toEqual({ invitedUserIds: [NEW_GUEST_ID] });
+    const goingGuestRow = await EventMember.findOne({
+      eventId: flare._id,
+      userId: GOING_GUEST_ID,
+    }).lean();
+    expect(goingGuestRow?.rsvpStatus).toBe("going");
+    const newGuestRow = await EventMember.findOne({
+      eventId: flare._id,
+      userId: NEW_GUEST_ID,
+    }).lean();
+    expect(newGuestRow).toMatchObject({ rsvpStatus: "invited" });
+  });
+
+  it("stops inviting someone to new flares as soon as they're unfriended or blocked", async () => {
+    const allCircle = await makeAllCircle();
+    await acceptConnection(GOING_GUEST_ID);
+
+    await Connection.deleteMany({
+      $or: [
+        { requesterId: new Types.ObjectId(HOST_ID), receiverId: new Types.ObjectId(GOING_GUEST_ID) },
+        { requesterId: new Types.ObjectId(GOING_GUEST_ID), receiverId: new Types.ObjectId(HOST_ID) },
+      ],
+    });
+
+    const { event } = await createEvent(HOST_ID, {
+      title: "friday drinks",
+      description: null,
+      type: "drinks",
+      startAt: new Date(Date.now() + 2 * HOUR),
+      endAt: new Date(Date.now() + 4 * HOUR),
+      locationName: "the annex",
+      locationAddress: null,
+      location: { type: "Point", coordinates: [9.99, 53.55] },
+      visibility: "private",
+      allowGuestInvites: "none",
+      guestInviteLimit: 0,
+      members: [],
+      circles: [{ circleId: String(allCircle._id), role: "guest" }],
+    });
+
+    const memberUserIds = (await EventMember.find({ eventId: event._id }).lean()).map((member) =>
+      String(member.userId)
+    );
+    expect(memberUserIds).toEqual([HOST_ID]);
   });
 });
