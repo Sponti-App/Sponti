@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowLeft,
@@ -29,6 +29,12 @@ import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/components/auth-provider"
 import { updateProfile, uploadAvatar } from "@/lib/api/auth"
 import {
+  fetchNotificationSettings,
+  updateNotificationSettings,
+  type NotificationSettings as NotificationSettingsSchema,
+} from "@/lib/api/notification-settings"
+import { HttpError } from "@/lib/http"
+import {
   getRefreshToken,
   getToken,
   setSession,
@@ -44,54 +50,63 @@ import {
 
 // ─── Types mirroring the DB schemas exactly ────────────────────────────────
 //
-// Account fields come from the `users` collection.
-// API: GET /api/users/me → AccountDraft
-//      PATCH /api/users/me  { displayName, username, email, profileVisibility, socialBattery }
-type ProfileVisibility = "public" | "connections_only" | "private"  // profile_visibility_status enum
+// Account fields come from the `users` collection (auth-server).
+// API: GET /auth/me → { user }
+//      PATCH /auth/me/profile  { displayName, username, email, profileVisibility }
+//
+// #91 investigation: the users.profileVisibility enum (auth-server/src/models/User.ts)
+// is only "public" | "private" — there is no "connections_only" value in the
+// schema or in the `AuthUser` type the rest of the app relies on. The third
+// radio option below is UI-only until that's a real backend value, so it's
+// disabled rather than removed (CLAUDE.md "hide, never delete").
+type ProfileVisibility = "public" | "private" // users.profileVisibility enum
 
 type AccountDraft = {
   displayName: string        // users.displayName
   username: string           // users.username
   email: string              // users.email
   profileVisibility: ProfileVisibility  // users.profileVisibility
-  instagram: string          // client-only extras (localStorage)
-  telegram: string           // client-only extras (localStorage)
+  instagram: string          // client-only extras (localStorage) — out of scope, #93/#166
+  telegram: string           // client-only extras (localStorage) — out of scope, #93/#166
 }
 
-// Notification fields come from the `notification_settings` collection (one doc per user).
-// API: GET /api/notification-settings → NotificationDraft
-//      PATCH /api/notification-settings  { ...NotificationDraft }
+// Notification fields come from the `notification_settings` collection (api/).
+// API: GET  /notification-settings/me → { data: NotificationSettings }
+//      PATCH /notification-settings/me  { ...partial NotificationSettings }
 //
-// Fields marked [PROPOSED] do not exist in the schema yet — add them to the
-// notification_settings collection as described below.
-type NotifyWhen = "any_friend" | "inner_circle"   // [PROPOSED] enum
+// `notifyWhen` and `maxDistanceMiles` below are NOT in that schema
+// (api/src/schemas/notificationSettingsSchemas.ts is `.strict()` and would
+// reject them) — their controls are shown disabled with "coming soon"
+// rather than wired or deleted.
+type NotifyWhen = "any_friend" | "inner_circle" // not persisted — no backend field yet
 
 type NotificationDraft = {
-  // ── existing schema fields ──────────────────────────────────────────────
+  // ── real schema fields — auto-save individually as they change ─────────
   quietHoursEnabled: boolean    // notification_settings.quietHoursEnabled
   quietHoursStart: string       // notification_settings.quietHoursStart  ("HH:MM")
   quietHoursEnd: string         // notification_settings.quietHoursEnd    ("HH:MM")
   eventReminders: boolean       // notification_settings.eventReminders
   invitationNotifications: boolean  // notification_settings.invitationNotifications
-  // ── [PROPOSED] new fields — add to notification_settings collection ─────
-  // notifyWhen:  { type: String, enum: ["any_friend","inner_circle"], default: "any_friend" }
+  // ── no backend field — local only, controls disabled ("coming soon") ───
   notifyWhen: NotifyWhen
-  // maxDistanceMiles: { type: Number, min: 1, max: 50, default: 10 }
   maxDistanceMiles: number
 }
 
-// Password change is a separate auth endpoint, not part of users schema.
-// API: POST /auth/change-password  { currentPassword, newPassword }
-type PasswordDraft = {
-  currentPassword: string
-  newPassword: string
-  confirmPassword: string  // validated client-side only
-}
+// #91 investigation: auth-server has no change-password endpoint — only the
+// reset-by-email flow (POST /auth/forgot-password + /auth/reset-password).
+// Building a new "requires current password" endpoint would be an auth
+// change (Level 3), so this form stays hidden behind "coming soon" instead
+// of being wired or deleted.
 
 // ─── Activity tag options ───────────────────────────────────────────────────
-const VISIBILITY_OPTIONS: { value: ProfileVisibility; label: string; sublabel: string }[] = [
+const VISIBILITY_OPTIONS: {
+  value: ProfileVisibility | "connections_only"
+  label: string
+  sublabel: string
+  disabled?: boolean
+}[] = [
   { value: "public",           label: "Public",           sublabel: "Anyone can find you by username" },
-  { value: "connections_only", label: "Connections only", sublabel: "Only people you're connected with" },
+  { value: "connections_only", label: "Connections only", sublabel: "Coming soon — not supported by the backend yet", disabled: true },
   { value: "private",          label: "Private",          sublabel: "Hidden — invite only" },
 ]
 
@@ -111,12 +126,13 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
   const extras = readProfileExtras(user.id)
   const isDark = resolvedTheme === "dark"
 
-  // Account draft — seeded from auth session; replace with API response when wired
+  // Account draft — seeded from the auth session (already fresh: AuthProvider
+  // revalidates against /auth/me on load, see components/auth-provider.tsx).
   const [account, setAccount] = useState<AccountDraft>({
     displayName: user.displayName ?? "",
     username: user.username ?? "",
     email: user.email ?? "",
-    profileVisibility: "connections_only",
+    profileVisibility: user.profileVisibility,
     instagram: extras.instagram,
     telegram: extras.telegram,
   })
@@ -144,9 +160,11 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
     }
   }
 
-  // Notification draft — replace initial values with API response when wired
+  // Notification draft. `notifyWhen`/`maxDistanceMiles` have no backend
+  // field (see NotificationDraft above) so they start at a fixed local
+  // default and are never sent — their controls render disabled.
   const [notif, setNotif] = useState<NotificationDraft>({
-    quietHoursEnabled: true,
+    quietHoursEnabled: false,
     quietHoursStart: "22:00",
     quietHoursEnd: "08:00",
     eventReminders: true,
@@ -154,12 +172,33 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
     notifyWhen: "any_friend",
     maxDistanceMiles: 5,
   })
+  // Last value confirmed by the server for each real field — what a failed
+  // save reverts a control back to. Null until the initial GET resolves.
+  const [committedNotif, setCommittedNotif] =
+    useState<NotificationSettingsSchema | null>(null)
+  const [notifLoading, setNotifLoading] = useState(true)
+  const [notifLoadError, setNotifLoadError] = useState(false)
 
-  const [password, setPassword] = useState<PasswordDraft>({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  })
+  useEffect(() => {
+    let cancelled = false
+    fetchNotificationSettings()
+      .then((settings) => {
+        if (cancelled) return
+        setNotif((prev) => ({ ...prev, ...settings }))
+        setCommittedNotif(settings)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error("[Sponti] failed to load notification settings", err)
+        setNotifLoadError(true)
+      })
+      .finally(() => {
+        if (!cancelled) setNotifLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const patchAccount = (partial: Partial<AccountDraft>) =>
     setAccount((prev) => ({ ...prev, ...partial }))
@@ -167,7 +206,44 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
   const patchNotif = (partial: Partial<NotificationDraft>) =>
     setNotif((prev) => ({ ...prev, ...partial }))
 
-  // ── Submit handlers — swap TODO bodies for real fetch calls ───────────────
+  // Saves one real notification field immediately (optimistic — the switch
+  // or field already shows `value` by the time this runs) and reverts it to
+  // the last known-good server value on failure. Mirrors the optimistic
+  // join/leave pattern in app/page.tsx.
+  const commitNotifField = async <K extends keyof NotificationSettingsSchema>(
+    field: K,
+    value: NotificationSettingsSchema[K]
+  ) => {
+    try {
+      const updated = await updateNotificationSettings({ [field]: value })
+      setCommittedNotif(updated)
+      showActionFeedback("preferences saved")
+    } catch (err) {
+      console.error("[Sponti] failed to save notification setting", field, err)
+      if (committedNotif) {
+        patchNotif({ [field]: committedNotif[field] } as Partial<NotificationDraft>)
+      }
+      showActionFeedback("couldn't save that", { tone: "error" })
+    }
+  }
+
+  const handleNotifToggle = (
+    field: "quietHoursEnabled" | "eventReminders" | "invitationNotifications",
+    value: boolean
+  ) => {
+    patchNotif({ [field]: value } as Partial<NotificationDraft>)
+    void commitNotifField(field, value)
+  }
+
+  const commitTimeFieldIfChanged = (
+    field: "quietHoursStart" | "quietHoursEnd",
+    value: string
+  ) => {
+    if (!committedNotif || committedNotif[field] === value) return
+    void commitNotifField(field, value)
+  }
+
+  // ── Submit handlers ────────────────────────────────────────────────────
   const handleSaveAccount = async () => {
     if (savingAccount) return
     setSavingAccount(true)
@@ -186,6 +262,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
         displayName: account.displayName.trim(),
         username: normalizeUsername(account.username),
         email: account.email.trim(),
+        profileVisibility: account.profileVisibility,
       })
 
       const mergedUser: AuthUser = { ...updatedUser, avatarUrl: nextAvatarUrl }
@@ -198,34 +275,20 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
         telegram: account.telegram.trim(),
       })
 
-      // TODO: PATCH /api/users/me for profileVisibility once backend lands
       showActionFeedback("profile saved")
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Could not save profile")
+      const message =
+        err instanceof HttpError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Could not save profile"
+      setUploadError(message)
       showActionFeedback("couldn't save that", { tone: "error" })
     } finally {
       setSavingAccount(false)
     }
   }
-
-  const handleChangePassword = () => {
-    if (password.newPassword !== password.confirmPassword) return
-    // TODO: POST /auth/change-password
-    // await apiFetch("/auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword: password.currentPassword, newPassword: password.newPassword }) })
-    setPassword({ currentPassword: "", newPassword: "", confirmPassword: "" })
-  }
-
-  const handleSaveNotifications = () => {
-    // TODO: PATCH /api/notification-settings
-    // Destructure to send only the exact schema fields (omit confirmPassword etc.)
-    // const { quietHoursEnabled, quietHoursStart, quietHoursEnd, eventReminders, invitationNotifications, notifyWhen, maxDistanceMiles } = notif
-    // await apiFetch("/api/notification-settings", { method: "PATCH", body: JSON.stringify({ quietHoursEnabled, quietHoursStart, quietHoursEnd, eventReminders, invitationNotifications, notifyWhen, maxDistanceMiles }) })
-    showActionFeedback("preferences aren't ready yet", { tone: "error" })
-  }
-
-  const passwordValid =
-    password.newPassword.length >= 8 &&
-    password.newPassword === password.confirmPassword
 
   return (
     <div className="min-h-dvh w-full bg-background flex flex-col relative">
@@ -344,20 +407,31 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             <Section icon={Shield} label="Privacy">
               <RadioGroup
                 value={account.profileVisibility}
-                onValueChange={(v) => patchAccount({ profileVisibility: v as ProfileVisibility })}
+                onValueChange={(v) =>
+                  patchAccount({ profileVisibility: v as ProfileVisibility })
+                }
                 className="space-y-2"
               >
-                {VISIBILITY_OPTIONS.map(({ value, label, sublabel }) => (
+                {VISIBILITY_OPTIONS.map(({ value, label, sublabel, disabled }) => (
                   <Label
                     key={value}
                     htmlFor={`vis-${value}`}
-                    className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${
-                      account.profileVisibility === value
+                    className={`flex items-start gap-3 rounded-xl border p-3 transition-colors ${
+                      disabled
+                        ? "cursor-not-allowed opacity-50 border-border"
+                        : "cursor-pointer"
+                    } ${
+                      !disabled && account.profileVisibility === value
                         ? "border-accent bg-accent/5"
                         : "border-border"
                     }`}
                   >
-                    <RadioGroupItem id={`vis-${value}`} value={value} className="mt-0.5" />
+                    <RadioGroupItem
+                      id={`vis-${value}`}
+                      value={value}
+                      disabled={disabled}
+                      className="mt-0.5"
+                    />
                     <div className="flex flex-col gap-0.5">
                       <span className="text-sm font-medium">{label}</span>
                       <span className="text-xs text-muted-foreground">{sublabel}</span>
@@ -403,41 +477,15 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
               {savingAccount ? "saving..." : "save changes"}
             </Button>
 
-            {/* Password — POST /auth/change-password (not in users schema directly) */}
+            {/* Password — auth-server has no change-password endpoint yet,
+                only the reset-by-email flow. Hidden behind "coming soon"
+                rather than wired to the wrong flow or removed (#91). */}
             <Section icon={Lock} label="Password">
-              <div className="space-y-3">
-                <Field label="Current password">
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    value={password.currentPassword}
-                    onChange={(e) => setPassword((p) => ({ ...p, currentPassword: e.target.value }))}
-                  />
-                </Field>
-                <Field label="New password">
-                  <Input
-                    type="password"
-                    placeholder="8+ characters"
-                    value={password.newPassword}
-                    onChange={(e) => setPassword((p) => ({ ...p, newPassword: e.target.value }))}
-                  />
-                </Field>
-                <Field label="Confirm new password">
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    value={password.confirmPassword}
-                    onChange={(e) => setPassword((p) => ({ ...p, confirmPassword: e.target.value }))}
-                  />
-                </Field>
-                <Button
-                  variant="outline"
-                  className="w-full rounded-full"
-                  disabled={!passwordValid}
-                  onClick={handleChangePassword}
-                >
-                  Update password
-                </Button>
+              <div className="rounded-xl border border-border p-3.5 opacity-50">
+                <p className="text-sm font-medium">change password</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  coming soon — use &ldquo;forgot password&rdquo; on the sign-in screen for now
+                </p>
               </div>
             </Section>
 
@@ -456,17 +504,26 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
 
           {/* ────────────────── Notifications tab ────────────────── */}
           <TabsContent value="notifications" className="px-4 pt-5 space-y-6">
+            {notifLoadError && (
+              <p className="text-xs text-destructive">
+                couldn&apos;t load your notification preferences — showing defaults
+              </p>
+            )}
 
-            {/* Quiet hours — notification_settings: quietHoursEnabled, quietHoursStart, quietHoursEnd */}
+            {/* Quiet hours — notification_settings: quietHoursEnabled, quietHoursStart, quietHoursEnd.
+                Each control below auto-saves on change (see commitNotifField)
+                and reverts itself if the request fails. */}
             <Section icon={Clock} label="Quiet hours">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <p className="text-sm font-medium">Enable quiet hours</p>
-                  <p className="text-xs text-muted-foreground">Mute all notifications during this window</p>
+                  <p className="text-sm font-medium">enable quiet hours</p>
+                  <p className="text-xs text-muted-foreground">mute all notifications during this window</p>
                 </div>
                 <Switch
+                  aria-label="enable quiet hours"
                   checked={notif.quietHoursEnabled}
-                  onCheckedChange={(v) => patchNotif({ quietHoursEnabled: v })}
+                  disabled={notifLoading}
+                  onCheckedChange={(v) => handleNotifToggle("quietHoursEnabled", v)}
                 />
               </div>
               {notif.quietHoursEnabled && (
@@ -474,20 +531,26 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                   <div className="flex items-center gap-3">
                     <Input
                       type="time"
+                      aria-label="quiet hours start"
                       value={notif.quietHoursStart}
+                      disabled={notifLoading}
                       onChange={(e) => patchNotif({ quietHoursStart: e.target.value })}
+                      onBlur={(e) => commitTimeFieldIfChanged("quietHoursStart", e.target.value)}
                       className="flex-1"
                     />
                     <span className="text-sm text-muted-foreground shrink-0">to</span>
                     <Input
                       type="time"
+                      aria-label="quiet hours end"
                       value={notif.quietHoursEnd}
+                      disabled={notifLoading}
                       onChange={(e) => patchNotif({ quietHoursEnd: e.target.value })}
+                      onBlur={(e) => commitTimeFieldIfChanged("quietHoursEnd", e.target.value)}
                       className="flex-1"
                     />
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Notifications are muted during these times.
+                    notifications are muted during these times
                   </p>
                 </>
               )}
@@ -500,68 +563,62 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                   label="Event reminders"
                   sublabel="Reminded 1h before events you've joined"
                   checked={notif.eventReminders}
-                  onCheckedChange={(v) => patchNotif({ eventReminders: v })}
+                  disabled={notifLoading}
+                  onCheckedChange={(v) => handleNotifToggle("eventReminders", v)}
                 />
                 <ToggleRow
                   label="Invitation notifications"
                   sublabel="When someone invites you to a flare"
                   checked={notif.invitationNotifications}
-                  onCheckedChange={(v) => patchNotif({ invitationNotifications: v })}
+                  disabled={notifLoading}
+                  onCheckedChange={(v) => handleNotifToggle("invitationNotifications", v)}
                 />
               </div>
             </Section>
 
-            {/* Notify when — [PROPOSED] notification_settings.notifyWhen: "any_friend" | "inner_circle" */}
-            <Section icon={Bell} label="Notify me when...">
-              <RadioGroup
-                value={notif.notifyWhen}
-                onValueChange={(v) => patchNotif({ notifyWhen: v as NotifyWhen })}
-                className="space-y-2"
-              >
+            {/* Notify when — no backend field (notification_settings has no
+                `notifyWhen` column). Shown disabled, "coming soon", rather
+                than wired or deleted — see NotifyWhen above. */}
+            <Section icon={Bell} label="Notify me when... (coming soon)">
+              <RadioGroup value={notif.notifyWhen} className="space-y-2" disabled>
                 <Label
                   htmlFor="notify-any_friend"
-                  className={`flex items-center gap-3 rounded-xl border p-3.5 cursor-pointer transition-colors ${
-                    notif.notifyWhen === "any_friend" ? "border-accent bg-accent/5" : "border-border"
-                  }`}
+                  className="flex items-center gap-3 rounded-xl border border-border p-3.5 opacity-50 cursor-not-allowed"
                 >
-                  <RadioGroupItem id="notify-any_friend" value="any_friend" />
-                  <span className="text-sm font-medium">Any friend is free</span>
+                  <RadioGroupItem id="notify-any_friend" value="any_friend" disabled />
+                  <span className="text-sm font-medium">any friend is free</span>
                 </Label>
                 <Label
                   htmlFor="notify-inner_circle"
-                  className={`flex items-center gap-3 rounded-xl border p-3.5 cursor-pointer transition-colors ${
-                    notif.notifyWhen === "inner_circle" ? "border-accent bg-accent/5" : "border-border"
-                  }`}
+                  className="flex items-center gap-3 rounded-xl border border-border p-3.5 opacity-50 cursor-not-allowed"
                 >
-                  <RadioGroupItem id="notify-inner_circle" value="inner_circle" />
-                  <span className="text-sm font-medium">Only Inner Circle is free</span>
+                  <RadioGroupItem id="notify-inner_circle" value="inner_circle" disabled />
+                  <span className="text-sm font-medium">only inner circle is free</span>
                 </Label>
               </RadioGroup>
             </Section>
 
-            {/* Max distance — [PROPOSED] notification_settings.maxDistanceMiles: Number (1–50) */}
-            <Section icon={MapPin} label={`Max distance: ${notif.maxDistanceMiles} ${notif.maxDistanceMiles === 1 ? "mile" : "miles"}`}>
+            {/* Max distance — no backend field (notification_settings has no
+                `maxDistanceMiles` column). Shown disabled, "coming soon". */}
+            <Section
+              icon={MapPin}
+              label={`max distance: ${notif.maxDistanceMiles} ${notif.maxDistanceMiles === 1 ? "mile" : "miles"} (coming soon)`}
+            >
               <input
                 type="range"
                 min={1}
                 max={20}
                 step={1}
                 value={notif.maxDistanceMiles}
-                onChange={(e) => patchNotif({ maxDistanceMiles: Number(e.target.value) })}
-                className="w-full h-1.5 rounded-full appearance-none bg-border [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer"
+                disabled
+                onChange={() => undefined}
+                className="w-full h-1.5 rounded-full appearance-none bg-border opacity-50 cursor-not-allowed [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-md"
               />
               <div className="flex justify-between text-xs text-muted-foreground mt-1">
                 <span>1 mi</span>
                 <span>20 mi</span>
               </div>
             </Section>
-
-            <Button
-              className="w-full rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
-              onClick={handleSaveNotifications}
-            >
-              save preferences
-            </Button>
           </TabsContent>
         </Tabs>
       </div>
@@ -605,11 +662,13 @@ function ToggleRow({
   label,
   sublabel,
   checked,
+  disabled,
   onCheckedChange,
 }: {
   label: string
   sublabel: string
   checked: boolean
+  disabled?: boolean
   onCheckedChange: (v: boolean) => void
 }) {
   return (
@@ -618,7 +677,12 @@ function ToggleRow({
         <p className="text-sm font-medium">{label}</p>
         <p className="text-xs text-muted-foreground mt-0.5">{sublabel}</p>
       </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+      <Switch
+        aria-label={label}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onCheckedChange}
+      />
     </div>
   )
 }
