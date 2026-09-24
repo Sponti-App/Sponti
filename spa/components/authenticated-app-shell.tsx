@@ -48,10 +48,7 @@ function AuthenticatedChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const { open: drawerOpen } = useNewEventDrawer()
-  const [notificationsState, setNotificationsState] = useState(() => ({
-    open: false,
-    pathname,
-  }))
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const {
     notifications,
     unreadCount,
@@ -63,13 +60,20 @@ function AuthenticatedChrome({ children }: { children: React.ReactNode }) {
     loadMore,
   } = useNotifications()
   useUnreadCountRefresh()
-  const notificationsOpen =
-    notificationsState.open && notificationsState.pathname === pathname
+
+  // Close on navigation so the feed doesn't come back open just because the
+  // user returned to the page where they last opened it (#170).
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setNotificationsOpen(false)
+    }, 0)
+    return () => window.clearTimeout(timeout)
+  }, [pathname])
 
   useEffect(() => {
     if (!drawerOpen) return
     const timeout = window.setTimeout(() => {
-      setNotificationsState((current) => ({ ...current, open: false }))
+      setNotificationsOpen(false)
     }, 0)
     return () => window.clearTimeout(timeout)
   }, [drawerOpen])
@@ -79,11 +83,11 @@ function AuthenticatedChrome({ children }: { children: React.ReactNode }) {
     if (next) {
       void loadLatest()
     }
-    setNotificationsState({ open: next, pathname })
+    setNotificationsOpen(next)
   }
 
   const closeNotifications = () => {
-    setNotificationsState((current) => ({ ...current, open: false }))
+    setNotificationsOpen(false)
   }
 
   const handleNotificationClick = (notification: Notification) => {
