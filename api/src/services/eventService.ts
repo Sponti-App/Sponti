@@ -13,6 +13,7 @@ import type {
 import { getBlockedInviteeIds, getBlockedRelationshipUserIds } from "#services/blockService";
 import { getUsersByIds, type UserSummary } from "#services/userDirectoryService";
 import {
+  createEventGuestRemovedNotification,
   createEventInvitationNotifications,
   createEventRsvpChangeNotification,
   createEventStatusNotifications,
@@ -75,8 +76,9 @@ const withConditions = (base: EventFilter, ...conditions: EventFilter[]) => ({
 
 const buildAccessibleEventFilter = async (userId: string): Promise<EventFilter> => {
   const userObjectId = toObjectId(userId);
-  const [memberEventIds, blockedUserIds] = await Promise.all([
-    EventMember.distinct("eventId", { userId: userObjectId }),
+  const [memberEventIds, removedEventIds, blockedUserIds] = await Promise.all([
+    EventMember.distinct("eventId", { userId: userObjectId, removedAt: null }),
+    EventMember.distinct("eventId", { userId: userObjectId, removedAt: { $ne: null } }),
     getBlockedRelationshipUserIds(userId),
   ]);
 
@@ -85,6 +87,11 @@ const buildAccessibleEventFilter = async (userId: string): Promise<EventFilter> 
       $or: [{ hostId: userObjectId }, { visibility: "public" }, { _id: { $in: memberEventIds } }],
     },
   ];
+
+  // A guest the host removed can't see the flare again, even a public one.
+  if (removedEventIds.length > 0) {
+    conditions.push({ _id: { $nin: removedEventIds } });
+  }
 
   if (blockedUserIds.length > 0) {
     conditions.push({ hostId: { $nin: blockedUserIds.map(toObjectId) } });
@@ -101,7 +108,7 @@ const attachMemberStats = async <T extends { _id: unknown }>(
   }
 
   const eventIds = events.map((event) => toObjectId(String(event._id)));
-  const members = await EventMember.find({ eventId: { $in: eventIds } })
+  const members = await EventMember.find({ eventId: { $in: eventIds }, removedAt: null })
     .select("eventId rsvpStatus")
     .lean();
   const statsByEventId = new Map<string, { memberCount: number; goingCount: number }>();
@@ -180,6 +187,7 @@ const attachEventPeople = async <T extends { _id: unknown; hostId: unknown }>(
   const goingMembers = await EventMember.find({
     eventId: { $in: eventIds },
     rsvpStatus: "going",
+    removedAt: null,
   })
     .select("eventId userId")
     .lean();
@@ -494,7 +502,7 @@ export const getMyUpcomingEvents = async (userId: string, query: MyUpcomingEvent
   const now = query.endAtFrom ?? new Date();
   const pastFrom = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
   const [memberEventIds, blockedUserIds] = await Promise.all([
-    EventMember.distinct("eventId", { userId: userObjectId }),
+    EventMember.distinct("eventId", { userId: userObjectId, removedAt: null }),
     getBlockedRelationshipUserIds(userId),
   ]);
   const blockedObjectIds = blockedUserIds.map(toObjectId);
@@ -588,7 +596,11 @@ export const getEventMembers = async (hostId: string, eventId: string) => {
     throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  const members = await EventMember.find({ eventId: event._id, role: { $ne: "host" } })
+  const members = await EventMember.find({
+    eventId: event._id,
+    role: { $ne: "host" },
+    removedAt: null,
+  })
     .select("userId role rsvpStatus")
     .sort({ createdAt: 1 })
     .lean();
@@ -611,6 +623,8 @@ export const getEventMembers = async (hostId: string, eventId: string) => {
  * their current members, the same snapshot rule as creation. People already on
  * the flare keep their RSVP untouched, and only newly added invitees are
  * notified. Upserting keeps a repeated request from creating duplicates.
+ * Someone the host removed earlier is restored as a fresh invitee and notified
+ * again, which is also how a removal is undone.
  */
 export const inviteEventMembers = async (
   hostId: string,
@@ -645,6 +659,35 @@ export const inviteEventMembers = async (
   const hostObjectId = toObjectId(hostId);
 
   return withTransactionFallback(async (session?: ClientSession) => {
+    const removed = (await EventMember.find({
+      eventId: event._id,
+      userId: { $in: candidates.map((candidate) => toObjectId(candidate.userId)) },
+      removedAt: { $ne: null },
+    })
+      .select("userId")
+      .session(session ?? null)
+      .lean()) as Array<{ userId: unknown }>;
+    const restoredUserIds = removed.map((member) => String(member.userId));
+
+    if (restoredUserIds.length > 0) {
+      await EventMember.updateMany(
+        {
+          eventId: event._id,
+          userId: { $in: restoredUserIds.map(toObjectId) },
+          removedAt: { $ne: null },
+        },
+        {
+          $set: {
+            removedAt: null,
+            rsvpStatus: "invited",
+            memberWillArriveAt: null,
+            invitedBy: hostObjectId,
+          },
+        },
+        { session }
+      );
+    }
+
     const result = await EventMember.bulkWrite(
       candidates.map((candidate) => ({
         updateOne: {
@@ -662,21 +705,92 @@ export const inviteEventMembers = async (
       })),
       { session, ordered: true }
     );
-    const invitedUserIds = Object.keys(result.upsertedIds)
+    const newUserIds = Object.keys(result.upsertedIds)
       .map((index) => candidates[Number(index)]?.userId)
       .filter((userId): userId is string => userId !== undefined);
+    const invitedUserIds = [...newUserIds, ...restoredUserIds];
 
-    if (invitedUserIds.length > 0) {
+    if (newUserIds.length > 0) {
       await createEventInvitationNotifications({
         eventId: String(event._id),
         hostId,
         eventTitle: event.title,
-        inviteeIds: invitedUserIds,
+        inviteeIds: newUserIds,
         session,
       });
     }
 
+    if (restoredUserIds.length > 0) {
+      await createEventInvitationNotifications({
+        eventId: String(event._id),
+        hostId,
+        eventTitle: event.title,
+        inviteeIds: restoredUserIds,
+        session,
+        repeat: true,
+      });
+    }
+
     return { invitedUserIds };
+  });
+};
+
+/**
+ * Takes a guest off a flare's guest list. The member row is kept with
+ * `removedAt` set, so the person can't see or rejoin the flare (even a public
+ * one) until the host invites them again. A guest who had said "going" gets one
+ * neutral notice; invited and declined guests aren't told. Only allowed for the
+ * host, and only while the flare is active and hasn't started.
+ */
+export const removeEventMember = async (hostId: string, eventId: string, guestId: string) => {
+  if (guestId === hostId) {
+    throw new AppError("The host can't be removed from their own event", 400, "CANNOT_REMOVE_HOST");
+  }
+
+  const event = await Event.findOne({ _id: toObjectId(eventId), hostId: toObjectId(hostId) })
+    .select("_id title status startAt")
+    .lean();
+
+  if (!event) {
+    throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
+  }
+
+  if (event.status !== "active" || event.startAt.getTime() <= Date.now()) {
+    throw new AppError(
+      "Guests can only be removed from active events that haven't started",
+      409,
+      "EVENT_GUEST_LIST_LOCKED"
+    );
+  }
+
+  return withTransactionFallback(async (session?: ClientSession) => {
+    const member = await EventMember.findOneAndUpdate(
+      {
+        eventId: event._id,
+        userId: toObjectId(guestId),
+        role: { $ne: "host" },
+        removedAt: null,
+      },
+      { $set: { removedAt: new Date() } },
+      { session, returnDocument: "before" }
+    );
+
+    if (!member) {
+      throw new AppError("Guest not found on this event", 404, "EVENT_MEMBER_NOT_FOUND");
+    }
+
+    const wasGoing = member.rsvpStatus === "going";
+
+    if (wasGoing) {
+      await createEventGuestRemovedNotification({
+        eventId: String(event._id),
+        guestId,
+        eventTitle: event.title,
+        session,
+      });
+    }
+
+    return { removedUserId: guestId, notified: wasGoing };
   });
 };
 
@@ -786,6 +900,7 @@ export const updateMyEventMembership = async (
   const membership = await EventMember.findOne({
     eventId: event._id,
     userId: toObjectId(userId),
+    removedAt: null,
   });
 
   if (!membership) {
@@ -838,6 +953,7 @@ const attachMyRsvp = async <T extends { _id: unknown }>(
   const memberships = await EventMember.find({
     eventId: { $in: eventIds },
     userId: toObjectId(userId),
+    removedAt: null,
   })
     .select("eventId rsvpStatus")
     .lean();

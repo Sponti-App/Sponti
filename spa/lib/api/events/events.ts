@@ -10,6 +10,7 @@ import type {
   FetchMapEventsParams,
   InviteEventMembersRequest,
   InviteEventMembersResponse,
+  RemoveEventGuestResponse,
   MyFlaresResult,
   Paginated,
   RsvpStatus,
@@ -152,6 +153,22 @@ export function inviteEventGuests(
   return apiFetch<{ data: InviteEventMembersResponse }>(
     `/events/${eventId}/members`,
     { method: "POST", body }
+  ).then((response) => response.data)
+}
+
+/**
+ * DELETE /events/:id/members/:userId
+ * Takes a guest off the flare's guest list (host only, before it starts). A
+ * guest who was going gets one neutral notice; the removed person can't see or
+ * rejoin the flare until the host invites them again.
+ */
+export function removeEventGuest(
+  eventId: string,
+  userId: string
+): Promise<RemoveEventGuestResponse> {
+  return apiFetch<{ data: RemoveEventGuestResponse }>(
+    `/events/${eventId}/members/${userId}`,
+    { method: "DELETE" }
   ).then((response) => response.data)
 }
 

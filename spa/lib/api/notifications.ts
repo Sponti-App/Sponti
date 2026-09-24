@@ -8,6 +8,7 @@ export type ApiNotificationType =
   | "connection_request"
   | "connection_accepted"
   | "event_rsvp_change"
+  | "event_guest_removed"
 
 export type ApiNotificationTargetType = "event" | "connection" | "user"
 

@@ -555,6 +555,7 @@ export default function EventEditPage() {
           <EventGuestsSection
             eventId={original.id}
             canInvite={!isPast && !isCancelled}
+            canRemove={!isPast && !isCancelled && !isLive}
           />
         </Section>
 
