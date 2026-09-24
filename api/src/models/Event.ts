@@ -93,6 +93,14 @@ const eventSchema = new Schema(
       min: 0,
       max: MAX_GUEST_INVITE_LIMIT,
     },
+    // Circles the host sent this flare to. Circles are expanded into member rows
+    // at invite time (a snapshot), so this is the only record of it; it lets us
+    // offer to invite someone who is later added to one of these circles.
+    // Flares posted before this field existed simply never prompt.
+    invitedCircleIds: {
+      type: [Schema.Types.ObjectId],
+      default: [],
+    },
     status: {
       type: String,
       enum: ["active", "cancelled", "completed"],
@@ -107,6 +115,7 @@ const eventSchema = new Schema(
 );
 
 eventSchema.index({ hostId: 1, startAt: 1 });
+eventSchema.index({ hostId: 1, invitedCircleIds: 1 });
 eventSchema.index({ status: 1, visibility: 1, startAt: 1 });
 eventSchema.index({ location: "2dsphere" });
 

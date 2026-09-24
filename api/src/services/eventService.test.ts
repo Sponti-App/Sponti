@@ -4,6 +4,7 @@ const eventCreateMock = vi.hoisted(() => vi.fn());
 const eventCountDocumentsMock = vi.hoisted(() => vi.fn());
 const eventFindMock = vi.hoisted(() => vi.fn());
 const eventFindOneMock = vi.hoisted(() => vi.fn());
+const eventUpdateOneMock = vi.hoisted(() => vi.fn());
 const eventMemberBulkWriteMock = vi.hoisted(() => vi.fn());
 const eventMemberCreateMock = vi.hoisted(() => vi.fn());
 const eventMemberDistinctMock = vi.hoisted(() => vi.fn());
@@ -31,6 +32,7 @@ vi.mock("#models/index", () => ({
     create: eventCreateMock,
     find: eventFindMock,
     findOne: eventFindOneMock,
+    updateOne: eventUpdateOneMock,
   },
   EventMember: {
     bulkWrite: eventMemberBulkWriteMock,
@@ -315,6 +317,12 @@ describe("eventService.inviteEventMembers", () => {
     });
 
     expect(result).toEqual({ invitedUserIds: [ADMIN_ID, OTHER_GUEST_ID] });
+    // The circle the flare went to is remembered on the event.
+    expect(eventUpdateOneMock).toHaveBeenCalledWith(
+      { _id: EVENT_ID },
+      { $addToSet: { invitedCircleIds: { $each: [expect.anything()] } } },
+      { session: transactionSessionMock }
+    );
 
     const [ops, options] = eventMemberBulkWriteMock.mock.calls[0] as [
       Array<{ updateOne: { filter: { userId: unknown }; update: unknown; upsert: boolean } }>,
@@ -449,6 +457,93 @@ describe("eventService.inviteEventMembers restoring removed guests", () => {
     // Restored people are notified even though they already had an invite notice.
     expect(notificationFindMock).not.toHaveBeenCalled();
     expect(notificationCreateMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("eventService circles remembered on flares (#150)", () => {
+  it("stores the circles a new private flare was sent to", async () => {
+    eventCreateMock.mockImplementation(async (docs: Array<Record<string, unknown>>) =>
+      docs.map((doc) => ({ _id: EVENT_ID, ...doc }))
+    );
+    eventMemberCreateMock.mockResolvedValue([]);
+    mockCircleFindLean([{ _id: CIRCLE_ID }]);
+    mockCircleMemberFindLean([]);
+    mockAcceptedConnections([]);
+
+    await createEvent(USER_ID, {
+      title: "beer",
+      description: null,
+      type: "drinks",
+      startAt: new Date("2026-05-20T10:30:00.000Z"),
+      endAt: new Date("2026-05-20T13:45:00.000Z"),
+      locationName: "Saint Pauli",
+      locationAddress: null,
+      location: { type: "Point", coordinates: [9.97, 53.55] },
+      visibility: "private",
+      allowGuestInvites: "none",
+      guestInviteLimit: 5,
+      members: [],
+      // Listed twice on purpose: it should be stored once.
+      circles: [
+        { circleId: CIRCLE_ID, role: "guest" },
+        { circleId: CIRCLE_ID, role: "guest" },
+      ],
+    });
+
+    const [docs] = eventCreateMock.mock.calls[0] as [Array<{ invitedCircleIds: unknown[] }>];
+    expect(docs[0]?.invitedCircleIds.map(String)).toEqual([CIRCLE_ID]);
+  });
+
+  it("stores no circles for a public flare", async () => {
+    eventCreateMock.mockImplementation(async (docs: Array<Record<string, unknown>>) =>
+      docs.map((doc) => ({ _id: EVENT_ID, ...doc }))
+    );
+    eventMemberCreateMock.mockResolvedValue([]);
+
+    await createEvent(USER_ID, {
+      title: "open jam",
+      description: null,
+      type: "hangout",
+      startAt: new Date("2026-05-20T10:30:00.000Z"),
+      endAt: new Date("2026-05-20T13:45:00.000Z"),
+      locationName: "Park",
+      locationAddress: null,
+      location: { type: "Point", coordinates: [9.97, 53.55] },
+      visibility: "public",
+      allowGuestInvites: "none",
+      guestInviteLimit: 0,
+      members: [],
+      circles: [{ circleId: CIRCLE_ID, role: "guest" }],
+    });
+
+    const [docs] = eventCreateMock.mock.calls[0] as [Array<{ invitedCircleIds: unknown[] }>];
+    expect(docs[0]?.invitedCircleIds).toEqual([]);
+  });
+
+  it("remembers the circle even when inviting it adds nobody", async () => {
+    mockEventFindOneSelectLean({
+      _id: EVENT_ID,
+      hostId: USER_ID,
+      title: "friday drinks",
+      status: "active",
+      endAt: new Date("2026-05-14T14:00:00.000Z"),
+      allowGuestInvites: "none",
+    });
+    mockCircleFindLean([{ _id: CIRCLE_ID }]);
+    mockCircleMemberFindLean([]); // an empty circle
+
+    const result = await inviteEventMembers(USER_ID, EVENT_ID, {
+      members: [],
+      circles: [{ circleId: CIRCLE_ID, role: "guest" }],
+    });
+
+    expect(result).toEqual({ invitedUserIds: [] });
+    expect(eventUpdateOneMock).toHaveBeenCalledWith(
+      { _id: EVENT_ID },
+      { $addToSet: { invitedCircleIds: { $each: [expect.anything()] } } },
+      { session: undefined }
+    );
+    expect(eventMemberBulkWriteMock).not.toHaveBeenCalled();
   });
 });
 
