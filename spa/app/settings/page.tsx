@@ -517,7 +517,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-sm font-medium">enable quiet hours</p>
-                  <p className="text-xs text-muted-foreground">mute all notifications during this window</p>
+                  <p className="text-xs text-muted-foreground">for push notifications · coming soon</p>
                 </div>
                 <Switch
                   aria-label="enable quiet hours"
@@ -561,7 +561,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
               <div className="space-y-2">
                 <ToggleRow
                   label="Event reminders"
-                  sublabel="Reminded 1h before events you've joined"
+                  sublabel="1h before flares you've joined · coming soon"
                   checked={notif.eventReminders}
                   disabled={notifLoading}
                   onCheckedChange={(v) => handleNotifToggle("eventReminders", v)}

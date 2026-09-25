@@ -2,6 +2,7 @@ import { Types, type ClientSession } from "mongoose";
 import {
   EventMember,
   Notification,
+  NotificationSettings,
   type NotificationTargetType,
   type NotificationType,
 } from "#models/index";
@@ -343,6 +344,33 @@ export const createConnectionAcceptedNotification = async ({
   });
 };
 
+// #91 decision (2026-09-24): the invitation-notification toggle on
+// notification_settings must actually gate delivery. This only skips
+// *creating the notification* — the EventMember row (and the flare showing
+// up for the invitee) is untouched, they just don't get pinged about it.
+// A missing settings doc means the schema default, which is enabled — see
+// `invitationNotifications` on api/src/models/NotificationSettings.ts.
+const filterOutInvitationsOptOuts = async (
+  recipientIds: string[],
+  session?: ClientSession
+): Promise<string[]> => {
+  if (recipientIds.length === 0) return recipientIds;
+
+  // Single batched query — not one lookup per invitee.
+  const optedOut = (await NotificationSettings.find({
+    userId: { $in: recipientIds.map(toObjectId) },
+    invitationNotifications: false,
+  })
+    .select("userId")
+    .session(session ?? null)
+    .lean()) as Array<{ userId: unknown }>;
+
+  if (optedOut.length === 0) return recipientIds;
+
+  const optedOutIds = new Set(optedOut.map((doc) => String(doc.userId)));
+  return recipientIds.filter((recipientId) => !optedOutIds.has(recipientId));
+};
+
 export const createEventInvitationNotifications = async ({
   eventId,
   hostId,
@@ -361,9 +389,10 @@ export const createEventInvitationNotifications = async ({
   const users = await getUsersByIds([hostId]);
   const host = users.get(hostId);
   const hostName = actorDisplayName(host, "Someone");
-  const recipientIds = uniqueObjectIdStrings(inviteeIds).filter(
+  const allRecipientIds = uniqueObjectIdStrings(inviteeIds).filter(
     (inviteeId) => inviteeId !== hostId
   );
+  const recipientIds = await filterOutInvitationsOptOuts(allRecipientIds, session);
 
   return createMissingRecipientNotifications({
     recipientIds,
