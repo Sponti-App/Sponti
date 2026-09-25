@@ -49,6 +49,10 @@ import { useGeolocation, type GeoStatus } from "@/lib/geolocation"
 import { emitEventsChanged } from "@/lib/use-events"
 import { type Circle, type Connection } from "@/lib/circles"
 import { PLACE_SEARCH_UNAVAILABLE } from "@/lib/place-search"
+import {
+  resolveCurrentLocationLabel,
+  type ReverseGeocodeArea,
+} from "@/lib/current-location"
 import { EVENT_TYPES } from "@/types/utils"
 
 type Mode = "now" | "scheduled"
@@ -153,6 +157,20 @@ function currentLocationError(status: GeoStatus): string {
   if (status === "requesting") return "Still finding your location."
   return "Enable location access or search for a place."
 }
+
+function isReverseGeocodeArea(value: unknown): value is ReverseGeocodeArea {
+  if (!value || typeof value !== "object") return false
+  const area = value as Record<string, unknown>
+  return (
+    (typeof area.area === "string" || area.area === null) &&
+    (typeof area.locality === "string" || area.locality === null)
+  )
+}
+
+// Give the reverse-geocode lookup a real chance to resolve before the user
+// taps post, but never hold up posting for it — resolveCurrentLocationLabel
+// falls back cleanly if this hasn't settled (or failed) by submit time.
+const CURRENT_LOCATION_GEOCODE_TIMEOUT_MS = 4_000
 
 // Cheap keyword inference so the user doesn't have to pick a type explicitly
 // for the common cases. Ordered most-specific first — "coffee" wins as food
@@ -399,6 +417,45 @@ export function NewEventDrawer({
     errorMessage: geoErrorMessage,
     request: requestGeoLocation,
   } = useGeolocation({ autoRequest: false })
+  // Resolved as soon as we have coords, independent of whereType, so it's
+  // ready by the time the user taps post even though "current" is the
+  // default where — resolveCurrentLocationLabel below covers the gap while
+  // this is still null (not yet resolved, or the lookup failed/timed out).
+  const [currentLocationGeocode, setCurrentLocationGeocode] =
+    useState<ReverseGeocodeArea | null>(null)
+  const currentLocationGeocodeRequestRef = useRef(0)
+  useEffect(() => {
+    if (!geoCoords) return
+    const requestId = currentLocationGeocodeRequestRef.current + 1
+    currentLocationGeocodeRequestRef.current = requestId
+    const controller = new AbortController()
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      CURRENT_LOCATION_GEOCODE_TIMEOUT_MS
+    )
+    const params = new URLSearchParams({
+      lat: String(geoCoords.lat),
+      lng: String(geoCoords.lng),
+    })
+    fetch(`/api/geocode?${params}`, { signal: controller.signal })
+      .then((resp) => (resp.ok ? resp.json() : null))
+      .then((data: unknown) => {
+        if (currentLocationGeocodeRequestRef.current !== requestId) return
+        setCurrentLocationGeocode(isReverseGeocodeArea(data) ? data : null)
+      })
+      .catch(() => {
+        // Lookup failed, was aborted by the timeout, or the key is missing —
+        // fall back to the neutral label rather than leaving a stale result
+        // from a previous coordinate in place.
+        if (currentLocationGeocodeRequestRef.current !== requestId) return
+        setCurrentLocationGeocode(null)
+      })
+      .finally(() => clearTimeout(timeoutId))
+    return () => {
+      controller.abort()
+      clearTimeout(timeoutId)
+    }
+  }, [geoCoords])
   const [circles, setCircles] = useState<Circle[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
   const [audienceLoading, setAudienceLoading] = useState(true)
@@ -798,13 +855,16 @@ export function NewEventDrawer({
 
   const currentLocation = useMemo<DraftEventLocation | null>(() => {
     if (!geoCoords) return null
+    const { name, address } = resolveCurrentLocationLabel(
+      currentLocationGeocode
+    )
     return {
       source: "current",
-      name: "Current location",
-      address: null,
+      name,
+      address,
       coordinates: [geoCoords.lng, geoCoords.lat],
     }
-  }, [geoCoords])
+  }, [geoCoords, currentLocationGeocode])
 
   // Google Places search via /api/places proxy
   const searchPlaces = useCallback(
