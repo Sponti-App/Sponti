@@ -1,4 +1,4 @@
-import { authFetch } from "../http"
+import { authFetch, COLD_START_TIMEOUT_MS } from "../http"
 import type { AuthUser } from "../auth-store"
 
 type AuthResponse = {
@@ -31,9 +31,13 @@ export type UpdateProfilePayload = {
 }
 
 export function register(payload: RegisterPayload): Promise<AuthResponse> {
+  // A cold auth-server (#171) can take up to a minute to wake; retrying a
+  // login/register POST blindly could double-submit, so this gets a longer
+  // timeout instead of a retry.
   return authFetch<AuthResponse>("/auth/register", {
     method: "POST",
     body: payload,
+    timeoutMs: COLD_START_TIMEOUT_MS,
   })
 }
 
@@ -41,6 +45,7 @@ export function login(payload: LoginPayload): Promise<AuthResponse> {
   return authFetch<AuthResponse>("/auth/login", {
     method: "POST",
     body: payload,
+    timeoutMs: COLD_START_TIMEOUT_MS,
   })
 }
 

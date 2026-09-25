@@ -7,6 +7,7 @@ import type {
 } from "#schemas/circleSchemas";
 import { AppError } from "#utils/AppError";
 import { toObjectId, uniqueObjectIdStrings } from "#utils/objectId";
+import { getAcceptedConnectionUserIds } from "#services/connectionService";
 import { getUsersByIds } from "#services/userDirectoryService";
 import { withTransactionFallback } from "#utils/transactions";
 
@@ -96,11 +97,25 @@ const assertAcceptedConnectionMembers = async (ownerId: string, memberIds: strin
 export const getMyCircles = async (ownerId: string) => {
   const ownerObjectId = toObjectId(ownerId);
   const circles = await ensureDefaultCircles(ownerId);
-  const circleIds = circles.map((circle) => circle._id);
-  const members = await CircleMember.find({ ownerId: ownerObjectId, circleId: { $in: circleIds } })
-    .sort({ createdAt: 1 })
-    .lean();
-  const users = await getUsersByIds(members.map((member) => member.userId.toString()));
+  const allCircle = circles.find((circle) => circle.type === "all");
+
+  // "all friends" isn't backed by stored CircleMember rows (#154) — its
+  // member list is every accepted connection of the owner, resolved live so
+  // the chip's count and preview always match, and so unfriending/blocking
+  // someone drops them without any sync step.
+  const [members, allCircleConnectionUserIds] = await Promise.all([
+    CircleMember.find({
+      ownerId: ownerObjectId,
+      circleId: { $in: circles.filter((circle) => circle.type !== "all").map((circle) => circle._id) },
+    })
+      .sort({ createdAt: 1 })
+      .lean(),
+    allCircle ? getAcceptedConnectionUserIds(ownerId) : Promise.resolve<string[]>([]),
+  ]);
+  const users = await getUsersByIds([
+    ...members.map((member) => member.userId.toString()),
+    ...allCircleConnectionUserIds,
+  ]);
   const membersByCircle = new Map<string, typeof members>();
 
   for (const member of members) {
@@ -110,13 +125,27 @@ export const getMyCircles = async (ownerId: string) => {
     membersByCircle.set(circleId, existing);
   }
 
-  return circles.map((circle) => ({
-    ...circle,
-    members: (membersByCircle.get(circle._id.toString()) ?? []).map((member) => ({
-      ...member,
-      user: users.get(member.userId.toString()) ?? null,
-    })),
-  }));
+  return circles.map((circle) => {
+    if (circle.type === "all") {
+      return {
+        ...circle,
+        members: allCircleConnectionUserIds.map((userId) => ({
+          circleId: circle._id,
+          ownerId: ownerObjectId,
+          userId,
+          user: users.get(userId) ?? null,
+        })),
+      };
+    }
+
+    return {
+      ...circle,
+      members: (membersByCircle.get(circle._id.toString()) ?? []).map((member) => ({
+        ...member,
+        user: users.get(member.userId.toString()) ?? null,
+      })),
+    };
+  });
 };
 
 /**

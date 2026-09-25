@@ -6,6 +6,13 @@ import {
   setSession,
 } from "./auth-store"
 
+// A warm backend answers in well under this. #171: Render's free tier puts
+// idle services to sleep, and the first request after that can take 30-60s
+// to wake one up, so a plain request gets one longer retry (GETs only —
+// see `request`) before it's treated as a real failure.
+export const DEFAULT_TIMEOUT_MS = 15_000
+export const COLD_START_TIMEOUT_MS = 45_000
+
 export class HttpError extends Error {
   status: number
   code?: string
@@ -144,28 +151,147 @@ export function resolveConfiguredBaseUrl(rawValue: string): string {
   return candidates[0]
 }
 
-async function refreshSession(): Promise<string | null> {
-  if (!AUTH_BASE) return null
+type RefreshOutcome =
+  | { status: "ok"; accessToken: string }
+  // The refresh token really is invalid/expired — the session was cleared.
+  | { status: "invalid" }
+  // 5xx, a network error, or a client-side timeout — the session is kept;
+  // the request that triggered this surfaces its own error instead.
+  | { status: "error" }
 
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && err.name === "AbortError"
+}
+
+async function postRefresh(
+  refreshToken: string,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(`${AUTH_BASE}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refreshToken }),
+      signal: controller.signal,
+    })
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+}
+
+// Cross-tab race guard (#167): both tabs of the same account hold the same
+// refresh token in localStorage. If this tab is about to spend it, a
+// `storage` event from another tab that got there first means a fresh pair
+// is already sitting in storage — wait briefly for it instead of racing the
+// single-use token against the other tab.
+function waitForTokenRotation(
+  previousRefreshToken: string,
+  timeoutMs = 1500
+): Promise<string | null> {
+  if (typeof window === "undefined") return Promise.resolve(null)
+
+  return new Promise((resolve) => {
+    const onStorage = () => check()
+
+    const timeoutId = window.setTimeout(() => {
+      cleanup()
+      resolve(null)
+    }, timeoutMs)
+
+    const cleanup = () => {
+      window.removeEventListener("storage", onStorage)
+      window.clearTimeout(timeoutId)
+    }
+
+    function check(): boolean {
+      const current = getRefreshToken()
+      if (current && current !== previousRefreshToken) {
+        cleanup()
+        resolve(getToken())
+        return true
+      }
+      return false
+    }
+
+    window.addEventListener("storage", onStorage)
+    check()
+  })
+}
+
+// Only one refresh runs at a time per tab. Every 401 that arrives while one
+// is in flight awaits this same promise instead of spending the single-use
+// refresh token again (#167).
+let inFlightRefresh: Promise<RefreshOutcome> | null = null
+
+async function refreshSession(
+  failedAccessToken: string | null
+): Promise<RefreshOutcome> {
+  if (!AUTH_BASE) return { status: "invalid" }
+
+  if (!inFlightRefresh) {
+    inFlightRefresh = performRefresh(failedAccessToken).finally(() => {
+      inFlightRefresh = null
+    })
+  }
+  return inFlightRefresh
+}
+
+async function performRefresh(
+  failedAccessToken: string | null
+): Promise<RefreshOutcome> {
   const refreshToken = getRefreshToken()
   const user = getUser()
 
   if (!refreshToken || !user) {
     clearSession()
-    return null
+    return { status: "invalid" }
   }
 
-  const res = await fetch(`${AUTH_BASE}/auth/refresh`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ refreshToken }),
-  })
+  // Someone else (another request in this tab, deduped above, or another
+  // tab) may have already rotated the pair by the time we get here. Re-read
+  // storage before spending another single-use refresh token.
+  const currentAccessToken = getToken()
+  if (
+    failedAccessToken &&
+    currentAccessToken &&
+    currentAccessToken !== failedAccessToken
+  ) {
+    return { status: "ok", accessToken: currentAccessToken }
+  }
+
+  let res: Response
+  try {
+    res = await postRefresh(refreshToken, DEFAULT_TIMEOUT_MS)
+  } catch (err) {
+    if (!isAbortError(err)) return { status: "error" }
+    // Cold start (#171): give the refresh one longer, second attempt before
+    // treating it as a network failure.
+    try {
+      res = await postRefresh(refreshToken, COLD_START_TIMEOUT_MS)
+    } catch {
+      return { status: "error" }
+    }
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    // Our token may have just been consumed by another tab's refresh that
+    // raced ahead of us. Give the storage write a brief window to land
+    // before treating this as a genuinely invalid session.
+    const rotatedAccessToken = await waitForTokenRotation(refreshToken)
+    if (rotatedAccessToken) {
+      return { status: "ok", accessToken: rotatedAccessToken }
+    }
+    clearSession()
+    return { status: "invalid" }
+  }
 
   if (!res.ok) {
-    clearSession()
-    return null
+    // 5xx or anything unexpected — keep the session, this request fails.
+    return { status: "error" }
   }
 
   const body = (await res.json()) as {
@@ -173,14 +299,21 @@ async function refreshSession(): Promise<string | null> {
     refreshToken: string
   }
   setSession(body.accessToken, body.refreshToken, user)
-  return body.accessToken
+  return { status: "ok", accessToken: body.accessToken }
+}
+
+type RetryState = {
+  // A 401 was already retried once against a fresh access token.
+  hasRetriedAuth?: boolean
+  // A client-side timeout was already retried once with a longer window.
+  hasRetriedTimeout?: boolean
 }
 
 async function request<T>(
   baseUrl: string,
   path: string,
   opts: RequestOptions,
-  hasRetried = false
+  state: RetryState = {}
 ): Promise<T> {
   if (!baseUrl) {
     throw new HttpError(0, `Missing base URL for request to ${path}`)
@@ -189,12 +322,14 @@ async function request<T>(
   const headers: Record<string, string> = {}
   if (!opts.formData && opts.body !== undefined)
     headers["Content-Type"] = "application/json"
+  let usedAccessToken: string | null = null
   if (opts.auth) {
-    const token = getToken()
-    if (token) headers.Authorization = `Bearer ${token}`
+    usedAccessToken = getToken()
+    if (usedAccessToken) headers.Authorization = `Bearer ${usedAccessToken}`
   }
 
-  const timeoutMs = opts.timeoutMs ?? 12_000
+  const method = opts.method ?? "GET"
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const requestController = new AbortController()
   const timeoutId = window.setTimeout(
     () => requestController.abort(),
@@ -212,7 +347,7 @@ async function request<T>(
 
   try {
     const res = await fetch(`${baseUrl}${path}`, {
-      method: opts.method ?? "GET",
+      method,
       headers,
       body: opts.formData
         ? (opts.body as FormData)
@@ -226,14 +361,31 @@ async function request<T>(
       if (
         opts.auth &&
         res.status === 401 &&
-        !hasRetried &&
+        !state.hasRetriedAuth &&
         path !== "/auth/refresh"
       ) {
-        const nextAccessToken = await refreshSession()
+        const refreshResult = await refreshSession(usedAccessToken)
 
-        if (nextAccessToken) {
-          return request<T>(baseUrl, path, opts, true)
+        if (refreshResult.status === "ok") {
+          return request<T>(baseUrl, path, opts, {
+            ...state,
+            hasRetriedAuth: true,
+          })
         }
+
+        if (refreshResult.status === "error") {
+          // A 5xx or network/timeout failure refreshing — the session is
+          // still good, so don't sign the user out. Surface a distinct
+          // error for this one request instead of the misleading
+          // "Unauthorized" the original 401 carries (#167).
+          throw new HttpError(
+            0,
+            "Couldn't refresh your session — try again",
+            "SESSION_REFRESH_FAILED"
+          )
+        }
+        // "invalid" — the refresh token really is bad and the session was
+        // cleared. Fall through and throw the original 401 below.
       }
 
       const payload = extractErrorPayload(await parseError(res), res.statusText)
@@ -252,6 +404,20 @@ async function request<T>(
       if (opts.signal?.aborted) {
         throw new HttpError(0, `Request to ${path} was cancelled`)
       }
+
+      // Cold start (#171): a Render free-tier instance can take 30-60s to
+      // wake from idle. Retrying a non-idempotent request blindly could
+      // duplicate a side effect, so only GETs (and internally, the refresh
+      // call — see postRefresh) get the extra, longer attempt.
+      if (method === "GET" && !state.hasRetriedTimeout) {
+        return request<T>(
+          baseUrl,
+          path,
+          { ...opts, timeoutMs: COLD_START_TIMEOUT_MS },
+          { ...state, hasRetriedTimeout: true }
+        )
+      }
+
       throw new HttpError(0, `Request to ${path} timed out`)
     }
     throw error

@@ -28,6 +28,14 @@ export const updateCircleBodySchema = z
     message: "At least one field must be provided",
   });
 
+export const circleEventsQuerySchema = z
+  .object({
+    // Leave out flares this person is already on (or was removed from).
+    userId: objectIdSchema.optional(),
+  })
+  .strict();
+
+export type CircleEventsQuery = z.infer<typeof circleEventsQuerySchema>;
 export type CreateCircleBody = z.infer<typeof createCircleBodySchema>;
 export type AddCircleMemberBody = z.infer<typeof addCircleMemberBodySchema>;
 export type UpdateCircleBody = z.infer<typeof updateCircleBodySchema>;

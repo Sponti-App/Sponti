@@ -4,6 +4,7 @@ import { requireAuth } from "#middleware/auth";
 import { validateRequest } from "#middleware/validateRequest";
 import {
   addCircleMemberBodySchema,
+  circleEventsQuerySchema,
   circleIdParamSchema,
   circleMemberParamSchema,
   createCircleBodySchema,
@@ -25,6 +26,11 @@ router.post(
   "/:id/members",
   validateRequest({ params: circleIdParamSchema, body: addCircleMemberBodySchema }),
   circleController.addCircleMember
+);
+router.get(
+  "/:id/events",
+  validateRequest({ params: circleIdParamSchema, query: circleEventsQuerySchema }),
+  circleController.getCircleEvents
 );
 router.delete(
   "/:id/members/:userId",

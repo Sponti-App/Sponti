@@ -11,6 +11,7 @@ import type {
   UpdateMyEventMembershipBody,
 } from "#schemas/eventSchemas";
 import { getBlockedInviteeIds, getBlockedRelationshipUserIds } from "#services/blockService";
+import { getAcceptedConnectionUserIds } from "#services/connectionService";
 import { getUsersByIds, type UserSummary } from "#services/userDirectoryService";
 import {
   createEventGuestRemovedNotification,
@@ -48,6 +49,9 @@ type EventWithPeople<T> = Omit<T, "hostId"> & {
 type EventWithHostProfile<T> = Omit<T, "hostId"> & {
   hostId: string | EventUserIdentity | null;
 };
+
+const isDuplicateKeyError = (error: unknown): error is { code: number } =>
+  typeof error === "object" && error !== null && "code" in error && error.code === 11000;
 
 const roleRank: Record<InviteRole, number> = {
   guest: 1,
@@ -285,7 +289,7 @@ const resolveInviteCandidates = async (hostId: string, input: InviteSelection) =
       _id: { $in: circleObjectIds },
       ownerId: toObjectId(hostId),
     })
-      .select("_id")
+      .select("_id type")
       .lean();
 
     if (ownedCircles.length !== circleIds.length) {
@@ -293,25 +297,62 @@ const resolveInviteCandidates = async (hostId: string, input: InviteSelection) =
     }
 
     const circleInputById = new Map(input.circles.map((circle) => [circle.circleId, circle]));
-    const circleMembers = await CircleMember.find({
-      circleId: { $in: circleObjectIds },
-      ownerId: toObjectId(hostId),
-    })
-      .select("circleId userId")
-      .lean();
 
-    for (const circleMember of circleMembers) {
-      const circleInput = circleInputById.get(circleMember.circleId.toString());
+    // "all friends" isn't a membership list the api keeps in sync — it's
+    // every accepted, unblocked connection of the host, resolved live here
+    // (#154). Any CircleMember rows still stored against the "all" circle
+    // (from before this fix, or a stale manual add) are intentionally left
+    // out of the expansion below rather than unioned in, so a host can never
+    // re-invite someone they've since unfriended or blocked just because an
+    // old row lingers.
+    const allCircleIds = ownedCircles
+      .filter((circle) => circle.type === "all")
+      .map((circle) => circle._id.toString());
+    const nonAllCircleObjectIds = ownedCircles
+      .filter((circle) => circle.type !== "all")
+      .map((circle) => circle._id);
 
-      if (!circleInput) {
-        continue;
+    if (allCircleIds.length > 0) {
+      const connectionUserIds = await getAcceptedConnectionUserIds(hostId);
+
+      for (const allCircleId of allCircleIds) {
+        const circleInput = circleInputById.get(allCircleId);
+
+        if (!circleInput) {
+          continue;
+        }
+
+        for (const userId of connectionUserIds) {
+          mergeInviteCandidate(candidates, {
+            userId,
+            role: circleInput.role,
+            canInviteGuests: input.allowGuestInvites !== "none",
+          });
+        }
       }
+    }
 
-      mergeInviteCandidate(candidates, {
-        userId: circleMember.userId.toString(),
-        role: circleInput.role,
-        canInviteGuests: input.allowGuestInvites !== "none",
-      });
+    if (nonAllCircleObjectIds.length > 0) {
+      const circleMembers = await CircleMember.find({
+        circleId: { $in: nonAllCircleObjectIds },
+        ownerId: toObjectId(hostId),
+      })
+        .select("circleId userId")
+        .lean();
+
+      for (const circleMember of circleMembers) {
+        const circleInput = circleInputById.get(circleMember.circleId.toString());
+
+        if (!circleInput) {
+          continue;
+        }
+
+        mergeInviteCandidate(candidates, {
+          userId: circleMember.userId.toString(),
+          role: circleInput.role,
+          canInviteGuests: input.allowGuestInvites !== "none",
+        });
+      }
     }
   }
 
@@ -355,6 +396,13 @@ export const createEvent = async (hostId: string, input: CreateEventBody) => {
           visibility: input.visibility,
           allowGuestInvites: input.allowGuestInvites,
           guestInviteLimit: input.guestInviteLimit,
+          // Public flares don't expand circles, so there's nothing to record.
+          invitedCircleIds:
+            input.visibility === "public"
+              ? []
+              : uniqueObjectIdStrings(input.circles.map((circle) => circle.circleId)).map(
+                  toObjectId
+                ),
           status: "active",
         },
       ],
@@ -575,9 +623,51 @@ export const updateEvent = async (hostId: string, eventId: string, input: Update
     throw new AppError("endAt must be strictly after startAt", 400, "INVALID_EVENT_TIME_RANGE");
   }
 
+  const wasPublic = event.visibility === "public";
+  // #181: the hard cap, and the goingReservationCount counter behind it, only
+  // apply to public flares — a private flare's going members never touch it.
+  // Flipping visibility either direction can make it stale relative to
+  // EventMember (a private flare's roster can change freely while the
+  // counter isn't being kept in sync), so any actual flip resets the sync
+  // flag. The next reservation attempt — which can only happen once the
+  // flare is public again — recomputes it from EventMember's live truth
+  // instead of trusting whatever it held from before.
+  const visibilityChanging = input.visibility !== undefined && input.visibility !== event.visibility;
+
   Object.assign(event, input);
 
-  await event.save();
+  if (!(wasPublic && event.visibility === "private")) {
+    await event.save();
+
+    if (visibilityChanging) {
+      await Event.updateOne({ _id: event._id }, { $set: { goingReservationSyncedAt: null } });
+    }
+
+    return event;
+  }
+
+  // Going public -> private: anyone who joined from the map and is going keeps
+  // their spot, but joiners who aren't going (and were never invited) are
+  // dropped so the flare stops showing for them. Invited guests, removed guests
+  // and the host are untouched.
+  await withTransactionFallback(async (session?: ClientSession) => {
+    await event.save({ session });
+    await Event.updateOne(
+      { _id: event._id },
+      { $set: { goingReservationSyncedAt: null } },
+      { session }
+    );
+    await EventMember.deleteMany(
+      {
+        eventId: event._id,
+        role: { $ne: "host" },
+        invitedBy: null,
+        rsvpStatus: { $ne: "going" },
+        removedAt: null,
+      },
+      { session }
+    );
+  });
 
   return event;
 };
@@ -601,7 +691,7 @@ export const getEventMembers = async (hostId: string, eventId: string) => {
     role: { $ne: "host" },
     removedAt: null,
   })
-    .select("userId role rsvpStatus")
+    .select("userId role rsvpStatus invitedBy")
     .sort({ createdAt: 1 })
     .lean();
   const userIds = members.map((member) => String(member.userId));
@@ -614,6 +704,8 @@ export const getEventMembers = async (hostId: string, eventId: string) => {
       user: toEventUserIdentity(userId, users.get(userId)),
       role: member.role,
       rsvpStatus: member.rsvpStatus,
+      // Joined a public flare on their own rather than being invited.
+      joinedWithoutInvite: member.invitedBy == null,
     };
   });
 };
@@ -652,13 +744,31 @@ export const inviteEventMembers = async (
     allowGuestInvites: event.allowGuestInvites,
   });
 
+  const hostObjectId = toObjectId(hostId);
+  const circleObjectIds = uniqueObjectIdStrings(input.circles.map((circle) => circle.circleId)).map(
+    toObjectId
+  );
+
+  // Remember which circles the flare went to, even if they were empty or
+  // everyone in them is already on it: someone added to the circle later can
+  // then be offered the flare.
+  const recordCircles = async (session?: ClientSession) => {
+    if (circleObjectIds.length === 0) return;
+    await Event.updateOne(
+      { _id: event._id },
+      { $addToSet: { invitedCircleIds: { $each: circleObjectIds } } },
+      { session }
+    );
+  };
+
   if (candidates.length === 0) {
+    await recordCircles();
     return { invitedUserIds: [] };
   }
 
-  const hostObjectId = toObjectId(hostId);
-
   return withTransactionFallback(async (session?: ClientSession) => {
+    await recordCircles(session);
+
     const removed = (await EventMember.find({
       eventId: event._id,
       userId: { $in: candidates.map((candidate) => toObjectId(candidate.userId)) },
@@ -736,6 +846,48 @@ export const inviteEventMembers = async (
 };
 
 /**
+ * The host's flares that were sent to a circle and are still worth inviting
+ * someone to: active and not ended, soonest first. Pass `userId` to leave out
+ * flares that person is already on (or was removed from). Backs the "add them
+ * to your flares too?" prompt when a circle grows.
+ */
+export const getCircleUpcomingEvents = async (
+  hostId: string,
+  circleId: string,
+  query: { userId?: string } = {}
+) => {
+  const hostObjectId = toObjectId(hostId);
+  const circleObjectId = toObjectId(circleId);
+
+  const circle = await Circle.exists({ _id: circleObjectId, ownerId: hostObjectId });
+
+  if (!circle) {
+    throw new AppError("Circle not found", 404, "CIRCLE_NOT_FOUND");
+  }
+
+  const conditions: EventFilter = {
+    hostId: hostObjectId,
+    invitedCircleIds: circleObjectId,
+    status: "active",
+    endAt: { $gt: new Date() },
+  };
+
+  if (query.userId) {
+    const alreadyOn = await EventMember.distinct("eventId", { userId: toObjectId(query.userId) });
+
+    if (alreadyOn.length > 0) {
+      conditions._id = { $nin: alreadyOn };
+    }
+  }
+
+  return Event.find(conditions)
+    .select("_id title startAt endAt")
+    .sort({ startAt: 1 })
+    .limit(50)
+    .lean();
+};
+
+/**
  * Takes a guest off a flare's guest list. The member row is kept with
  * `removedAt` set, so the person can't see or rejoin the flare (even a public
  * one) until the host invites them again. A guest who had said "going" gets one
@@ -748,7 +900,7 @@ export const removeEventMember = async (hostId: string, eventId: string, guestId
   }
 
   const event = await Event.findOne({ _id: toObjectId(eventId), hostId: toObjectId(hostId) })
-    .select("_id title status startAt")
+    .select("_id title status startAt visibility")
     .lean();
 
   if (!event) {
@@ -782,6 +934,12 @@ export const removeEventMember = async (hostId: string, eventId: string, guestId
     const wasGoing = member.rsvpStatus === "going";
 
     if (wasGoing) {
+      // #181: removal frees their spot back up, same as a going -> declined
+      // answer would — but only for public flares, which is all the cap ever
+      // applies to.
+      if (event.visibility === "public") {
+        await releaseGoingSpot(event._id, session);
+      }
       await createEventGuestRemovedNotification({
         eventId: String(event._id),
         guestId,
@@ -884,54 +1042,273 @@ export const reactivateEvent = async (hostId: string, eventId: string) => {
   return result.event;
 };
 
+/**
+ * `reserveGoingSpot`/`releaseGoingSpot` below are only ever called for
+ * public flares (see the `isPublicFlare` gate in `updateMyEventMembership`
+ * and the `event.visibility === "public"` check in `removeEventMember`) —
+ * per the decision update on #181, the hard cap applies to public flares
+ * only, so a private flare's `goingReservationCount` is simply never
+ * touched. That also means it can go stale relative to EventMember while a
+ * flare is private (its roster changes freely with nothing keeping the
+ * counter in sync) and needs resyncing once/if the flare goes public again —
+ * `updateEvent` resets `goingReservationSyncedAt` to null on every actual
+ * visibility flip (either direction) so this reconciliation always re-runs
+ * rather than trusting a value left over from a previous public period.
+ *
+ * The guest limit was never enforced before #181 either, so this may still
+ * be sitting at its schema default (0) on a flare that already has real
+ * `going` members the first time it's ever used. Either way, this reconciles
+ * it once, from a live count of EventMember, the first time a reservation is
+ * attempted for that flare — self-healing instead of a data migration. The
+ * conditional filter (`goingReservationSyncedAt: null`) makes two concurrent
+ * callers race safely: only one of their `updateOne` calls can match and
+ * apply for a given flare, so the count is computed and stored exactly once.
+ *
+ * This runs inside `updateMyEventMembership`'s `withTransactionFallback`
+ * call, so on a replica set it only durably commits alongside a reservation
+ * that actually succeeds — a rejected (`EVENT_FULL`) attempt rolls the sync
+ * back too. That's fine: the next attempt for that flare just recomputes the
+ * same real count again, so the gate is always correct even when the write
+ * hasn't "stuck" yet.
+ */
+const reconcileGoingReservation = async (
+  eventId: ReturnType<typeof toObjectId>,
+  session?: ClientSession
+): Promise<void> => {
+  const alreadySynced = await Event.exists({
+    _id: eventId,
+    goingReservationSyncedAt: { $ne: null },
+  }).session(session ?? null);
+
+  if (alreadySynced) {
+    return;
+  }
+
+  // The host is never counted against the limit (they can always host their
+  // own flare), and `reserveGoingSpot`/`releaseGoingSpot` never run for the
+  // host's own row, so the backfilled count must exclude it too or it would
+  // permanently overcount by one relative to the incremental counter.
+  const realGoingCount = await EventMember.countDocuments({
+    eventId,
+    role: { $ne: "host" },
+    rsvpStatus: "going",
+    removedAt: null,
+  }).session(session ?? null);
+
+  await Event.updateOne(
+    { _id: eventId, goingReservationSyncedAt: null },
+    { $set: { goingReservationCount: realGoingCount, goingReservationSyncedAt: new Date() } },
+    { session }
+  );
+};
+
+/**
+ * Atomically reserves one "going" spot on a flare (#181). The gate is a
+ * single conditional document update — `$inc` only applies if the limit
+ * isn't enforced for this flare, or `goingReservationCount` is still under
+ * `guestInviteLimit` — which is what makes two concurrent joins for the last
+ * spot resolve to exactly one winner. That guarantee holds with or without a
+ * replica set, unlike `withTransactionFallback`'s no-session fallback (see
+ * its comment): a multi-document transaction is unavailable on a standalone
+ * Mongo, but a single-document update is always atomic regardless. Always
+ * keeps the counter in sync, even when the limit isn't enforced right now,
+ * so a later mode change starts from an accurate count instead of a stale one.
+ */
+const reserveGoingSpot = async (
+  eventId: ReturnType<typeof toObjectId>,
+  session?: ClientSession
+): Promise<void> => {
+  await reconcileGoingReservation(eventId, session);
+
+  const reserved = await Event.findOneAndUpdate(
+    {
+      _id: eventId,
+      $or: [
+        { guestInviteLimit: { $lte: 0 } },
+        { allowGuestInvites: { $ne: "none" } },
+        { $expr: { $lt: ["$goingReservationCount", "$guestInviteLimit"] } },
+      ],
+    },
+    { $inc: { goingReservationCount: 1 } },
+    { session }
+  );
+
+  if (!reserved) {
+    throw new AppError("This flare is full", 409, "EVENT_FULL");
+  }
+};
+
+/**
+ * Releases a previously reserved "going" spot: a going -> declined answer, a
+ * host removing a going guest (#148), or a compensating rollback after a
+ * reservation's membership write failed. Floored at 0 by the query guard,
+ * and safe to call on a flare that was never reconciled — the next
+ * `reserveGoingSpot` call reconciles from EventMember's live truth
+ * regardless of what this no-ops to in between.
+ */
+const releaseGoingSpot = async (
+  eventId: ReturnType<typeof toObjectId>,
+  session?: ClientSession
+): Promise<void> => {
+  await Event.updateOne(
+    { _id: eventId, goingReservationCount: { $gt: 0 } },
+    { $inc: { goingReservationCount: -1 } },
+    { session }
+  );
+};
+
 export const updateMyEventMembership = async (
   userId: string,
   eventId: string,
   input: UpdateMyEventMembershipBody
 ) => {
-  const event = await Event.findOne({ _id: toObjectId(eventId), status: "active" })
-    .select("_id hostId title")
+  const eventObjectId = toObjectId(eventId);
+  const event = await Event.findOne({ _id: eventObjectId, status: "active" })
+    .select("_id hostId title visibility allowGuestInvites guestInviteLimit")
     .lean();
 
   if (!event) {
     throw new AppError("Active event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  const membership = await EventMember.findOne({
-    eventId: event._id,
-    userId: toObjectId(userId),
-    removedAt: null,
+  return withTransactionFallback(async (session?: ClientSession) => {
+    let membership = await EventMember.findOne({
+      eventId: event._id,
+      userId: toObjectId(userId),
+    }).session(session ?? null);
+
+    // A guest the host removed can't answer, and can't rejoin a public flare.
+    if (membership?.removedAt) {
+      throw new AppError("Event membership not found", 404, "EVENT_MEMBERSHIP_NOT_FOUND");
+    }
+
+    // Someone who isn't on the guest list can only join a public flare, by
+    // answering going or declined, unless they're blocked from the host.
+    let joinedPublicFlare = false;
+
+    if (!membership) {
+      if (
+        event.visibility !== "public" ||
+        input.rsvpStatus === undefined ||
+        (await isUserBlockedFromEventHost(userId, String(event.hostId)))
+      ) {
+        throw new AppError("Event membership not found", 404, "EVENT_MEMBERSHIP_NOT_FOUND");
+      }
+
+      membership = new EventMember({
+        eventId: event._id,
+        userId: toObjectId(userId),
+        invitedBy: null,
+        role: "guest",
+        rsvpStatus: "invited",
+        canInviteGuests: false,
+      });
+      joinedPublicFlare = true;
+    }
+
+    const previousRsvpStatus = membership.rsvpStatus;
+    const nextRsvpStatus = input.rsvpStatus;
+    // A stranger declining a public flare isn't news to the host; only a join is.
+    const rsvpStatusChanged =
+      nextRsvpStatus !== undefined &&
+      nextRsvpStatus !== previousRsvpStatus &&
+      !(joinedPublicFlare && nextRsvpStatus === "declined");
+
+    // #181 (decision update): the hard cap — and the counter behind it — only
+    // ever apply to public flares. A private flare's limit is whoever the
+    // host invited; there's no cap to reserve or release, so the private
+    // path never touches `goingReservationCount` at all.
+    const isPublicFlare = event.visibility === "public";
+
+    // Only entering `going` for the first time consumes a spot — an
+    // ETA-only update, or resubmitting `going` while already going, must not.
+    const enteringGoing =
+      isPublicFlare && previousRsvpStatus !== "going" && nextRsvpStatus === "going";
+    const leavingGoing =
+      isPublicFlare &&
+      previousRsvpStatus === "going" &&
+      nextRsvpStatus !== undefined &&
+      nextRsvpStatus !== "going";
+
+    let reservedSpot = false;
+
+    if (enteringGoing) {
+      // Throws EVENT_FULL before any membership write if the flare is at cap.
+      await reserveGoingSpot(event._id, session);
+      reservedSpot = true;
+    }
+
+    if (input.rsvpStatus) {
+      membership.rsvpStatus = input.rsvpStatus;
+    }
+
+    if ("memberWillArriveAt" in input) {
+      membership.memberWillArriveAt = input.memberWillArriveAt ?? null;
+    }
+
+    try {
+      await membership.save({ session });
+    } catch (error) {
+      if (!joinedPublicFlare || !isDuplicateKeyError(error)) {
+        if (reservedSpot) {
+          await releaseGoingSpot(event._id, session);
+        }
+        throw error;
+      }
+
+      // Two join requests raced (a double tap or a retry) and the other created
+      // the row first. Apply this answer to that row instead of failing.
+      const existing = await EventMember.findOne({
+        eventId: event._id,
+        userId: toObjectId(userId),
+        removedAt: null,
+      }).session(session ?? null);
+
+      if (!existing) {
+        if (reservedSpot) {
+          await releaseGoingSpot(event._id, session);
+        }
+        throw error;
+      }
+
+      const existingWasAlreadyGoing = existing.rsvpStatus === "going";
+      existing.rsvpStatus = membership.rsvpStatus;
+      if ("memberWillArriveAt" in input) {
+        existing.memberWillArriveAt = membership.memberWillArriveAt;
+      }
+      await existing.save({ session });
+      membership = existing;
+
+      // Both racing requests were for the same never-before-seen user, so at
+      // most one of them should ever consume a spot. `reservedSpot` here can
+      // only be true when this request itself is answering `going` (that's
+      // the only case that reserves one before the save above). If the other
+      // request had already won and made this person `going` first, our own
+      // reservation was redundant — give it back; the merged row is already
+      // `going` from the single spot the winner reserved.
+      if (reservedSpot && existingWasAlreadyGoing) {
+        await releaseGoingSpot(event._id, session);
+        reservedSpot = false;
+      }
+    }
+
+    if (leavingGoing) {
+      await releaseGoingSpot(event._id, session);
+    }
+
+    if (rsvpStatusChanged && nextRsvpStatus) {
+      await createEventRsvpChangeNotification({
+        eventId: String(event._id),
+        hostId: String(event.hostId),
+        attendeeId: userId,
+        eventTitle: event.title,
+        rsvpStatus: nextRsvpStatus,
+        session,
+      });
+    }
+
+    return membership;
   });
-
-  if (!membership) {
-    throw new AppError("Event membership not found", 404, "EVENT_MEMBERSHIP_NOT_FOUND");
-  }
-
-  const previousRsvpStatus = membership.rsvpStatus;
-  const nextRsvpStatus = input.rsvpStatus;
-  const rsvpStatusChanged = nextRsvpStatus !== undefined && nextRsvpStatus !== previousRsvpStatus;
-
-  if (input.rsvpStatus) {
-    membership.rsvpStatus = input.rsvpStatus;
-  }
-
-  if ("memberWillArriveAt" in input) {
-    membership.memberWillArriveAt = input.memberWillArriveAt ?? null;
-  }
-
-  await membership.save();
-
-  if (rsvpStatusChanged && nextRsvpStatus) {
-    await createEventRsvpChangeNotification({
-      eventId: String(event._id),
-      hostId: String(event.hostId),
-      attendeeId: userId,
-      eventTitle: event.title,
-      rsvpStatus: nextRsvpStatus,
-    });
-  }
-
-  return membership;
 };
 
 // Attach the caller's rsvpStatus to a list of event documents. The SPA's

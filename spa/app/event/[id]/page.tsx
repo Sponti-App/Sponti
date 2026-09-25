@@ -30,6 +30,7 @@ import {
   updateMyRsvp,
   type HostedEvent,
 } from "@/lib/api/events"
+import { HttpError } from "@/lib/http"
 import { cn } from "@/lib/utils"
 import type { LucideIcon } from "lucide-react"
 
@@ -104,8 +105,17 @@ export default function EventDetailPage() {
       showActionFeedback(choice === "going" ? "you're in" : "not this one")
     } catch (err) {
       setRsvp(previous)
-      setRsvpError(err instanceof Error ? err.message : "could not update rsvp")
-      showActionFeedback("couldn't save that", { tone: "error" })
+      // #181: the flare hit its guest limit between opening this page and
+      // tapping going — a distinct, expected state, not a generic failure.
+      if (err instanceof HttpError && err.code === "EVENT_FULL") {
+        setRsvpError("full")
+        showActionFeedback("full", { tone: "error" })
+      } else {
+        setRsvpError(
+          err instanceof Error ? err.message : "could not update rsvp"
+        )
+        showActionFeedback("couldn't save that", { tone: "error" })
+      }
     } finally {
       setRsvpSaving(false)
     }
@@ -138,12 +148,12 @@ export default function EventDetailPage() {
   )
   const isHost = Boolean(user && event.hostId === user.id)
   const hostName = (
-    isHost
-      ? "you"
-      : event.hostName ?? event.hostUsername ?? "host"
+    isHost ? "you" : (event.hostName ?? event.hostUsername ?? "host")
   ).toLowerCase()
   const hostHandle = event.hostUsername ?? (isHost ? user?.username : undefined)
-  const hostAvatarLabel = isHost ? "you" : event.hostName ?? event.hostUsername ?? "host"
+  const hostAvatarLabel = isHost
+    ? "you"
+    : (event.hostName ?? event.hostUsername ?? "host")
   const hostAvatarUrl = isHost ? user?.avatarUrl : event.hostAvatarUrl
   const description =
     event.description?.trim() ||
@@ -321,7 +331,6 @@ export default function EventDetailPage() {
           </div>
         </Tabs>
       </div>
-
     </div>
   )
 }
@@ -629,13 +638,24 @@ function durationLabel(startIso: string, endIso: string): string {
 function goingCountLabel(event: HostedEvent): string {
   const cap = capacityForEvent(event)
   if (cap) {
-    return `${event.attendingCount} of ${cap} going`
+    // #181: the guest limit is only a hard cap while there's no +1/re-share.
+    // Once one is on, the host can't know exactly how many extra people it
+    // brings, so the api stops enforcing it and this says so instead of
+    // implying an exact count.
+    const isApproximate =
+      cap === event.guestLimit && event.allowGuestInvites !== "none"
+    return isApproximate
+      ? `${event.attendingCount} going · about ${cap} spots`
+      : `${event.attendingCount} of ${cap} going`
   }
   return `${event.attendingCount} going`
 }
 
 function capacityForEvent(event: HostedEvent): number | undefined {
-  if (event.guestLimit > event.attendingCount) return event.guestLimit
+  // #181: the guest limit only caps public flares. A private flare is capped
+  // by who the host invited, so its (default) limit is never shown.
+  if (event.visibility === "public" && event.guestLimit > event.attendingCount)
+    return event.guestLimit
   if (event.attendeeCount > event.attendingCount) return event.attendeeCount
   return undefined
 }

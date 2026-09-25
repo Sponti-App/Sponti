@@ -1,3 +1,4 @@
+import { displayLocationName } from "@/lib/current-location"
 import type {
   ApiEvent,
   CreateEventRequest,
@@ -181,7 +182,7 @@ export function adaptApiEvent(api: ApiEvent): EventItem {
     myRsvp: api.myRsvp ?? null,
     host: hostFromApi(api.hostId),
     location: {
-      name: api.locationName,
+      name: displayLocationName(api.locationName),
       address: api.locationAddress ?? undefined,
       coordinates: api.location?.coordinates,
     },
@@ -211,7 +212,7 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     coverImageUrl: api.coverImageUrl ?? undefined,
     startAt: api.startAt,
     endAt: api.endAt,
-    locationLabel: api.locationName,
+    locationLabel: displayLocationName(api.locationName),
     locationDetail: api.locationAddress ?? undefined,
     audienceLabel: api.visibility,
     attendeeCount: api.memberCount ?? api.attendees?.length ?? 0,
@@ -224,6 +225,7 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     })),
     visibility: api.visibility,
     guestLimit: api.guestInviteLimit,
+    allowGuestInvites: api.allowGuestInvites,
     myRsvp: api.myRsvp ?? null,
     recurrence: "none",
     apiStatus: api.status,

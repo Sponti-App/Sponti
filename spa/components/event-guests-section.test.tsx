@@ -126,6 +126,44 @@ describe("EventGuestsSection", () => {
     })
   })
 
+  // #172: the "invite more" picker reuses the composer's CircleCards, which
+  // used to filter custom circles out entirely.
+  it("offers a custom circle in the invite-more picker and invites its members", async () => {
+    mocks.fetchMyCircles.mockResolvedValue([
+      {
+        id: "c-close",
+        name: "close friends",
+        description: "",
+        type: "close",
+        memberIds: ["u-ana", "u-lee"],
+      },
+      {
+        id: "c-book-club",
+        name: "book club",
+        description: "custom circle",
+        type: "custom",
+        memberIds: ["u-lee"],
+      },
+    ])
+    const user = userEvent.setup()
+    render(<EventGuestsSection eventId="e1" canInvite />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /invite more/i })
+    )
+    const customChip = await screen.findByRole("button", {
+      name: /book club/i,
+    })
+    expect(customChip).toHaveTextContent("1")
+    await user.click(customChip)
+
+    await user.click(screen.getByRole("button", { name: "invite 1" }))
+    expect(mocks.inviteEventGuests).toHaveBeenCalledWith("e1", {
+      circles: [{ circleId: "c-book-club", role: "guest" }],
+      members: [],
+    })
+  })
+
   it("hides invite more when the flare can't take invites", async () => {
     render(<EventGuestsSection eventId="e1" canInvite={false} />)
 

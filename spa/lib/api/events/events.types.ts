@@ -107,6 +107,11 @@ export type HostedEvent = {
     avatarUrl?: string | null
   }>
   guestLimit: number
+  // #181: the limit is a hard cap only while this is "none" (no +1/re-share).
+  // Once a host turns on +1 or re-share, it becomes approximate — the host
+  // can't know how many extra people that brings — so the api stops
+  // enforcing it and the display should say so ("about N spots").
+  allowGuestInvites?: EventGuestInviteMode
   myRsvp?: EventRsvp | null
   visibility: EventVisibility
   recurrence: Recurrence
@@ -203,6 +208,8 @@ export type EventGuest = {
   }
   role: EventInviteRole
   rsvpStatus: EventRsvp
+  /** Joined a public flare on their own instead of being invited. */
+  joinedWithoutInvite: boolean
 }
 
 export type ApiEventMember = {

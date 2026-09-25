@@ -2,8 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const eventCreateMock = vi.hoisted(() => vi.fn());
 const eventCountDocumentsMock = vi.hoisted(() => vi.fn());
+const eventExistsMock = vi.hoisted(() => vi.fn());
 const eventFindMock = vi.hoisted(() => vi.fn());
 const eventFindOneMock = vi.hoisted(() => vi.fn());
+const eventFindOneAndUpdateMock = vi.hoisted(() => vi.fn());
+const eventUpdateOneMock = vi.hoisted(() => vi.fn());
 const eventMemberBulkWriteMock = vi.hoisted(() => vi.fn());
 const eventMemberCreateMock = vi.hoisted(() => vi.fn());
 const eventMemberDistinctMock = vi.hoisted(() => vi.fn());
@@ -29,8 +32,11 @@ vi.mock("#models/index", () => ({
   Event: {
     countDocuments: eventCountDocumentsMock,
     create: eventCreateMock,
+    exists: eventExistsMock,
     find: eventFindMock,
     findOne: eventFindOneMock,
+    findOneAndUpdate: eventFindOneAndUpdateMock,
+    updateOne: eventUpdateOneMock,
   },
   EventMember: {
     bulkWrite: eventMemberBulkWriteMock,
@@ -44,6 +50,13 @@ vi.mock("#models/index", () => ({
   Notification: {
     create: notificationCreateMock,
     find: notificationFindMock,
+  },
+  // #91: invitation notifications skip invitees who opted out. Nobody has
+  // here; the opt-out itself is covered in eventService.db.test.ts.
+  NotificationSettings: {
+    find: () => ({
+      select: () => ({ session: () => ({ lean: async () => [] }) }),
+    }),
   },
 }));
 
@@ -100,6 +113,23 @@ afterEach(() => {
 const mockEventFindOneSession = (event: unknown) => {
   const sessionMock = vi.fn().mockResolvedValue(event);
   eventFindOneMock.mockReturnValue({ session: sessionMock });
+  return sessionMock;
+};
+
+// #181: updateMyEventMembership reserves/releases a "going" spot through
+// Event.exists/findOneAndUpdate/updateOne. These tests exercise notification
+// behavior, not the guest-limit gate itself (that's covered against a real
+// database in eventService.db.test.ts), so default to "already synced,
+// reservation granted" and let a membership row resolve via `.session()`.
+const mockGoingSpotReservationGranted = () => {
+  eventExistsMock.mockReturnValue({ session: vi.fn().mockResolvedValue(true) });
+  eventFindOneAndUpdateMock.mockResolvedValue({ _id: EVENT_ID });
+  eventUpdateOneMock.mockResolvedValue({ acknowledged: true });
+};
+
+const mockEventMemberFindOneSession = (membership: unknown) => {
+  const sessionMock = vi.fn().mockResolvedValue(membership);
+  eventMemberFindOneMock.mockReturnValue({ session: sessionMock });
   return sessionMock;
 };
 
@@ -270,6 +300,36 @@ describe("eventService.createEvent", () => {
     const docs = eventMemberCreateMock.mock.calls[0]?.[0] as Array<{ userId: unknown }>;
     expect(docs.map((doc) => String(doc.userId))).toEqual([USER_ID, GUEST_ID, ADMIN_ID]);
   });
+
+  // #172: the audience picker now offers custom circles too. Ownership is
+  // enforced generically for every circle type — resolveInviteCandidates
+  // never looks at `type` — so a circle id the caller doesn't own must be
+  // rejected the same way whether it's a system or a custom circle.
+  it("rejects a circle the caller doesn't own", async () => {
+    // The host asked for CIRCLE_ID, but the owned-circles lookup comes back
+    // empty — nothing with that id belongs to this host.
+    mockCircleFindLean([]);
+
+    await expect(
+      createEvent(USER_ID, {
+        title: "beer",
+        description: null,
+        type: "drinks",
+        startAt: new Date("2026-05-20T10:30:00.000Z"),
+        endAt: new Date("2026-05-20T13:45:00.000Z"),
+        locationName: "Saint Pauli",
+        locationAddress: "St Pauli, Hamburg, Germany",
+        location: { type: "Point", coordinates: [9.9699353, 53.5508628] },
+        visibility: "private",
+        allowGuestInvites: "none",
+        guestInviteLimit: 5,
+        members: [],
+        circles: [{ circleId: CIRCLE_ID, role: "guest" }],
+      })
+    ).rejects.toMatchObject({ statusCode: 404, code: "CIRCLE_NOT_FOUND" });
+
+    expect(eventCreateMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("eventService.inviteEventMembers", () => {
@@ -315,6 +375,12 @@ describe("eventService.inviteEventMembers", () => {
     });
 
     expect(result).toEqual({ invitedUserIds: [ADMIN_ID, OTHER_GUEST_ID] });
+    // The circle the flare went to is remembered on the event.
+    expect(eventUpdateOneMock).toHaveBeenCalledWith(
+      { _id: EVENT_ID },
+      { $addToSet: { invitedCircleIds: { $each: [expect.anything()] } } },
+      { session: transactionSessionMock }
+    );
 
     const [ops, options] = eventMemberBulkWriteMock.mock.calls[0] as [
       Array<{ updateOne: { filter: { userId: unknown }; update: unknown; upsert: boolean } }>,
@@ -452,6 +518,93 @@ describe("eventService.inviteEventMembers restoring removed guests", () => {
   });
 });
 
+describe("eventService circles remembered on flares (#150)", () => {
+  it("stores the circles a new private flare was sent to", async () => {
+    eventCreateMock.mockImplementation(async (docs: Array<Record<string, unknown>>) =>
+      docs.map((doc) => ({ _id: EVENT_ID, ...doc }))
+    );
+    eventMemberCreateMock.mockResolvedValue([]);
+    mockCircleFindLean([{ _id: CIRCLE_ID }]);
+    mockCircleMemberFindLean([]);
+    mockAcceptedConnections([]);
+
+    await createEvent(USER_ID, {
+      title: "beer",
+      description: null,
+      type: "drinks",
+      startAt: new Date("2026-05-20T10:30:00.000Z"),
+      endAt: new Date("2026-05-20T13:45:00.000Z"),
+      locationName: "Saint Pauli",
+      locationAddress: null,
+      location: { type: "Point", coordinates: [9.97, 53.55] },
+      visibility: "private",
+      allowGuestInvites: "none",
+      guestInviteLimit: 5,
+      members: [],
+      // Listed twice on purpose: it should be stored once.
+      circles: [
+        { circleId: CIRCLE_ID, role: "guest" },
+        { circleId: CIRCLE_ID, role: "guest" },
+      ],
+    });
+
+    const [docs] = eventCreateMock.mock.calls[0] as [Array<{ invitedCircleIds: unknown[] }>];
+    expect(docs[0]?.invitedCircleIds.map(String)).toEqual([CIRCLE_ID]);
+  });
+
+  it("stores no circles for a public flare", async () => {
+    eventCreateMock.mockImplementation(async (docs: Array<Record<string, unknown>>) =>
+      docs.map((doc) => ({ _id: EVENT_ID, ...doc }))
+    );
+    eventMemberCreateMock.mockResolvedValue([]);
+
+    await createEvent(USER_ID, {
+      title: "open jam",
+      description: null,
+      type: "hangout",
+      startAt: new Date("2026-05-20T10:30:00.000Z"),
+      endAt: new Date("2026-05-20T13:45:00.000Z"),
+      locationName: "Park",
+      locationAddress: null,
+      location: { type: "Point", coordinates: [9.97, 53.55] },
+      visibility: "public",
+      allowGuestInvites: "none",
+      guestInviteLimit: 0,
+      members: [],
+      circles: [{ circleId: CIRCLE_ID, role: "guest" }],
+    });
+
+    const [docs] = eventCreateMock.mock.calls[0] as [Array<{ invitedCircleIds: unknown[] }>];
+    expect(docs[0]?.invitedCircleIds).toEqual([]);
+  });
+
+  it("remembers the circle even when inviting it adds nobody", async () => {
+    mockEventFindOneSelectLean({
+      _id: EVENT_ID,
+      hostId: USER_ID,
+      title: "friday drinks",
+      status: "active",
+      endAt: new Date("2026-05-14T14:00:00.000Z"),
+      allowGuestInvites: "none",
+    });
+    mockCircleFindLean([{ _id: CIRCLE_ID }]);
+    mockCircleMemberFindLean([]); // an empty circle
+
+    const result = await inviteEventMembers(USER_ID, EVENT_ID, {
+      members: [],
+      circles: [{ circleId: CIRCLE_ID, role: "guest" }],
+    });
+
+    expect(result).toEqual({ invitedUserIds: [] });
+    expect(eventUpdateOneMock).toHaveBeenCalledWith(
+      { _id: EVENT_ID },
+      { $addToSet: { invitedCircleIds: { $each: [expect.anything()] } } },
+      { session: undefined }
+    );
+    expect(eventMemberBulkWriteMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("eventService.removeEventMember", () => {
   const removableEvent = (overrides: Record<string, unknown> = {}) =>
     mockEventFindOneSelectLean({
@@ -571,8 +724,9 @@ describe("eventService.getEventMembers", () => {
   it("returns the guest list with identities and RSVPs, excluding the host", async () => {
     mockEventFindOneSelectLean({ _id: EVENT_ID });
     mockMemberFind([
-      { userId: GUEST_ID, role: "guest", rsvpStatus: "going" },
-      { userId: ADMIN_ID, role: "admin", rsvpStatus: "invited" },
+      { userId: GUEST_ID, role: "guest", rsvpStatus: "going", invitedBy: USER_ID },
+      // No invitedBy: this guest joined a public flare on their own.
+      { userId: ADMIN_ID, role: "admin", rsvpStatus: "invited", invitedBy: null },
     ]);
     getUsersByIdsMock.mockResolvedValue(
       new Map([[GUEST_ID, { _id: GUEST_ID, displayName: "sam", username: "sam" }]])
@@ -590,11 +744,13 @@ describe("eventService.getEventMembers", () => {
         user: { _id: GUEST_ID, displayName: "sam", username: "sam", avatarUrl: null },
         role: "guest",
         rsvpStatus: "going",
+        joinedWithoutInvite: false,
       },
       {
         user: { _id: ADMIN_ID, displayName: "guest", username: undefined, avatarUrl: null },
         role: "admin",
         rsvpStatus: "invited",
+        joinedWithoutInvite: true,
       },
     ]);
   });
@@ -732,7 +888,8 @@ describe("eventService.updateMyEventMembership", () => {
       rsvpStatus: "invited",
       save: vi.fn().mockResolvedValue(undefined),
     };
-    eventMemberFindOneMock.mockResolvedValue(membership);
+    mockEventMemberFindOneSession(membership);
+    mockGoingSpotReservationGranted();
     notificationCreateMock.mockResolvedValue([{}]);
 
     await updateMyEventMembership(GUEST_ID, EVENT_ID, {
@@ -764,10 +921,11 @@ describe("eventService.updateMyEventMembership", () => {
       hostId: USER_ID,
       title: "coffee after class",
     });
-    eventMemberFindOneMock.mockResolvedValue({
+    mockEventMemberFindOneSession({
       rsvpStatus: "going",
       save: vi.fn().mockResolvedValue(undefined),
     });
+    mockGoingSpotReservationGranted();
 
     await updateMyEventMembership(GUEST_ID, EVENT_ID, {
       memberWillArriveAt: new Date("2026-05-14T13:10:00.000Z"),
@@ -778,6 +936,9 @@ describe("eventService.updateMyEventMembership", () => {
     });
 
     expect(notificationCreateMock).not.toHaveBeenCalled();
+    // Neither call transitioned into `going` (already going both times), so
+    // no spot should have been reserved either.
+    expect(eventFindOneAndUpdateMock).not.toHaveBeenCalled();
   });
 
   it("does not notify when the host updates their own RSVP", async () => {
@@ -786,10 +947,11 @@ describe("eventService.updateMyEventMembership", () => {
       hostId: USER_ID,
       title: "coffee after class",
     });
-    eventMemberFindOneMock.mockResolvedValue({
+    mockEventMemberFindOneSession({
       rsvpStatus: "invited",
       save: vi.fn().mockResolvedValue(undefined),
     });
+    mockGoingSpotReservationGranted();
 
     await updateMyEventMembership(USER_ID, EVENT_ID, {
       rsvpStatus: "going",

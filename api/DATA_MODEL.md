@@ -152,6 +152,7 @@ Table events {
 
   allowGuestInvites guestInvites
   guestInviteLimit number
+  invitedCircleIds ObjectId[] [ref: > circles._id] // circles the flare was sent to (members were copied at that moment); empty for public flares and for flares posted before this field existed
 
   status event_status
 

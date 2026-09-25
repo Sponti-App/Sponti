@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react"
 import { useActionFeedback } from "@/components/action-feedback"
+import { AddToFlaresDialog } from "@/components/add-to-flares-dialog"
 import { CircleStackIcon } from "@/components/circle-stack-icon"
 import { QrShareSheet } from "@/components/qr-share-sheet"
 import { useAuth } from "@/components/auth-provider"
@@ -42,7 +43,9 @@ import {
 import {
   addCircleMember as addApiCircleMember,
   createCircle as createApiCircle,
+  fetchCircleFlares,
   fetchMyCircles,
+  type CircleFlare,
   removeCircleMember as removeApiCircleMember,
   updateCircle as updateApiCircle,
 } from "@/lib/api/circles"
@@ -59,6 +62,7 @@ import {
   fetchBlockedUsers,
   unblockUser as unblockApiUser,
 } from "@/lib/api/blocks"
+import { inviteEventGuests } from "@/lib/api/events"
 import { searchUsers, type UserSearchResult } from "@/lib/api/users"
 
 type Tab = "circles" | "people"
@@ -112,6 +116,14 @@ export default function CirclesPage() {
   const [sentRequests, setSentRequests] = useState<Connection[]>([])
   const [blocked, setBlocked] = useState<BlockedUser[]>([])
   const [circles, setCircles] = useState<Circle[]>([])
+  // Set after someone joins a circle that's invited to upcoming flares.
+  const [flaresPrompt, setFlaresPrompt] = useState<{
+    userId: string
+    personName: string
+    circleName: string
+    flares: CircleFlare[]
+  } | null>(null)
+  const [flaresPromptBusy, setFlaresPromptBusy] = useState(false)
   const [connectionsLoading, setConnectionsLoading] = useState(apiEnabled)
   const [circlesLoading, setCirclesLoading] = useState(apiEnabled)
   const [connectionsError, setConnectionsError] = useState<string | null>(null)
@@ -224,17 +236,8 @@ export default function CirclesPage() {
     void (async () => {
       await respondToApiConnectionRequest(req.id, "accepted")
 
-      const allCircle = circles.find((circle) => circle.type === "all")
-      if (allCircle && !allCircle.memberIds.includes(req.user.id)) {
-        try {
-          await addApiCircleMember(allCircle.id, req.user.id)
-        } catch (error) {
-          setCirclesError(
-            getErrorMessage(error, "Could not add connection to all friends")
-          )
-        }
-      }
-
+      // "all friends" is resolved live from accepted connections at invite
+      // time (#154) — no membership row to write here.
       setJustAcceptedId(req.user.id)
       showActionFeedback("friend added")
       refreshBackendData()
@@ -343,6 +346,50 @@ export default function CirclesPage() {
     )
   }
 
+  // Circles are snapshots, so a new member isn't on the flares the circle was
+  // already invited to. If there are upcoming ones, offer to add them (#150).
+  // Failing to load the offer is silent: the member was added either way.
+  const offerCircleFlares = (circleId: string, userId: string): void => {
+    void fetchCircleFlares(circleId, userId)
+      .then((flares) => {
+        if (flares.length === 0) return
+        setFlaresPrompt({
+          userId,
+          personName: connectionsById.get(userId)?.displayName ?? "them",
+          circleName:
+            circles.find((circle) => circle.id === circleId)?.name ??
+            "this circle",
+          flares,
+        })
+      })
+      .catch(() => undefined)
+  }
+
+  const inviteToFlares = async (flareIds: string[]): Promise<void> => {
+    if (!flaresPrompt) return
+    setFlaresPromptBusy(true)
+    const results = await Promise.allSettled(
+      flareIds.map((flareId) =>
+        inviteEventGuests(flareId, {
+          members: [{ userId: flaresPrompt.userId, role: "guest" }],
+        })
+      )
+    )
+    const failed = results.filter((result) => result.status === "rejected")
+    setFlaresPromptBusy(false)
+    setFlaresPrompt(null)
+
+    if (failed.length === 0) {
+      showActionFeedback(
+        flareIds.length === 1
+          ? `added ${flaresPrompt.personName} to the flare`
+          : `added ${flaresPrompt.personName} to ${flareIds.length} flares`
+      )
+    } else {
+      showActionFeedback("couldn't add them to every flare", { tone: "error" })
+    }
+  }
+
   const addMemberToCircle = (
     circleId: string,
     userId: string,
@@ -366,6 +413,7 @@ export default function CirclesPage() {
         )
         onSuccess?.()
         showActionFeedback("added to circle")
+        offerCircleFlares(circleId, userId)
       })
       .catch((err) => {
         setCirclesError(getErrorMessage(err, "Could not add circle member"))
@@ -439,6 +487,7 @@ export default function CirclesPage() {
         })
       )
       showActionFeedback("moved to circle")
+      offerCircleFlares(toCircleId, userId)
     })().catch((err) => {
       setCirclesError(getErrorMessage(err, "Could not move circle member"))
       showActionFeedback("couldn't move to circle", { tone: "error" })
@@ -1319,6 +1368,17 @@ export default function CirclesPage() {
           displayName={user?.displayName ?? "you"}
           handle={user?.username ?? "you"}
           onClose={() => setQrOpen(false)}
+        />
+      )}
+
+      {flaresPrompt && (
+        <AddToFlaresDialog
+          personName={flaresPrompt.personName}
+          circleName={flaresPrompt.circleName}
+          flares={flaresPrompt.flares}
+          busy={flaresPromptBusy}
+          onConfirm={(flareIds) => void inviteToFlares(flareIds)}
+          onClose={() => setFlaresPrompt(null)}
         />
       )}
 

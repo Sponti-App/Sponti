@@ -122,3 +122,36 @@ export function removeCircleMember(
     method: "DELETE",
   })
 }
+
+/** A flare the host sent to a circle that can still take more people. */
+export type CircleFlare = {
+  id: string
+  title: string
+  startAt: string
+  endAt: string
+}
+
+/**
+ * GET /circles/:id/events
+ * The host's upcoming flares that were sent to this circle. Pass `userId` to
+ * leave out flares that person is already on, for the "add them to your flares
+ * too?" prompt after adding someone to the circle.
+ */
+export function fetchCircleFlares(
+  circleId: string,
+  userId?: string,
+  signal?: AbortSignal
+): Promise<CircleFlare[]> {
+  const query = userId ? `?${new URLSearchParams({ userId })}` : ""
+
+  return apiFetch<{
+    data: Array<{ _id: string; title: string; startAt: string; endAt: string }>
+  }>(`/circles/${circleId}/events${query}`, { signal }).then((response) =>
+    response.data.map((flare) => ({
+      id: flare._id,
+      title: flare.title,
+      startAt: flare.startAt,
+      endAt: flare.endAt,
+    }))
+  )
+}
