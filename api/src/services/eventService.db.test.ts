@@ -502,7 +502,7 @@ describe("eventService guest limit database behavior (#181)", () => {
   });
 
   it("blocks an invited guest from RSVPing going once full, without touching their invite", async () => {
-    const event = await makeLimitedFlare({ guestInviteLimit: 1, visibility: "private" });
+    const event = await makeLimitedFlare({ guestInviteLimit: 1 });
     await EventMember.create([
       {
         eventId: event._id,
@@ -549,6 +549,100 @@ describe("eventService guest limit database behavior (#181)", () => {
     await removeEventMember(HOST_ID, String(event._id), STRANGER_ID);
 
     await updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+    expect(
+      await EventMember.findOne({ eventId: event._id, userId: OTHER_STRANGER_ID }).lean()
+    ).toMatchObject({ rsvpStatus: "going" });
+  });
+
+  // #181 decision update (2026-09-24): the hard cap applies to public flares
+  // only. A private flare's limit is whoever the host invited — no
+  // enforcement, since "all friends" (#187) can already exceed the default
+  // limit of 10 that the composer sends on every flare.
+  it("never enforces the limit on a private flare, even with more going than it allows", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1, visibility: "private" });
+    await EventMember.create([
+      {
+        eventId: event._id,
+        userId: new Types.ObjectId(GOING_GUEST_ID),
+        invitedBy: new Types.ObjectId(HOST_ID),
+        role: "guest",
+        rsvpStatus: "invited",
+      },
+      {
+        eventId: event._id,
+        userId: new Types.ObjectId(NEW_GUEST_ID),
+        invitedBy: new Types.ObjectId(HOST_ID),
+        role: "guest",
+        rsvpStatus: "invited",
+      },
+    ]);
+
+    await updateMyEventMembership(GOING_GUEST_ID, String(event._id), { rsvpStatus: "going" });
+    // A second invitee also gets in, even though the limit is 1 and someone
+    // is already going — the cap never applies to private flares.
+    await updateMyEventMembership(NEW_GUEST_ID, String(event._id), { rsvpStatus: "going" });
+
+    expect(
+      await EventMember.countDocuments({
+        eventId: event._id,
+        rsvpStatus: "going",
+        role: { $ne: "host" },
+      })
+    ).toBe(2);
+  });
+
+  it("starts enforcing once a private flare already over its limit switches to public", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1, visibility: "private" });
+    await EventMember.create([
+      {
+        eventId: event._id,
+        userId: new Types.ObjectId(GOING_GUEST_ID),
+        invitedBy: new Types.ObjectId(HOST_ID),
+        role: "guest",
+        rsvpStatus: "going",
+      },
+      {
+        eventId: event._id,
+        userId: new Types.ObjectId(NEW_GUEST_ID),
+        invitedBy: new Types.ObjectId(HOST_ID),
+        role: "guest",
+        rsvpStatus: "going",
+      },
+    ]);
+    // Two people already going against a limit of 1 — fine while private.
+
+    await updateEvent(HOST_ID, String(event._id), { visibility: "public" });
+
+    // Now enforced: a stranger trying to join finds it full, because the
+    // sync-flag reset on the visibility flip forces a fresh reconcile that
+    // correctly counts both existing going guests instead of trusting a
+    // stale/default 0.
+    await expect(
+      updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ statusCode: 409, code: "EVENT_FULL" });
+  });
+
+  it("stops enforcing once a full public flare switches to private", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1 });
+    await updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+    await expect(
+      updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ code: "EVENT_FULL" });
+
+    await updateEvent(HOST_ID, String(event._id), { visibility: "private" });
+
+    // Now private: the host invites a second guest directly (a stranger
+    // can't self-join a private flare) and they can RSVP going even though
+    // the nominal limit is still 1 and someone's already going.
+    await EventMember.create({
+      eventId: event._id,
+      userId: new Types.ObjectId(OTHER_STRANGER_ID),
+      invitedBy: new Types.ObjectId(HOST_ID),
+      role: "guest",
+      rsvpStatus: "invited",
+    });
+    await updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+
     expect(
       await EventMember.findOne({ eventId: event._id, userId: OTHER_STRANGER_ID }).lean()
     ).toMatchObject({ rsvpStatus: "going" });

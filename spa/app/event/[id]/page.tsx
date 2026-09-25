@@ -111,7 +111,9 @@ export default function EventDetailPage() {
         setRsvpError("full")
         showActionFeedback("full", { tone: "error" })
       } else {
-        setRsvpError(err instanceof Error ? err.message : "could not update rsvp")
+        setRsvpError(
+          err instanceof Error ? err.message : "could not update rsvp"
+        )
         showActionFeedback("couldn't save that", { tone: "error" })
       }
     } finally {
@@ -146,12 +148,12 @@ export default function EventDetailPage() {
   )
   const isHost = Boolean(user && event.hostId === user.id)
   const hostName = (
-    isHost
-      ? "you"
-      : event.hostName ?? event.hostUsername ?? "host"
+    isHost ? "you" : (event.hostName ?? event.hostUsername ?? "host")
   ).toLowerCase()
   const hostHandle = event.hostUsername ?? (isHost ? user?.username : undefined)
-  const hostAvatarLabel = isHost ? "you" : event.hostName ?? event.hostUsername ?? "host"
+  const hostAvatarLabel = isHost
+    ? "you"
+    : (event.hostName ?? event.hostUsername ?? "host")
   const hostAvatarUrl = isHost ? user?.avatarUrl : event.hostAvatarUrl
   const description =
     event.description?.trim() ||
@@ -329,7 +331,6 @@ export default function EventDetailPage() {
           </div>
         </Tabs>
       </div>
-
     </div>
   )
 }
@@ -651,7 +652,10 @@ function goingCountLabel(event: HostedEvent): string {
 }
 
 function capacityForEvent(event: HostedEvent): number | undefined {
-  if (event.guestLimit > event.attendingCount) return event.guestLimit
+  // #181: the guest limit only caps public flares. A private flare is capped
+  // by who the host invited, so its (default) limit is never shown.
+  if (event.visibility === "public" && event.guestLimit > event.attendingCount)
+    return event.guestLimit
   if (event.attendeeCount > event.attendingCount) return event.attendeeCount
   return undefined
 }

@@ -86,6 +86,23 @@ describe("EventDetailPage guest limit (#181)", () => {
     expect(await screen.findByText("1 going · about 2 spots")).toBeInTheDocument()
   })
 
+  it("never shows the guest limit on a private flare", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({
+        visibility: "private",
+        attendingCount: 1,
+        attendeeCount: 1,
+        guestLimit: 10,
+        allowGuestInvites: "none",
+      })
+    )
+
+    render(<EventDetailPage />)
+
+    expect(await screen.findByText("1 going")).toBeInTheDocument()
+    expect(screen.queryByText(/of 10 going|about 10 spots/)).not.toBeInTheDocument()
+  })
+
   it("shows a lowercase 'full' state instead of a generic error when the flare is at capacity", async () => {
     mocks.fetchHostedEventById.mockResolvedValue(
       hostedEvent({ myRsvp: "invited", attendingCount: 2, guestLimit: 2 })

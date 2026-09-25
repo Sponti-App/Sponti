@@ -624,11 +624,25 @@ export const updateEvent = async (hostId: string, eventId: string, input: Update
   }
 
   const wasPublic = event.visibility === "public";
+  // #181: the hard cap, and the goingReservationCount counter behind it, only
+  // apply to public flares — a private flare's going members never touch it.
+  // Flipping visibility either direction can make it stale relative to
+  // EventMember (a private flare's roster can change freely while the
+  // counter isn't being kept in sync), so any actual flip resets the sync
+  // flag. The next reservation attempt — which can only happen once the
+  // flare is public again — recomputes it from EventMember's live truth
+  // instead of trusting whatever it held from before.
+  const visibilityChanging = input.visibility !== undefined && input.visibility !== event.visibility;
 
   Object.assign(event, input);
 
   if (!(wasPublic && event.visibility === "private")) {
     await event.save();
+
+    if (visibilityChanging) {
+      await Event.updateOne({ _id: event._id }, { $set: { goingReservationSyncedAt: null } });
+    }
+
     return event;
   }
 
@@ -638,6 +652,11 @@ export const updateEvent = async (hostId: string, eventId: string, input: Update
   // and the host are untouched.
   await withTransactionFallback(async (session?: ClientSession) => {
     await event.save({ session });
+    await Event.updateOne(
+      { _id: event._id },
+      { $set: { goingReservationSyncedAt: null } },
+      { session }
+    );
     await EventMember.deleteMany(
       {
         eventId: event._id,
@@ -881,7 +900,7 @@ export const removeEventMember = async (hostId: string, eventId: string, guestId
   }
 
   const event = await Event.findOne({ _id: toObjectId(eventId), hostId: toObjectId(hostId) })
-    .select("_id title status startAt")
+    .select("_id title status startAt visibility")
     .lean();
 
   if (!event) {
@@ -916,8 +935,11 @@ export const removeEventMember = async (hostId: string, eventId: string, guestId
 
     if (wasGoing) {
       // #181: removal frees their spot back up, same as a going -> declined
-      // answer would.
-      await releaseGoingSpot(event._id, session);
+      // answer would — but only for public flares, which is all the cap ever
+      // applies to.
+      if (event.visibility === "public") {
+        await releaseGoingSpot(event._id, session);
+      }
       await createEventGuestRemovedNotification({
         eventId: String(event._id),
         guestId,
@@ -1021,14 +1043,26 @@ export const reactivateEvent = async (hostId: string, eventId: string) => {
 };
 
 /**
- * The guest limit was never enforced before #181, so `goingReservationCount`
- * may still be sitting at its schema default (0) on a flare that already has
- * real `going` members. This reconciles it once, from a live count of
- * EventMember, the first time a reservation is attempted for that flare —
- * self-healing instead of a data migration. The conditional filter
- * (`goingReservationSyncedAt: null`) makes two concurrent callers race
- * safely: only one of their `updateOne` calls can match and apply for a
- * given flare, so the count is computed and stored exactly once.
+ * `reserveGoingSpot`/`releaseGoingSpot` below are only ever called for
+ * public flares (see the `isPublicFlare` gate in `updateMyEventMembership`
+ * and the `event.visibility === "public"` check in `removeEventMember`) —
+ * per the decision update on #181, the hard cap applies to public flares
+ * only, so a private flare's `goingReservationCount` is simply never
+ * touched. That also means it can go stale relative to EventMember while a
+ * flare is private (its roster changes freely with nothing keeping the
+ * counter in sync) and needs resyncing once/if the flare goes public again —
+ * `updateEvent` resets `goingReservationSyncedAt` to null on every actual
+ * visibility flip (either direction) so this reconciliation always re-runs
+ * rather than trusting a value left over from a previous public period.
+ *
+ * The guest limit was never enforced before #181 either, so this may still
+ * be sitting at its schema default (0) on a flare that already has real
+ * `going` members the first time it's ever used. Either way, this reconciles
+ * it once, from a live count of EventMember, the first time a reservation is
+ * attempted for that flare — self-healing instead of a data migration. The
+ * conditional filter (`goingReservationSyncedAt: null`) makes two concurrent
+ * callers race safely: only one of their `updateOne` calls can match and
+ * apply for a given flare, so the count is computed and stored exactly once.
  *
  * This runs inside `updateMyEventMembership`'s `withTransactionFallback`
  * call, so on a replica set it only durably commits alongside a reservation
@@ -1180,11 +1214,21 @@ export const updateMyEventMembership = async (
       nextRsvpStatus !== previousRsvpStatus &&
       !(joinedPublicFlare && nextRsvpStatus === "declined");
 
-    // #181: only entering `going` for the first time consumes a spot — an
+    // #181 (decision update): the hard cap — and the counter behind it — only
+    // ever apply to public flares. A private flare's limit is whoever the
+    // host invited; there's no cap to reserve or release, so the private
+    // path never touches `goingReservationCount` at all.
+    const isPublicFlare = event.visibility === "public";
+
+    // Only entering `going` for the first time consumes a spot — an
     // ETA-only update, or resubmitting `going` while already going, must not.
-    const enteringGoing = previousRsvpStatus !== "going" && nextRsvpStatus === "going";
+    const enteringGoing =
+      isPublicFlare && previousRsvpStatus !== "going" && nextRsvpStatus === "going";
     const leavingGoing =
-      previousRsvpStatus === "going" && nextRsvpStatus !== undefined && nextRsvpStatus !== "going";
+      isPublicFlare &&
+      previousRsvpStatus === "going" &&
+      nextRsvpStatus !== undefined &&
+      nextRsvpStatus !== "going";
 
     let reservedSpot = false;
 
