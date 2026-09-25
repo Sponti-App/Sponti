@@ -471,6 +471,330 @@ describe("eventService public/private switching database behavior", () => {
   });
 });
 
+describe("eventService guest limit database behavior (#181)", () => {
+  const makeLimitedFlare = async (overrides: Record<string, unknown> = {}) => {
+    const hostObjectId = new Types.ObjectId(HOST_ID);
+    const event = await Event.create({
+      hostId: hostObjectId,
+      title: "rooftop party",
+      type: "party",
+      startAt: new Date(Date.now() + 60 * 60 * 1000),
+      endAt: new Date(Date.now() + 3 * 60 * 60 * 1000),
+      locationName: "the annex",
+      location: { type: "Point", coordinates: [9.99, 53.55] },
+      visibility: "public",
+      allowGuestInvites: "none",
+      guestInviteLimit: 1,
+      status: "active",
+      ...overrides,
+    });
+    await EventMember.create({
+      eventId: event._id,
+      userId: hostObjectId,
+      role: "host",
+      rsvpStatus: "going",
+    });
+    return event;
+  };
+
+  it("blocks joining once the flare is at its guest limit, and doesn't leave a row behind", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1 });
+    await updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+
+    await expect(
+      updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ statusCode: 409, code: "EVENT_FULL" });
+
+    expect(
+      await EventMember.countDocuments({ eventId: event._id, userId: OTHER_STRANGER_ID })
+    ).toBe(0);
+    expect(
+      await EventMember.findOne({ eventId: event._id, userId: STRANGER_ID }).lean()
+    ).toMatchObject({ rsvpStatus: "going" });
+  });
+
+  it("lets exactly one of two concurrent joins take the last spot", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1 });
+
+    const results = await Promise.allSettled([
+      updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" }),
+      updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" }),
+    ]);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find(
+      (r): r is PromiseRejectedResult => r.status === "rejected"
+    );
+    expect(rejected?.reason).toMatchObject({ statusCode: 409, code: "EVENT_FULL" });
+
+    const goingCount = await EventMember.countDocuments({
+      eventId: event._id,
+      rsvpStatus: "going",
+      role: { $ne: "host" },
+    });
+    expect(goingCount).toBe(1);
+  });
+
+  it("doesn't double-reserve a spot when the same new joiner double-taps", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 2 });
+
+    await Promise.all([
+      updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" }),
+      updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" }),
+    ]);
+
+    expect(await EventMember.countDocuments({ eventId: event._id, userId: STRANGER_ID })).toBe(1);
+
+    // If the double tap had reserved two spots for one person, this second,
+    // genuinely different joiner would incorrectly see the flare as full.
+    await updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+    expect(
+      await EventMember.findOne({ eventId: event._id, userId: OTHER_STRANGER_ID }).lean()
+    ).toMatchObject({ rsvpStatus: "going" });
+  });
+
+  it("frees a spot when a going guest declines, and lets the next person in", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1 });
+    await updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+    await expect(
+      updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ code: "EVENT_FULL" });
+
+    await updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "declined" });
+    await updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+
+    expect(
+      await EventMember.findOne({ eventId: event._id, userId: OTHER_STRANGER_ID }).lean()
+    ).toMatchObject({ rsvpStatus: "going" });
+  });
+
+  it("doesn't let an ETA-only update, or resubmitting going, consume another spot", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1 });
+    await updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+
+    await updateMyEventMembership(STRANGER_ID, String(event._id), {
+      memberWillArriveAt: new Date(Date.now() + 3600_000),
+    });
+    await updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+
+    // Still full for someone else — neither update above freed or duplicated
+    // the one spot already taken.
+    await expect(
+      updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ code: "EVENT_FULL" });
+
+    // Declining frees exactly the one spot that was actually taken.
+    await updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "declined" });
+    await updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+    await expect(
+      updateMyEventMembership(PENDING_FRIEND_ID, String(event._id), { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ code: "EVENT_FULL" });
+  });
+
+  it("doesn't enforce the limit once +1/re-share is on, but still tracks who's going", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1, allowGuestInvites: "single" });
+    await updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+
+    // Past the nominal limit, but the mode makes it approximate — not hard-enforced.
+    await updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+
+    expect(
+      await EventMember.countDocuments({
+        eventId: event._id,
+        rsvpStatus: "going",
+        role: { $ne: "host" },
+      })
+    ).toBe(2);
+  });
+
+  it("blocks an invited guest from RSVPing going once full, without touching their invite", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1 });
+    await EventMember.create([
+      {
+        eventId: event._id,
+        userId: new Types.ObjectId(GOING_GUEST_ID),
+        invitedBy: new Types.ObjectId(HOST_ID),
+        role: "guest",
+        rsvpStatus: "invited",
+      },
+      {
+        eventId: event._id,
+        userId: new Types.ObjectId(NEW_GUEST_ID),
+        invitedBy: new Types.ObjectId(HOST_ID),
+        role: "guest",
+        rsvpStatus: "invited",
+      },
+    ]);
+
+    await updateMyEventMembership(GOING_GUEST_ID, String(event._id), { rsvpStatus: "going" });
+
+    await expect(
+      updateMyEventMembership(NEW_GUEST_ID, String(event._id), { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ statusCode: 409, code: "EVENT_FULL" });
+
+    expect(
+      await EventMember.findOne({ eventId: event._id, userId: NEW_GUEST_ID }).lean()
+    ).toMatchObject({ rsvpStatus: "invited" });
+  });
+
+  it("doesn't count the host against the limit", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1 });
+    // The host is already `going` from the seed above; the cap is still 1
+    // full guest spot, proving the host's own going row never consumed it.
+    await updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+
+    expect(
+      await EventMember.findOne({ eventId: event._id, userId: STRANGER_ID }).lean()
+    ).toMatchObject({ rsvpStatus: "going" });
+  });
+
+  it("removing a going guest frees their spot back up", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1 });
+    await updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+
+    await removeEventMember(HOST_ID, String(event._id), STRANGER_ID);
+
+    await updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+    expect(
+      await EventMember.findOne({ eventId: event._id, userId: OTHER_STRANGER_ID }).lean()
+    ).toMatchObject({ rsvpStatus: "going" });
+  });
+
+  // #181 decision update (2026-09-24): the hard cap applies to public flares
+  // only. A private flare's limit is whoever the host invited — no
+  // enforcement, since "all friends" (#187) can already exceed the default
+  // limit of 10 that the composer sends on every flare.
+  it("never enforces the limit on a private flare, even with more going than it allows", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1, visibility: "private" });
+    await EventMember.create([
+      {
+        eventId: event._id,
+        userId: new Types.ObjectId(GOING_GUEST_ID),
+        invitedBy: new Types.ObjectId(HOST_ID),
+        role: "guest",
+        rsvpStatus: "invited",
+      },
+      {
+        eventId: event._id,
+        userId: new Types.ObjectId(NEW_GUEST_ID),
+        invitedBy: new Types.ObjectId(HOST_ID),
+        role: "guest",
+        rsvpStatus: "invited",
+      },
+    ]);
+
+    await updateMyEventMembership(GOING_GUEST_ID, String(event._id), { rsvpStatus: "going" });
+    // A second invitee also gets in, even though the limit is 1 and someone
+    // is already going — the cap never applies to private flares.
+    await updateMyEventMembership(NEW_GUEST_ID, String(event._id), { rsvpStatus: "going" });
+
+    expect(
+      await EventMember.countDocuments({
+        eventId: event._id,
+        rsvpStatus: "going",
+        role: { $ne: "host" },
+      })
+    ).toBe(2);
+  });
+
+  it("starts enforcing once a private flare already over its limit switches to public", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1, visibility: "private" });
+    await EventMember.create([
+      {
+        eventId: event._id,
+        userId: new Types.ObjectId(GOING_GUEST_ID),
+        invitedBy: new Types.ObjectId(HOST_ID),
+        role: "guest",
+        rsvpStatus: "going",
+      },
+      {
+        eventId: event._id,
+        userId: new Types.ObjectId(NEW_GUEST_ID),
+        invitedBy: new Types.ObjectId(HOST_ID),
+        role: "guest",
+        rsvpStatus: "going",
+      },
+    ]);
+    // Two people already going against a limit of 1 — fine while private.
+
+    await updateEvent(HOST_ID, String(event._id), { visibility: "public" });
+
+    // Now enforced: a stranger trying to join finds it full, because the
+    // sync-flag reset on the visibility flip forces a fresh reconcile that
+    // correctly counts both existing going guests instead of trusting a
+    // stale/default 0.
+    await expect(
+      updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ statusCode: 409, code: "EVENT_FULL" });
+  });
+
+  it("stops enforcing once a full public flare switches to private", async () => {
+    const event = await makeLimitedFlare({ guestInviteLimit: 1 });
+    await updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+    await expect(
+      updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ code: "EVENT_FULL" });
+
+    await updateEvent(HOST_ID, String(event._id), { visibility: "private" });
+
+    // Now private: the host invites a second guest directly (a stranger
+    // can't self-join a private flare) and they can RSVP going even though
+    // the nominal limit is still 1 and someone's already going.
+    await EventMember.create({
+      eventId: event._id,
+      userId: new Types.ObjectId(OTHER_STRANGER_ID),
+      invitedBy: new Types.ObjectId(HOST_ID),
+      role: "guest",
+      rsvpStatus: "invited",
+    });
+    await updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+
+    expect(
+      await EventMember.findOne({ eventId: event._id, userId: OTHER_STRANGER_ID }).lean()
+    ).toMatchObject({ rsvpStatus: "going" });
+  });
+
+  it("self-heals the reservation counter from real going members instead of needing a migration", async () => {
+    // Limit 2: one real going guest is simulated below, leaving exactly one
+    // spot — enough to show the reconciled count (not the stale 0 default)
+    // is what actually decides who gets in.
+    const event = await makeLimitedFlare({ guestInviteLimit: 2 });
+    // Simulate a flare that already had a going guest before this feature
+    // existed — created directly, bypassing updateMyEventMembership, so the
+    // counter was never touched and still sits at its schema default.
+    await EventMember.create({
+      eventId: event._id,
+      userId: new Types.ObjectId(GOING_GUEST_ID),
+      invitedBy: new Types.ObjectId(HOST_ID),
+      role: "guest",
+      rsvpStatus: "going",
+    });
+    expect(
+      await Event.findById(event._id)
+        .select("+goingReservationCount +goingReservationSyncedAt")
+        .lean()
+    ).toMatchObject({ goingReservationCount: 0, goingReservationSyncedAt: null });
+
+    // Without reconciling from the real count first, a stale 0 would wrongly
+    // let both of the next two people in (limit 2, "0 already taken"). Only
+    // one actually fits, because one spot was already real.
+    await updateMyEventMembership(STRANGER_ID, String(event._id), { rsvpStatus: "going" });
+    await expect(
+      updateMyEventMembership(OTHER_STRANGER_ID, String(event._id), { rsvpStatus: "going" })
+    ).rejects.toMatchObject({ statusCode: 409, code: "EVENT_FULL" });
+
+    // The reconcile only commits alongside a reservation that actually
+    // succeeds (see the comment on `reconcileGoingReservation` — a rejected
+    // attempt rolls the whole transaction back, reconcile included, which
+    // is fine: the next attempt just recomputes the same real count again).
+    const synced = await Event.findById(event._id)
+      .select("+goingReservationCount +goingReservationSyncedAt")
+      .lean();
+    expect(synced?.goingReservationCount).toBe(2);
+    expect(synced?.goingReservationSyncedAt).toBeInstanceOf(Date);
+  });
+});
+
 describe("eventService circle-growth prompt database behavior (#150)", () => {
   const HOUR = 3_600_000;
 

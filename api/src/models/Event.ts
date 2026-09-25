@@ -93,6 +93,29 @@ const eventSchema = new Schema(
       min: 0,
       max: MAX_GUEST_INVITE_LIMIT,
     },
+    // Internal bookkeeping for the guest-limit gate (#181): a running count of
+    // members currently `going`, kept in sync on every transition into or out
+    // of going so the gate below can reserve a spot with a single atomic
+    // document update instead of counting EventMember rows under a lock.
+    // `select: false` keeps it out of every API response by default (and out
+    // of the `goingCount` name `attachMemberStats` computes for display,
+    // which is a different, always-fresh number) — read it explicitly with
+    // `.select("+goingReservationCount")` if it's ever needed.
+    // Flares posted before this field existed read it as 0 via the schema
+    // default; `goingReservationSyncedAt` marks whether that 0 has been
+    // reconciled against the real EventMember count yet (see
+    // `reconcileGoingReservation` in eventService.ts) — no migration needed.
+    goingReservationCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+      select: false,
+    },
+    goingReservationSyncedAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
     // Circles the host sent this flare to. Circles are expanded into member rows
     // at invite time (a snapshot), so this is the only record of it; it lets us
     // offer to invite someone who is later added to one of these circles.

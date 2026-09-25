@@ -134,7 +134,7 @@ export function EventHostCard({
             className={cn(
               "line-clamp-2 min-w-0 text-base leading-snug font-semibold",
               event.apiStatus === "cancelled" &&
-              "text-muted-foreground line-through"
+                "text-muted-foreground line-through"
             )}
           >
             {event.title.toLowerCase()}
@@ -178,7 +178,10 @@ export function EventHostCard({
 }
 
 function capacityForEvent(event: HostedEvent): number | undefined {
-  if (event.guestLimit > event.attendingCount) return event.guestLimit
+  // #181: the guest limit only caps public flares. A private flare is capped
+  // by who the host invited, so its (default) limit is never shown.
+  if (event.visibility === "public" && event.guestLimit > event.attendingCount)
+    return event.guestLimit
   if (event.attendeeCount > event.attendingCount) return event.attendeeCount
   return undefined
 }

@@ -225,6 +225,7 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     })),
     visibility: api.visibility,
     guestLimit: api.guestInviteLimit,
+    allowGuestInvites: api.allowGuestInvites,
     myRsvp: api.myRsvp ?? null,
     recurrence: "none",
     apiStatus: api.status,
