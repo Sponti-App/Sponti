@@ -47,6 +47,13 @@ vi.mock("#models/index", () => ({
     create: notificationCreateMock,
     find: notificationFindMock,
   },
+  // #91: invitation notifications skip invitees who opted out. Nobody has
+  // here; the opt-out itself is covered in eventService.db.test.ts.
+  NotificationSettings: {
+    find: () => ({
+      select: () => ({ session: () => ({ lean: async () => [] }) }),
+    }),
+  },
 }));
 
 vi.mock("#services/blockService", () => ({

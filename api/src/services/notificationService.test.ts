@@ -6,6 +6,7 @@ const notificationCountDocumentsMock = vi.hoisted(() => vi.fn());
 const notificationCreateMock = vi.hoisted(() => vi.fn());
 const notificationFindMock = vi.hoisted(() => vi.fn());
 const notificationUpdateManyMock = vi.hoisted(() => vi.fn());
+const notificationSettingsFindMock = vi.hoisted(() => vi.fn());
 const getUsersByIdsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("#models/index", () => ({
@@ -17,6 +18,9 @@ vi.mock("#models/index", () => ({
     create: notificationCreateMock,
     find: notificationFindMock,
     updateMany: notificationUpdateManyMock,
+  },
+  NotificationSettings: {
+    find: notificationSettingsFindMock,
   },
 }));
 
@@ -43,11 +47,21 @@ const notificationSession = { id: "notification-session" } as unknown as ClientS
 
 beforeEach(() => {
   getUsersByIdsMock.mockResolvedValue(new Map());
+  // Default: nobody has opted out of invitation notifications.
+  mockOptedOutInvitees([]);
 });
 
 afterEach(() => {
   vi.clearAllMocks();
 });
+
+function mockOptedOutInvitees(docs: Array<{ userId: string }>) {
+  const leanMock = vi.fn().mockResolvedValue(docs);
+  const sessionMock = vi.fn().mockReturnValue({ lean: leanMock });
+  const selectMock = vi.fn().mockReturnValue({ session: sessionMock });
+  notificationSettingsFindMock.mockReturnValue({ select: selectMock });
+  return { leanMock, selectMock, sessionMock };
+}
 
 const mockNotificationFeed = (docs: Array<Record<string, unknown>>) => {
   const leanMock = vi.fn().mockResolvedValue(docs);
@@ -222,6 +236,56 @@ describe("notificationService creation helpers", () => {
         title: "Maya invited you",
       })
     );
+  });
+
+  // #91: the "invitation notifications" setting must actually gate delivery.
+  it("skips only the notification for an invitee who has turned invitations off", async () => {
+    mockOptedOutInvitees([{ userId: GUEST_ID }]);
+    mockExistingNotifications([]);
+    getUsersByIdsMock.mockResolvedValue(
+      new Map([[HOST_ID, { _id: HOST_ID, username: "maya", displayName: "Maya" }]])
+    );
+    notificationCreateMock.mockResolvedValue([{}]);
+
+    await createEventInvitationNotifications({
+      eventId: EVENT_ID,
+      hostId: HOST_ID,
+      eventTitle: "rooftop drinks",
+      inviteeIds: [GUEST_ID, ADMIN_ID],
+      session: notificationSession,
+    });
+
+    // One batched lookup for every invitee, not one query per invitee.
+    expect(notificationSettingsFindMock).toHaveBeenCalledOnce();
+    expect(notificationSettingsFindMock).toHaveBeenCalledWith({
+      userId: { $in: expect.arrayContaining([expect.anything(), expect.anything()]) },
+      invitationNotifications: false,
+    });
+
+    expect(notificationCreateMock).toHaveBeenCalledOnce();
+    const docs = notificationCreateMock.mock.calls[0]?.[0] as Array<{ userId: unknown }>;
+    expect(docs).toHaveLength(1);
+    expect(String(docs[0]?.userId)).toBe(ADMIN_ID);
+  });
+
+  it("leaves the invite itself alone and still notifies invitees who never touched the setting", async () => {
+    mockOptedOutInvitees([]); // no NotificationSettings doc for anyone — schema default (on)
+    mockExistingNotifications([]);
+    getUsersByIdsMock.mockResolvedValue(
+      new Map([[HOST_ID, { _id: HOST_ID, username: "maya", displayName: "Maya" }]])
+    );
+    notificationCreateMock.mockResolvedValue([{}, {}]);
+
+    await createEventInvitationNotifications({
+      eventId: EVENT_ID,
+      hostId: HOST_ID,
+      eventTitle: "rooftop drinks",
+      inviteeIds: [GUEST_ID, ADMIN_ID],
+      session: notificationSession,
+    });
+
+    const docs = notificationCreateMock.mock.calls[0]?.[0] as Array<{ userId: unknown }>;
+    expect(docs.map((doc) => String(doc.userId))).toEqual([GUEST_ID, ADMIN_ID]);
   });
 
   it("excludes hosts and declined members from ordered cancel/reactivate batches", async () => {

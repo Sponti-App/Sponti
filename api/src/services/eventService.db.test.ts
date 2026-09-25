@@ -9,6 +9,7 @@ import {
   Event,
   EventMember,
   Notification,
+  NotificationSettings,
 } from "#models/index";
 import {
   createEvent,
@@ -31,6 +32,9 @@ const PENDING_FRIEND_ID = new Types.ObjectId().toString();
 const REJECTED_FRIEND_ID = new Types.ObjectId().toString();
 const HOST_BLOCKED_FRIEND_ID = new Types.ObjectId().toString();
 const FRIEND_BLOCKED_HOST_ID = new Types.ObjectId().toString();
+const OPTED_OUT_GUEST_ID = new Types.ObjectId().toString();
+const DEFAULT_GUEST_ID = new Types.ObjectId().toString();
+const OPTED_IN_GUEST_ID = new Types.ObjectId().toString();
 
 let mongoServer: MongoMemoryReplSet;
 
@@ -52,6 +56,7 @@ beforeAll(async () => {
     Event.syncIndexes(),
     EventMember.syncIndexes(),
     Notification.syncIndexes(),
+    NotificationSettings.syncIndexes(),
   ]);
 }, 120_000);
 
@@ -64,6 +69,7 @@ afterEach(async () => {
     Event.deleteMany({}),
     EventMember.deleteMany({}),
     Notification.deleteMany({}),
+    NotificationSettings.deleteMany({}),
   ]);
 });
 
@@ -147,6 +153,106 @@ describe("eventService invite-more database behavior", () => {
       [GOING_GUEST_ID, "going"],
       [NEW_GUEST_ID, "invited"],
     ]);
+  });
+});
+
+describe("eventService invitation-notification opt-out database behavior (#91)", () => {
+  const seedConnections = async (guestIds: string[]) => {
+    const hostObjectId = new Types.ObjectId(HOST_ID);
+    await Connection.create(
+      guestIds.map((guestId) => ({
+        requesterId: hostObjectId,
+        receiverId: new Types.ObjectId(guestId),
+        status: "accepted" as const,
+        type: "qr" as const,
+      }))
+    );
+  };
+
+  it("skips only the notification for an invitee who turned invitations off, on create", async () => {
+    await seedConnections([OPTED_OUT_GUEST_ID, DEFAULT_GUEST_ID, OPTED_IN_GUEST_ID]);
+    await NotificationSettings.create([
+      { userId: OPTED_OUT_GUEST_ID, invitationNotifications: false },
+      { userId: OPTED_IN_GUEST_ID, invitationNotifications: true },
+      // DEFAULT_GUEST_ID has no settings doc at all — the schema default
+      // (true) should apply, same as if they'd never opened settings.
+    ]);
+
+    const { event, members } = await createEvent(HOST_ID, {
+      title: "friday drinks",
+      description: null,
+      type: "drinks",
+      startAt: new Date(Date.now() + 60 * 60 * 1000),
+      endAt: new Date(Date.now() + 3 * 60 * 60 * 1000),
+      locationName: "the annex",
+      locationAddress: null,
+      location: { type: "Point", coordinates: [9.99, 53.55] },
+      visibility: "private",
+      allowGuestInvites: "none",
+      guestInviteLimit: 0,
+      members: [
+        { userId: OPTED_OUT_GUEST_ID, role: "guest" as const },
+        { userId: DEFAULT_GUEST_ID, role: "guest" as const },
+        { userId: OPTED_IN_GUEST_ID, role: "guest" as const },
+      ],
+      circles: [],
+    });
+
+    // The invite itself (the member row, the flare showing up for them) is
+    // unaffected by the notification setting — all three are on the guest list.
+    const memberUserIds = members
+      .map((member) => String(member.userId))
+      .filter((userId) => userId !== HOST_ID);
+    expect(new Set(memberUserIds)).toEqual(
+      new Set([OPTED_OUT_GUEST_ID, DEFAULT_GUEST_ID, OPTED_IN_GUEST_ID])
+    );
+    const optedOutMember = await EventMember.findOne({
+      eventId: event._id,
+      userId: OPTED_OUT_GUEST_ID,
+    }).lean();
+    expect(optedOutMember).toMatchObject({ rsvpStatus: "invited" });
+
+    // Only the notification is skipped for the opted-out invitee; the
+    // default (no settings doc) and explicitly opted-in invitees still get one.
+    const notified = await Notification.find({
+      targetId: event._id,
+      type: "event_invitation",
+    }).lean();
+    expect(new Set(notified.map((doc) => String(doc.userId)))).toEqual(
+      new Set([DEFAULT_GUEST_ID, OPTED_IN_GUEST_ID])
+    );
+  });
+
+  it("respects the same setting when inviting more people to an existing flare", async () => {
+    const { eventId } = await seedFlareWithGoingGuest();
+    await seedConnections([OPTED_OUT_GUEST_ID, DEFAULT_GUEST_ID]);
+    await NotificationSettings.create([
+      { userId: OPTED_OUT_GUEST_ID, invitationNotifications: false },
+    ]);
+
+    const result = await inviteEventMembers(HOST_ID, eventId, {
+      members: [
+        { userId: OPTED_OUT_GUEST_ID, role: "guest" as const },
+        { userId: DEFAULT_GUEST_ID, role: "guest" as const },
+      ],
+      circles: [],
+    });
+
+    expect(new Set(result.invitedUserIds)).toEqual(
+      new Set([OPTED_OUT_GUEST_ID, DEFAULT_GUEST_ID])
+    );
+
+    const optedOutMember = await EventMember.findOne({
+      eventId,
+      userId: OPTED_OUT_GUEST_ID,
+    }).lean();
+    expect(optedOutMember).toMatchObject({ rsvpStatus: "invited" });
+
+    const notified = await Notification.find({
+      targetId: eventId,
+      type: "event_invitation",
+    }).lean();
+    expect(notified.map((doc) => String(doc.userId))).toEqual([DEFAULT_GUEST_ID]);
   });
 });
 
