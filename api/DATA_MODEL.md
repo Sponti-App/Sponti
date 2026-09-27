@@ -236,6 +236,28 @@ Enum role {
 }
 ```
 
+## event_updates
+
+```text
+Table event_updates {
+  _id ObjectId [pk]
+
+  eventId ObjectId [ref: > events._id]
+  authorId ObjectId [ref: > users._id]
+
+  body string // Plain text, trimmed, 1-500 characters
+
+  deletedAt datetime // Soft delete; deleted updates are left out of reads and counts. Null otherwise
+
+  createdAt datetime
+  updatedAt datetime
+
+  indexes {
+    (eventId, createdAt)
+  }
+}
+```
+
 ## notification_settings
 
 `notifyWhen` and `maxDistanceKm` are part of the target schema and are not yet fully implemented in
@@ -365,6 +387,7 @@ Enum NotificationType {
   connection_request // Someone sent a connection request to me
   event_rsvp_change // Someone changed the rsvpStatus for the event I'm hosting
   event_guest_removed // The host removed me from an event I had said I was going to
+  event_update // The host posted an update to an event I'm going to
 }
 
 Enum NotificationTargetType {
