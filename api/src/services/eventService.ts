@@ -1401,21 +1401,33 @@ const attachMyRsvp = async <T extends { _id: unknown }>(
 };
 
 /**
+ * How far out a flare's start time can be for it to still count as "soon"
+ * on the home map. Live flares always qualify regardless of this window;
+ * this only bounds how far in the future a not-yet-started flare can be.
+ */
+export const MAP_SOON_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
  * Returns events that should appear on the home map for the authenticated user.
  *
  * The base filter enforces event visibility and block rules, then the map
  * filter narrows results to active events within the requested radius. Events
  * whose end time is now or in the past are excluded at the database layer so
  * clients do not need to decide whether an ended event is still displayable.
+ * Events starting more than MAP_SOON_WINDOW_MS from now are excluded too —
+ * the map only surfaces what's live or soon; far-future flares stay on the
+ * calendar until they enter the window. There is no exception for the host.
  *
  * MongoDB expects GeoJSON coordinates in [lng, lat] order and distances in
  * meters, while the public query uses latitude/longitude and radius in km.
  */
 export const getActiveMapEvents = async (userId: string, query: ActiveMapEventsQuery) => {
   const baseFilter = await buildAccessibleEventFilter(userId);
+  const now = new Date();
   const filter = withConditions(baseFilter, {
     status: "active",
-    endAt: { $gt: new Date() },
+    endAt: { $gt: now },
+    startAt: { $lte: new Date(now.getTime() + MAP_SOON_WINDOW_MS) },
     location: {
       $near: {
         $geometry: {

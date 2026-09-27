@@ -32,6 +32,7 @@ import { Switch } from "@/components/ui/switch"
 import {
   createEvent,
   createEventRequestFromDraft,
+  MAP_SOON_WINDOW_MS,
   type Audience,
   type DraftEvent,
   type DraftEventLocation,
@@ -278,6 +279,19 @@ export function buildTimeRange(args: {
     startAt: new Date(startMs).toISOString(),
     endAt: new Date(startMs + dur * 60_000).toISOString(),
   }
+}
+
+const LETS_LIGHT_IT_UP = "let's light it up"
+const ON_CALENDAR_NOW_TOAST = "on your calendar now, on the map on the day"
+
+// Picks the post-create feedback copy based on how far out the flare starts.
+// A flare within the map's soon window lights up immediately; one further
+// out only shows on the calendar until it enters that window, so the toast
+// says so instead of implying it's live on the map now.
+export function successToastForStart(startAt: string, createdAt: string): string {
+  const startsBeyondSoonWindow =
+    new Date(startAt).getTime() - new Date(createdAt).getTime() > MAP_SOON_WINDOW_MS
+  return startsBeyondSoonWindow ? ON_CALENDAR_NOW_TOAST : LETS_LIGHT_IT_UP
 }
 
 // Snap-point detents for the Google-Maps-style bottom sheet.
@@ -1221,7 +1235,7 @@ export function NewEventDrawer({
         }
         throw err
       }
-      showActionFeedback("let's light it up")
+      showActionFeedback(successToastForStart(timeRange.startAt, createdAt))
       onClose()
     } catch (error) {
       setSubmitError(formatSubmitError(error))

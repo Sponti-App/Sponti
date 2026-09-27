@@ -15,6 +15,11 @@ import type {
 const MIN = 60_000
 const DAY = 24 * 60 * MIN
 
+// Mirrors the api's MAP_SOON_WINDOW_MS (api/src/services/eventService.ts) —
+// how far a flare's start can be from now and still show up on the map
+// right away, rather than only on the calendar.
+export const MAP_SOON_WINDOW_MS = DAY
+
 export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
   return event.myRsvp === "going" || joinedIds.has(event.id)
 }
