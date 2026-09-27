@@ -843,7 +843,7 @@ export function MapView({
                       live
                     </TabsTrigger>
                     <TabsTrigger value="upcoming" className="text-xs">
-                      upcoming
+                      soon
                     </TabsTrigger>
                     <TabsTrigger value="all" className="text-xs">
                       all

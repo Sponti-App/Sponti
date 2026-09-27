@@ -6,6 +6,7 @@ import {
   inferEventType,
   resolveEventType,
   buildTimeRange,
+  successToastForStart,
 } from "./new-event-drawer"
 import { visibleSlotHeight } from "@/lib/use-sheet-visible-height"
 
@@ -260,5 +261,25 @@ describe("buildTimeRange", () => {
     const expectedEnd =
       new Date("2026-07-15T12:00:00.000Z").getTime() + 480 * 60_000
     expect(result.endAt).toBe(new Date(expectedEnd).toISOString())
+  })
+})
+
+describe("successToastForStart", () => {
+  const createdAt = "2026-07-15T12:00:00.000Z"
+
+  it("says let's light it up for a flare starting within the soon window", () => {
+    const startAt = new Date(
+      new Date(createdAt).getTime() + 2 * 60 * 60_000
+    ).toISOString()
+    expect(successToastForStart(startAt, createdAt)).toBe("let's light it up")
+  })
+
+  it("says on your calendar now for a flare starting beyond the soon window", () => {
+    const startAt = new Date(
+      new Date(createdAt).getTime() + 48 * 60 * 60_000
+    ).toISOString()
+    expect(successToastForStart(startAt, createdAt)).toBe(
+      "on your calendar now, on the map on the day"
+    )
   })
 })

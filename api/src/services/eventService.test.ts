@@ -84,6 +84,7 @@ const {
   getEvents,
   getMyUpcomingEvents,
   inviteEventMembers,
+  MAP_SOON_WINDOW_MS,
   reactivateEvent,
   removeEventMember,
   updateMyEventMembership,
@@ -1180,6 +1181,7 @@ describe("eventService.getActiveMapEvents", () => {
         {
           status: string;
           endAt: { $gt: Date };
+          startAt: { $lte: Date };
           location: {
             $near: {
               $geometry: { type: string; coordinates: [number, number] };
@@ -1194,11 +1196,80 @@ describe("eventService.getActiveMapEvents", () => {
     expect(mapCondition.status).toBe("active");
     expect(mapCondition.endAt.$gt).toBeInstanceOf(Date);
     expect(mapCondition.endAt.$gt.getTime()).toBe(NOW.getTime());
+    expect(mapCondition.startAt.$lte).toBeInstanceOf(Date);
+    expect(mapCondition.startAt.$lte.getTime()).toBe(NOW.getTime() + MAP_SOON_WINDOW_MS);
     expect(mapCondition.location.$near.$geometry).toEqual({
       type: "Point",
       coordinates: [9.9937, 53.5511],
     });
     expect(mapCondition.location.$near.$maxDistance).toBe(25_000);
+  });
+
+  const mockMapEventLookup = (events: Array<Record<string, unknown>>) => {
+    const leanEventsMock = vi.fn().mockResolvedValue(events);
+    const limitMock = vi.fn().mockReturnValue({ lean: leanEventsMock });
+    const sortMock = vi.fn().mockReturnValue({ limit: limitMock });
+    eventFindMock.mockReturnValue({ sort: sortMock });
+    const leanMembershipsMock = vi.fn().mockResolvedValue([]);
+    const selectMock = vi.fn().mockReturnValue({ lean: leanMembershipsMock });
+    eventMemberFindMock.mockReturnValue({ select: selectMock });
+  };
+
+  const baseMapEvent = {
+    _id: EVENT_ID,
+    hostId: USER_ID,
+    title: "coffee after class",
+    type: "drinks",
+    locationName: "Hamburg",
+    locationAddress: "Hamburg, Germany",
+    location: { type: "Point", coordinates: [9.9937, 53.5511] },
+    visibility: "public",
+    allowGuestInvites: "none",
+    guestInviteLimit: 0,
+    status: "active",
+  };
+
+  it("returns a flare starting in 1 hour", async () => {
+    mockMapEventLookup([
+      {
+        ...baseMapEvent,
+        startAt: new Date(NOW.getTime() + 60 * 60 * 1000),
+        endAt: new Date(NOW.getTime() + 2 * 60 * 60 * 1000),
+      },
+    ]);
+
+    const events = await getActiveMapEvents(USER_ID, { lat: 53.5511, lng: 9.9937, radiusKm: 25 });
+
+    expect(events).toHaveLength(1);
+  });
+
+  it("returns a live flare that started in the past and hasn't ended", async () => {
+    mockMapEventLookup([
+      {
+        ...baseMapEvent,
+        startAt: new Date(NOW.getTime() - 60 * 60 * 1000),
+        endAt: new Date(NOW.getTime() + 60 * 60 * 1000),
+      },
+    ]);
+
+    const events = await getActiveMapEvents(USER_ID, { lat: 53.5511, lng: 9.9937, radiusKm: 25 });
+
+    expect(events).toHaveLength(1);
+  });
+
+  it("excludes a flare starting in 25 hours from the query's soon window", async () => {
+    await getActiveMapEvents(USER_ID, { lat: 53.5511, lng: 9.9937, radiusKm: 25 });
+
+    const filter = eventFindMock.mock.calls[0]?.[0] as {
+      $and: [Record<string, unknown>, { startAt: { $lte: Date } }];
+    };
+    const mapCondition = filter.$and[1];
+    const twentyFiveHoursOut = new Date(NOW.getTime() + 25 * 60 * 60 * 1000);
+
+    // The service filters startAt <= now + MAP_SOON_WINDOW_MS at the query
+    // layer, so a flare 25h out (outside the 24h soon window) would never be
+    // matched by Mongo; this asserts the query bound itself excludes it.
+    expect(twentyFiveHoursOut.getTime()).toBeGreaterThan(mapCondition.startAt.$lte.getTime());
   });
 
   it("returns the stored event type for active map events", async () => {
