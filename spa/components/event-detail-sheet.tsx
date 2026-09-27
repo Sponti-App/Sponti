@@ -111,6 +111,9 @@ export function EventDetailSheet({
           <Drawer.Title className="sr-only">
             {displayEvent?.title ?? "Flare details"}
           </Drawer.Title>
+          <Drawer.Description className="sr-only">
+            event details and rsvp
+          </Drawer.Description>
 
           {displayEvent && (
             <div className="max-h-[62vh] overflow-y-auto px-4 pb-6" data-vaul-no-drag>
