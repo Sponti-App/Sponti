@@ -8,6 +8,8 @@ import { EVENT_TYPES } from "@/types/utils"
 export type Viewer = "host" | "joined" | "invited"
 /** "soon" = starts within the hour (layout D only; A–C treat it as upcoming). */
 export type Timing = "live" | "soon" | "upcoming"
+/** Pre-start arrival choice (layout D) — replaces minute chips. */
+export type Arrival = "on-time" | "late"
 /** Viewer's distance from the flare (layout D only). */
 export type Distance = "near" | "far"
 
@@ -43,6 +45,8 @@ export type MockGuest = MockPerson & {
   /** Only ever present for the host (the api strips it for everyone else). */
   willArriveAt?: string
   plusOne?: boolean
+  /** Before the start (layout D, "within 1h"): on time / running late. */
+  arrival?: Arrival
   isYou?: boolean
 }
 
@@ -61,6 +65,8 @@ export type MockFlare = {
   category: (typeof EVENT_TYPES)[number]["value"]
   visibility: "private" | "public"
   allowPlusOne: boolean
+  /** Guest limit; +1s count as heads towards it. */
+  guestLimit: number
   host: MockPerson
   startAt: string
   endAt: string
@@ -69,8 +75,10 @@ export type MockFlare = {
     address: string
     distance: string
     travel: string
-    /** Viewer is within 2 km — gates the route + directions in layout D. */
+    /** Viewer is within 2 km — gates the drawn route in layout D. */
     near: boolean
+    lat: number
+    lng: number
   }
   guests: MockGuest[]
   updates: MockUpdate[]
@@ -105,7 +113,7 @@ export function buildFlare(
   timing: Timing,
   myEtaMin: number,
   now: number,
-  opts: { distance?: Distance; joinedSeesEtas?: boolean } = {}
+  opts: { distance?: Distance } = {}
 ): MockFlare {
   const live = timing === "live"
   const soon = timing === "soon"
@@ -115,16 +123,16 @@ export function buildFlare(
       ? now + 40 * MIN
       : tomorrowAt(now, 19, 30)
   const endAt = live ? now + 95 * MIN : startAt + 3 * 60 * MIN
-  // ETAs are only collected while the flare is live or starts within 1h;
-  // for "soon", guests arrive around/after the start.
-  const eta = (min: number) =>
-    live ? iso(now + min * MIN) : soon ? iso(now + (min + 45) * MIN) : undefined
+  // Minute ETAs only while live; before the start ("soon") guests answer
+  // on time / running late instead.
+  const eta = (min: number) => (live ? iso(now + min * MIN) : undefined)
+  const arr = (a: Arrival) => (soon ? a : undefined)
   const near = (opts.distance ?? "near") === "near"
 
   const going: MockGuest[] = [
-    { ...JONAS, rsvp: "going", willArriveAt: eta(-8) },
-    { ...MAYA, rsvp: "going", willArriveAt: eta(5), plusOne: true },
-    { ...PRIYA, rsvp: "going", willArriveAt: eta(25) },
+    { ...JONAS, rsvp: "going", willArriveAt: eta(-8), arrival: arr("on-time") },
+    { ...MAYA, rsvp: "going", willArriveAt: eta(5), plusOne: true, arrival: arr("on-time") },
+    { ...PRIYA, rsvp: "going", willArriveAt: eta(25), arrival: arr("late") },
     { ...TOM, rsvp: "going", willArriveAt: soon ? undefined : eta(50) },
   ]
   if (viewer === "joined") {
@@ -141,12 +149,12 @@ export function buildFlare(
     { ...ANA, rsvp: "declined" },
   ]
 
-  // Mirror the api today: only the host gets other people's ETAs. Layout D
-  // follows the #162 decision that joined guests see them too.
-  const seesEtas =
-    viewer === "host" || (viewer === "joined" && opts.joinedSeesEtas)
+  // Mirror the api (#90, confirmed for #162): only the host gets other
+  // people's ETAs / arrival answers.
   const guests = [...going, ...others].map((g) =>
-    seesEtas || g.isYou ? g : { ...g, willArriveAt: undefined }
+    viewer === "host" || g.isYou
+      ? g
+      : { ...g, willArriveAt: undefined, arrival: undefined }
   )
 
   const updates: MockUpdate[] = live
@@ -182,6 +190,7 @@ export function buildFlare(
     category: "drinks",
     visibility: "private",
     allowPlusOne: true,
+    guestLimit: 8,
     host: HOST,
     startAt: iso(startAt),
     endAt: iso(endAt),
@@ -191,6 +200,8 @@ export function buildFlare(
       distance: near ? "1.1 km" : "8.4 km",
       travel: near ? "14 min walk" : "35 min by tube",
       near,
+      lat: 51.5098,
+      lng: -0.1254,
     },
     guests,
     updates,
@@ -303,6 +314,16 @@ export function statusLine(flare: MockFlare, now: number): string {
 export function isLive(flare: MockFlare, now: number): boolean {
   const start = new Date(flare.startAt).getTime()
   return start <= now && now < new Date(flare.endAt).getTime()
+}
+
+/** Google Maps link for the place (opens the app on phones). */
+export function mapsUrl(flare: MockFlare): string {
+  return `https://www.google.com/maps/search/?api=1&query=${flare.place.lat},${flare.place.lng}`
+}
+
+/** Spots left against the guest limit, counting +1s as heads. */
+export function spotsLeft(flare: MockFlare): number {
+  return Math.max(0, flare.guestLimit - goingCount(flare))
 }
 
 /** ETA option shows only when the flare is live or starts within 1h. */

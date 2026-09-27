@@ -13,7 +13,7 @@
 import { Suspense, useState, useSyncExternalStore } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useActionFeedback } from "@/components/action-feedback"
-import { buildFlare, type Distance, type Timing, type Viewer } from "./_mock"
+import { buildFlare, type Arrival, type Distance, type Timing, type Viewer } from "./_mock"
 import {
   PrototypeBar,
   VARIANTS,
@@ -77,6 +77,8 @@ function Prototype() {
   const showBar = params.get("bar") !== "0"
 
   const [myEta, setMyEta] = useState(15)
+  const [arrival, setArrival] = useState<Arrival>("on-time")
+  const [etaShared, setEtaShared] = useState(true)
   const [plusOne, setPlusOne] = useState(false)
 
   const update = (next: Partial<BarState>) => {
@@ -92,7 +94,7 @@ function Prototype() {
     timing,
     myEta,
     now,
-    variant === "D" ? { distance, joinedSeesEtas: true } : {}
+    variant === "D" ? { distance } : {}
   )
   const Variant = COMPONENTS[variant]
 
@@ -118,7 +120,17 @@ function Prototype() {
         now={now}
         myEta={myEta}
         plusOne={plusOne}
-        onEtaChange={setMyEta}
+        onEtaChange={(m) => {
+          setMyEta(m)
+          setEtaShared(true)
+        }}
+        arrival={arrival}
+        onArrivalChange={(a) => {
+          setArrival(a)
+          setEtaShared(true)
+        }}
+        etaShared={etaShared}
+        onEtaSharedChange={setEtaShared}
         onPlusOneChange={setPlusOne}
         onJoin={() => {
           showActionFeedback("you're in")

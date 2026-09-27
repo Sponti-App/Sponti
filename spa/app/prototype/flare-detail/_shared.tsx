@@ -17,6 +17,7 @@ import {
   tintFor,
   type MockFlare,
   type MockPerson,
+  type Arrival,
   type Distance,
   type Timing,
   type Viewer,
@@ -29,6 +30,11 @@ export type VariantProps = {
   myEta: number
   plusOne: boolean
   onEtaChange: (min: number) => void
+  /** Layout D only: pre-start arrival answer, and whether an ETA is shared. */
+  arrival?: Arrival
+  onArrivalChange?: (a: Arrival) => void
+  etaShared?: boolean
+  onEtaSharedChange?: (v: boolean) => void
   onPlusOneChange: (value: boolean) => void
   onJoin: () => void
   onLeave: () => void

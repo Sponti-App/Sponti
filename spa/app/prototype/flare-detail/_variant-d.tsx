@@ -1,23 +1,31 @@
 "use client"
 
-// PROTOTYPE (#162) — Variant D: B + C, per the #162 decisions (2026-09-27).
+// PROTOTYPE (#162) — Variant D: B + C, per the #162 decisions.
+// Round 1 (2026-09-27):
 // - B is the base: map on top, sheet below, B's section order.
 // - Icons instead of "when" / "where" labels.
 // - One pinned main button: invited → "join"; joined + host → "share an
 //   update", which turns the bar into C's composer. Edit / manage live in
 //   the header.
-// - Directions is secondary, and the walking route + directions only show
-//   when the viewer is within 2 km.
 // - Host keeps C's arrival board.
-// - Updates + ETAs: host and joined guests only. Invited sees a locked line.
-//   +1s: host only.
+// - Updates: host and joined guests only; invited sees a locked line.
 // - ETA option only when live or starting within 1h.
 // - Host updates render as announcements, guest updates plain.
+// Round 2 (Patrick's review):
+// - ETAs are host-only (#90). Guests never see other guests' ETAs.
+// - Joined guest's own row: "you're arriving in …" with real change /
+//   cancel buttons (cancel clears the ETA); "can't make it" stays separate.
+// - Before the start ("within 1h"): on time / running late, not minutes.
+// - Drawn route only within 2 km, and never for the host (open choice);
+//   "open in maps" always available. The place line opens Google Maps.
+// - +1s: never next to a name for guests; spots-left counts +1s as heads.
+// - Compact one-row join bar.
 
 import {
   ArrowLeft,
   Check,
   Clock,
+  ExternalLink,
   Flame,
   Lock,
   MapPin,
@@ -36,7 +44,6 @@ import { cn } from "@/lib/utils"
 import {
   ETA_OPTIONS,
   ago,
-  arrivalShort,
   categoryOf,
   clock,
   dayLabel,
@@ -45,9 +52,12 @@ import {
   goingCount,
   goingGuests,
   isLive,
+  mapsUrl,
+  spotsLeft,
   startsIn,
   statusLine,
-  type MockGuest,
+  type Arrival,
+  type MockFlare,
 } from "./_mock"
 import { CategoryTile, PersonAvatar, PlaceholderTag, type VariantProps } from "./_shared"
 import { HostArrivals, MapArt } from "./_variant-b"
@@ -55,6 +65,11 @@ import { ArrivalBoard } from "./_variant-c"
 
 const TAB_TRIGGER =
   "text-sm data-active:bg-card data-active:text-primary dark:data-active:bg-card dark:data-active:text-primary"
+
+const ARRIVAL_LABEL: Record<Arrival, string> = {
+  "on-time": "on time",
+  late: "running late",
+}
 
 export function VariantD(props: VariantProps) {
   const { flare, viewer, now, onStub } = props
@@ -66,6 +81,7 @@ export function VariantD(props: VariantProps) {
   const going = goingGuests(flare)
   const messages = flare.updates.filter((u) => u.kind === "message")
   const hostFirst = flare.host.displayName.split(" ")[0].toLowerCase()
+  const maps = mapsUrl(flare)
 
   const [tab, setTab] = useState("guests")
   const [composing, setComposing] = useState(false)
@@ -77,14 +93,17 @@ export function VariantD(props: VariantProps) {
     window.setTimeout(() => inputRef.current?.focus(), 0)
   }
 
-  // Guests never see +1s, so their count is people, not heads.
+  // Guests never see +1s next to a name, so their going count is people;
+  // spots left always counts heads (+1s included).
   const countLabel = isHost ? `${goingCount(flare)} going` : `${going.length} going`
+  const spots = spotsLeft(flare)
 
   return (
-    <div className="pb-28">
-      {/* ---- map hero (B) — route only when near ---- */}
+    <div className={viewer === "invited" ? "pb-20" : "pb-24"}>
+      {/* ---- map hero (B) ---- */}
       <div className="relative h-56 overflow-hidden bg-muted">
-        <MapArt flare={flare} showRoute={near} />
+        {/* Drawn walking route: within 2 km only, never for the host. */}
+        <MapArt flare={flare} showRoute={near && !isHost} />
         <div className="absolute inset-x-0 top-0 flex justify-between px-4 pt-2">
           <HeaderButton label="back" onClick={() => onStub("back")}>
             <ArrowLeft className="h-4 w-4" />
@@ -106,21 +125,19 @@ export function VariantD(props: VariantProps) {
             )}
           </div>
         </div>
-        {near ? (
-          <button
-            type="button"
-            onClick={() => onStub("directions")}
-            className="absolute right-4 bottom-9 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs shadow-sm"
-          >
-            <Navigation className="h-3.5 w-3.5 text-primary" />
-            <span className="font-medium">directions</span>
-            <span className="text-muted-foreground">· {flare.place.travel}</span>
-          </button>
-        ) : (
-          <span className="absolute right-4 bottom-9 rounded-full bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
-            {flare.place.distance} away
+        {/* "open in maps" — always available, near or far. */}
+        <a
+          href={maps}
+          target="_blank"
+          rel="noreferrer"
+          className="absolute right-4 bottom-9 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs shadow-sm"
+        >
+          <Navigation className="h-3.5 w-3.5 text-primary" />
+          <span className="font-medium">open in maps</span>
+          <span className="text-muted-foreground">
+            · {near && !isHost ? flare.place.travel : `${flare.place.distance} away`}
           </span>
-        )}
+        </a>
       </div>
 
       {/* ---- sheet ---- */}
@@ -153,7 +170,7 @@ export function VariantD(props: VariantProps) {
           )}
         </div>
 
-        {/* when | where — icons, no labels */}
+        {/* when | where — icons, no labels; the place opens Google Maps */}
         <div className="mt-4 grid grid-cols-2 divide-x divide-border/60 border-y border-border/60 py-3">
           <div className="flex gap-2 pr-3">
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-label="when" />
@@ -164,15 +181,24 @@ export function VariantD(props: VariantProps) {
               <p className="text-xs text-muted-foreground">until {clock(flare.endAt)}</p>
             </div>
           </div>
-          <div className="flex gap-2 pl-3">
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-label="where" />
+          <a
+            href={maps}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`open ${flare.place.name} in google maps`}
+            className="flex gap-2 pl-3 active:opacity-70"
+          >
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{flare.place.name}</p>
+              <p className="flex items-center gap-1 truncate text-sm font-medium underline decoration-border underline-offset-2">
+                {flare.place.name}
+                <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+              </p>
               <p className="truncate text-xs text-muted-foreground">
                 {flare.place.distance} · {flare.place.address}
               </p>
             </div>
-          </div>
+          </a>
         </div>
 
         {/* host note (B) */}
@@ -190,8 +216,8 @@ export function VariantD(props: VariantProps) {
           </div>
         </div>
 
-        {/* your ETA — joined guest, only while ETAs are relevant */}
-        {viewer === "joined" && withEta && <YourEta {...props} />}
+        {/* your plan — joined guest, only while an ETA applies */}
+        {viewer === "joined" && withEta && <YourPlan {...props} live={live} hostFirst={hostFirst} />}
 
         <Tabs value={tab} onValueChange={setTab} className="mt-5">
           <TabsList className="h-9 w-full">
@@ -205,15 +231,19 @@ export function VariantD(props: VariantProps) {
           </TabsList>
 
           <TabsContent value="guests" className="pt-2">
+            <p className="mb-2 text-xs text-muted-foreground">
+              {`about ${spots} ${spots === 1 ? "spot" : "spots"} left · ${flare.guestLimit} max`}
+            </p>
             {isHost ? (
-              withEta ? (
+              live ? (
                 <ArrivalBoard flare={flare} now={now} />
+              ) : withEta ? (
+                <HostSoonBoard flare={flare} />
               ) : (
                 <HostArrivals flare={flare} now={now} live={false} onStub={onStub} />
               )
-            ) : viewer === "joined" && withEta ? (
-              <GuestEtaList guests={going} now={now} />
             ) : (
+              // Guests: names only. No ETAs, no +1s.
               <div className="grid grid-cols-4 gap-y-3">
                 {going.map((g) => (
                   <div key={g.id} className="flex flex-col items-center gap-1">
@@ -232,7 +262,10 @@ export function VariantD(props: VariantProps) {
               <PlaceholderTag>#140 thread</PlaceholderTag>
             </div>
             {!canSeeThread ? (
-              <LockedLine count={messages.length} />
+              <p className="flex items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+                <Lock className="h-3.5 w-3.5" />
+                {`${messages.length} ${messages.length === 1 ? "update" : "updates"} · join to see`}
+              </p>
             ) : (
               <ol className="flex flex-col gap-3">
                 {messages.map((u) =>
@@ -273,8 +306,8 @@ export function VariantD(props: VariantProps) {
 
       <PinnedBarD
         {...props}
+        live={live}
         withEta={withEta}
-        hostFirst={hostFirst}
         composing={composing}
         inputRef={inputRef}
         onCompose={openComposer}
@@ -284,32 +317,28 @@ export function VariantD(props: VariantProps) {
   )
 }
 
-function LockedLine({ count }: { count: number }) {
-  return (
-    <p className="flex items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-      <Lock className="h-3.5 w-3.5" />
-      {`${count} ${count === 1 ? "update" : "updates"} · join to see`}
-    </p>
+/** Host, before the start: who said on time / running late. */
+function HostSoonBoard({ flare }: { flare: MockFlare }) {
+  const order = { "on-time": 0, late: 1 } as const
+  const going = [...goingGuests(flare)].sort(
+    (a, b) => (a.arrival ? order[a.arrival] : 2) - (b.arrival ? order[b.arrival] : 2)
   )
-}
-
-/** Joined guests see ETAs (decision), never +1s. */
-function GuestEtaList({ guests, now }: { guests: MockGuest[]; now: number }) {
-  const sorted = [...guests].sort((a, b) => {
-    const ta = a.willArriveAt ? new Date(a.willArriveAt).getTime() : Infinity
-    const tb = b.willArriveAt ? new Date(b.willArriveAt).getTime() : Infinity
-    return ta - tb
-  })
   return (
     <ul>
-      {sorted.map((g) => (
+      {going.map((g) => (
         <li key={g.id} className="flex items-center gap-2.5 py-1.5">
           <PersonAvatar person={g} className="size-7" />
           <span className="min-w-0 flex-1 truncate text-sm">
-            {g.isYou ? "you" : g.displayName.toLowerCase()}
+            {g.displayName.toLowerCase()}
+            {g.plusOne && <span className="text-muted-foreground"> +1</span>}
           </span>
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {g.willArriveAt ? arrivalShort(g.willArriveAt, now) : "no eta"}
+          <span
+            className={cn(
+              "text-xs",
+              g.arrival === "late" ? "font-medium text-accent" : "text-muted-foreground"
+            )}
+          >
+            {g.arrival ? ARRIVAL_LABEL[g.arrival] : "no answer"}
           </span>
         </li>
       ))}
@@ -317,46 +346,92 @@ function GuestEtaList({ guests, now }: { guests: MockGuest[]; now: number }) {
   )
 }
 
-function YourEta({
+/** Joined guest's own plan: real change / cancel buttons. */
+function YourPlan({
   myEta,
   onEtaChange,
+  arrival = "on-time",
+  onArrivalChange,
+  etaShared = true,
+  onEtaSharedChange,
   onLeave,
-}: VariantProps) {
+  live,
+  hostFirst,
+}: VariantProps & { live: boolean; hostFirst: string }) {
   const [open, setOpen] = useState(false)
+  const summary = !etaShared
+    ? "no arrival time shared"
+    : live
+      ? `you're arriving in ${etaLabel(myEta)}`
+      : arrival === "on-time"
+        ? "you'll be on time"
+        : "you're running late"
+
   return (
     <div className="mt-4 border-l-[3px] border-l-accent pl-3">
-      <div className="flex items-center justify-between gap-2 text-sm">
-        <p>
-          <span className="font-medium">{`you're there in ${etaLabel(myEta)}`}</span>
-          <span className="text-xs text-muted-foreground">{" · everyone going can see this"}</span>
-        </p>
-        <button
-          type="button"
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">{summary}</p>
+          <p className="text-xs text-muted-foreground">
+            {etaShared ? `only ${hostFirst} sees this` : `${hostFirst} won't see an eta`}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-full"
           onClick={() => setOpen((v) => !v)}
-          className="shrink-0 text-xs font-medium text-primary"
         >
-          change
-        </button>
+          {etaShared ? "change" : "add"}
+        </Button>
+        {etaShared && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="rounded-full text-muted-foreground"
+            onClick={() => {
+              onEtaSharedChange?.(false)
+              setOpen(false)
+            }}
+          >
+            cancel
+          </Button>
+        )}
       </div>
       {open && (
         <div className="mt-2 flex gap-1.5">
-          {ETA_OPTIONS.map((m) => (
-            <EtaChip
-              key={m}
-              min={m}
-              selected={m === myEta}
-              onClick={() => {
-                onEtaChange(m)
-                setOpen(false)
-              }}
-            />
-          ))}
+          {live
+            ? ETA_OPTIONS.map((m) => (
+                <Chip
+                  key={m}
+                  selected={etaShared && m === myEta}
+                  onClick={() => {
+                    onEtaChange(m)
+                    setOpen(false)
+                  }}
+                >
+                  {etaLabel(m)}
+                </Chip>
+              ))
+            : (["on-time", "late"] as const).map((a) => (
+                <Chip
+                  key={a}
+                  selected={etaShared && a === arrival}
+                  onClick={() => {
+                    onArrivalChange?.(a)
+                    setOpen(false)
+                  }}
+                >
+                  {ARRIVAL_LABEL[a]}
+                </Chip>
+              ))}
         </div>
       )}
+      {/* Leaving is a separate, secondary action. */}
       <button
         type="button"
         onClick={onLeave}
-        className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground"
+        className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground"
       >
         <X className="h-3 w-3" /> can&apos;t make it
       </button>
@@ -369,20 +444,22 @@ function PinnedBarD({
   viewer,
   myEta,
   plusOne,
+  arrival = "on-time",
+  onArrivalChange,
   onEtaChange,
   onPlusOneChange,
   onJoin,
   onLeave,
   onStub,
+  live,
   withEta,
-  hostFirst,
   composing,
   inputRef,
   onCompose,
   onCloseComposer,
 }: VariantProps & {
+  live: boolean
   withEta: boolean
-  hostFirst: string
   composing: boolean
   inputRef: React.RefObject<HTMLInputElement | null>
   onCompose: () => void
@@ -390,29 +467,38 @@ function PinnedBarD({
 }) {
   const [draft, setDraft] = useState("")
   const bar =
-    "fixed inset-x-0 bottom-(--nav-h) z-30 flex flex-col gap-2 border-t border-border/60 bg-background/95 px-4 py-3 backdrop-blur"
+    "fixed inset-x-0 bottom-(--nav-h) z-30 border-t border-border/60 bg-background/95 backdrop-blur"
 
   if (viewer === "invited") {
+    // Compact: one caption line + one row (arrival chips · +1 · join).
     return (
-      <div className={bar}>
+      <div className={cn(bar, "px-4 pt-1.5 pb-2")}>
         {withEta && (
-          <div className="flex items-center gap-1.5">
-            <span className="shrink-0 pr-1 text-xs text-muted-foreground">
-              {`tell ${hostFirst}`}
-            </span>
-            {ETA_OPTIONS.map((m) => (
-              <EtaChip key={m} min={m} selected={m === myEta} onClick={() => onEtaChange(m)} />
-            ))}
-          </div>
+          <p className="mb-1 text-xs leading-none text-muted-foreground">
+            {live ? "when will you get there?" : "will you make the start?"}
+          </p>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          {withEta &&
+            (live
+              ? ETA_OPTIONS.map((m) => (
+                  <Chip key={m} compact selected={m === myEta} onClick={() => onEtaChange(m)}>
+                    {m >= 60 ? "1h" : `${m}m`}
+                  </Chip>
+                ))
+              : (["on-time", "late"] as const).map((a) => (
+                  <Chip key={a} compact selected={a === arrival} onClick={() => onArrivalChange?.(a)}>
+                    {a === "on-time" ? "on time" : "late"}
+                  </Chip>
+                )))}
           {flare.allowPlusOne && (
             <button
               type="button"
               onClick={() => onPlusOneChange(!plusOne)}
               aria-pressed={plusOne}
+              aria-label="bringing a +1"
               className={cn(
-                "h-11 shrink-0 rounded-full border px-4 text-sm",
+                "h-10 w-10 shrink-0 rounded-full border text-xs",
                 plusOne
                   ? "border-primary bg-card font-medium text-primary"
                   : "border-border text-muted-foreground"
@@ -422,21 +508,20 @@ function PinnedBarD({
             </button>
           )}
           <Button
-            className="h-11 flex-1 rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+            className="h-10 min-w-0 flex-1 rounded-full bg-accent px-3 text-accent-foreground hover:bg-accent/90"
             onClick={onJoin}
           >
-            <Check className="h-4 w-4" />
-            {withEta ? `join · there in ${etaLabel(myEta)}` : "join"}
+            <Check className="h-4 w-4" /> join
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="can't make it"
-            className="h-11 w-11 shrink-0 rounded-full text-muted-foreground"
-            onClick={() => onStub("can't make it")}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          {!withEta && (
+            <Button
+              variant="ghost"
+              className="h-10 shrink-0 rounded-full px-3 text-xs text-muted-foreground"
+              onClick={() => onStub("can't make it")}
+            >
+              can&apos;t make it
+            </Button>
+          )}
         </div>
       </div>
     )
@@ -445,7 +530,7 @@ function PinnedBarD({
   if (composing) {
     return (
       <form
-        className={bar}
+        className={cn(bar, "px-4 py-2")}
         onSubmit={(e) => {
           e.preventDefault()
           onStub(viewer === "host" ? "post announcement" : "post update")
@@ -477,47 +562,51 @@ function PinnedBarD({
   }
 
   return (
-    <div className={bar}>
+    <div className={cn(bar, "flex items-center gap-2 px-4 py-2")}>
       <Button
-        className="h-11 w-full rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+        className="h-11 flex-1 rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
         onClick={onCompose}
       >
         <Send className="h-4 w-4" /> share an update
       </Button>
       {viewer === "joined" && !withEta && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          className="h-11 shrink-0 rounded-full px-3 text-xs text-muted-foreground"
           onClick={onLeave}
-          className="text-xs text-muted-foreground"
         >
           can&apos;t make it
-        </button>
+        </Button>
       )}
     </div>
   )
 }
 
-function EtaChip({
-  min,
+function Chip({
   selected,
+  compact = false,
   onClick,
+  children,
 }: {
-  min: number
   selected: boolean
+  compact?: boolean
   onClick: () => void
+  children: React.ReactNode
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={selected}
       className={cn(
-        "h-8 flex-1 rounded-full border text-xs",
+        "rounded-full border text-xs whitespace-nowrap",
+        compact ? "h-10 shrink-0 px-2.5" : "h-8 flex-1",
         selected
           ? "border-primary bg-card font-medium text-primary"
           : "border-border text-muted-foreground"
       )}
     >
-      {etaLabel(min)}
+      {children}
     </button>
   )
 }
@@ -543,4 +632,3 @@ function HeaderButton({
     </Button>
   )
 }
-
