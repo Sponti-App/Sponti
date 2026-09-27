@@ -22,6 +22,7 @@ import {
 } from "./api/events"
 import { featureFlags } from "./feature-flags"
 import { resolveConfiguredBaseUrl } from "./http"
+import { useRefetchOnFocus } from "./use-refetch-on-focus"
 
 const API_BASE = resolveConfiguredBaseUrl(
   process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
@@ -101,6 +102,12 @@ export function useMapEvents(
     if (DEMO_MODE || !apiConfigured()) return
     return subscribeToEventsChanged(() => setTick((n) => n + 1))
   }, [])
+
+  // Refetch when the tab/app regains focus (#197): otherwise a flare or rsvp
+  // change made on another account only appears once this view remounts.
+  useRefetchOnFocus(() => setTick((n) => n + 1), {
+    enabled: !DEMO_MODE && apiConfigured(),
+  })
 
   useEffect(() => {
     if (DEMO_MODE || !apiConfigured()) return
@@ -217,6 +224,9 @@ export function useCalendarEvents(): EventsState {
     return subscribeToEventsChanged(() => setTick((n) => n + 1))
   }, [fetchesFromApi])
 
+  // Refetch on focus/visibilitychange (#197), same as the map hook above.
+  useRefetchOnFocus(() => setTick((n) => n + 1), { enabled: fetchesFromApi })
+
   useEffect(() => {
     if (!fetchesFromApi) return
     const ac = new AbortController()
@@ -279,6 +289,9 @@ export function useMyFlares(): MyFlaresState {
     if (!apiEnabled) return
     return subscribeToEventsChanged(() => setTick((n) => n + 1))
   }, [apiEnabled])
+
+  // Refetch on focus/visibilitychange (#197), same as the map hook above.
+  useRefetchOnFocus(() => setTick((n) => n + 1), { enabled: apiEnabled })
 
   useEffect(() => {
     if (!apiEnabled) return

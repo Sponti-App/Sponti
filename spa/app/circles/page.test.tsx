@@ -491,3 +491,31 @@ describe("CirclesPage add to flares prompt", () => {
     )
   })
 })
+
+// #158: an accepted connection request (or a new invite) only showed up
+// once this screen remounted. It now refetches on window focus, the same
+// shared mechanism the events hooks use (#197).
+describe("CirclesPage refetch on focus", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.fetchAcceptedConnections.mockResolvedValue([ada])
+    mocks.fetchIncomingConnectionRequests.mockResolvedValue([])
+    mocks.fetchOutgoingConnectionRequests.mockResolvedValue([])
+    mocks.fetchBlockedUsers.mockResolvedValue([])
+    mocks.fetchMyCircles.mockResolvedValue([circle()])
+  })
+
+  it("reloads connections and requests when the window regains focus", async () => {
+    renderCirclesPage()
+    await waitFor(() =>
+      expect(mocks.fetchAcceptedConnections).toHaveBeenCalledTimes(1)
+    )
+
+    window.dispatchEvent(new Event("focus"))
+
+    await waitFor(() =>
+      expect(mocks.fetchAcceptedConnections).toHaveBeenCalledTimes(2)
+    )
+    expect(mocks.fetchIncomingConnectionRequests).toHaveBeenCalledTimes(2)
+  })
+})
