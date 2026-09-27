@@ -328,6 +328,8 @@ export function CalendarView({
               selected={selected}
               today={today}
               eventsByDay={eventsByDay}
+              maxDate={maxDate}
+              scrollContainerRef={scrollContainerRef}
               onSelectDay={(d: Date) => {
                 setAnchor(d)
                 setSelected(d)
@@ -343,8 +345,6 @@ export function CalendarView({
                   })
                 }
               }}
-              onEventSelect={onEventSelect}
-              joinedIds={joinedIds}
             />
           </div>
         )}
