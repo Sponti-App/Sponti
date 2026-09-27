@@ -141,3 +141,28 @@ describe("EventDetailPage guest limit (#181)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("server exploded")
   })
 })
+
+// #158: the guest list and rsvp count only caught up with another account's
+// change once this page remounted. It now refetches on window focus, the
+// same shared mechanism the events hooks use (#197).
+describe("EventDetailPage refetch on focus", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("refetches the event when the window regains focus", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ attendingCount: 0 })
+    )
+    render(<EventDetailPage />)
+    expect(await screen.findByText("0 of 2 going")).toBeInTheDocument()
+    expect(mocks.fetchHostedEventById).toHaveBeenCalledTimes(1)
+
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ attendingCount: 1 })
+    )
+    window.dispatchEvent(new Event("focus"))
+
+    expect(await screen.findByText("1 of 2 going")).toBeInTheDocument()
+  })
+})

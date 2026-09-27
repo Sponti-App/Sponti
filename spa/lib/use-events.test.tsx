@@ -85,3 +85,35 @@ describe("use-events data source", () => {
     expect(fetchCalendarEvents).not.toHaveBeenCalled()
   })
 })
+
+// #197: the host was seeing "0 going" with the rsvp already in their feed,
+// stuck until a manual refresh or navigation. Map/calendar/my-flares now
+// refetch when the tab/app regains focus (via the shared useRefetchOnFocus
+// hook), not just on the 60s staleness check or a local emitEventsChanged.
+describe("use-events refetch on focus", () => {
+  it("refetches map events when the window regains focus", async () => {
+    fetchMapEvents.mockResolvedValue([])
+    const { useMapEvents } = await loadHooks({ apiBase: "https://api.test" })
+
+    renderHook(() => useMapEvents(COORDS, 10))
+    await waitFor(() => expect(fetchMapEvents).toHaveBeenCalledTimes(1))
+
+    window.dispatchEvent(new Event("focus"))
+
+    await waitFor(() => expect(fetchMapEvents).toHaveBeenCalledTimes(2))
+  })
+
+  it("refetches calendar events on visibilitychange while visible", async () => {
+    fetchCalendarEvents.mockResolvedValue({ items: [] })
+    const { useCalendarEvents } = await loadHooks({
+      apiBase: "https://api.test",
+    })
+
+    renderHook(() => useCalendarEvents())
+    await waitFor(() => expect(fetchCalendarEvents).toHaveBeenCalledTimes(1))
+
+    document.dispatchEvent(new Event("visibilitychange"))
+
+    await waitFor(() => expect(fetchCalendarEvents).toHaveBeenCalledTimes(2))
+  })
+})

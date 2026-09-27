@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
@@ -31,6 +31,7 @@ import {
   type HostedEvent,
 } from "@/lib/api/events"
 import { HttpError } from "@/lib/http"
+import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus"
 import { cn } from "@/lib/utils"
 import type { LucideIcon } from "lucide-react"
 
@@ -80,6 +81,29 @@ export default function EventDetailPage() {
 
     return () => ac.abort()
   }, [params.id])
+
+  // Refetch when the tab/app regains focus (#158): otherwise the guest list
+  // and rsvp count only catch up with another account's changes once this
+  // page remounts. Deliberately doesn't touch `loading`/`error` so it
+  // doesn't flash the full loading screen on a background refresh.
+  const refetchAbortRef = useRef<AbortController | null>(null)
+  useEffect(() => {
+    return () => refetchAbortRef.current?.abort()
+  }, [])
+  useRefetchOnFocus(() => {
+    refetchAbortRef.current?.abort()
+    const ac = new AbortController()
+    refetchAbortRef.current = ac
+    fetchHostedEventById(params.id, ac.signal)
+      .then((nextEvent) => {
+        setEvent(nextEvent)
+        setRsvp(rsvpChoiceFromApi(nextEvent.myRsvp))
+      })
+      .catch((err) => {
+        if (ac.signal.aborted) return
+        console.warn("[Sponti] event refetch failed:", err)
+      })
+  })
 
   const addMessage = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()

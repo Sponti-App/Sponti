@@ -64,6 +64,7 @@ import {
 } from "@/lib/api/blocks"
 import { inviteEventGuests } from "@/lib/api/events"
 import { searchUsers, type UserSearchResult } from "@/lib/api/users"
+import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus"
 
 type Tab = "circles" | "people"
 
@@ -175,6 +176,11 @@ export default function CirclesPage() {
 
   const refreshBackendData = (): void =>
     setBackendVersion((version) => version + 1)
+
+  // Refetch on focus/visibilitychange (#158): otherwise an accepted request
+  // or a new invite from another account only shows up once this screen
+  // remounts.
+  useRefetchOnFocus(refreshBackendData, { enabled: apiEnabled })
 
   // Circles tab state
   const [expandedCircleId, setExpandedCircleId] = useState<string | null>(null)
