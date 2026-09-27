@@ -418,6 +418,83 @@ describe("eventService public flare joining database behavior", () => {
   });
 });
 
+describe("eventService attendee ETA visibility database behavior (#90)", () => {
+  const rsvpNotices = (eventId: string) =>
+    Notification.find({ targetId: eventId, type: "event_rsvp_change" }).lean();
+
+  it("shows the host a going attendee's ETA, but leaves it off the response for anyone else", async () => {
+    const { eventId, arrival } = await seedFlareWithGoingGuest("private");
+
+    const hostView = await getEventById(HOST_ID, eventId);
+    expect(
+      hostView.attendees.find((a) => a._id === GOING_GUEST_ID)?.willArriveAt
+    ).toBe(arrival.toISOString());
+
+    const guestView = await getEventById(GOING_GUEST_ID, eventId);
+    expect(
+      guestView.attendees.find((a) => a._id === GOING_GUEST_ID)
+    ).not.toHaveProperty("willArriveAt");
+  });
+
+  it("tells the host when a going member only updates their arrival time", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("private");
+    const newArrival = new Date(Date.now() + 45 * 60 * 1000);
+
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, {
+      memberWillArriveAt: newArrival,
+    });
+
+    const member = await EventMember.findOne({ eventId, userId: GOING_GUEST_ID }).lean();
+    expect(member?.rsvpStatus).toBe("going");
+    expect(member?.memberWillArriveAt?.getTime()).toBe(newArrival.getTime());
+
+    const notices = await rsvpNotices(eventId);
+    expect(notices).toHaveLength(1);
+    expect(String(notices[0]?.userId)).toBe(HOST_ID);
+    expect(String(notices[0]?.actorId)).toBe(GOING_GUEST_ID);
+    expect(notices[0]?.title).toMatch(/arrival time/);
+
+    const hostView = await getEventById(HOST_ID, eventId);
+    expect(
+      hostView.attendees.find((a) => a._id === GOING_GUEST_ID)?.willArriveAt
+    ).toBe(newArrival.toISOString());
+  });
+
+  it("doesn't notify again when a going member resubmits the same arrival time", async () => {
+    const { eventId, arrival } = await seedFlareWithGoingGuest("private");
+
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, {
+      memberWillArriveAt: arrival,
+    });
+
+    expect(await rsvpNotices(eventId)).toHaveLength(0);
+  });
+
+  it("clears a stale arrival time once a going member declines", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("private");
+
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, { rsvpStatus: "declined" });
+
+    const member = await EventMember.findOne({ eventId, userId: GOING_GUEST_ID }).lean();
+    expect(member).toMatchObject({ rsvpStatus: "declined", memberWillArriveAt: null });
+  });
+
+  it("includes the arrival time in the RSVP-change notice when someone joins going with an ETA", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("public");
+    const arrival = new Date(Date.now() + 20 * 60 * 1000);
+
+    await updateMyEventMembership(STRANGER_ID, eventId, {
+      rsvpStatus: "going",
+      memberWillArriveAt: arrival,
+    });
+
+    const notices = await rsvpNotices(eventId);
+    const notice = notices.find((n) => String(n.actorId) === STRANGER_ID);
+    expect(notice?.metadata?.memberWillArriveAt).toBe(arrival.toISOString());
+    expect(notice?.message).toMatch(/arriving/);
+  });
+});
+
 describe("eventService public/private switching database behavior", () => {
   it("keeps going joiners and invited guests when a flare goes private, and hides it from everyone else", async () => {
     const { eventId } = await seedFlareWithGoingGuest("public");

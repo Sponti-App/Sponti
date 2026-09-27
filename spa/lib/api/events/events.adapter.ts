@@ -71,6 +71,25 @@ export function formatRelativeStatus(
   })
 }
 
+/**
+ * A relative arrival label for a going attendee's ETA ("arriving in 12 min"),
+ * shown only to the host (see api's `attachEventPeople`). Relative rather
+ * than a clock time so it stays correct against the viewer's own clock
+ * without needing a timezone from the server.
+ */
+export function formatArrivalStatus(
+  willArriveAt: string,
+  now: number = Date.now()
+): string {
+  const diffMin = Math.round((new Date(willArriveAt).getTime() - now) / MIN)
+  if (diffMin <= 0) return "should be there"
+  if (diffMin < 60) return `arriving in ${diffMin} min`
+  const hours = Math.round(diffMin / 60)
+  return hours <= 1
+    ? "arriving in about 1 hr"
+    : `arriving in about ${hours} hrs`
+}
+
 export function avatarText(bgColor: string): string {
   return bgColor === "bg-accent" || bgColor === "bg-stone-800"
     ? "text-accent-foreground"
@@ -189,9 +208,13 @@ export function adaptApiEvent(api: ApiEvent): EventItem {
     attendees: (api.attendees ?? []).map((a) => {
       const name = a.displayName || a.username || "guest"
       return {
+        id: a._id,
         name,
         avatar: name.charAt(0).toUpperCase(),
         color: "bg-stone-300",
+        // The api only sends this field at all when the caller is this
+        // event's host; it's normalized to null here for any other viewer.
+        willArriveAt: a.willArriveAt ?? null,
       }
     }),
     going: api.goingCount ?? api.attendees?.length ?? 0,
@@ -222,6 +245,9 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
       displayName: a.displayName || a.username || "guest",
       username: a.username,
       avatarUrl: a.avatarUrl ?? null,
+      // The api only sends this field at all when the caller is this
+      // event's host; it's normalized to null here for any other viewer.
+      willArriveAt: a.willArriveAt ?? null,
     })),
     visibility: api.visibility,
     guestLimit: api.guestInviteLimit,

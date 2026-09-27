@@ -915,22 +915,48 @@ describe("eventService.updateMyEventMembership", () => {
     );
   });
 
-  it("does not create an RSVP notification for ETA-only or unchanged RSVP updates", async () => {
+  it("tells the host (#90) when a going member only moves their ETA, but not on a no-op resubmit", async () => {
     mockEventFindOneSelectLean({
       _id: EVENT_ID,
       hostId: USER_ID,
       title: "coffee after class",
     });
-    mockEventMemberFindOneSession({
+    const membership = {
       rsvpStatus: "going",
+      memberWillArriveAt: null as Date | null,
       save: vi.fn().mockResolvedValue(undefined),
-    });
+    };
+    mockEventMemberFindOneSession(membership);
     mockGoingSpotReservationGranted();
+    notificationCreateMock.mockResolvedValue([{}]);
 
+    // An ETA-only update — the RSVP status doesn't change, but the host
+    // still hasn't been told about this member's arrival time before.
     await updateMyEventMembership(GUEST_ID, EVENT_ID, {
       memberWillArriveAt: new Date("2026-05-14T13:10:00.000Z"),
     });
 
+    expect(notificationCreateMock).toHaveBeenCalledOnce();
+    const etaDocs = notificationCreateMock.mock.calls[0]?.[0] as Array<{
+      userId: unknown;
+      actorId: unknown;
+      title: string;
+      metadata: { rsvpStatus?: string; memberWillArriveAt?: string | null };
+    }>;
+    expect(String(etaDocs[0]?.userId)).toBe(USER_ID);
+    expect(String(etaDocs[0]?.actorId)).toBe(GUEST_ID);
+    expect(etaDocs[0]?.title).toMatch(/arrival time/);
+    expect(etaDocs[0]?.metadata).toEqual(
+      expect.objectContaining({
+        rsvpStatus: "going",
+        memberWillArriveAt: "2026-05-14T13:10:00.000Z",
+      })
+    );
+
+    notificationCreateMock.mockClear();
+
+    // Resubmitting the same RSVP status, without touching the arrival time,
+    // is a genuine no-op and stays silent.
     await updateMyEventMembership(GUEST_ID, EVENT_ID, {
       rsvpStatus: "going",
     });
@@ -1043,6 +1069,43 @@ describe("eventService.getEventById", () => {
       displayName: "Martin",
       avatarUrl: null,
     });
+    // The caller is this event's host, so the going guest's row carries
+    // willArriveAt (#90) — null here since the fixture member has none set.
+    expect(result.attendees).toEqual([
+      {
+        _id: GUEST_ID,
+        username: "alex",
+        displayName: "Alex",
+        avatarUrl: null,
+        willArriveAt: null,
+      },
+    ]);
+  });
+
+  it("leaves willArriveAt off attendee rows for a non-host viewer", async () => {
+    const event = eventDocument();
+    const leanMock = vi.fn().mockResolvedValue(event);
+    eventFindOneMock.mockReturnValue({ lean: leanMock });
+    eventMemberFindMock
+      .mockReturnValueOnce(eventMemberFindResult([{ eventId: EVENT_ID, rsvpStatus: "going" }]))
+      .mockReturnValueOnce(eventMemberFindResult([{ eventId: EVENT_ID, rsvpStatus: "going" }]))
+      .mockReturnValueOnce(
+        eventMemberFindResult([
+          { eventId: EVENT_ID, userId: USER_ID },
+          { eventId: EVENT_ID, userId: GUEST_ID },
+        ])
+      );
+    getUsersByIdsMock.mockResolvedValue(
+      new Map([
+        [USER_ID, { _id: USER_ID, username: "martin", displayName: "Martin", avatarUrl: null }],
+        [GUEST_ID, { _id: GUEST_ID, username: "alex", displayName: "Alex", avatarUrl: null }],
+      ])
+    );
+
+    // GUEST_ID is going, but not the host — they shouldn't see their own
+    // fellow attendee's arrival time either.
+    const result = await getEventById(GUEST_ID, EVENT_ID);
+
     expect(result.attendees).toEqual([
       {
         _id: GUEST_ID,
@@ -1051,6 +1114,7 @@ describe("eventService.getEventById", () => {
         avatarUrl: null,
       },
     ]);
+    expect(result.attendees[0]).not.toHaveProperty("willArriveAt");
   });
 });
 
