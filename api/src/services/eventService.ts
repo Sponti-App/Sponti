@@ -42,9 +42,15 @@ type EventUserIdentity = {
   username?: string;
   avatarUrl?: string | null;
 };
+// Only ever populated for the event's host — see `attachEventPeople`. Other
+// viewers get attendee rows without this field at all (not just `null`), so
+// there's nothing in the response payload for a non-host to read.
+type EventAttendeeIdentity = EventUserIdentity & {
+  willArriveAt?: string | null;
+};
 type EventWithPeople<T> = Omit<T, "hostId"> & {
   hostId: string | EventUserIdentity | null;
-  attendees: EventUserIdentity[];
+  attendees: EventAttendeeIdentity[];
 };
 type EventWithHostProfile<T> = Omit<T, "hostId"> & {
   hostId: string | EventUserIdentity | null;
@@ -181,7 +187,13 @@ const attachHostProfiles = async <T extends { hostId: unknown }>(
 };
 
 const attachEventPeople = async <T extends { _id: unknown; hostId: unknown }>(
-  events: T[]
+  events: T[],
+  // The requesting user's id. When it matches an event's host, that event's
+  // attendee rows get a `willArriveAt` field (#90) — every other viewer,
+  // including other going members, gets rows without the field at all. Pass
+  // it whenever the caller knows who's asking; omit it for host-agnostic
+  // listings where no one should see anyone else's ETA.
+  viewerId?: string
 ): Promise<Array<EventWithPeople<T>>> => {
   if (events.length === 0) {
     return [];
@@ -193,7 +205,7 @@ const attachEventPeople = async <T extends { _id: unknown; hostId: unknown }>(
     rsvpStatus: "going",
     removedAt: null,
   })
-    .select("eventId userId")
+    .select("eventId userId memberWillArriveAt")
     .lean();
 
   const userIds = uniqueObjectIdStrings([
@@ -204,14 +216,21 @@ const attachEventPeople = async <T extends { _id: unknown; hostId: unknown }>(
   const hostIdByEventId = new Map(
     events.map((event) => [String(event._id), extractHostId(event.hostId)])
   );
-  const attendeesByEventId = new Map<string, EventUserIdentity[]>();
+  const attendeesByEventId = new Map<string, EventAttendeeIdentity[]>();
 
   for (const member of goingMembers) {
     const eventId = String(member.eventId);
     const userId = String(member.userId);
-    if (userId === hostIdByEventId.get(eventId)) continue;
+    const hostId = hostIdByEventId.get(eventId);
+    if (userId === hostId) continue;
     const attendees = attendeesByEventId.get(eventId) ?? [];
-    attendees.push(toEventUserIdentity(userId, users.get(userId)));
+    const identity: EventAttendeeIdentity = toEventUserIdentity(userId, users.get(userId));
+    if (viewerId && hostId === viewerId) {
+      identity.willArriveAt = member.memberWillArriveAt
+        ? new Date(member.memberWillArriveAt).toISOString()
+        : null;
+    }
+    attendees.push(identity);
     attendeesByEventId.set(eventId, attendees);
   }
 
@@ -531,7 +550,7 @@ export const getEventById = async (userId: string, eventId: string) => {
 
   const withStats = await attachMemberStats([event]);
   const withRsvp = await attachMyRsvp(userId, withStats);
-  const withPeople = await attachEventPeople(withRsvp);
+  const withPeople = await attachEventPeople(withRsvp, userId);
   const enriched = withPeople[0];
 
   if (!enriched) {
@@ -597,9 +616,9 @@ export const getMyUpcomingEvents = async (userId: string, query: MyUpcomingEvent
     attachMyRsvp(userId, pastWithStats),
   ]);
   const [hostedWithPeople, invitedWithPeople, pastWithPeople] = await Promise.all([
-    attachEventPeople(hostedWithRsvp),
-    attachEventPeople(invitedWithRsvp),
-    attachEventPeople(pastWithRsvp),
+    attachEventPeople(hostedWithRsvp, userId),
+    attachEventPeople(invitedWithRsvp, userId),
+    attachEventPeople(pastWithRsvp, userId),
   ]);
 
   return {
@@ -1207,6 +1226,7 @@ export const updateMyEventMembership = async (
     }
 
     const previousRsvpStatus = membership.rsvpStatus;
+    const previousMemberWillArriveAt = membership.memberWillArriveAt ?? null;
     const nextRsvpStatus = input.rsvpStatus;
     // A stranger declining a public flare isn't news to the host; only a join is.
     const rsvpStatusChanged =
@@ -1244,6 +1264,13 @@ export const updateMyEventMembership = async (
 
     if ("memberWillArriveAt" in input) {
       membership.memberWillArriveAt = input.memberWillArriveAt ?? null;
+    }
+
+    // A stale arrival time shouldn't linger once someone says they're not
+    // coming — clear it regardless of what (if anything) this request itself
+    // sent for memberWillArriveAt.
+    if (membership.rsvpStatus === "declined") {
+      membership.memberWillArriveAt = null;
     }
 
     try {
@@ -1296,6 +1323,20 @@ export const updateMyEventMembership = async (
       await releaseGoingSpot(event._id, session);
     }
 
+    const finalMemberWillArriveAt = membership.memberWillArriveAt ?? null;
+    const memberWillArriveAtChanged =
+      "memberWillArriveAt" in input &&
+      (previousMemberWillArriveAt?.getTime() ?? null) !==
+        (finalMemberWillArriveAt?.getTime() ?? null);
+    // A going member who only moves their arrival time doesn't trip
+    // rsvpStatusChanged (their RSVP didn't change), but the host still wants
+    // to know — today that update was silent.
+    const etaOnlyChanged =
+      !rsvpStatusChanged &&
+      previousRsvpStatus === "going" &&
+      membership.rsvpStatus === "going" &&
+      memberWillArriveAtChanged;
+
     if (rsvpStatusChanged && nextRsvpStatus) {
       await createEventRsvpChangeNotification({
         eventId: String(event._id),
@@ -1303,6 +1344,18 @@ export const updateMyEventMembership = async (
         attendeeId: userId,
         eventTitle: event.title,
         rsvpStatus: nextRsvpStatus,
+        memberWillArriveAt: finalMemberWillArriveAt,
+        session,
+      });
+    } else if (etaOnlyChanged) {
+      await createEventRsvpChangeNotification({
+        eventId: String(event._id),
+        hostId: String(event.hostId),
+        attendeeId: userId,
+        eventTitle: event.title,
+        rsvpStatus: "going",
+        memberWillArriveAt: finalMemberWillArriveAt,
+        etaOnly: true,
         session,
       });
     }

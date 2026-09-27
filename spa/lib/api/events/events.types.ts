@@ -36,7 +36,15 @@ export interface EventItem {
     address?: string
     coordinates?: [number, number]
   }
-  attendees: Array<{ name: string; avatar: string; color: string }>
+  attendees: Array<{
+    id?: string
+    name: string
+    avatar: string
+    color: string
+    // Only ever populated for the host — see api's `attachEventPeople`.
+    // Absent (not just null) for any other viewer.
+    willArriveAt?: string | null
+  }>
   going: number
 }
 
@@ -105,6 +113,9 @@ export type HostedEvent = {
     displayName: string
     username?: string
     avatarUrl?: string | null
+    // Only ever populated for the host — see api's `attachEventPeople`.
+    // Absent (not just null) for any other viewer.
+    willArriveAt?: string | null
   }>
   guestLimit: number
   // #181: the limit is a hard cap only while this is "none" (no +1/re-share).
@@ -252,6 +263,8 @@ export type ApiEvent = {
     displayName?: string
     username?: string
     avatarUrl?: string | null
+    // Only present when the caller is this event's host (#90).
+    willArriveAt?: string | null
   }>
   createdAt?: string
   updatedAt?: string

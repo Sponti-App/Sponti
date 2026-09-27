@@ -27,6 +27,7 @@ import { EventAvatarStack, initials } from "@/components/event-avatar-stack"
 import {
   deriveStatus,
   fetchHostedEventById,
+  formatArrivalStatus,
   updateMyRsvp,
   type HostedEvent,
 } from "@/lib/api/events"
@@ -342,7 +343,11 @@ export default function EventDetailPage() {
 
           <div className="px-4 pt-1 pb-6">
             <TabsContent value="guests" className="m-0">
-              <GuestList guests={guests} count={event.attendingCount} />
+              <GuestList
+                guests={guests}
+                count={event.attendingCount}
+                showEta={isHost}
+              />
             </TabsContent>
             <TabsContent value="thread" className="m-0">
               <ThreadBlock
@@ -477,13 +482,15 @@ function InfoRowGuests({
 function GuestList({
   guests,
   count,
+  showEta,
 }: {
   guests: NonNullable<HostedEvent["attendees"]>
   count: number
+  showEta: boolean
 }) {
   return (
     <section className="pt-4">
-      <GuestGroup label={`going (${count})`} guests={guests} />
+      <GuestGroup label={`going (${count})`} guests={guests} showEta={showEta} />
     </section>
   )
 }
@@ -491,9 +498,11 @@ function GuestList({
 function GuestGroup({
   label,
   guests,
+  showEta,
 }: {
   label: string
   guests: NonNullable<HostedEvent["attendees"]>
+  showEta: boolean
 }) {
   return (
     <div>
@@ -529,6 +538,11 @@ function GuestGroup({
                 {guest.username && (
                   <p className="truncate text-xs text-muted-foreground">
                     @{guest.username.toLowerCase()}
+                  </p>
+                )}
+                {showEta && guest.willArriveAt && (
+                  <p className="truncate text-xs text-accent">
+                    {formatArrivalStatus(guest.willArriveAt)}
                   </p>
                 )}
               </div>

@@ -22,6 +22,7 @@ import {
 import {
   avatarText,
   eventCoords,
+  formatArrivalStatus,
   formatEventTime,
   formatRelativeStatus,
   isImminent,
@@ -91,6 +92,13 @@ export function EventDetailSheet({
   const hostLabel = user && displayEvent?.host?.id === user.id
     ? "hosted by you"
     : `hosted by ${displayEvent?.host?.name || "Host"}`
+
+  // The api only sends willArriveAt on attendee rows to the flare's host, so
+  // this is naturally empty for anyone else — no separate client-side check
+  // needed beyond the isHost render guard below.
+  const attendeesWithEta = (displayEvent?.attendees ?? []).filter(
+    (a) => a.willArriveAt
+  )
 
   return (
     <Drawer.Root
@@ -213,6 +221,22 @@ export function EventDetailSheet({
                     </p>
                   </div>
                 </div>
+
+                {/* Attendee ETAs — host only; the api only sends
+                    willArriveAt to the host in the first place. */}
+                {isHost && attendeesWithEta.length > 0 && (
+                  <div className="mt-2 flex flex-col gap-1">
+                    {attendeesWithEta.map((a, i) => (
+                      <div
+                        key={a.id ?? i}
+                        className="flex items-center justify-between text-xs text-muted-foreground"
+                      >
+                        <span>{a.name}</span>
+                        <span>{formatArrivalStatus(a.willArriveAt as string)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* ETA Selection — imminent + not yet joined + not host */}
