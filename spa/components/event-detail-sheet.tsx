@@ -9,7 +9,6 @@ import { useAuth } from "@/components/auth-provider"
 import {
   MapPin,
   Coffee,
-  Users,
   Activity,
   Flame,
   Check,
@@ -71,9 +70,10 @@ export function EventDetailSheet({
   const [displayEvent, setDisplayEvent] = useState<EventItem | null>(event)
   useEffect(() => {
     if (event) {
+      // Resets the sheet's local "last shown" state to track the incoming
+      // prop; the rule only flags this first setState call in the effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setDisplayEvent(event)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedEta(null)
     }
   }, [event])
@@ -111,6 +111,9 @@ export function EventDetailSheet({
           <Drawer.Title className="sr-only">
             {displayEvent?.title ?? "Flare details"}
           </Drawer.Title>
+          <Drawer.Description className="sr-only">
+            event details and rsvp
+          </Drawer.Description>
 
           {displayEvent && (
             <div className="max-h-[62vh] overflow-y-auto px-4 pb-6" data-vaul-no-drag>
@@ -137,6 +140,10 @@ export function EventDetailSheet({
               <Card className="mb-4 border-0 bg-muted p-3">
                 <div className="flex items-start gap-2">
                   {displayEvent.host.avatarUrl ? (
+                    // Static export (required for the Capacitor iOS/Android wrapper) can't
+                    // use next/image's server-side optimizer, and host avatar URLs are
+                    // arbitrary/remote, so a plain <img> is intentional here.
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={displayEvent.host.avatarUrl}
                       alt={displayEvent.host.name}

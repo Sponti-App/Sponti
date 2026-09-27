@@ -25,7 +25,6 @@ import {
 } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  avatarText,
   distanceFromUser,
   eventCoords,
   EventType,
@@ -372,7 +371,6 @@ function warnIfMissingMapId(
   if (warnedNoMapId) return
   if (apiKey && !mapId && process.env.NODE_ENV !== "production") {
     warnedNoMapId = true
-    // eslint-disable-next-line no-console
     console.warn(
       "[Sponti] NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is set but NEXT_PUBLIC_GOOGLE_MAPS_ID is not — AdvancedMarker will render blank. Add a Map ID in the Google Cloud console."
     )

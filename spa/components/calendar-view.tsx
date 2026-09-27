@@ -5,7 +5,6 @@ import Link from "next/link"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useAuth } from "@/components/auth-provider"
 import MonthCalendar from "@/components/month-calendar"
 import {
   Check,
@@ -82,36 +81,6 @@ function endOfNextMonth(date: Date): Date {
 function isSameDay(a: Date, b: Date): boolean {
   return dayKey(a) === dayKey(b)
 }
-// Week-view formatting helpers
-function ordinal(n: number): string {
-  const v = n % 100
-  if (v >= 11 && v <= 13) return `${n}th`
-  switch (n % 10) {
-    case 1:
-      return `${n}st`
-    case 2:
-      return `${n}nd`
-    case 3:
-      return `${n}rd`
-    default:
-      return `${n}th`
-  }
-}
-
-// ISO-style: a week "belongs to" the month containing its Thursday.
-// Returns e.g. "1st week of May 2026".
-// Week-view formatting helpers
-function weekHeaderLabel(weekStart: Date): string {
-  const thursday = addDays(weekStart, 3)
-  const month = thursday.getMonth()
-  const year = thursday.getFullYear()
-  let count = 0
-  for (let day = 1; day <= thursday.getDate(); day++) {
-    if (new Date(year, month, day).getDay() === 4) count++
-  }
-  return `${ordinal(count)} week of ${MONTH_NAMES[month]} ${year}`
-}
-
 function formatSectionLabel(day: Date, today: Date): string {
   if (isSameDay(day, today)) return "today"
   if (isSameDay(day, addDays(today, 1))) return "tomorrow"

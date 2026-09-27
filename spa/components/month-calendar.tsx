@@ -11,7 +11,6 @@ export default function MonthCalendar({
     today,
     eventsByDay,
     onSelectDay,
-    onEventSelect,
     joinedIds,
 }: {
     anchorMonth: Date

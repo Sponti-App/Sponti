@@ -1301,6 +1301,9 @@ export function NewEventDrawer({
           >
             <Drawer.Handle className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
             <Drawer.Title className="sr-only">light a flare</Drawer.Title>
+            <Drawer.Description className="sr-only">
+              compose a new flare
+            </Drawer.Description>
 
             {/* Header */}
             <div className="flex shrink-0 items-center justify-between px-4 pt-2 pb-3">
