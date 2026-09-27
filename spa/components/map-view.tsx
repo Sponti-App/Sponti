@@ -361,6 +361,29 @@ const SHEET_PX = { mini: 64, peek: 268 } as const
 // before the ResizeObserver fires.
 const NAV_RESERVED_CSS = "var(--sponti-nav-h, 64px)"
 
+// Distance from the viewport bottom to the top of whatever is docked at the
+// bottom, published on the document root the same way BottomNav publishes
+// --sponti-nav-h. The map view is the only writer (see the effect below); it
+// resets the property on unmount so other routes fall back to plain
+// --sponti-nav-h. Bottom-docked UI that isn't part of the sheet/nav — e.g.
+// the ActionFeedbackProvider toast — reads this instead of assuming the nav
+// is the only thing at the bottom of the screen (#112).
+export function bottomOccupiedCss(state: PeekState): string {
+  switch (state) {
+    case "mini":
+      // Mini sheet sits above the nav — reserve both.
+      return `calc(${NAV_RESERVED_CSS} + ${SHEET_PX.mini}px)`
+    case "peek":
+      // Peek sheet sits at bottom: 0, so the nav sits behind (inside) it.
+      return `${SHEET_PX.peek}px`
+    case "expanded":
+      // The expanded sheet also sits at bottom: 0 and covers the nav, but
+      // bottom-docked UI should float just above the nav rather than fight
+      // the tall sheet for space.
+      return NAV_RESERVED_CSS
+  }
+}
+
 // One-shot dev warning: AdvancedMarker silently renders nothing when the map
 // has no mapId. Surfacing this early saves a debugging session.
 let warnedNoMapId = false
@@ -400,6 +423,25 @@ export function MapView({
   const [peekState, setPeekState] = useState<PeekState>("peek")
   const dragStartY = useRef<number | null>(null)
   const dragStartTime = useRef<number | null>(null)
+
+  // Publish --sponti-bottom-occupied so bottom-docked UI outside this
+  // component (the action-feedback toast) can sit above the sheet instead of
+  // assuming the nav is the only thing docked at the bottom. Reset on
+  // unmount — not on every peekState change — so other routes cleanly fall
+  // back to --sponti-nav-h instead of flashing an unset value between writes.
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--sponti-bottom-occupied",
+      bottomOccupiedCss(peekState)
+    )
+  }, [peekState])
+  useEffect(() => {
+    return () => {
+      document.documentElement.style.removeProperty(
+        "--sponti-bottom-occupied"
+      )
+    }
+  }, [])
 
   // Long-press on the map canvas → open flare creation drawer.
   // 500 ms is the standard long-press threshold on mobile.
