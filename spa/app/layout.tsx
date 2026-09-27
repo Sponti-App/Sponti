@@ -24,21 +24,12 @@ export const metadata: Metadata = {
   title: 'v0 App',
   description: 'Created with v0',
   generator: 'v0.app',
+  // `icon.svg` / `icon-light-32x32.png` / `icon-dark-32x32.png` were referenced
+  // here but never existed in `public/`, so every page load 404'd on them (#106).
+  // `app/favicon.ico` already covers the browser tab icon via Next's file
+  // convention, so it's left out of this object. `apple-icon.png` is the one
+  // asset we do have (reused from the Capacitor iOS app icon).
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
     apple: '/apple-icon.png',
   },
 }
