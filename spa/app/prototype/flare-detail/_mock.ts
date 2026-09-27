@@ -6,7 +6,10 @@ import type { LucideIcon } from "lucide-react"
 import { EVENT_TYPES } from "@/types/utils"
 
 export type Viewer = "host" | "joined" | "invited"
-export type Timing = "live" | "upcoming"
+/** "soon" = starts within the hour (layout D only; A–C treat it as upcoming). */
+export type Timing = "live" | "soon" | "upcoming"
+/** Viewer's distance from the flare (layout D only). */
+export type Distance = "near" | "far"
 
 export const VIEWERS: { key: Viewer; label: string }[] = [
   { key: "host", label: "host" },
@@ -16,6 +19,16 @@ export const VIEWERS: { key: Viewer; label: string }[] = [
 export const TIMINGS: { key: Timing; label: string }[] = [
   { key: "live", label: "live" },
   { key: "upcoming", label: "upcoming" },
+]
+/** Layout D's three-way timing toggle. */
+export const TIMINGS_D: { key: Timing; label: string }[] = [
+  { key: "live", label: "live" },
+  { key: "soon", label: "within 1h" },
+  { key: "upcoming", label: "later" },
+]
+export const DISTANCES: { key: Distance; label: string }[] = [
+  { key: "near", label: "near ≤2km" },
+  { key: "far", label: "far" },
 ]
 
 export type MockPerson = {
@@ -56,6 +69,8 @@ export type MockFlare = {
     address: string
     distance: string
     travel: string
+    /** Viewer is within 2 km — gates the route + directions in layout D. */
+    near: boolean
   }
   guests: MockGuest[]
   updates: MockUpdate[]
@@ -89,18 +104,28 @@ export function buildFlare(
   viewer: Viewer,
   timing: Timing,
   myEtaMin: number,
-  now: number
+  now: number,
+  opts: { distance?: Distance; joinedSeesEtas?: boolean } = {}
 ): MockFlare {
   const live = timing === "live"
-  const startAt = live ? now - 25 * MIN : tomorrowAt(now, 19, 30)
+  const soon = timing === "soon"
+  const startAt = live
+    ? now - 25 * MIN
+    : soon
+      ? now + 40 * MIN
+      : tomorrowAt(now, 19, 30)
   const endAt = live ? now + 95 * MIN : startAt + 3 * 60 * MIN
-  const eta = (min: number) => (live ? iso(now + min * MIN) : undefined)
+  // ETAs are only collected while the flare is live or starts within 1h;
+  // for "soon", guests arrive around/after the start.
+  const eta = (min: number) =>
+    live ? iso(now + min * MIN) : soon ? iso(now + (min + 45) * MIN) : undefined
+  const near = (opts.distance ?? "near") === "near"
 
   const going: MockGuest[] = [
     { ...JONAS, rsvp: "going", willArriveAt: eta(-8) },
     { ...MAYA, rsvp: "going", willArriveAt: eta(5), plusOne: true },
     { ...PRIYA, rsvp: "going", willArriveAt: eta(25) },
-    { ...TOM, rsvp: "going", willArriveAt: eta(50) },
+    { ...TOM, rsvp: "going", willArriveAt: soon ? undefined : eta(50) },
   ]
   if (viewer === "joined") {
     going.push({
@@ -116,10 +141,12 @@ export function buildFlare(
     { ...ANA, rsvp: "declined" },
   ]
 
-  // Guests never get ETAs — mirror the api, which only sends willArriveAt
-  // to the host.
+  // Mirror the api today: only the host gets other people's ETAs. Layout D
+  // follows the #162 decision that joined guests see them too.
+  const seesEtas =
+    viewer === "host" || (viewer === "joined" && opts.joinedSeesEtas)
   const guests = [...going, ...others].map((g) =>
-    viewer === "host" || g.isYou ? g : { ...g, willArriveAt: undefined }
+    seesEtas || g.isYou ? g : { ...g, willArriveAt: undefined }
   )
 
   const updates: MockUpdate[] = live
@@ -129,8 +156,18 @@ export function buildFlare(
         activity("a3", MAYA, "joined with a +1", now - 40 * MIN),
         message("m1", HOST, "got the big table at the back, left of the bar", now - 20 * MIN),
         message("m2", PRIYA, "running a bit late, save me a seat", now - 6 * MIN),
+        message("m3", JONAS, "they've got the good ipa on tap", now - 2 * MIN),
       ]
-    : [
+    : soon
+      ? [
+          activity("a1", HOST, "lit this flare", now - 50 * MIN),
+          activity("a2", JONAS, "joined", now - 35 * MIN),
+          activity("a3", MAYA, "joined with a +1", now - 20 * MIN),
+          message("m1", HOST, "table's booked under sarah, see you there", now - 15 * MIN),
+          message("m2", MAYA, "running for the bus, 5 min behind", now - 10 * MIN),
+          message("m3", PRIYA, "might be 10 min late", now - 3 * MIN),
+        ]
+      : [
         activity("a1", HOST, "lit this flare", now - 3 * 60 * MIN),
         activity("a2", JONAS, "joined", now - 2 * 60 * MIN),
         activity("a3", MAYA, "joined with a +1", now - 90 * MIN),
@@ -151,8 +188,9 @@ export function buildFlare(
     place: {
       name: "the harp",
       address: "47 chandos pl, covent garden",
-      distance: "0.6 mi",
-      travel: "12 min walk",
+      distance: near ? "1.1 km" : "8.4 km",
+      travel: near ? "14 min walk" : "35 min by tube",
+      near,
     },
     guests,
     updates,
@@ -265,6 +303,12 @@ export function statusLine(flare: MockFlare, now: number): string {
 export function isLive(flare: MockFlare, now: number): boolean {
   const start = new Date(flare.startAt).getTime()
   return start <= now && now < new Date(flare.endAt).getTime()
+}
+
+/** ETA option shows only when the flare is live or starts within 1h. */
+export function etaAvailable(flare: MockFlare, now: number): boolean {
+  const start = new Date(flare.startAt).getTime()
+  return start - now <= 60 * MIN && now < new Date(flare.endAt).getTime()
 }
 
 export function startsIn(flare: MockFlare, now: number): string {

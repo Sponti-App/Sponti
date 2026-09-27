@@ -191,7 +191,7 @@ export function VariantC(props: VariantProps) {
   )
 }
 
-function ArrivalBoard({ flare, now }: { flare: MockFlare; now: number }) {
+export function ArrivalBoard({ flare, now }: { flare: MockFlare; now: number }) {
   const going = byArrival(goingGuests(flare))
   const nextId = going.find(
     (g) => g.willArriveAt && arrivalShort(g.willArriveAt, now) !== "there"

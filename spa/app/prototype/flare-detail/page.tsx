@@ -3,24 +3,34 @@
 // PROTOTYPE (#162) — throwaway route, NOT production.
 // Question: what should the flare detail page look like?
 // Three structurally different layouts of /event/[id], on local mock data,
-// switchable via ?variant=A|B|C, with ?viewer=host|joined|invited and
-// ?timing=live|upcoming. ?bar=0 hides the prototype bar (for screenshots).
+// switchable via ?variant=A|B|C|D, with ?viewer=host|joined|invited and
+// ?timing=live|soon|upcoming (soon = starts within 1h; D only) and, for D,
+// ?distance=near|far. ?bar=0 hides the prototype bar (for screenshots).
+// D (the default) combines B and C per the #162 decisions of 2026-09-27.
 // Once the team picks a layout: record the verdict on #162, delete this
 // folder, and rebuild the winner properly in app/event/[id] (#139 first).
 
 import { Suspense, useState, useSyncExternalStore } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useActionFeedback } from "@/components/action-feedback"
-import { buildFlare, type Timing, type Viewer } from "./_mock"
-import { PrototypeBar, VARIANTS, type VariantKey, type VariantProps } from "./_shared"
+import { buildFlare, type Distance, type Timing, type Viewer } from "./_mock"
+import {
+  PrototypeBar,
+  VARIANTS,
+  type BarState,
+  type VariantKey,
+  type VariantProps,
+} from "./_shared"
 import { VariantA } from "./_variant-a"
 import { VariantB } from "./_variant-b"
 import { VariantC } from "./_variant-c"
+import { VariantD } from "./_variant-d"
 
 const COMPONENTS: Record<VariantKey, (p: VariantProps) => React.ReactNode> = {
   A: VariantA,
   B: VariantB,
   C: VariantC,
+  D: VariantD,
 }
 
 export default function FlareDetailPrototypePage() {
@@ -58,15 +68,18 @@ function Prototype() {
   const { showActionFeedback } = useActionFeedback()
   const now = useSyncExternalStore(subscribeClock, clockSnapshot, serverClockSnapshot)
 
-  const variant = pick(params.get("variant"), VARIANTS.map((v) => v.key), "A")
+  const variant = pick(params.get("variant"), VARIANTS.map((v) => v.key), "D")
   const viewer = pick<Viewer>(params.get("viewer"), ["host", "joined", "invited"], "invited")
-  const timing = pick<Timing>(params.get("timing"), ["live", "upcoming"], "live")
+  const rawTiming = pick<Timing>(params.get("timing"), ["live", "soon", "upcoming"], "live")
+  // "within 1h" only exists in D; A–C show it as upcoming, as before.
+  const timing: Timing = variant !== "D" && rawTiming === "soon" ? "upcoming" : rawTiming
+  const distance = pick<Distance>(params.get("distance"), ["near", "far"], "near")
   const showBar = params.get("bar") !== "0"
 
   const [myEta, setMyEta] = useState(15)
   const [plusOne, setPlusOne] = useState(false)
 
-  const update = (next: Partial<{ variant: VariantKey; viewer: Viewer; timing: Timing }>) => {
+  const update = (next: Partial<BarState>) => {
     const sp = new URLSearchParams(params.toString())
     for (const [k, v] of Object.entries(next)) sp.set(k, v)
     router.replace(`?${sp.toString()}`, { scroll: false })
@@ -74,7 +87,13 @@ function Prototype() {
 
   if (now === null) return null
 
-  const flare = buildFlare(viewer, timing, myEta, now)
+  const flare = buildFlare(
+    viewer,
+    timing,
+    myEta,
+    now,
+    variant === "D" ? { distance, joinedSeesEtas: true } : {}
+  )
   const Variant = COMPONENTS[variant]
 
   return (
@@ -84,10 +103,16 @@ function Prototype() {
       style={{ "--nav-h": "68px" } as React.CSSProperties}
     >
       {showBar && (
-        <PrototypeBar variant={variant} viewer={viewer} timing={timing} onChange={update} />
+        <PrototypeBar
+          variant={variant}
+          viewer={viewer}
+          timing={timing}
+          distance={distance}
+          onChange={update}
+        />
       )}
       <Variant
-        key={`${variant}-${viewer}-${timing}`}
+        key={`${variant}-${viewer}-${timing}-${distance}`}
         flare={flare}
         viewer={viewer}
         now={now}

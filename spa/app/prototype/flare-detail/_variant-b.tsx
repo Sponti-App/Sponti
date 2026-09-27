@@ -360,7 +360,7 @@ function ActionsB({
   )
 }
 
-function HostArrivals({
+export function HostArrivals({
   flare,
   now,
   live,
@@ -430,7 +430,7 @@ function HostArrivals({
 }
 
 /** Stylised map stand-in (no Maps key needed). Streets, a park, the pin. */
-function MapArt({ flare, showRoute }: { flare: MockFlare; showRoute: boolean }) {
+export function MapArt({ flare, showRoute }: { flare: MockFlare; showRoute: boolean }) {
   const tint = tintFor(flare)
   const { icon: Icon } = categoryOf(flare)
   return (

@@ -9,12 +9,15 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { initials } from "@/components/event-avatar-stack"
 import { cn } from "@/lib/utils"
 import {
+  DISTANCES,
   TIMINGS,
+  TIMINGS_D,
   VIEWERS,
   categoryOf,
   tintFor,
   type MockFlare,
   type MockPerson,
+  type Distance,
   type Timing,
   type Viewer,
 } from "./_mock"
@@ -88,6 +91,7 @@ export const VARIANTS = [
   { key: "A", name: "compact header" },
   { key: "B", name: "map + sheet" },
   { key: "C", name: "live feed" },
+  { key: "D", name: "b + c (decided)" },
 ] as const
 export type VariantKey = (typeof VARIANTS)[number]["key"]
 
@@ -96,17 +100,23 @@ export type VariantKey = (typeof VARIANTS)[number]["key"]
  * owns the bottom edge). Dark, monospace-ish pill so it's obviously not
  * part of the design being judged. ← / → cycle layouts.
  */
+export type BarState = {
+  variant: VariantKey
+  viewer: Viewer
+  timing: Timing
+  distance: Distance
+}
+
 export function PrototypeBar({
   variant,
   viewer,
   timing,
+  distance,
   onChange,
-}: {
-  variant: VariantKey
-  viewer: Viewer
-  timing: Timing
-  onChange: (next: Partial<{ variant: VariantKey; viewer: Viewer; timing: Timing }>) => void
+}: BarState & {
+  onChange: (next: Partial<BarState>) => void
 }) {
+  const isD = variant === "D"
   const index = VARIANTS.findIndex((v) => v.key === variant)
   const cycle = (dir: 1 | -1) =>
     onChange({
@@ -154,11 +164,21 @@ export function PrototypeBar({
           onChange={(v) => onChange({ viewer: v })}
         />
         <Seg
-          options={TIMINGS}
-          value={timing}
+          options={isD ? TIMINGS_D : TIMINGS}
+          value={!isD && timing === "soon" ? "upcoming" : timing}
           onChange={(t) => onChange({ timing: t })}
         />
       </div>
+      {isD && (
+        <div className="mt-1 flex items-center gap-2">
+          <span className="text-zinc-400">viewer distance</span>
+          <Seg
+            options={DISTANCES}
+            value={distance}
+            onChange={(d) => onChange({ distance: d })}
+          />
+        </div>
+      )}
     </div>
   )
 }
