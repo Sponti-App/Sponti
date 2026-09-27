@@ -68,7 +68,12 @@ export function ActionFeedbackProvider({
   return (
     <ActionFeedbackContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)_+_5.75rem)] z-[70] flex justify-center px-4">
+      {/* Sits just above whatever is docked at the bottom of the screen: the
+          bottom nav everywhere, or the map sheet on the map view. The map
+          view is the only writer of --sponti-bottom-occupied (see
+          map-view.tsx); everywhere else it falls back to --sponti-nav-h,
+          which already includes the safe-area inset (#112). */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--sponti-bottom-occupied,var(--sponti-nav-h,64px))+12px)] z-[70] flex justify-center px-4">
         {current && (
           <div
             key={current.id}
