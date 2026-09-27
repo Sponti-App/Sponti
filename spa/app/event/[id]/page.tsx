@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
@@ -10,7 +10,6 @@ import {
   MapPin,
   MoreVertical,
   Pencil,
-  Send,
 } from "lucide-react"
 import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
@@ -24,6 +23,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/components/auth-provider"
 import { EventAvatarStack, initials } from "@/components/event-avatar-stack"
+import { EventThread, EventThreadLocked } from "@/components/event-thread"
 import {
   deriveStatus,
   fetchHostedEventById,
@@ -54,10 +54,6 @@ export default function EventDetailPage() {
   const [rsvp, setRsvp] = useState<RsvpChoice>(null)
   const [rsvpError, setRsvpError] = useState<string | null>(null)
   const [rsvpSaving, setRsvpSaving] = useState(false)
-  const [message, setMessage] = useState("")
-  const [threadMessages, setThreadMessages] = useState<string[]>([
-    "updates and replies will live here once backend thread support is added.",
-  ])
 
   useEffect(() => {
     const ac = new AbortController()
@@ -105,14 +101,6 @@ export default function EventDetailPage() {
         console.warn("[Sponti] event refetch failed:", err)
       })
   })
-
-  const addMessage = (e: React.FormEvent<HTMLFormElement>): void => {
-    e.preventDefault()
-    const trimmed = message.trim()
-    if (!trimmed) return
-    setThreadMessages((current) => [...current, trimmed])
-    setMessage("")
-  }
 
   const handleRsvp = async (
     choice: Exclude<RsvpChoice, null>
@@ -184,6 +172,16 @@ export default function EventDetailPage() {
     event.description?.trim() ||
     "no description yet. the host can add more context from edit flare."
   const guests = event.attendees ?? []
+  // #140: the thread is for the host and guests who are going; everyone else
+  // who can see the flare only gets how many updates there are. Keyed off the
+  // saved rsvp, not the optimistic chip, so a failed "going" never flashes the
+  // thread open.
+  const canSeeThread = isHost || event.myRsvp === "going"
+  const threadClosedNote = isCancelled
+    ? "this flare was cancelled · the thread is read-only"
+    : isPast
+      ? "this flare has ended · the thread is read-only"
+      : null
   const goingNames = guests.map((guest) => guest.displayName.toLowerCase())
 
   return (
@@ -301,6 +299,12 @@ export default function EventDetailPage() {
           </p>
         </section>
 
+        {!canSeeThread && (event.updateCount ?? 0) > 0 && (
+          <section className="px-4 pt-4">
+            <EventThreadLocked count={event.updateCount ?? 0} />
+          </section>
+        )}
+
         {!canManage && (
           <section className="px-4 pt-6">
             <div className="flex items-center gap-2.5">
@@ -329,15 +333,22 @@ export default function EventDetailPage() {
           </section>
         )}
 
-        <Tabs defaultValue="guests" className="pt-6">
+        {/* Remount on losing thread access so a declined guest isn't left on an empty tab. */}
+        <Tabs
+          key={canSeeThread ? "with-thread" : "guests-only"}
+          defaultValue="guests"
+          className="pt-6"
+        >
           <div className="px-4">
             <TabsList className="h-9 w-full">
               <TabsTrigger value="guests" className={EVENT_TAB_TRIGGER_CLASS}>
                 guests
               </TabsTrigger>
-              <TabsTrigger value="thread" className={EVENT_TAB_TRIGGER_CLASS}>
-                thread
-              </TabsTrigger>
+              {canSeeThread && (
+                <TabsTrigger value="thread" className={EVENT_TAB_TRIGGER_CLASS}>
+                  thread
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -349,14 +360,11 @@ export default function EventDetailPage() {
                 showEta={isHost}
               />
             </TabsContent>
-            <TabsContent value="thread" className="m-0">
-              <ThreadBlock
-                message={message}
-                messages={threadMessages}
-                onMessage={setMessage}
-                onSubmit={addMessage}
-              />
-            </TabsContent>
+            {canSeeThread && (
+              <TabsContent value="thread" className="m-0">
+                <EventThread eventId={event.id} closedNote={threadClosedNote} />
+              </TabsContent>
+            )}
           </div>
         </Tabs>
       </div>
@@ -555,69 +563,6 @@ function GuestGroup({
         </div>
       )}
     </div>
-  )
-}
-
-function ThreadBlock({
-  message,
-  messages,
-  onMessage,
-  onSubmit,
-}: {
-  message: string
-  messages: string[]
-  onMessage: (value: string) => void
-  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
-}) {
-  const renderedMessages = useMemo(
-    () => messages.map((text, index) => ({ text, index })).reverse(),
-    [messages]
-  )
-
-  return (
-    <section className="pt-4">
-      <form
-        onSubmit={onSubmit}
-        className="flex items-center gap-2 rounded-full bg-secondary py-1 pr-1.5 pl-3"
-      >
-        <input
-          value={message}
-          onChange={(e) => onMessage(e.target.value)}
-          placeholder="write an update..."
-          className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
-        />
-        <button
-          type="submit"
-          aria-label="post update"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground"
-        >
-          <Send className="h-3.5 w-3.5" />
-        </button>
-      </form>
-
-      <div className="mt-4 flex flex-col gap-3.5">
-        {renderedMessages.map((item, index) => (
-          <div key={`message-${item.index}`} className="flex gap-2.5">
-            <Avatar className="size-[30px]">
-              <AvatarFallback className="text-xs">
-                {index === renderedMessages.length - 1 ? "S" : "Y"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">
-                  {index === renderedMessages.length - 1 ? "sponti" : "you"}
-                </span>{" "}
-                · now
-              </p>
-              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                {item.text.toLowerCase()}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
   )
 }
 

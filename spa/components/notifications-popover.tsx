@@ -6,6 +6,7 @@ import {
   Check,
   Flame,
   Loader2,
+  MessageSquare,
   RotateCcw,
   Sparkles,
   UserCheck,
@@ -38,6 +39,10 @@ const TYPE_VISUAL: Record<Notification["type"], Visual> = {
   event_guest_removed: {
     icon: UserMinus,
     ring: "border-foreground/15 text-muted-foreground",
+  },
+  event_update: {
+    icon: MessageSquare,
+    ring: "border-accent/30 text-accent",
   },
   connection_request: {
     icon: UserPlus,

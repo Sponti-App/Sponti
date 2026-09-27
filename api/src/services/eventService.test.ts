@@ -47,6 +47,9 @@ vi.mock("#models/index", () => ({
     findOneAndUpdate: eventMemberFindOneAndUpdateMock,
     updateMany: eventMemberUpdateManyMock,
   },
+  EventUpdate: {
+    countDocuments: vi.fn().mockResolvedValue(0),
+  },
   Notification: {
     create: notificationCreateMock,
     find: notificationFindMock,

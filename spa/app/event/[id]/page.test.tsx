@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   fetchHostedEventById: vi.fn(),
   showActionFeedback: vi.fn(),
   updateMyRsvp: vi.fn(),
+  fetchEventUpdates: vi.fn(() => Promise.resolve([] as unknown[])),
+  postEventUpdate: vi.fn(),
+  deleteEventUpdate: vi.fn(),
 }))
 
 vi.mock("next/navigation", () => ({
@@ -33,6 +36,9 @@ vi.mock("@/lib/api/events", async (importOriginal) => {
     ...actual,
     fetchHostedEventById: mocks.fetchHostedEventById,
     updateMyRsvp: mocks.updateMyRsvp,
+    fetchEventUpdates: mocks.fetchEventUpdates,
+    postEventUpdate: mocks.postEventUpdate,
+    deleteEventUpdate: mocks.deleteEventUpdate,
   }
 })
 
@@ -164,5 +170,114 @@ describe("EventDetailPage refetch on focus", () => {
     window.dispatchEvent(new Event("focus"))
 
     expect(await screen.findByText("1 of 2 going")).toBeInTheDocument()
+  })
+})
+
+describe("EventDetailPage thread (#140)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.fetchEventUpdates.mockResolvedValue([])
+  })
+
+  const update = (overrides: Record<string, unknown> = {}) => ({
+    _id: "update-1",
+    eventId: "event-1",
+    authorId: "host-1",
+    author: { _id: "host-1", displayName: "Martin", username: "martin" },
+    body: "grabbing a table by the window",
+    createdAt: new Date().toISOString(),
+    canDelete: false,
+    ...overrides,
+  })
+
+  it("shows an invited guest how many updates there are, but not the updates", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ myRsvp: "invited", updateCount: 3 })
+    )
+
+    render(<EventDetailPage />)
+
+    expect(
+      await screen.findByText("3 updates · join to see")
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("tab", { name: "thread" })
+    ).not.toBeInTheDocument()
+    expect(mocks.fetchEventUpdates).not.toHaveBeenCalled()
+  })
+
+  it("hides the locked line when there are no updates", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ myRsvp: "declined", updateCount: 0 })
+    )
+
+    render(<EventDetailPage />)
+
+    expect(await screen.findByText("rooftop party")).toBeInTheDocument()
+    expect(screen.queryByText(/join to see/)).not.toBeInTheDocument()
+  })
+
+  it("lets a going guest read the thread and post an update", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ myRsvp: "going", updateCount: 1 })
+    )
+    mocks.fetchEventUpdates.mockResolvedValue([update()])
+    mocks.postEventUpdate.mockResolvedValue(
+      update({
+        _id: "update-2",
+        authorId: "guest-1",
+        author: { _id: "guest-1", displayName: "guest" },
+        body: "running 10 late",
+        canDelete: true,
+      })
+    )
+    const user = userEvent.setup()
+
+    render(<EventDetailPage />)
+
+    await user.click(await screen.findByRole("tab", { name: "thread" }))
+    expect(
+      await screen.findByText("grabbing a table by the window")
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/join to see/)).not.toBeInTheDocument()
+    // Only updates the viewer may delete get a delete control.
+    expect(
+      screen.queryByRole("button", { name: "delete update" })
+    ).not.toBeInTheDocument()
+
+    await user.type(
+      screen.getByRole("textbox", { name: "update" }),
+      "  running 10 late "
+    )
+    await user.click(screen.getByRole("button", { name: "post update" }))
+
+    expect(await screen.findByText("running 10 late")).toBeInTheDocument()
+    expect(mocks.postEventUpdate).toHaveBeenCalledWith(
+      "event-1",
+      "running 10 late"
+    )
+    expect(
+      screen.getByRole("button", { name: "delete update" })
+    ).toBeInTheDocument()
+  })
+
+  it("replaces the composer with a read-only note once the flare is cancelled", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ myRsvp: "going", apiStatus: "cancelled", updateCount: 1 })
+    )
+    mocks.fetchEventUpdates.mockResolvedValue([update()])
+    const user = userEvent.setup()
+
+    render(<EventDetailPage />)
+
+    await user.click(await screen.findByRole("tab", { name: "thread" }))
+    expect(
+      await screen.findByText(
+        "this flare was cancelled · the thread is read-only"
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("textbox", { name: "update" })
+    ).not.toBeInTheDocument()
   })
 })

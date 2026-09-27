@@ -1,5 +1,13 @@
 import { type ClientSession } from "mongoose";
-import { Block, Circle, CircleMember, Connection, Event, EventMember } from "#models/index";
+import {
+  Block,
+  Circle,
+  CircleMember,
+  Connection,
+  Event,
+  EventMember,
+  EventUpdate,
+} from "#models/index";
 import type {
   ActiveMapEventsQuery,
   CreateEventBody,
@@ -36,7 +44,7 @@ type EventWithMemberStats<T> = T & {
   memberCount: number;
   goingCount: number;
 };
-type EventUserIdentity = {
+export type EventUserIdentity = {
   _id: string;
   displayName?: string;
   username?: string;
@@ -80,11 +88,11 @@ const mergeInviteCandidate = (
   }
 };
 
-const withConditions = (base: EventFilter, ...conditions: EventFilter[]) => ({
+export const withConditions = (base: EventFilter, ...conditions: EventFilter[]) => ({
   $and: [base, ...conditions],
 });
 
-const buildAccessibleEventFilter = async (userId: string): Promise<EventFilter> => {
+export const buildAccessibleEventFilter = async (userId: string): Promise<EventFilter> => {
   const userObjectId = toObjectId(userId);
   const [memberEventIds, removedEventIds, blockedUserIds] = await Promise.all([
     EventMember.distinct("eventId", { userId: userObjectId, removedAt: null }),
@@ -155,7 +163,7 @@ const extractHostId = (hostId: unknown): string | null => {
   return objectIdString(hostId);
 };
 
-const toEventUserIdentity = (userId: string, user?: UserSummary): EventUserIdentity => ({
+export const toEventUserIdentity = (userId: string, user?: UserSummary): EventUserIdentity => ({
   _id: user?._id ?? userId,
   displayName: user?.displayName ?? user?.username ?? "guest",
   username: user?.username,
@@ -557,7 +565,12 @@ export const getEventById = async (userId: string, eventId: string) => {
     throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  return enriched;
+  // #140: anyone who can see the flare gets the size of its thread, so a guest
+  // who hasn't joined sees "N updates · join to see". The updates themselves
+  // are only readable by the host and going guests (eventUpdateService).
+  const updateCount = await EventUpdate.countDocuments({ eventId: event._id, deletedAt: null });
+
+  return { ...enriched, updateCount };
 };
 
 /**
@@ -651,7 +664,8 @@ export const updateEvent = async (hostId: string, eventId: string, input: Update
   // flag. The next reservation attempt — which can only happen once the
   // flare is public again — recomputes it from EventMember's live truth
   // instead of trusting whatever it held from before.
-  const visibilityChanging = input.visibility !== undefined && input.visibility !== event.visibility;
+  const visibilityChanging =
+    input.visibility !== undefined && input.visibility !== event.visibility;
 
   Object.assign(event, input);
 

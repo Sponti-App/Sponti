@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createEventBodySchema,
+  createEventUpdateBodySchema,
   inviteEventMembersBodySchema,
   updateMyEventMembershipBodySchema,
 } from "./eventSchemas.js";
@@ -59,5 +60,30 @@ describe("inviteEventMembersBodySchema", () => {
     expect(inviteEventMembersBodySchema.safeParse({ members: [], circles: [] }).success).toBe(
       false
     );
+  });
+});
+
+describe("createEventUpdateBodySchema (#140)", () => {
+  it("trims the body and accepts up to 500 characters", () => {
+    expect(createEventUpdateBodySchema.parse({ body: "  running 10 late  " })).toEqual({
+      body: "running 10 late",
+    });
+    expect(createEventUpdateBodySchema.safeParse({ body: "a".repeat(500) }).success).toBe(true);
+  });
+
+  it("rejects an empty, whitespace-only or too long body", () => {
+    expect(createEventUpdateBodySchema.safeParse({ body: "" }).success).toBe(false);
+    expect(createEventUpdateBodySchema.safeParse({ body: "   \n\t " }).success).toBe(false);
+    expect(createEventUpdateBodySchema.safeParse({ body: "a".repeat(501) }).success).toBe(false);
+    expect(createEventUpdateBodySchema.safeParse({}).success).toBe(false);
+  });
+
+  it("rejects unknown fields such as a client-supplied author", () => {
+    const result = createEventUpdateBodySchema.safeParse({
+      body: "hi",
+      authorId: "507f1f77bcf86cd799439011",
+    });
+
+    expect(result.success).toBe(false);
   });
 });

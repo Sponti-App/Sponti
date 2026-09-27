@@ -2,6 +2,7 @@ import { z } from "zod";
 import { paginationQuerySchema } from "#utils/pagination";
 import { objectIdSchema } from "#utils/objectId";
 import { EVENT_GUEST_INVITE_MODES, EVENT_TYPES, MAX_GUEST_INVITE_LIMIT } from "#models/Event";
+import { EVENT_UPDATE_BODY_MAX_LENGTH } from "#models/EventUpdate";
 import { isoDateSchema, optionalIsoDateSchema } from "./commonSchemas.js";
 
 const eventVisibilitySchema = z.enum(["public", "private"]);
@@ -98,6 +99,20 @@ export const eventMemberParamSchema = z
   })
   .strict();
 
+export const eventUpdateParamSchema = z
+  .object({
+    eventId: objectIdSchema,
+    updateId: objectIdSchema,
+  })
+  .strict();
+
+// Plain text, trimmed before the length check, so whitespace-only is empty.
+export const createEventUpdateBodySchema = z
+  .object({
+    body: z.string().trim().min(1).max(EVENT_UPDATE_BODY_MAX_LENGTH),
+  })
+  .strict();
+
 export const inviteEventMembersBodySchema = z
   .object({
     members: z.array(eventMemberInviteSchema).default([]),
@@ -149,6 +164,7 @@ export const upcomingCalendarEventsQuerySchema = paginationQuerySchema;
 
 export type CreateEventBody = z.infer<typeof createEventBodySchema>;
 export type UpdateEventBody = z.infer<typeof updateEventBodySchema>;
+export type CreateEventUpdateBody = z.infer<typeof createEventUpdateBodySchema>;
 export type InviteEventMembersBody = z.infer<typeof inviteEventMembersBodySchema>;
 export type UpdateMyEventMembershipBody = z.infer<typeof updateMyEventMembershipBodySchema>;
 export type GetEventsQuery = z.infer<typeof getEventsQuerySchema>;

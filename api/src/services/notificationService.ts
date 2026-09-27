@@ -523,6 +523,65 @@ export const createEventGuestRemovedNotification = async ({
     session
   );
 
+const EVENT_UPDATE_PREVIEW_LENGTH = 120;
+
+const previewText = (text: string, maxLength = EVENT_UPDATE_PREVIEW_LENGTH) => {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  return collapsed.length <= maxLength
+    ? collapsed
+    : `${collapsed.slice(0, maxLength - 1).trimEnd()}…`;
+};
+
+/**
+ * Tells going guests the host posted an update to the flare's thread (#140).
+ * One notification per recipient per update; the caller decides who may
+ * receive it (going, not removed, no block with the host). Guests' own
+ * updates never notify anyone, so this is only called for the host.
+ */
+export const createEventUpdateNotifications = async ({
+  eventId,
+  hostId,
+  eventTitle,
+  updateId,
+  body,
+  recipientIds,
+  session,
+}: {
+  eventId: string;
+  hostId: string;
+  eventTitle: string;
+  updateId: string;
+  body: string;
+  recipientIds: string[];
+  session?: ClientSession;
+}) => {
+  const recipients = uniqueObjectIdStrings(recipientIds).filter((id) => id !== hostId);
+
+  if (recipients.length === 0) {
+    return { created: 0 };
+  }
+
+  const users = await getUsersByIds([hostId]);
+  const hostName = actorDisplayName(users.get(hostId), "The host");
+
+  return createNotifications(
+    recipients.map((recipientId) => ({
+      userId: recipientId,
+      actorId: hostId,
+      type: "event_update" as const,
+      targetType: "event" as const,
+      targetId: eventId,
+      title: `${hostName} posted an update`,
+      message: previewText(body),
+      metadata: {
+        eventTitle,
+        updateId,
+      },
+    })),
+    session
+  );
+};
+
 export const createEventStatusNotifications = async ({
   eventId,
   hostId,

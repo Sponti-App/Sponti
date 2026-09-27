@@ -1,12 +1,14 @@
 import { Router } from "express";
-import { eventController } from "#controllers/index";
+import { eventController, eventUpdateController } from "#controllers/index";
 import { requireAuth } from "#middleware/auth";
 import { validateRequest } from "#middleware/validateRequest";
 import {
   activeMapEventsQuerySchema,
   createEventBodySchema,
+  createEventUpdateBodySchema,
   eventIdParamSchema,
   eventMemberParamSchema,
+  eventUpdateParamSchema,
   getEventsQuerySchema,
   inviteEventMembersBodySchema,
   myUpcomingEventsQuerySchema,
@@ -75,6 +77,21 @@ router.patch(
   "/:eventId/me",
   validateRequest({ params: eventIdParamSchema, body: updateMyEventMembershipBodySchema }),
   eventController.updateMyEventMembership
+);
+router.get(
+  "/:eventId/updates",
+  validateRequest({ params: eventIdParamSchema }),
+  eventUpdateController.listEventUpdates
+);
+router.post(
+  "/:eventId/updates",
+  validateRequest({ params: eventIdParamSchema, body: createEventUpdateBodySchema }),
+  eventUpdateController.createEventUpdate
+);
+router.delete(
+  "/:eventId/updates/:updateId",
+  validateRequest({ params: eventUpdateParamSchema }),
+  eventUpdateController.deleteEventUpdate
 );
 
 export default router;
