@@ -240,7 +240,12 @@ export function EventDetailSheet({
               {isHost ? (
                 <Button
                   className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
-                  onClick={() => router.push(`/event/${displayEvent.id}/edit`)}
+                  onClick={() => {
+                    // Close the drawer before navigating so vaul's body
+                    // scroll lock doesn't leak into the edit page (#168).
+                    onClose()
+                    router.push(`/event/${displayEvent.id}/edit`)
+                  }}
                 >
                   edit flare
                 </Button>

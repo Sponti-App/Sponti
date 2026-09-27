@@ -381,7 +381,7 @@ export default function EventEditPage() {
   }
 
   return (
-    <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
+    <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-background">
       <div className="flex shrink-0 items-center justify-between px-4 py-3">
         <Button
           type="button"
