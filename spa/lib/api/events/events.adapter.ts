@@ -253,6 +253,7 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     guestLimit: api.guestInviteLimit,
     allowGuestInvites: api.allowGuestInvites,
     myRsvp: api.myRsvp ?? null,
+    updateCount: api.updateCount ?? 0,
     recurrence: "none",
     apiStatus: api.status,
     createdAt: api.createdAt ?? api.startAt,

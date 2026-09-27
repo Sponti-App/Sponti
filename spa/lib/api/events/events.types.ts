@@ -124,6 +124,9 @@ export type HostedEvent = {
   // enforcing it and the display should say so ("about N spots").
   allowGuestInvites?: EventGuestInviteMode
   myRsvp?: EventRsvp | null
+  // #140: how many updates the flare's thread has. Anyone who can see the
+  // flare gets it; only the host and going guests can read the updates.
+  updateCount?: number
   visibility: EventVisibility
   recurrence: Recurrence
   apiStatus: ApiEventStatus
@@ -266,8 +269,27 @@ export type ApiEvent = {
     // Only present when the caller is this event's host (#90).
     willArriveAt?: string | null
   }>
+  // Only on the single-event response (#140).
+  updateCount?: number
   createdAt?: string
   updatedAt?: string
+}
+
+/** One update in a flare's thread (#140), as returned by the api. */
+export type EventUpdate = {
+  _id: string
+  eventId: string
+  authorId: string
+  author: {
+    _id: string
+    displayName?: string
+    username?: string
+    avatarUrl?: string | null
+  }
+  body: string
+  createdAt: string
+  /** True when the viewer is the author or the flare's host. */
+  canDelete: boolean
 }
 
 export type CreateEventResponse = {

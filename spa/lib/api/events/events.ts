@@ -5,6 +5,7 @@ import type {
   CreateEventRequest,
   CreateEventResponse,
   EventGuest,
+  EventUpdate,
   FetchCalendarEventsParams,
   FetchCalendarEventsResult,
   FetchMapEventsParams,
@@ -184,4 +185,47 @@ export function updateMyRsvp(
     method: "PATCH",
     body,
   })
+}
+
+/**
+ * GET /events/:id/updates
+ * The flare's thread, oldest first. Only the host and going guests can read
+ * it; anyone else gets 403 EVENT_THREAD_FORBIDDEN.
+ */
+export function fetchEventUpdates(
+  eventId: string,
+  signal?: AbortSignal
+): Promise<EventUpdate[]> {
+  return apiFetch<{ data: EventUpdate[] }>(`/events/${eventId}/updates`, {
+    signal,
+  }).then((response) => response.data)
+}
+
+/**
+ * POST /events/:id/updates
+ * Posts a short update (1-500 characters). Rejected with 409
+ * EVENT_THREAD_CLOSED once the flare is cancelled or has ended.
+ */
+export function postEventUpdate(
+  eventId: string,
+  body: string
+): Promise<EventUpdate> {
+  return apiFetch<{ data: EventUpdate }>(`/events/${eventId}/updates`, {
+    method: "POST",
+    body: { body },
+  }).then((response) => response.data)
+}
+
+/**
+ * DELETE /events/:id/updates/:updateId
+ * Removes an update (its author or the host). Deleting twice is fine.
+ */
+export function deleteEventUpdate(
+  eventId: string,
+  updateId: string
+): Promise<{ _id: string; deletedAt: string }> {
+  return apiFetch<{ data: { _id: string; deletedAt: string } }>(
+    `/events/${eventId}/updates/${updateId}`,
+    { method: "DELETE" }
+  ).then((response) => response.data)
 }
