@@ -118,3 +118,27 @@ describe("no blind retry for non-idempotent requests (#171)", () => {
     expect(calls).toBe(1)
   })
 })
+
+describe("network failures surface as HttpError (#212)", () => {
+  it("wraps a non-abort fetch rejection so the UI can show a real message", async () => {
+    const http = await loadHttp()
+
+    // What a CORS rejection, DNS failure, or offline device looks like.
+    const fetchMock = vi.fn(() =>
+      Promise.reject(new TypeError("Failed to fetch"))
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const error = await http
+      .authFetch("/auth/login", {
+        method: "POST",
+        body: { email: "a@b.com", password: "hunter2hunter2" },
+      })
+      .catch((err: unknown) => err)
+
+    expect(error).toBeInstanceOf(http.HttpError)
+    expect(error).toMatchObject({ status: 0, code: "NETWORK_ERROR" })
+    // A network failure is not a timeout — no cold-start retry.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})

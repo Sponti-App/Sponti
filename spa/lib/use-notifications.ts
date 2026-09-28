@@ -7,6 +7,7 @@ import {
   markNotificationsReadBatch,
 } from "@/lib/api/notifications"
 import type { Notification } from "@/lib/notifications"
+import { emitEventsChanged } from "@/lib/use-events"
 
 type NotificationsState = {
   notifications: Notification[]
@@ -160,6 +161,13 @@ export async function refreshUnreadCount(): Promise<void> {
 
   try {
     const count = await fetchUnreadNotificationCount()
+    // A higher count than last time means a notification arrived since we
+    // last checked — often about something another account did (an
+    // accepted request, an rsvp). Nudge the events store so lists and
+    // counts catch up without waiting for a remount (#197).
+    if (state.unreadCountLoaded && count > state.unreadCount) {
+      emitEventsChanged()
+    }
     setState((current) => ({
       ...current,
       unreadCount: count,

@@ -39,6 +39,7 @@ const DURATION_OPTIONS = [
 ] as const
 
 const MIN = 60_000
+const DESCRIPTION_MAX_LENGTH = 200
 
 type PlaceSuggestion = { placeId: string; label: string; address: string }
 type PlaceDetailsResponse = {
@@ -89,6 +90,7 @@ export default function EventEditPage() {
   const [event, setEvent] = useState<HostedEvent | null>(null)
   const [original, setOriginal] = useState<HostedEvent | null>(null)
   const [title, setTitle] = useState("")
+  const [description, setDescription] = useState("")
   const [startDate, setStartDate] = useState("")
   const [startTime, setStartTime] = useState("")
   const [durationMinutes, setDurationMinutes] = useState(60)
@@ -216,6 +218,7 @@ export default function EventEditPage() {
         setEvent(nextEvent)
         setOriginal(nextEvent)
         setTitle(nextEvent.title)
+        setDescription(nextEvent.description ?? "")
         setStartDate(shape.startDate ?? "")
         setStartTime(shape.startTime ?? "")
         setDurationMinutes(shape.durationMinutes)
@@ -273,6 +276,14 @@ export default function EventEditPage() {
   ).toISOString()
 
   const titleChanged = title.trim() !== original.title
+  const descriptionChanged =
+    description.trim() !== (original.description ?? "").trim()
+  // Same 200-character cap as lighting a flare, but never shorter than what's
+  // already there, so opening edit can't truncate an older, longer one.
+  const descriptionMax = Math.max(
+    DESCRIPTION_MAX_LENGTH,
+    original.description?.length ?? 0
+  )
   const timeChanged =
     nextStartAt !== original.startAt ||
     durationMinutes !==
@@ -289,7 +300,11 @@ export default function EventEditPage() {
   const visibilityChanged = isPublic !== (original.visibility === "public")
 
   const dirty =
-    titleChanged || timeChanged || locationChanged || visibilityChanged
+    titleChanged ||
+    descriptionChanged ||
+    timeChanged ||
+    locationChanged ||
+    visibilityChanged
 
   const persistChanges = async (): Promise<void> => {
     try {
@@ -301,6 +316,9 @@ export default function EventEditPage() {
         endAt: nextEndAt,
         locationName: locationLabel.trim() || original.locationLabel,
         locationAddress: locationDetail.trim() || null,
+      }
+      if (descriptionChanged) {
+        updates.description = description.trim() || null
       }
       if (visibilityChanged) {
         updates.visibility = isPublic ? "public" : "private"
@@ -381,7 +399,7 @@ export default function EventEditPage() {
   }
 
   return (
-    <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
+    <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-background">
       <div className="flex shrink-0 items-center justify-between px-4 py-3">
         <Button
           type="button"
@@ -432,6 +450,23 @@ export default function EventEditPage() {
             maxLength={80}
             disabled={isPast || isCancelled || saving}
           />
+        </Section>
+
+        <Section label="details">
+          <textarea
+            aria-label="details"
+            value={description}
+            onChange={(e) => setDescription(e.target.value.slice(0, descriptionMax))}
+            placeholder="dress code, what to bring, vibe…"
+            rows={3}
+            disabled={isPast || isCancelled || saving}
+            className="w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+          />
+          {description.length > descriptionMax - 40 && (
+            <p className="mt-1 text-right text-xs text-muted-foreground">
+              {descriptionMax - description.length} left
+            </p>
+          )}
         </Section>
 
         {initialShape.mode === "scheduled" && (
@@ -580,7 +615,7 @@ export default function EventEditPage() {
           <EventGuestsSection
             eventId={original.id}
             canInvite={!isPast && !isCancelled}
-            canRemove={!isPast && !isCancelled && !isLive}
+            canRemove={!isPast && !isCancelled}
           />
         </Section>
 

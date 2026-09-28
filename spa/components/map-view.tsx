@@ -25,7 +25,6 @@ import {
 } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  avatarText,
   distanceFromUser,
   eventCoords,
   EventType,
@@ -44,56 +43,11 @@ import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 import { haptic } from "@/lib/haptics"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
+import { FitBoundsOnce, GoogleMapPolyline } from "@/components/google-map-overlays"
 import { EVENT_TYPES } from "@/types/utils"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { useTheme } from "next-themes"
-
-// Hex equivalent of --accent (oklch 0.8041 0.126 52.09). Google Maps overlays
-// can't read CSS variables, so we mirror the token here. Keep in sync with
-// globals.css.
-const ACCENT_HEX = "#f8b187"
-
-function GoogleMapPolyline({ path }: { path: google.maps.LatLngLiteral[] }) {
-  const map = useMap()
-  useEffect(() => {
-    if (!map || path.length === 0) return
-    const polyline = new google.maps.Polyline({
-      path,
-      geodesic: true,
-      strokeColor: ACCENT_HEX,
-      strokeOpacity: 0.9,
-      strokeWeight: 4,
-      map,
-    })
-    return () => {
-      polyline.setMap(null)
-    }
-  }, [map, path])
-  return null
-}
-
-function FitBoundsOnce({
-  origin,
-  destination,
-}: {
-  origin: GeoCoords | null
-  destination: GeoCoords | null
-}) {
-  const map = useMap()
-  const lastKey = useRef<string | null>(null)
-  useEffect(() => {
-    if (!map || !origin || !destination) return
-    const key = `${origin.lat},${origin.lng}|${destination.lat},${destination.lng}`
-    if (lastKey.current === key) return
-    lastKey.current = key
-    const bounds = new google.maps.LatLngBounds()
-    bounds.extend(origin)
-    bounds.extend(destination)
-    map.fitBounds(bounds, 80)
-  }, [map, origin, destination])
-  return null
-}
 
 function eventIcon(type: EventType, avatar: string) {
   const match = EVENT_TYPES.find((t) => t.value === type)
@@ -362,6 +316,29 @@ const SHEET_PX = { mini: 64, peek: 268 } as const
 // before the ResizeObserver fires.
 const NAV_RESERVED_CSS = "var(--sponti-nav-h, 64px)"
 
+// Distance from the viewport bottom to the top of whatever is docked at the
+// bottom, published on the document root the same way BottomNav publishes
+// --sponti-nav-h. The map view is the only writer (see the effect below); it
+// resets the property on unmount so other routes fall back to plain
+// --sponti-nav-h. Bottom-docked UI that isn't part of the sheet/nav — e.g.
+// the ActionFeedbackProvider toast — reads this instead of assuming the nav
+// is the only thing at the bottom of the screen (#112).
+export function bottomOccupiedCss(state: PeekState): string {
+  switch (state) {
+    case "mini":
+      // Mini sheet sits above the nav — reserve both.
+      return `calc(${NAV_RESERVED_CSS} + ${SHEET_PX.mini}px)`
+    case "peek":
+      // Peek sheet sits at bottom: 0, so the nav sits behind (inside) it.
+      return `${SHEET_PX.peek}px`
+    case "expanded":
+      // The expanded sheet also sits at bottom: 0 and covers the nav, but
+      // bottom-docked UI should float just above the nav rather than fight
+      // the tall sheet for space.
+      return NAV_RESERVED_CSS
+  }
+}
+
 // One-shot dev warning: AdvancedMarker silently renders nothing when the map
 // has no mapId. Surfacing this early saves a debugging session.
 let warnedNoMapId = false
@@ -372,7 +349,6 @@ function warnIfMissingMapId(
   if (warnedNoMapId) return
   if (apiKey && !mapId && process.env.NODE_ENV !== "production") {
     warnedNoMapId = true
-    // eslint-disable-next-line no-console
     console.warn(
       "[Sponti] NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is set but NEXT_PUBLIC_GOOGLE_MAPS_ID is not — AdvancedMarker will render blank. Add a Map ID in the Google Cloud console."
     )
@@ -402,6 +378,25 @@ export function MapView({
   const [peekState, setPeekState] = useState<PeekState>("peek")
   const dragStartY = useRef<number | null>(null)
   const dragStartTime = useRef<number | null>(null)
+
+  // Publish --sponti-bottom-occupied so bottom-docked UI outside this
+  // component (the action-feedback toast) can sit above the sheet instead of
+  // assuming the nav is the only thing docked at the bottom. Reset on
+  // unmount — not on every peekState change — so other routes cleanly fall
+  // back to --sponti-nav-h instead of flashing an unset value between writes.
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--sponti-bottom-occupied",
+      bottomOccupiedCss(peekState)
+    )
+  }, [peekState])
+  useEffect(() => {
+    return () => {
+      document.documentElement.style.removeProperty(
+        "--sponti-bottom-occupied"
+      )
+    }
+  }, [])
 
   // Long-press on the map canvas → open flare creation drawer.
   // 500 ms is the standard long-press threshold on mobile.
@@ -803,7 +798,7 @@ export function MapView({
                       live
                     </TabsTrigger>
                     <TabsTrigger value="upcoming" className="text-xs">
-                      upcoming
+                      soon
                     </TabsTrigger>
                     <TabsTrigger value="all" className="text-xs">
                       all

@@ -104,7 +104,7 @@ Safeguards:
 
 `DELETE /events/:eventId/members/:userId`:
 
-- Only the host can remove a guest, and only while the event is `active` and has not started. Otherwise it returns 409.
+- Only the host can remove a guest, and only while the event is `active` and has not ended (upcoming or live). Otherwise it returns 409.
 - The member row is kept with `removedAt` set, so the person can no longer see or rejoin the event, even a public one, until the host invites them again.
 - A guest whose `rsvpStatus` was `going` gets one `event_guest_removed`. Guests who were `invited` or `declined` are removed without any notification.
 - The notification has no `actorId` and no reason; the host is never named.

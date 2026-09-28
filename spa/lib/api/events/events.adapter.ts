@@ -15,6 +15,11 @@ import type {
 const MIN = 60_000
 const DAY = 24 * 60 * MIN
 
+// Mirrors the api's MAP_SOON_WINDOW_MS (api/src/services/eventService.ts) —
+// how far a flare's start can be from now and still show up on the map
+// right away, rather than only on the calendar.
+export const MAP_SOON_WINDOW_MS = DAY
+
 export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
   return event.myRsvp === "going" || joinedIds.has(event.id)
 }
@@ -71,6 +76,25 @@ export function formatRelativeStatus(
   })
 }
 
+/**
+ * A relative arrival label for a going attendee's ETA ("arriving in 12 min"),
+ * shown only to the host (see api's `attachEventPeople`). Relative rather
+ * than a clock time so it stays correct against the viewer's own clock
+ * without needing a timezone from the server.
+ */
+export function formatArrivalStatus(
+  willArriveAt: string,
+  now: number = Date.now()
+): string {
+  const diffMin = Math.round((new Date(willArriveAt).getTime() - now) / MIN)
+  if (diffMin <= 0) return "should be there"
+  if (diffMin < 60) return `arriving in ${diffMin} min`
+  const hours = Math.round(diffMin / 60)
+  return hours <= 1
+    ? "arriving in about 1 hr"
+    : `arriving in about ${hours} hrs`
+}
+
 export function avatarText(bgColor: string): string {
   return bgColor === "bg-accent" || bgColor === "bg-stone-800"
     ? "text-accent-foreground"
@@ -79,7 +103,8 @@ export function avatarText(bgColor: string): string {
 
 const EARTH_RADIUS_M = 6_371_000
 
-function haversineMeters(a: EventCoordinates, b: EventCoordinates): number {
+/** Straight-line distance between two points, in meters. */
+export function haversineMeters(a: EventCoordinates, b: EventCoordinates): number {
   const toRad = (v: number) => (v * Math.PI) / 180
   const dLat = toRad(b.lat - a.lat)
   const dLng = toRad(b.lng - a.lng)
@@ -114,6 +139,14 @@ export function walkTimeLabel(meters: number): string {
   const hours = Math.floor(minutes / 60)
   const rem = minutes % 60
   return rem === 0 ? `${hours} hr walk` : `${hours}h ${rem}m walk`
+}
+
+function coordinatesFromApi(
+  location: ApiEvent["location"] | undefined
+): EventCoordinates | undefined {
+  const [lng, lat] = location?.coordinates ?? []
+  if (typeof lat !== "number" || typeof lng !== "number") return undefined
+  return { lat, lng }
 }
 
 export function eventCoords(event: EventItem): EventCoordinates | null {
@@ -189,9 +222,13 @@ export function adaptApiEvent(api: ApiEvent): EventItem {
     attendees: (api.attendees ?? []).map((a) => {
       const name = a.displayName || a.username || "guest"
       return {
+        id: a._id,
         name,
         avatar: name.charAt(0).toUpperCase(),
         color: "bg-stone-300",
+        // The api only sends this field at all when the caller is this
+        // event's host; it's normalized to null here for any other viewer.
+        willArriveAt: a.willArriveAt ?? null,
       }
     }),
     going: api.goingCount ?? api.attendees?.length ?? 0,
@@ -214,6 +251,7 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     endAt: api.endAt,
     locationLabel: displayLocationName(api.locationName),
     locationDetail: api.locationAddress ?? undefined,
+    coordinates: coordinatesFromApi(api.location),
     audienceLabel: api.visibility,
     attendeeCount: api.memberCount ?? api.attendees?.length ?? 0,
     attendingCount: api.goingCount ?? 0,
@@ -222,11 +260,16 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
       displayName: a.displayName || a.username || "guest",
       username: a.username,
       avatarUrl: a.avatarUrl ?? null,
+      // The api only sends this field at all when the caller is this
+      // event's host; it's normalized to null here for any other viewer.
+      willArriveAt: a.willArriveAt ?? null,
     })),
     visibility: api.visibility,
     guestLimit: api.guestInviteLimit,
     allowGuestInvites: api.allowGuestInvites,
     myRsvp: api.myRsvp ?? null,
+    updateCount: api.updateCount ?? 0,
+    myWillArriveAt: api.myWillArriveAt ?? null,
     recurrence: "none",
     apiStatus: api.status,
     createdAt: api.createdAt ?? api.startAt,

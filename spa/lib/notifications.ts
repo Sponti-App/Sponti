@@ -31,6 +31,7 @@ const EVENT_NOTIFICATION_TYPES: ApiNotificationType[] = [
   "event_reactivated",
   "event_rsvp_change",
   "event_guest_removed",
+  "event_update",
 ]
 
 function actorName(notification: ApiNotification): string | null {
@@ -38,9 +39,15 @@ function actorName(notification: ApiNotification): string | null {
   return actor?.displayName || actor?.username || null
 }
 
-function hrefFor(type: ApiNotificationType): string {
+function hrefFor(notification: ApiNotification): string {
+  const { type } = notification
   if (type === "connection_request" || type === "connection_accepted") {
     return "/circles?tab=people"
+  }
+
+  // A thread update opens the flare on its updates tab (#140, #139).
+  if (type === "event_update") {
+    return `/event/${notification.targetId}?tab=updates`
   }
 
   return "/event"
@@ -59,6 +66,7 @@ function intentFor(type: ApiNotificationType): NotificationIntent {
     case "event_invitation":
     case "event_reactivated":
     case "event_guest_removed":
+    case "event_update":
       return "event"
   }
 }
@@ -81,7 +89,7 @@ export function adaptApiNotification(
     createdAt: notification.createdAt,
     readAt: notification.readAt,
     read: notification.readAt !== null,
-    href: hrefFor(notification.type),
+    href: hrefFor(notification),
     intent: intentFor(notification.type),
     actorName: actorName(notification),
   }

@@ -36,7 +36,15 @@ export interface EventItem {
     address?: string
     coordinates?: [number, number]
   }
-  attendees: Array<{ name: string; avatar: string; color: string }>
+  attendees: Array<{
+    id?: string
+    name: string
+    avatar: string
+    color: string
+    // Only ever populated for the host — see api's `attachEventPeople`.
+    // Absent (not just null) for any other viewer.
+    willArriveAt?: string | null
+  }>
   going: number
 }
 
@@ -97,6 +105,8 @@ export type HostedEvent = {
   endAt: string
   locationLabel: string
   locationDetail?: string
+  // The flare's pin, for the detail page's map hero and "open in maps" (#139).
+  coordinates?: EventCoordinates
   audienceLabel: string
   attendeeCount: number
   attendingCount: number
@@ -105,6 +115,9 @@ export type HostedEvent = {
     displayName: string
     username?: string
     avatarUrl?: string | null
+    // Only ever populated for the host — see api's `attachEventPeople`.
+    // Absent (not just null) for any other viewer.
+    willArriveAt?: string | null
   }>
   guestLimit: number
   // #181: the limit is a hard cap only while this is "none" (no +1/re-share).
@@ -113,6 +126,11 @@ export type HostedEvent = {
   // enforcing it and the display should say so ("about N spots").
   allowGuestInvites?: EventGuestInviteMode
   myRsvp?: EventRsvp | null
+  // #140: how many updates the flare's thread has. Anyone who can see the
+  // flare gets it; only the host and going guests can read the updates.
+  updateCount?: number
+  // #139: the viewer's own arrival time. Only on the single-event response.
+  myWillArriveAt?: string | null
   visibility: EventVisibility
   recurrence: Recurrence
   apiStatus: ApiEventStatus
@@ -252,9 +270,32 @@ export type ApiEvent = {
     displayName?: string
     username?: string
     avatarUrl?: string | null
+    // Only present when the caller is this event's host (#90).
+    willArriveAt?: string | null
   }>
+  // Only on the single-event response (#140).
+  updateCount?: number
+  // The caller's own arrival time. Only on the single-event response (#139).
+  myWillArriveAt?: string | null
   createdAt?: string
   updatedAt?: string
+}
+
+/** One update in a flare's thread (#140), as returned by the api. */
+export type EventUpdate = {
+  _id: string
+  eventId: string
+  authorId: string
+  author: {
+    _id: string
+    displayName?: string
+    username?: string
+    avatarUrl?: string | null
+  }
+  body: string
+  createdAt: string
+  /** True when the viewer is the author or the flare's host. */
+  canDelete: boolean
 }
 
 export type CreateEventResponse = {

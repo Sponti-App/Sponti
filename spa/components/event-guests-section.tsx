@@ -38,7 +38,7 @@ export function EventGuestsSection({
 }: {
   eventId: string
   canInvite: boolean
-  /** Guests can be removed until the flare starts (and while it's active). */
+  /** Guests can be removed while the flare is active: upcoming or live, not ended or cancelled. */
   canRemove?: boolean
 }) {
   const { showActionFeedback } = useActionFeedback()

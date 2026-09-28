@@ -163,6 +163,59 @@ const guest = (
   joinedWithoutInvite,
 })
 
+describe("EventEditPage details", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.fetchEventGuests.mockResolvedValue([])
+    mocks.updateEvent.mockResolvedValue(hostedEvent())
+  })
+
+  it("lets the host add details to a flare that has none", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent())
+    const user = userEvent.setup()
+    render(<EventEditPage />)
+
+    await user.type(await screen.findByRole("textbox", { name: "details" }), "bring a jumper")
+    await user.click(screen.getByRole("button", { name: "save changes" }))
+
+    await waitFor(() =>
+      expect(mocks.updateEvent).toHaveBeenCalledWith(
+        "event-1",
+        expect.objectContaining({ description: "bring a jumper" })
+      )
+    )
+  })
+
+  it("clears the details when the host empties them", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ description: "first round's on me" }))
+    const user = userEvent.setup()
+    render(<EventEditPage />)
+
+    await user.clear(await screen.findByDisplayValue("first round's on me"))
+    await user.click(screen.getByRole("button", { name: "save changes" }))
+
+    await waitFor(() =>
+      expect(mocks.updateEvent).toHaveBeenCalledWith(
+        "event-1",
+        expect.objectContaining({ description: null })
+      )
+    )
+  })
+
+  it("leaves the details out of the update when they didn't change", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ description: "first round's on me" }))
+    const user = userEvent.setup()
+    render(<EventEditPage />)
+
+    const title = await screen.findByDisplayValue("coffee at annex")
+    await user.type(title, "!")
+    await user.click(screen.getByRole("button", { name: "save changes" }))
+
+    await waitFor(() => expect(mocks.updateEvent).toHaveBeenCalled())
+    expect(mocks.updateEvent.mock.calls[0]?.[1]).not.toHaveProperty("description")
+  })
+})
+
 describe("EventEditPage visibility", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -278,5 +331,55 @@ describe("EventEditPage visibility", () => {
     expect(mocks.updateEvent.mock.calls[0]?.[1]).not.toHaveProperty(
       "visibility"
     )
+  })
+})
+
+describe("EventEditPage guest removal", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.fetchEventGuests.mockResolvedValue([
+      {
+        user: { _id: "u-sam", displayName: "sam", username: "sam" },
+        role: "guest",
+        rsvpStatus: "invited",
+      },
+    ])
+  })
+
+  it.each([
+    ["upcoming", {}],
+    [
+      "live",
+      {
+        startAt: "2000-01-01T18:00:00.000Z",
+        endAt: "2099-06-01T19:00:00.000Z",
+      },
+    ],
+  ])("lets the host remove a guest from an %s flare", async (_label, overrides) => {
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent(overrides))
+    render(<EventEditPage />)
+
+    expect(
+      await screen.findByRole("button", { name: "remove sam" })
+    ).toBeInTheDocument()
+  })
+
+  it.each([
+    [
+      "ended",
+      {
+        startAt: "2000-01-01T18:00:00.000Z",
+        endAt: "2000-01-01T19:00:00.000Z",
+      },
+    ],
+    ["cancelled", { apiStatus: "cancelled" as const }],
+  ])("doesn't offer removal on an %s flare", async (_label, overrides) => {
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent(overrides))
+    render(<EventEditPage />)
+
+    await screen.findByText("sam")
+    expect(
+      screen.queryByRole("button", { name: "remove sam" })
+    ).not.toBeInTheDocument()
   })
 })

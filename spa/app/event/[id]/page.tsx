@@ -1,61 +1,68 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+// The flare detail page, layout D (#139, decided in #162): a map hero with
+// the sheet below it (header, when | where, host note, the viewer's own plan,
+// then going / updates tabs), and a pinned action bar above the bottom nav
+// that switches between "join" and "share an update".
+
+import { useEffect, useRef, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import {
-  ArrowLeft,
-  Check,
-  Clock,
-  Lock,
-  MapPin,
-  MoreVertical,
-  Pencil,
-  Send,
-} from "lucide-react"
+import { ArrowLeft, Lock, Navigation, Pencil } from "lucide-react"
 import { useActionFeedback } from "@/components/action-feedback"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/components/auth-provider"
-import { EventAvatarStack, initials } from "@/components/event-avatar-stack"
+import { initials } from "@/components/event-avatar-stack"
 import {
-  deriveStatus,
+  EventThreadComposer,
+  EventThreadList,
+  EventThreadLocked,
+  useEventThread,
+} from "@/components/event-thread"
+import {
+  FlareActions,
+  FlareFacts,
+  FlareHeader,
+  YourPlan,
+} from "@/components/flare-detail"
+import { FlareMapHero, useFlareDirections } from "@/components/flare-map-hero"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  etaToIso,
   fetchHostedEventById,
+  formatArrivalStatus,
+  formatDistance,
   updateMyRsvp,
   type HostedEvent,
 } from "@/lib/api/events"
+import {
+  etaAvailable,
+  flareStatusLine,
+  flareTiming,
+  flareViewer,
+  googleMapsUrl,
+  ownArrivalLabel,
+  spotsLeftLabel,
+  type FlareTiming,
+  type FlareViewer,
+} from "@/lib/flare-detail"
 import { HttpError } from "@/lib/http"
+import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus"
 import { cn } from "@/lib/utils"
-import type { LucideIcon } from "lucide-react"
+import { EVENT_TYPES } from "@/types/utils"
 
-type RsvpChoice = "going" | "declined" | null
+const TAB_TRIGGER =
+  "text-sm data-active:bg-card data-active:text-primary dark:data-active:bg-card dark:data-active:text-primary"
 
-const MIN = 60_000
-const EVENT_TAB_TRIGGER_CLASS =
-  "text-sm hover:text-primary data-active:text-primary dark:hover:text-primary dark:data-active:text-primary"
+type Tab = "guests" | "updates"
 
 export default function EventDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { user } = useAuth()
-  const { showActionFeedback } = useActionFeedback()
   const [event, setEvent] = useState<HostedEvent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [rsvp, setRsvp] = useState<RsvpChoice>(null)
-  const [rsvpError, setRsvpError] = useState<string | null>(null)
-  const [rsvpSaving, setRsvpSaving] = useState(false)
-  const [message, setMessage] = useState("")
-  const [threadMessages, setThreadMessages] = useState<string[]>([
-    "updates and replies will live here once backend thread support is added.",
-  ])
 
   useEffect(() => {
     const ac = new AbortController()
@@ -69,7 +76,6 @@ export default function EventDetailPage() {
     fetchHostedEventById(params.id, ac.signal)
       .then((nextEvent) => {
         setEvent(nextEvent)
-        setRsvp(rsvpChoiceFromApi(nextEvent.myRsvp))
         setLoading(false)
       })
       .catch((err) => {
@@ -81,45 +87,26 @@ export default function EventDetailPage() {
     return () => ac.abort()
   }, [params.id])
 
-  const addMessage = (e: React.FormEvent<HTMLFormElement>): void => {
-    e.preventDefault()
-    const trimmed = message.trim()
-    if (!trimmed) return
-    setThreadMessages((current) => [...current, trimmed])
-    setMessage("")
+  // Refetch when the tab/app regains focus (#158): otherwise the guest list
+  // and rsvp count only catch up with another account's changes once this
+  // page remounts. Deliberately doesn't touch `loading`/`error` so it
+  // doesn't flash the full loading screen on a background refresh.
+  const refetchAbortRef = useRef<AbortController | null>(null)
+  useEffect(() => {
+    return () => refetchAbortRef.current?.abort()
+  }, [])
+  const reload = () => {
+    refetchAbortRef.current?.abort()
+    const ac = new AbortController()
+    refetchAbortRef.current = ac
+    fetchHostedEventById(params.id, ac.signal)
+      .then(setEvent)
+      .catch((err) => {
+        if (ac.signal.aborted) return
+        console.warn("[Sponti] event refetch failed:", err)
+      })
   }
-
-  const handleRsvp = async (
-    choice: Exclude<RsvpChoice, null>
-  ): Promise<void> => {
-    if (!event || rsvpSaving) return
-    const previous = rsvp
-    setRsvp(choice)
-    setRsvpError(null)
-    setRsvpSaving(true)
-    try {
-      await updateMyRsvp(event.id, { rsvpStatus: choice })
-      setEvent((current) =>
-        current ? { ...current, myRsvp: choice } : current
-      )
-      showActionFeedback(choice === "going" ? "you're in" : "not this one")
-    } catch (err) {
-      setRsvp(previous)
-      // #181: the flare hit its guest limit between opening this page and
-      // tapping going — a distinct, expected state, not a generic failure.
-      if (err instanceof HttpError && err.code === "EVENT_FULL") {
-        setRsvpError("full")
-        showActionFeedback("full", { tone: "error" })
-      } else {
-        setRsvpError(
-          err instanceof Error ? err.message : "could not update rsvp"
-        )
-        showActionFeedback("couldn't save that", { tone: "error" })
-      }
-    } finally {
-      setRsvpSaving(false)
-    }
-  }
+  useRefetchOnFocus(reload)
 
   if (loading) {
     return (
@@ -140,100 +127,237 @@ export default function EventDetailPage() {
     )
   }
 
-  const status = deriveStatus(event)
-  const isPast = status === "past"
-  const isCancelled = status === "cancelled"
-  const canManage = Boolean(
-    searchParams.get("manage") === "1" && user && event.hostId === user.id
-  )
-  const isHost = Boolean(user && event.hostId === user.id)
-  const hostName = (
-    isHost ? "you" : (event.hostName ?? event.hostUsername ?? "host")
-  ).toLowerCase()
-  const hostHandle = event.hostUsername ?? (isHost ? user?.username : undefined)
-  const hostAvatarLabel = isHost
-    ? "you"
-    : (event.hostName ?? event.hostUsername ?? "host")
-  const hostAvatarUrl = isHost ? user?.avatarUrl : event.hostAvatarUrl
-  const description =
-    event.description?.trim() ||
-    "no description yet. the host can add more context from edit flare."
-  const guests = event.attendees ?? []
-  const goingNames = guests.map((guest) => guest.displayName.toLowerCase())
+  const viewer = flareViewer({
+    isHost: Boolean(user && event.hostId === user.id),
+    myRsvp: event.myRsvp,
+  })
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-background">
-      <div className="h-dvh overflow-y-auto pb-32">
-        <header className="flex items-center justify-between px-4 pt-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => router.push("/event")}
-            aria-label="back"
-            className="h-10 w-10 rounded-full"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+    <FlareDetail
+      // Remount when the viewer's relationship changes (join / leave) so the
+      // tabs and composer start from that viewer's defaults.
+      key={viewer}
+      event={event}
+      viewer={viewer}
+      viewerId={user?.id}
+      onEventChange={setEvent}
+      onReload={reload}
+    />
+  )
+}
 
-          {canManage ? (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => router.push(`/event/${event.id}/edit`)}
-              aria-label="edit flare"
-              disabled={isPast}
-              className="h-10 w-10 rounded-full"
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-          ) : (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="more actions"
-                  className="h-10 w-10 rounded-full"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-36">
-                <DropdownMenuItem disabled>mute thread</DropdownMenuItem>
-                <DropdownMenuItem disabled>leave flare</DropdownMenuItem>
-                <DropdownMenuItem disabled variant="destructive">
-                  report
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </header>
+function FlareDetail({
+  event,
+  viewer,
+  viewerId,
+  onEventChange,
+  onReload,
+}: {
+  event: HostedEvent
+  viewer: FlareViewer
+  viewerId?: string
+  onEventChange: (update: (current: HostedEvent | null) => HostedEvent | null) => void
+  /** Refetches the flare, e.g. so the guest list catches up after joining. */
+  onReload: () => void
+}) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { showActionFeedback } = useActionFeedback()
 
-        <section className="px-4 pt-4">
-          {(canManage || event.visibility === "private") && (
-            <div className="mb-2 flex flex-wrap items-center gap-1.5">
-              {canManage && (
-                <span className="inline-flex items-center rounded-full border border-border bg-card px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  hosting
-                </span>
-              )}
-              {event.visibility === "private" && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  <Lock className="h-3 w-3" />
-                  private
-                </span>
-              )}
-            </div>
-          )}
+  const timing = flareTiming({
+    startAt: event.startAt,
+    endAt: event.endAt,
+    cancelled: event.apiStatus === "cancelled",
+  })
+  const isHost = viewer === "host"
+  const canSeeThread = viewer !== "invited"
+  const threadOpen = timing !== "ended" && timing !== "cancelled"
+  const thread = useEventThread(event.id, { enabled: canSeeThread })
 
-          <h1
-            className={cn(
-              "text-2xl leading-tight font-bold tracking-tight",
-              isCancelled && "text-muted-foreground line-through"
+  const [tab, setTab] = useState<Tab>(() =>
+    searchParams.get("tab") === "updates" ? "updates" : "guests"
+  )
+  const [composing, setComposing] = useState(
+    () => canSeeThread && threadOpen && searchParams.get("compose") === "1"
+  )
+  const composerRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (composing) composerRef.current?.focus()
+  }, [composing])
+  const openComposer = () => {
+    setTab("updates")
+    setComposing(true)
+  }
+
+  const [eta, setEta] = useState<string | null>(null)
+  const [editingEta, setEditingEta] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [rsvpError, setRsvpError] = useState<string | null>(null)
+
+  const saveMembership = async (
+    body: Parameters<typeof updateMyRsvp>[1],
+    success: string,
+    apply: (current: HostedEvent) => HostedEvent
+  ) => {
+    if (saving) return
+    setSaving(true)
+    setRsvpError(null)
+    try {
+      await updateMyRsvp(event.id, body)
+      onEventChange((current) => (current ? apply(current) : current))
+      showActionFeedback(success)
+      onReload()
+    } catch (err) {
+      // #181: the flare hit its guest limit between opening this page and
+      // tapping join — a distinct, expected state, not a generic failure.
+      if (err instanceof HttpError && err.code === "EVENT_FULL") {
+        setRsvpError("this flare is full")
+        showActionFeedback("full", { tone: "error" })
+      } else {
+        setRsvpError(err instanceof Error ? err.message : "could not update rsvp")
+        showActionFeedback("couldn't save that", { tone: "error" })
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const join = () => {
+    const willArriveAt = etaAvailable(timing) ? etaToIso(eta) : null
+    void saveMembership(
+      { rsvpStatus: "going", memberWillArriveAt: willArriveAt },
+      "you're in",
+      (current) => ({
+        ...current,
+        myRsvp: "going",
+        myWillArriveAt: willArriveAt,
+        attendingCount:
+          current.myRsvp === "going" ? current.attendingCount : current.attendingCount + 1,
+      })
+    )
+  }
+  const decline = () =>
+    void saveMembership({ rsvpStatus: "declined" }, "not this one", (current) => ({
+      ...current,
+      myRsvp: "declined",
+      myWillArriveAt: null,
+      attendingCount:
+        current.myRsvp === "going"
+          ? Math.max(0, current.attendingCount - 1)
+          : current.attendingCount,
+      attendees: (current.attendees ?? []).filter((a) => a.id !== viewerId),
+    }))
+  const changeEta = (choice: string | null) => {
+    const willArriveAt = etaToIso(choice)
+    setEta(choice)
+    setEditingEta(false)
+    void saveMembership(
+      { memberWillArriveAt: willArriveAt },
+      willArriveAt ? "host knows" : "eta cleared",
+      (current) => ({ ...current, myWillArriveAt: willArriveAt })
+    )
+  }
+
+  const hostName = (event.hostName ?? event.hostUsername ?? "host").toLowerCase()
+  const hostFirstName = hostName.split(" ")[0]
+  const category = EVENT_TYPES.find((t) => t.value === event.type)?.label
+  const mapsUrl = googleMapsUrl({
+    coordinates: event.coordinates,
+    name: [event.locationLabel, event.locationDetail].filter(Boolean).join(", "),
+  })
+  const directions = useFlareDirections({ coordinates: event.coordinates, viewer })
+  const guests = event.attendees ?? []
+  const spots = spotsLeftLabel({
+    visibility: event.visibility,
+    guestLimit: event.guestLimit,
+    // +1s count towards the limit once #159 ships them; until then it's people.
+    headcount: event.attendingCount,
+    allowGuestInvites: event.allowGuestInvites,
+  })
+  const updateCount = canSeeThread && !thread.loading
+    ? thread.updates.length
+    : (event.updateCount ?? 0)
+  const closedNote =
+    timing === "cancelled"
+      ? "this flare was cancelled · the thread is read-only"
+      : timing === "ended"
+        ? "this flare has ended · the thread is read-only"
+        : null
+  const hasBar = threadOpen
+
+  return (
+    <div className="min-h-dvh bg-background">
+      <div
+        className={cn(
+          "h-dvh overflow-y-auto",
+          hasBar
+            ? "pb-[calc(var(--sponti-nav-h,64px)+6.5rem)]"
+            : "pb-[calc(var(--sponti-nav-h,64px)+1.5rem)]"
+        )}
+      >
+        <FlareMapHero
+          coordinates={event.coordinates}
+          type={event.type}
+          directions={directions}
+        >
+          <div className="absolute inset-x-0 top-0 flex justify-between px-4 pt-[max(0.5rem,env(safe-area-inset-top))]">
+            <HeroButton label="back" onClick={() => router.push("/event")}>
+              <ArrowLeft className="h-4 w-4" />
+            </HeroButton>
+            {isHost && (
+              <HeroButton
+                label="edit flare"
+                disabled={timing === "ended"}
+                onClick={() => router.push(`/event/${event.id}/edit`)}
+              >
+                <Pencil className="h-4 w-4" />
+              </HeroButton>
             )}
+          </div>
+          {/* "open in maps": always available, near or far. */}
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="absolute right-4 bottom-9 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs shadow-sm"
           >
-            {event.title.toLowerCase()}
-          </h1>
+            <Navigation className="h-3.5 w-3.5 text-primary" />
+            <span className="font-medium">open in maps</span>
+            {directions.travelLabel && !isHost && (
+              <span className="text-muted-foreground">· {directions.travelLabel}</span>
+            )}
+          </a>
+        </FlareMapHero>
+
+        <div className="relative -mt-6 rounded-t-3xl bg-background px-4 pt-3 shadow-(--shadow-sheet)">
+          <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-muted-foreground/30" />
+
+          <FlareHeader
+            type={event.type}
+            title={event.title}
+            statusLine={flareStatusLine(event, timing)}
+            timing={timing}
+            viewer={viewer}
+          />
+
+          <div className="mt-4">
+            <FlareFacts
+              when={whenLabel(event.startAt, timing)}
+              until={`until ${formatClock(event.endAt)}`}
+              placeName={event.locationLabel}
+              placeDetail={
+                [
+                  directions.distanceMeters !== null && !isHost
+                    ? formatDistance(directions.distanceMeters)
+                    : null,
+                  event.locationDetail,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || null
+              }
+              mapsUrl={mapsUrl}
+            />
+          </div>
 
           {rsvpError && (
             <p
@@ -244,348 +368,244 @@ export default function EventDetailPage() {
             </p>
           )}
 
-          <div className="mt-4 flex flex-col gap-3">
-            {!canManage && (
-              <RsvpStatusControl
-                value={rsvp}
-                disabled={isPast || isCancelled || rsvpSaving}
-                onChange={(choice) => void handleRsvp(choice)}
-              />
-            )}
-            <InfoRow
-              icon={Clock}
-              title={formatTimeRange(event.startAt, event.endAt)}
-              sub={durationLabel(event.startAt, event.endAt)}
-            />
-            <InfoRow
-              icon={MapPin}
-              title={event.locationLabel.toLowerCase()}
-              sub={event.locationDetail?.toLowerCase()}
-            />
-            <InfoRowGuests
-              guests={guests}
-              title={goingCountLabel(event)}
-              sub={guestSummary(goingNames)}
-            />
-          </div>
-        </section>
-
-        <section className="px-4 pt-6">
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            {description.toLowerCase()}
-          </p>
-        </section>
-
-        {!canManage && (
-          <section className="px-4 pt-6">
-            <div className="flex items-center gap-2.5">
-              <Avatar className="size-9">
-                {hostAvatarUrl && <AvatarImage src={hostAvatarUrl} alt="" />}
-                <AvatarFallback>{initials(hostAvatarLabel)}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">
-                  hosted by {hostName}
+          <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-muted p-3">
+            <Avatar className="size-7">
+              {event.hostAvatarUrl && <AvatarImage src={event.hostAvatarUrl} alt="" />}
+              <AvatarFallback className="text-xs">
+                {initials(hostName)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="text-sm font-medium">
+                {isHost ? "hosted by you" : `hosted by ${hostName}`}
+                <span className="font-normal text-muted-foreground">
+                  {category && ` · ${category}`}
+                  {event.visibility === "private" && " · private"}
+                </span>
+              </p>
+              {event.description?.trim() && (
+                <p className="mt-0.5 text-sm wrap-break-word text-muted-foreground">
+                  {event.description.trim().toLowerCase()}
                 </p>
-                {hostHandle && (
-                  <p className="truncate text-xs text-muted-foreground">
-                    @{hostHandle.toLowerCase()}
-                  </p>
-                )}
-              </div>
-              <Button
-                variant="outline"
-                disabled
-                className="h-8 rounded-full px-3 text-xs"
-              >
-                message
-              </Button>
+              )}
             </div>
-          </section>
-        )}
+          </div>
 
-        <Tabs defaultValue="guests" className="pt-6">
-          <div className="px-4">
+          {viewer === "joined" && etaAvailable(timing) && (
+            <div className="mt-4">
+              <YourPlan
+                summary={
+                  event.myWillArriveAt
+                    ? ownArrivalLabel(event.myWillArriveAt)
+                    : "no arrival time shared"
+                }
+                hostFirstName={hostFirstName}
+                hasEta={Boolean(event.myWillArriveAt)}
+                eta={eta}
+                editing={editingEta}
+                onEditingChange={setEditingEta}
+                onEtaChange={changeEta}
+                onClearEta={() => changeEta(null)}
+                onLeave={decline}
+                saving={saving}
+              />
+            </div>
+          )}
+
+          <Tabs
+            value={tab}
+            onValueChange={(next) => setTab(next as Tab)}
+            className="mt-5"
+          >
             <TabsList className="h-9 w-full">
-              <TabsTrigger value="guests" className={EVENT_TAB_TRIGGER_CLASS}>
-                guests
+              <TabsTrigger value="guests" className={TAB_TRIGGER}>
+                {event.attendingCount} going
               </TabsTrigger>
-              <TabsTrigger value="thread" className={EVENT_TAB_TRIGGER_CLASS}>
-                thread
+              <TabsTrigger value="updates" className={TAB_TRIGGER}>
+                {!canSeeThread && <Lock className="h-3 w-3" />}
+                updates · {updateCount}
               </TabsTrigger>
             </TabsList>
-          </div>
 
-          <div className="px-4 pt-1 pb-6">
-            <TabsContent value="guests" className="m-0">
-              <GuestList guests={guests} count={event.attendingCount} />
-            </TabsContent>
-            <TabsContent value="thread" className="m-0">
-              <ThreadBlock
-                message={message}
-                messages={threadMessages}
-                onMessage={setMessage}
-                onSubmit={addMessage}
-              />
-            </TabsContent>
-          </div>
-        </Tabs>
-      </div>
-    </div>
-  )
-}
-
-function rsvpChoiceFromApi(value: HostedEvent["myRsvp"]): RsvpChoice {
-  if (value === "going" || value === "declined") return value
-  return null
-}
-
-function RsvpStatusControl({
-  value,
-  disabled,
-  onChange,
-}: {
-  value: RsvpChoice
-  disabled: boolean
-  onChange: (choice: Exclude<RsvpChoice, null>) => void
-}) {
-  const displayValue = value ?? "declined"
-
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      <RsvpChip
-        selected={displayValue === "going"}
-        disabled={disabled}
-        onClick={() => onChange("going")}
-      >
-        going
-      </RsvpChip>
-      <RsvpChip
-        selected={displayValue === "declined"}
-        disabled={disabled}
-        onClick={() => onChange("declined")}
-        mutedSelected
-      >
-        not going
-      </RsvpChip>
-    </div>
-  )
-}
-
-function RsvpChip({
-  selected,
-  mutedSelected = false,
-  disabled,
-  onClick,
-  children,
-}: {
-  selected: boolean
-  mutedSelected?: boolean
-  disabled: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50",
-        selected
-          ? mutedSelected
-            ? "border-border bg-card font-medium text-foreground"
-            : "border-accent bg-accent/10 font-medium text-accent"
-          : "border-border text-muted-foreground hover:bg-secondary"
-      )}
-    >
-      {children}
-    </button>
-  )
-}
-
-function InfoRow({
-  icon: Icon,
-  title,
-  sub,
-}: {
-  icon: LucideIcon
-  title: string
-  sub?: string
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{title}</p>
-        {sub && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{sub}</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function InfoRowGuests({
-  guests,
-  title,
-  sub,
-}: {
-  guests: NonNullable<HostedEvent["attendees"]>
-  title: string
-  sub: string | null
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <EventAvatarStack people={guests} size="sm" className="min-h-9 pt-1.5" />
-      <div className="min-w-0 flex-1 pt-1.5">
-        <p className="truncate text-sm font-semibold">{title}</p>
-        {sub && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{sub}</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function GuestList({
-  guests,
-  count,
-}: {
-  guests: NonNullable<HostedEvent["attendees"]>
-  count: number
-}) {
-  return (
-    <section className="pt-4">
-      <GuestGroup label={`going (${count})`} guests={guests} />
-    </section>
-  )
-}
-
-function GuestGroup({
-  label,
-  guests,
-}: {
-  label: string
-  guests: NonNullable<HostedEvent["attendees"]>
-}) {
-  return (
-    <div>
-      <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-        {label}
-      </p>
-      {guests.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          guest names will appear here once people say they are going.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-0.5">
-          {guests.map((guest, index) => (
-            <div
-              key={guest.id}
-              className={cn(
-                "flex items-center gap-2.5 py-2",
-                index < guests.length - 1 && "border-b border-border/60"
-              )}
-            >
-              <Avatar className="size-[30px]">
-                {guest.avatarUrl && (
-                  <AvatarImage src={guest.avatarUrl} alt="" />
-                )}
-                <AvatarFallback className="text-xs">
-                  {initials(guest.displayName)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">
-                  {guest.displayName.toLowerCase()}
+            <TabsContent value="guests" className="pt-2 pb-4">
+              {spots && <p className="mb-2 text-xs text-muted-foreground">{spots}</p>}
+              {guests.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  no one&apos;s said they&apos;re going yet.
                 </p>
-                {guest.username && (
-                  <p className="truncate text-xs text-muted-foreground">
-                    @{guest.username.toLowerCase()}
-                  </p>
-                )}
-              </div>
-              <span className="shrink-0 text-xs font-medium text-muted-foreground">
-                going
-              </span>
-              <Check className="h-4 w-4 shrink-0 text-primary" />
-            </div>
-          ))}
+              ) : isHost ? (
+                <ArrivalBoard guests={guests} timing={timing} />
+              ) : (
+                <GuestGrid guests={guests} viewerId={viewerId} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="updates" className="pt-2 pb-4">
+              {canSeeThread ? (
+                <EventThreadList
+                  thread={thread}
+                  hostId={event.hostId}
+                  viewerId={viewerId}
+                  closedNote={closedNote}
+                />
+              ) : (
+                <EventThreadLocked count={event.updateCount ?? 0} />
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+
+      {hasBar && (
+        <div className="fixed inset-x-0 bottom-[var(--sponti-nav-h,64px)] z-30 border-t border-border/60 bg-background/95 px-4 pt-1.5 pb-2 backdrop-blur">
+          {composing && canSeeThread && !thread.closedByServer ? (
+            <EventThreadComposer
+              ref={composerRef}
+              thread={thread}
+              placeholder={isHost ? "announce to everyone..." : "say something..."}
+              onClose={() => setComposing(false)}
+            />
+          ) : (
+            <FlareActions
+              viewer={viewer}
+              timing={timing}
+              declined={event.myRsvp === "declined"}
+              eta={eta}
+              onEtaChange={setEta}
+              saving={saving}
+              onJoin={join}
+              onDecline={decline}
+              onShareUpdate={openComposer}
+            />
+          )}
         </div>
       )}
     </div>
   )
 }
 
-function ThreadBlock({
-  message,
-  messages,
-  onMessage,
-  onSubmit,
+/** Host only: going guests by arrival time, the next arrival highlighted. */
+function ArrivalBoard({
+  guests,
+  timing,
 }: {
-  message: string
-  messages: string[]
-  onMessage: (value: string) => void
-  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
+  guests: NonNullable<HostedEvent["attendees"]>
+  timing: FlareTiming
 }) {
-  const renderedMessages = useMemo(
-    () => messages.map((text, index) => ({ text, index })).reverse(),
-    [messages]
-  )
+  // Ticks so "arriving in 5 min" stays true while the host keeps it open.
+  const [now, setNow] = useState(0)
+  useEffect(() => {
+    const updateNow = () => setNow(Date.now())
+    updateNow()
+    const id = window.setInterval(updateNow, 30_000)
+    return () => window.clearInterval(id)
+  }, [])
+  const arrivalMs = (g: (typeof guests)[number]) =>
+    g.willArriveAt ? new Date(g.willArriveAt).getTime() : Number.POSITIVE_INFINITY
+  const sorted = [...guests].sort((a, b) => arrivalMs(a) - arrivalMs(b))
+  const next = sorted.find((g) => arrivalMs(g) > now && Number.isFinite(arrivalMs(g)))
+  const showEtas = etaAvailable(timing)
 
   return (
-    <section className="pt-4">
-      <form
-        onSubmit={onSubmit}
-        className="flex items-center gap-2 rounded-full bg-secondary py-1 pr-1.5 pl-3"
-      >
-        <input
-          value={message}
-          onChange={(e) => onMessage(e.target.value)}
-          placeholder="write an update..."
-          className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
-        />
-        <button
-          type="submit"
-          aria-label="post update"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground"
-        >
-          <Send className="h-3.5 w-3.5" />
-        </button>
-      </form>
-
-      <div className="mt-4 flex flex-col gap-3.5">
-        {renderedMessages.map((item, index) => (
-          <div key={`message-${item.index}`} className="flex gap-2.5">
-            <Avatar className="size-[30px]">
-              <AvatarFallback className="text-xs">
-                {index === renderedMessages.length - 1 ? "S" : "Y"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">
-                  {index === renderedMessages.length - 1 ? "sponti" : "you"}
-                </span>{" "}
-                · now
-              </p>
-              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                {item.text.toLowerCase()}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
+    <ul>
+      {sorted.map((guest) => {
+        const isNext = guest === next
+        return (
+          <li
+            key={guest.id}
+            className={cn(
+              "flex items-center gap-2.5 py-1.5",
+              isNext && "-ml-3 border-l-[3px] border-l-accent pl-2.25"
+            )}
+          >
+            <GuestAvatar guest={guest} className="size-7" />
+            <span className="min-w-0 flex-1 truncate text-sm">
+              {guest.displayName.toLowerCase()}
+            </span>
+            <span
+              className={cn(
+                "shrink-0 text-xs",
+                isNext ? "font-medium text-accent" : "text-muted-foreground"
+              )}
+            >
+              {showEtas && guest.willArriveAt
+                ? formatArrivalStatus(guest.willArriveAt, now)
+                : showEtas
+                  ? "no eta"
+                  : "going"}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
-function formatTimeRange(startIso: string, endIso: string): string {
-  const day = formatStartDay(startIso)
-  return `${day} · ${formatClock(startIso)}-${formatClock(endIso)}`
+/** Guests see names only: no ETAs, no +1s. */
+function GuestGrid({
+  guests,
+  viewerId,
+}: {
+  guests: NonNullable<HostedEvent["attendees"]>
+  viewerId?: string
+}) {
+  return (
+    <div className="grid grid-cols-4 gap-y-3">
+      {guests.map((guest) => (
+        <div key={guest.id} className="flex min-w-0 flex-col items-center gap-1">
+          <GuestAvatar guest={guest} className="size-11" />
+          <span className="max-w-full truncate text-xs">
+            {guest.id === viewerId ? "you" : guest.displayName.split(" ")[0].toLowerCase()}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function GuestAvatar({
+  guest,
+  className,
+}: {
+  guest: NonNullable<HostedEvent["attendees"]>[number]
+  className?: string
+}) {
+  return (
+    <Avatar className={className}>
+      {guest.avatarUrl && <AvatarImage src={guest.avatarUrl} alt="" />}
+      <AvatarFallback className="text-xs">{initials(guest.displayName)}</AvatarFallback>
+    </Avatar>
+  )
+}
+
+function HeroButton({
+  label,
+  onClick,
+  disabled,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <Button
+      variant="outline"
+      size="icon"
+      aria-label={label}
+      onClick={onClick}
+      disabled={disabled}
+      className="h-10 w-10 rounded-full bg-background/90"
+    >
+      {children}
+    </Button>
+  )
+}
+
+function whenLabel(startIso: string, timing: FlareTiming): string {
+  if (timing === "live") return `now · ${formatClock(startIso)}`
+  return `${formatStartDay(startIso)} · ${formatClock(startIso)}`
 }
 
 function formatStartDay(iso: string): string {
@@ -620,50 +640,6 @@ function formatClock(iso: string): string {
   const minute = String(minutes).padStart(2, "0")
   const period = hours >= 12 ? "pm" : "am"
   return `${hour}:${minute}${period}`
-}
-
-function durationLabel(startIso: string, endIso: string): string {
-  const minutes = Math.max(
-    1,
-    Math.round(
-      (new Date(endIso).getTime() - new Date(startIso).getTime()) / MIN
-    )
-  )
-  if (minutes < 60) return `${minutes} min`
-  const hours = Math.floor(minutes / 60)
-  const rest = minutes % 60
-  return rest === 0 ? `${hours} hr` : `${hours} hr ${rest} min`
-}
-
-function goingCountLabel(event: HostedEvent): string {
-  const cap = capacityForEvent(event)
-  if (cap) {
-    // #181: the guest limit is only a hard cap while there's no +1/re-share.
-    // Once one is on, the host can't know exactly how many extra people it
-    // brings, so the api stops enforcing it and this says so instead of
-    // implying an exact count.
-    const isApproximate =
-      cap === event.guestLimit && event.allowGuestInvites !== "none"
-    return isApproximate
-      ? `${event.attendingCount} going · about ${cap} spots`
-      : `${event.attendingCount} of ${cap} going`
-  }
-  return `${event.attendingCount} going`
-}
-
-function capacityForEvent(event: HostedEvent): number | undefined {
-  // #181: the guest limit only caps public flares. A private flare is capped
-  // by who the host invited, so its (default) limit is never shown.
-  if (event.visibility === "public" && event.guestLimit > event.attendingCount)
-    return event.guestLimit
-  if (event.attendeeCount > event.attendingCount) return event.attendeeCount
-  return undefined
-}
-
-function guestSummary(names: string[]): string | null {
-  if (names.length === 0) return null
-  if (names.length <= 3) return names.join(", ")
-  return `${names.slice(0, 3).join(", ")} +${names.length - 3}`
 }
 
 function FrameMessage({

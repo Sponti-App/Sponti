@@ -2,6 +2,7 @@ export * as blockController from "./blockController.js";
 export * as circleController from "./circleController.js";
 export * as connectionController from "./connectionController.js";
 export * as eventController from "./eventController.js";
+export * as eventUpdateController from "./eventUpdateController.js";
 export * as inboxController from "./inboxController.js";
 export * as mapsController from "./mapsController.js";
 export * as notificationController from "./notificationController.js";

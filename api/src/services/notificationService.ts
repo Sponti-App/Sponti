@@ -412,12 +412,29 @@ export const createEventInvitationNotifications = async ({
   });
 };
 
+// A relative label ("in about 15 min") rather than a clock time — the api
+// has no notion of the host's timezone to render an absolute time correctly
+// against, and this matches the "let host know" ETA chip's own vocabulary
+// (5 min / 15 min / 30 min / 1 hr), which is duration-based, not clock-based.
+const formatEtaLabel = (eta: Date, now: Date = new Date()): string => {
+  const minutes = Math.round((eta.getTime() - now.getTime()) / 60_000);
+  if (minutes <= 1) return "any minute now";
+  if (minutes < 60) return `in about ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  return hours <= 1 ? "in about 1 hr" : `in about ${hours} hrs`;
+};
+
 export const createEventRsvpChangeNotification = async ({
   eventId,
   hostId,
   attendeeId,
   eventTitle,
   rsvpStatus,
+  memberWillArriveAt,
+  // Set when the RSVP status itself didn't change and this is only reporting
+  // a going member moving their arrival time (#90) — distinct copy so the
+  // host isn't told someone "RSVP'd" when they didn't.
+  etaOnly = false,
   session,
 }: {
   eventId: string;
@@ -425,6 +442,8 @@ export const createEventRsvpChangeNotification = async ({
   attendeeId: string;
   eventTitle: string;
   rsvpStatus: "going" | "declined";
+  memberWillArriveAt?: Date | string | null;
+  etaOnly?: boolean;
   session?: ClientSession;
 }) => {
   if (hostId === attendeeId) {
@@ -435,6 +454,18 @@ export const createEventRsvpChangeNotification = async ({
   const attendee = users.get(attendeeId);
   const attendeeName = actorDisplayName(attendee, "Someone");
   const rsvpLabel = rsvpStatus === "going" ? "is going to" : "can't make it to";
+  const eta =
+    rsvpStatus === "going" && memberWillArriveAt ? new Date(memberWillArriveAt) : null;
+  const etaLabel = eta ? formatEtaLabel(eta) : null;
+
+  const title = etaOnly
+    ? `${attendeeName} updated their arrival time`
+    : `${attendeeName} updated their RSVP`;
+  const message = etaOnly
+    ? `${attendeeName} is now arriving ${etaLabel ?? "soon"} for ${eventTitle}.`
+    : etaLabel
+      ? `${attendeeName} ${rsvpLabel} ${eventTitle} — arriving ${etaLabel}.`
+      : `${attendeeName} ${rsvpLabel} ${eventTitle}.`;
 
   return createNotifications(
     [
@@ -444,11 +475,12 @@ export const createEventRsvpChangeNotification = async ({
         type: "event_rsvp_change",
         targetType: "event",
         targetId: eventId,
-        title: `${attendeeName} updated their RSVP`,
-        message: `${attendeeName} ${rsvpLabel} ${eventTitle}.`,
+        title,
+        message,
         metadata: {
           eventTitle,
           rsvpStatus,
+          memberWillArriveAt: eta ? eta.toISOString() : null,
         },
       },
     ],
@@ -490,6 +522,65 @@ export const createEventGuestRemovedNotification = async ({
     ],
     session
   );
+
+const EVENT_UPDATE_PREVIEW_LENGTH = 120;
+
+const previewText = (text: string, maxLength = EVENT_UPDATE_PREVIEW_LENGTH) => {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  return collapsed.length <= maxLength
+    ? collapsed
+    : `${collapsed.slice(0, maxLength - 1).trimEnd()}…`;
+};
+
+/**
+ * Tells going guests the host posted an update to the flare's thread (#140).
+ * One notification per recipient per update; the caller decides who may
+ * receive it (going, not removed, no block with the host). Guests' own
+ * updates never notify anyone, so this is only called for the host.
+ */
+export const createEventUpdateNotifications = async ({
+  eventId,
+  hostId,
+  eventTitle,
+  updateId,
+  body,
+  recipientIds,
+  session,
+}: {
+  eventId: string;
+  hostId: string;
+  eventTitle: string;
+  updateId: string;
+  body: string;
+  recipientIds: string[];
+  session?: ClientSession;
+}) => {
+  const recipients = uniqueObjectIdStrings(recipientIds).filter((id) => id !== hostId);
+
+  if (recipients.length === 0) {
+    return { created: 0 };
+  }
+
+  const users = await getUsersByIds([hostId]);
+  const hostName = actorDisplayName(users.get(hostId), "The host");
+
+  return createNotifications(
+    recipients.map((recipientId) => ({
+      userId: recipientId,
+      actorId: hostId,
+      type: "event_update" as const,
+      targetType: "event" as const,
+      targetId: eventId,
+      title: `${hostName} posted an update`,
+      message: previewText(body),
+      metadata: {
+        eventTitle,
+        updateId,
+      },
+    })),
+    session
+  );
+};
 
 export const createEventStatusNotifications = async ({
   eventId,

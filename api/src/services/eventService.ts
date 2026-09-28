@@ -1,5 +1,13 @@
 import { type ClientSession } from "mongoose";
-import { Block, Circle, CircleMember, Connection, Event, EventMember } from "#models/index";
+import {
+  Block,
+  Circle,
+  CircleMember,
+  Connection,
+  Event,
+  EventMember,
+  EventUpdate,
+} from "#models/index";
 import type {
   ActiveMapEventsQuery,
   CreateEventBody,
@@ -36,15 +44,21 @@ type EventWithMemberStats<T> = T & {
   memberCount: number;
   goingCount: number;
 };
-type EventUserIdentity = {
+export type EventUserIdentity = {
   _id: string;
   displayName?: string;
   username?: string;
   avatarUrl?: string | null;
 };
+// Only ever populated for the event's host — see `attachEventPeople`. Other
+// viewers get attendee rows without this field at all (not just `null`), so
+// there's nothing in the response payload for a non-host to read.
+type EventAttendeeIdentity = EventUserIdentity & {
+  willArriveAt?: string | null;
+};
 type EventWithPeople<T> = Omit<T, "hostId"> & {
   hostId: string | EventUserIdentity | null;
-  attendees: EventUserIdentity[];
+  attendees: EventAttendeeIdentity[];
 };
 type EventWithHostProfile<T> = Omit<T, "hostId"> & {
   hostId: string | EventUserIdentity | null;
@@ -74,11 +88,11 @@ const mergeInviteCandidate = (
   }
 };
 
-const withConditions = (base: EventFilter, ...conditions: EventFilter[]) => ({
+export const withConditions = (base: EventFilter, ...conditions: EventFilter[]) => ({
   $and: [base, ...conditions],
 });
 
-const buildAccessibleEventFilter = async (userId: string): Promise<EventFilter> => {
+export const buildAccessibleEventFilter = async (userId: string): Promise<EventFilter> => {
   const userObjectId = toObjectId(userId);
   const [memberEventIds, removedEventIds, blockedUserIds] = await Promise.all([
     EventMember.distinct("eventId", { userId: userObjectId, removedAt: null }),
@@ -149,7 +163,7 @@ const extractHostId = (hostId: unknown): string | null => {
   return objectIdString(hostId);
 };
 
-const toEventUserIdentity = (userId: string, user?: UserSummary): EventUserIdentity => ({
+export const toEventUserIdentity = (userId: string, user?: UserSummary): EventUserIdentity => ({
   _id: user?._id ?? userId,
   displayName: user?.displayName ?? user?.username ?? "guest",
   username: user?.username,
@@ -181,7 +195,13 @@ const attachHostProfiles = async <T extends { hostId: unknown }>(
 };
 
 const attachEventPeople = async <T extends { _id: unknown; hostId: unknown }>(
-  events: T[]
+  events: T[],
+  // The requesting user's id. When it matches an event's host, that event's
+  // attendee rows get a `willArriveAt` field (#90) — every other viewer,
+  // including other going members, gets rows without the field at all. Pass
+  // it whenever the caller knows who's asking; omit it for host-agnostic
+  // listings where no one should see anyone else's ETA.
+  viewerId?: string
 ): Promise<Array<EventWithPeople<T>>> => {
   if (events.length === 0) {
     return [];
@@ -193,7 +213,7 @@ const attachEventPeople = async <T extends { _id: unknown; hostId: unknown }>(
     rsvpStatus: "going",
     removedAt: null,
   })
-    .select("eventId userId")
+    .select("eventId userId memberWillArriveAt")
     .lean();
 
   const userIds = uniqueObjectIdStrings([
@@ -204,14 +224,21 @@ const attachEventPeople = async <T extends { _id: unknown; hostId: unknown }>(
   const hostIdByEventId = new Map(
     events.map((event) => [String(event._id), extractHostId(event.hostId)])
   );
-  const attendeesByEventId = new Map<string, EventUserIdentity[]>();
+  const attendeesByEventId = new Map<string, EventAttendeeIdentity[]>();
 
   for (const member of goingMembers) {
     const eventId = String(member.eventId);
     const userId = String(member.userId);
-    if (userId === hostIdByEventId.get(eventId)) continue;
+    const hostId = hostIdByEventId.get(eventId);
+    if (userId === hostId) continue;
     const attendees = attendeesByEventId.get(eventId) ?? [];
-    attendees.push(toEventUserIdentity(userId, users.get(userId)));
+    const identity: EventAttendeeIdentity = toEventUserIdentity(userId, users.get(userId));
+    if (viewerId && hostId === viewerId) {
+      identity.willArriveAt = member.memberWillArriveAt
+        ? new Date(member.memberWillArriveAt).toISOString()
+        : null;
+    }
+    attendees.push(identity);
     attendeesByEventId.set(eventId, attendees);
   }
 
@@ -531,14 +558,29 @@ export const getEventById = async (userId: string, eventId: string) => {
 
   const withStats = await attachMemberStats([event]);
   const withRsvp = await attachMyRsvp(userId, withStats);
-  const withPeople = await attachEventPeople(withRsvp);
+  const withPeople = await attachEventPeople(withRsvp, userId);
   const enriched = withPeople[0];
 
   if (!enriched) {
     throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  return enriched;
+  // #140: anyone who can see the flare gets the size of its thread, so a guest
+  // who hasn't joined sees "N updates · join to see". The updates themselves
+  // are only readable by the host and going guests (eventUpdateService).
+  const [updateCount, myMembership] = await Promise.all([
+    EventUpdate.countDocuments({ eventId: event._id, deletedAt: null }),
+    // #139: the caller's own arrival time, so a going guest can see and change
+    // "you're arriving in 15 min". Other guests' ETAs stay host-only (#90).
+    EventMember.findOne({ eventId: event._id, userId: toObjectId(userId), removedAt: null })
+      .select("memberWillArriveAt")
+      .lean(),
+  ]);
+  const myWillArriveAt = myMembership?.memberWillArriveAt
+    ? new Date(myMembership.memberWillArriveAt).toISOString()
+    : null;
+
+  return { ...enriched, updateCount, myWillArriveAt };
 };
 
 /**
@@ -597,9 +639,9 @@ export const getMyUpcomingEvents = async (userId: string, query: MyUpcomingEvent
     attachMyRsvp(userId, pastWithStats),
   ]);
   const [hostedWithPeople, invitedWithPeople, pastWithPeople] = await Promise.all([
-    attachEventPeople(hostedWithRsvp),
-    attachEventPeople(invitedWithRsvp),
-    attachEventPeople(pastWithRsvp),
+    attachEventPeople(hostedWithRsvp, userId),
+    attachEventPeople(invitedWithRsvp, userId),
+    attachEventPeople(pastWithRsvp, userId),
   ]);
 
   return {
@@ -632,7 +674,8 @@ export const updateEvent = async (hostId: string, eventId: string, input: Update
   // flag. The next reservation attempt — which can only happen once the
   // flare is public again — recomputes it from EventMember's live truth
   // instead of trusting whatever it held from before.
-  const visibilityChanging = input.visibility !== undefined && input.visibility !== event.visibility;
+  const visibilityChanging =
+    input.visibility !== undefined && input.visibility !== event.visibility;
 
   Object.assign(event, input);
 
@@ -892,7 +935,7 @@ export const getCircleUpcomingEvents = async (
  * `removedAt` set, so the person can't see or rejoin the flare (even a public
  * one) until the host invites them again. A guest who had said "going" gets one
  * neutral notice; invited and declined guests aren't told. Only allowed for the
- * host, and only while the flare is active and hasn't started.
+ * host, and only while the flare is active and hasn't ended (upcoming or live).
  */
 export const removeEventMember = async (hostId: string, eventId: string, guestId: string) => {
   if (guestId === hostId) {
@@ -900,16 +943,16 @@ export const removeEventMember = async (hostId: string, eventId: string, guestId
   }
 
   const event = await Event.findOne({ _id: toObjectId(eventId), hostId: toObjectId(hostId) })
-    .select("_id title status startAt visibility")
+    .select("_id title status endAt visibility")
     .lean();
 
   if (!event) {
     throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  if (event.status !== "active" || event.startAt.getTime() <= Date.now()) {
+  if (event.status !== "active" || event.endAt.getTime() <= Date.now()) {
     throw new AppError(
-      "Guests can only be removed from active events that haven't started",
+      "Guests can only be removed from active events that haven't ended",
       409,
       "EVENT_GUEST_LIST_LOCKED"
     );
@@ -1207,6 +1250,7 @@ export const updateMyEventMembership = async (
     }
 
     const previousRsvpStatus = membership.rsvpStatus;
+    const previousMemberWillArriveAt = membership.memberWillArriveAt ?? null;
     const nextRsvpStatus = input.rsvpStatus;
     // A stranger declining a public flare isn't news to the host; only a join is.
     const rsvpStatusChanged =
@@ -1244,6 +1288,13 @@ export const updateMyEventMembership = async (
 
     if ("memberWillArriveAt" in input) {
       membership.memberWillArriveAt = input.memberWillArriveAt ?? null;
+    }
+
+    // A stale arrival time shouldn't linger once someone says they're not
+    // coming — clear it regardless of what (if anything) this request itself
+    // sent for memberWillArriveAt.
+    if (membership.rsvpStatus === "declined") {
+      membership.memberWillArriveAt = null;
     }
 
     try {
@@ -1296,6 +1347,20 @@ export const updateMyEventMembership = async (
       await releaseGoingSpot(event._id, session);
     }
 
+    const finalMemberWillArriveAt = membership.memberWillArriveAt ?? null;
+    const memberWillArriveAtChanged =
+      "memberWillArriveAt" in input &&
+      (previousMemberWillArriveAt?.getTime() ?? null) !==
+        (finalMemberWillArriveAt?.getTime() ?? null);
+    // A going member who only moves their arrival time doesn't trip
+    // rsvpStatusChanged (their RSVP didn't change), but the host still wants
+    // to know — today that update was silent.
+    const etaOnlyChanged =
+      !rsvpStatusChanged &&
+      previousRsvpStatus === "going" &&
+      membership.rsvpStatus === "going" &&
+      memberWillArriveAtChanged;
+
     if (rsvpStatusChanged && nextRsvpStatus) {
       await createEventRsvpChangeNotification({
         eventId: String(event._id),
@@ -1303,6 +1368,18 @@ export const updateMyEventMembership = async (
         attendeeId: userId,
         eventTitle: event.title,
         rsvpStatus: nextRsvpStatus,
+        memberWillArriveAt: finalMemberWillArriveAt,
+        session,
+      });
+    } else if (etaOnlyChanged) {
+      await createEventRsvpChangeNotification({
+        eventId: String(event._id),
+        hostId: String(event.hostId),
+        attendeeId: userId,
+        eventTitle: event.title,
+        rsvpStatus: "going",
+        memberWillArriveAt: finalMemberWillArriveAt,
+        etaOnly: true,
         session,
       });
     }
@@ -1348,21 +1425,33 @@ const attachMyRsvp = async <T extends { _id: unknown }>(
 };
 
 /**
+ * How far out a flare's start time can be for it to still count as "soon"
+ * on the home map. Live flares always qualify regardless of this window;
+ * this only bounds how far in the future a not-yet-started flare can be.
+ */
+export const MAP_SOON_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
  * Returns events that should appear on the home map for the authenticated user.
  *
  * The base filter enforces event visibility and block rules, then the map
  * filter narrows results to active events within the requested radius. Events
  * whose end time is now or in the past are excluded at the database layer so
  * clients do not need to decide whether an ended event is still displayable.
+ * Events starting more than MAP_SOON_WINDOW_MS from now are excluded too —
+ * the map only surfaces what's live or soon; far-future flares stay on the
+ * calendar until they enter the window. There is no exception for the host.
  *
  * MongoDB expects GeoJSON coordinates in [lng, lat] order and distances in
  * meters, while the public query uses latitude/longitude and radius in km.
  */
 export const getActiveMapEvents = async (userId: string, query: ActiveMapEventsQuery) => {
   const baseFilter = await buildAccessibleEventFilter(userId);
+  const now = new Date();
   const filter = withConditions(baseFilter, {
     status: "active",
-    endAt: { $gt: new Date() },
+    endAt: { $gt: now },
+    startAt: { $lte: new Date(now.getTime() + MAP_SOON_WINDOW_MS) },
     location: {
       $near: {
         $geometry: {
