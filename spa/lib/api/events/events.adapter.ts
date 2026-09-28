@@ -103,7 +103,8 @@ export function avatarText(bgColor: string): string {
 
 const EARTH_RADIUS_M = 6_371_000
 
-function haversineMeters(a: EventCoordinates, b: EventCoordinates): number {
+/** Straight-line distance between two points, in meters. */
+export function haversineMeters(a: EventCoordinates, b: EventCoordinates): number {
   const toRad = (v: number) => (v * Math.PI) / 180
   const dLat = toRad(b.lat - a.lat)
   const dLng = toRad(b.lng - a.lng)
@@ -138,6 +139,14 @@ export function walkTimeLabel(meters: number): string {
   const hours = Math.floor(minutes / 60)
   const rem = minutes % 60
   return rem === 0 ? `${hours} hr walk` : `${hours}h ${rem}m walk`
+}
+
+function coordinatesFromApi(
+  location: ApiEvent["location"] | undefined
+): EventCoordinates | undefined {
+  const [lng, lat] = location?.coordinates ?? []
+  if (typeof lat !== "number" || typeof lng !== "number") return undefined
+  return { lat, lng }
 }
 
 export function eventCoords(event: EventItem): EventCoordinates | null {
@@ -242,6 +251,7 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     endAt: api.endAt,
     locationLabel: displayLocationName(api.locationName),
     locationDetail: api.locationAddress ?? undefined,
+    coordinates: coordinatesFromApi(api.location),
     audienceLabel: api.visibility,
     attendeeCount: api.memberCount ?? api.attendees?.length ?? 0,
     attendingCount: api.goingCount ?? 0,
@@ -259,6 +269,7 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     allowGuestInvites: api.allowGuestInvites,
     myRsvp: api.myRsvp ?? null,
     updateCount: api.updateCount ?? 0,
+    myWillArriveAt: api.myWillArriveAt ?? null,
     recurrence: "none",
     apiStatus: api.status,
     createdAt: api.createdAt ?? api.startAt,

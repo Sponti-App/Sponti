@@ -43,56 +43,11 @@ import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 import { haptic } from "@/lib/haptics"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
+import { FitBoundsOnce, GoogleMapPolyline } from "@/components/google-map-overlays"
 import { EVENT_TYPES } from "@/types/utils"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { useTheme } from "next-themes"
-
-// Hex equivalent of --accent (oklch 0.8041 0.126 52.09). Google Maps overlays
-// can't read CSS variables, so we mirror the token here. Keep in sync with
-// globals.css.
-const ACCENT_HEX = "#f8b187"
-
-function GoogleMapPolyline({ path }: { path: google.maps.LatLngLiteral[] }) {
-  const map = useMap()
-  useEffect(() => {
-    if (!map || path.length === 0) return
-    const polyline = new google.maps.Polyline({
-      path,
-      geodesic: true,
-      strokeColor: ACCENT_HEX,
-      strokeOpacity: 0.9,
-      strokeWeight: 4,
-      map,
-    })
-    return () => {
-      polyline.setMap(null)
-    }
-  }, [map, path])
-  return null
-}
-
-function FitBoundsOnce({
-  origin,
-  destination,
-}: {
-  origin: GeoCoords | null
-  destination: GeoCoords | null
-}) {
-  const map = useMap()
-  const lastKey = useRef<string | null>(null)
-  useEffect(() => {
-    if (!map || !origin || !destination) return
-    const key = `${origin.lat},${origin.lng}|${destination.lat},${destination.lng}`
-    if (lastKey.current === key) return
-    lastKey.current = key
-    const bounds = new google.maps.LatLngBounds()
-    bounds.extend(origin)
-    bounds.extend(destination)
-    map.fitBounds(bounds, 80)
-  }, [map, origin, destination])
-  return null
-}
 
 function eventIcon(type: EventType, avatar: string) {
   const match = EVENT_TYPES.find((t) => t.value === type)
