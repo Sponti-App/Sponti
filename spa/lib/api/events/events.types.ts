@@ -105,6 +105,8 @@ export type HostedEvent = {
   endAt: string
   locationLabel: string
   locationDetail?: string
+  // The flare's pin, for the detail page's map hero and "open in maps" (#139).
+  coordinates?: EventCoordinates
   audienceLabel: string
   attendeeCount: number
   attendingCount: number
@@ -127,6 +129,8 @@ export type HostedEvent = {
   // #140: how many updates the flare's thread has. Anyone who can see the
   // flare gets it; only the host and going guests can read the updates.
   updateCount?: number
+  // #139: the viewer's own arrival time. Only on the single-event response.
+  myWillArriveAt?: string | null
   visibility: EventVisibility
   recurrence: Recurrence
   apiStatus: ApiEventStatus
@@ -271,6 +275,8 @@ export type ApiEvent = {
   }>
   // Only on the single-event response (#140).
   updateCount?: number
+  // The caller's own arrival time. Only on the single-event response (#139).
+  myWillArriveAt?: string | null
   createdAt?: string
   updatedAt?: string
 }

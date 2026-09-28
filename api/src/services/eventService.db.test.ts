@@ -436,6 +436,17 @@ describe("eventService attendee ETA visibility database behavior (#90)", () => {
     ).not.toHaveProperty("willArriveAt");
   });
 
+  it("gives each caller only their own arrival time as myWillArriveAt (#139)", async () => {
+    const { eventId, arrival } = await seedFlareWithGoingGuest("public");
+
+    expect((await getEventById(GOING_GUEST_ID, eventId)).myWillArriveAt).toBe(
+      arrival.toISOString()
+    );
+    // The host has no arrival time of their own, and a stranger has no row.
+    expect((await getEventById(HOST_ID, eventId)).myWillArriveAt).toBeNull();
+    expect((await getEventById(STRANGER_ID, eventId)).myWillArriveAt).toBeNull();
+  });
+
   it("tells the host when a going member only updates their arrival time", async () => {
     const { eventId } = await seedFlareWithGoingGuest("private");
     const newArrival = new Date(Date.now() + 45 * 60 * 1000);

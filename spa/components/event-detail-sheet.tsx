@@ -6,42 +6,24 @@ import { Drawer } from "vaul"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
-import {
-  MapPin,
-  Coffee,
-  Activity,
-  Flame,
-  Check,
-  Navigation,
-  X,
-  Landmark,
-  Palette,
-  PartyPopper,
-  Utensils,
-} from "lucide-react"
+import { FlareActions, FlareFacts, FlareHeader } from "@/components/flare-detail"
+import { ChevronRight, Navigation, Pencil } from "lucide-react"
 import {
   avatarText,
+  distanceFromUser,
   eventCoords,
   formatArrivalStatus,
-  formatEventTime,
-  formatRelativeStatus,
-  isImminent,
   type EventItem,
 } from "@/lib/api/events"
+import {
+  etaAvailable,
+  flareStatusLine,
+  flareTiming,
+  flareViewer,
+  googleMapsUrl,
+} from "@/lib/flare-detail"
+import { readLastKnownCoords } from "@/lib/geolocation"
 import { haptic } from "@/lib/haptics"
-
-const ETA_OPTIONS = ["5 min", "15 min", "30 min", "1 hr"]
-
-function EventTypeIcon({ type }: { type: EventItem["type"] }) {
-  const cls = "w-6 h-6 text-accent"
-  if (type === "food") return <Utensils className={cls} />
-  if (type === "drinks") return <Coffee className={cls} />
-  if (type === "sports") return <Activity className={cls} />
-  if (type === "culture") return <Landmark className={cls} />
-  if (type === "hobby") return <Palette className={cls} />
-  if (type === "party") return <PartyPopper className={cls} />
-  return <Flame className={cls} />
-}
 
 interface Props {
   open: boolean
@@ -87,11 +69,31 @@ export function EventDetailSheet({
   }, [open])
 
   const { user } = useAuth()
-  const imminent = displayEvent ? isImminent(displayEvent) : false
+  // Same rules as the full page (#139): who's looking picks the main action,
+  // and an arrival time is only asked for when live or starting within 1h.
+  const viewer = flareViewer({
+    isHost,
+    myRsvp: joined ? "going" : displayEvent?.myRsvp,
+  })
+  const timing = displayEvent
+    ? flareTiming({ startAt: displayEvent.startAt, endAt: displayEvent.endAt })
+    : "later"
+  const withEta = etaAvailable(timing)
+  const distance = displayEvent
+    ? distanceFromUser(displayEvent, readLastKnownCoords())
+    : null
+
+  // The full flare page holds the thread and the host's arrival board. Close
+  // the drawer first so vaul's body scroll lock doesn't leak into it (#168).
+  const openFlarePage = (query = "") => {
+    if (!displayEvent) return
+    onClose()
+    router.push(`/event/${displayEvent.id}${query}`)
+  }
 
   const hostLabel = user && displayEvent?.host?.id === user.id
     ? "hosted by you"
-    : `hosted by ${displayEvent?.host?.name || "Host"}`
+    : `hosted by ${(displayEvent?.host?.name || "host").toLowerCase()}`
 
   // The api only sends willArriveAt on attendee rows to the flare's host, so
   // this is naturally empty for anyone else — no separate client-side check
@@ -125,23 +127,33 @@ export function EventDetailSheet({
 
           {displayEvent && (
             <div className="max-h-[62vh] overflow-y-auto px-4 pb-6" data-vaul-no-drag>
-              {/* Event Header */}
-              <div className="mb-4 flex items-start gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10">
-                  <EventTypeIcon type={displayEvent.type} />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-xl font-semibold">{displayEvent.title}</h2>
-                  <div className="flex items-center gap-1 text-sm text-accent">
-                    <Flame className="h-4 w-4" />
-                    <span>{formatRelativeStatus(displayEvent)}</span>
-                  </div>
-                </div>
-                {joined && (
-                  <span className="flex items-center gap-1 self-start rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
-                    <Check className="h-3 w-3" /> going
-                  </span>
-                )}
+              <FlareHeader
+                as="h2"
+                type={displayEvent.type}
+                title={displayEvent.title}
+                statusLine={flareStatusLine(displayEvent, timing)}
+                timing={timing}
+                viewer={viewer}
+              />
+
+              <div className="my-4">
+                <FlareFacts
+                  when={formatWhen(displayEvent.startAt, timing === "live")}
+                  until={`until ${formatClock(displayEvent.endAt)}`}
+                  placeName={displayEvent.location.name}
+                  placeDetail={
+                    [
+                      distance?.label,
+                      displayEvent.location.area ?? displayEvent.location.address,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || null
+                  }
+                  mapsUrl={googleMapsUrl({
+                    coordinates: eventCoords(displayEvent),
+                    name: displayEvent.location.name,
+                  })}
+                />
               </div>
 
               {/* Host Note */}
@@ -176,30 +188,10 @@ export function EventDetailSheet({
                 </div>
               </Card>
 
-              {/* Where */}
-              <div className="mb-4">
-                <span className="mb-2 block text-xs tracking-wide text-muted-foreground uppercase">
-                  Where
-                </span>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border">
-                    <MapPin className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{displayEvent.location.name}</p>
-                    {(displayEvent.location.area || displayEvent.location.address) && (
-                      <p className="truncate text-sm text-muted-foreground">
-                        {displayEvent.location.area ?? displayEvent.location.address}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
               {/* Who's Going */}
               <div className="mb-4">
-                <p className="mb-2 text-xs tracking-wide text-muted-foreground uppercase">
-                  Who&apos;s going
+                <p className="mb-2 text-xs text-muted-foreground">
+                  who&apos;s going
                 </p>
                 <div className="flex items-center gap-3">
                   <div className="flex -space-x-2">
@@ -214,7 +206,7 @@ export function EventDetailSheet({
                   </div>
                   <div>
                     <p className="font-medium">
-                      {displayEvent.attendees.map((a) => a.name).join(", ")}
+                      {displayEvent.attendees.map((a) => a.name.toLowerCase()).join(", ")}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {displayEvent.going} going
@@ -239,112 +231,106 @@ export function EventDetailSheet({
                 )}
               </div>
 
-              {/* ETA Selection — imminent + not yet joined + not host */}
-              {imminent && !joined && !isHost && (
-                <div className="mb-6">
-                  <span className="mb-2 block text-xs tracking-wide text-muted-foreground uppercase">
-                    Let host know
-                  </span>
-                  <div className="flex gap-2">
-                    {ETA_OPTIONS.map((eta) => (
-                      <Button
-                        key={eta}
-                        variant={selectedEta === eta ? "default" : "outline"}
-                        size="sm"
-                        className={`flex-1 rounded-full ${selectedEta === eta
-                          ? "bg-accent text-accent-foreground hover:bg-accent/90"
-                          : "bg-background text-foreground"
-                          }`}
-                        onClick={() => {
-                          haptic("selection")
-                          setSelectedEta(eta)
-                        }}
-                      >
-                        {eta}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <FlareActions
+                viewer={viewer}
+                timing={timing}
+                declined={!joined && displayEvent.myRsvp === "declined"}
+                eta={selectedEta}
+                onEtaChange={(eta) => {
+                  haptic("selection")
+                  setSelectedEta(eta)
+                }}
+                onJoin={() => {
+                  haptic("success")
+                  onJoin(displayEvent, withEta ? selectedEta : null)
+                }}
+                onDecline={() => {
+                  haptic("warning")
+                  onLeave(displayEvent)
+                }}
+                onShareUpdate={() => {
+                  haptic("selection")
+                  openFlarePage("?tab=updates&compose=1")
+                }}
+              />
 
-              {/* CTAs */}
-              {isHost ? (
-                <Button
-                  className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
-                  onClick={() => {
-                    // Close the drawer before navigating so vaul's body
-                    // scroll lock doesn't leak into the edit page (#168).
-                    onClose()
-                    router.push(`/event/${displayEvent.id}/edit`)
-                  }}
-                >
-                  edit flare
-                </Button>
-              ) : joined ? (
-                <div className="space-y-2">
-                  {imminent && eventCoords(displayEvent) && (
-                    <Button
-                      className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
-                      onClick={() => {
-                        haptic("medium")
-                        onSeeRoute(displayEvent)
-                      }}
-                    >
-                      <Navigation className="mr-1 h-4 w-4" />
-                      see route on map
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    className="w-full rounded-full py-6 text-base"
+              <div className="mt-2 flex flex-col gap-1">
+                {viewer === "joined" && withEta && eventCoords(displayEvent) && (
+                  <SecondaryAction
+                    onClick={() => {
+                      haptic("medium")
+                      onSeeRoute(displayEvent)
+                    }}
+                  >
+                    <Navigation className="h-4 w-4" /> see route on map
+                  </SecondaryAction>
+                )}
+                {viewer === "joined" && withEta && (
+                  <SecondaryAction
                     onClick={() => {
                       haptic("warning")
                       onLeave(displayEvent)
                     }}
                   >
-                    <X className="mr-1 h-4 w-4" />
-                    {imminent ? "can't make it" : "leave event"}
-                  </Button>
-                </div>
-              ) : imminent ? (
-                <Button
-                  className={`w-full rounded-full py-6 text-base ${selectedEta
-                    ? "bg-accent text-accent-foreground hover:bg-accent/90"
-                    : "cursor-not-allowed bg-muted text-muted-foreground"
-                    }`}
-                  disabled={!selectedEta}
-                  onClick={() => {
-                    if (selectedEta) {
-                      haptic("success")
-                      onJoin(displayEvent, selectedEta)
-                    }
-                  }}
-                >
-                  {selectedEta ? (
-                    <span className="flex items-center gap-2">
-                      <Check className="h-4 w-4" /> on the way · {selectedEta}
-                    </span>
-                  ) : (
-                    "select ETA to join"
-                  )}
-                </Button>
-              ) : (
-                <Button
-                  className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
-                  onClick={() => {
-                    haptic("success")
-                    onJoin(displayEvent, null)
-                  }}
-                >
-                  <Check className="mr-1 h-4 w-4" />
-                  I&apos;m in
-                  {` · ${formatEventTime(displayEvent)}`}
-                </Button>
-              )}
+                    can&apos;t make it
+                  </SecondaryAction>
+                )}
+                {viewer === "host" && (
+                  <SecondaryAction onClick={() => openFlarePage("/edit")}>
+                    <Pencil className="h-4 w-4" /> edit flare
+                  </SecondaryAction>
+                )}
+                <SecondaryAction onClick={() => openFlarePage()}>
+                  {viewer === "invited" ? "see details and updates" : "open flare"}
+                  <ChevronRight className="h-4 w-4" />
+                </SecondaryAction>
+              </div>
             </div>
           )}
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>
   )
+}
+
+function SecondaryAction({
+  onClick,
+  children,
+}: {
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Button
+      variant="ghost"
+      className="h-10 w-full rounded-full text-sm text-muted-foreground"
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  )
+}
+
+function formatWhen(startIso: string, live: boolean): string {
+  const start = new Date(startIso)
+  if (live) return `now · ${formatClock(startIso)}`
+  const today = new Date()
+  const tomorrow = new Date(today)
+  tomorrow.setDate(today.getDate() + 1)
+  const day =
+    start.toDateString() === today.toDateString()
+      ? "today"
+      : start.toDateString() === tomorrow.toDateString()
+        ? "tomorrow"
+        : start
+            .toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+            .toLowerCase()
+  return `${day} · ${formatClock(startIso)}`
+}
+
+function formatClock(iso: string): string {
+  const d = new Date(iso)
+  const hour = d.getHours() % 12 || 12
+  const minute = String(d.getMinutes()).padStart(2, "0")
+  return `${hour}:${minute}${d.getHours() >= 12 ? "pm" : "am"}`
 }

@@ -568,9 +568,19 @@ export const getEventById = async (userId: string, eventId: string) => {
   // #140: anyone who can see the flare gets the size of its thread, so a guest
   // who hasn't joined sees "N updates · join to see". The updates themselves
   // are only readable by the host and going guests (eventUpdateService).
-  const updateCount = await EventUpdate.countDocuments({ eventId: event._id, deletedAt: null });
+  const [updateCount, myMembership] = await Promise.all([
+    EventUpdate.countDocuments({ eventId: event._id, deletedAt: null }),
+    // #139: the caller's own arrival time, so a going guest can see and change
+    // "you're arriving in 15 min". Other guests' ETAs stay host-only (#90).
+    EventMember.findOne({ eventId: event._id, userId: toObjectId(userId), removedAt: null })
+      .select("memberWillArriveAt")
+      .lean(),
+  ]);
+  const myWillArriveAt = myMembership?.memberWillArriveAt
+    ? new Date(myMembership.memberWillArriveAt).toISOString()
+    : null;
 
-  return { ...enriched, updateCount };
+  return { ...enriched, updateCount, myWillArriveAt };
 };
 
 /**

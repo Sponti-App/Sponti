@@ -45,9 +45,9 @@ function hrefFor(notification: ApiNotification): string {
     return "/circles?tab=people"
   }
 
-  // A thread update opens the flare itself (#140).
+  // A thread update opens the flare on its updates tab (#140, #139).
   if (type === "event_update") {
-    return `/event/${notification.targetId}`
+    return `/event/${notification.targetId}?tab=updates`
   }
 
   return "/event"
