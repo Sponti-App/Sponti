@@ -11,7 +11,7 @@ import { ImageResponse } from 'next/og'
 // (light-mode background/foreground/muted-foreground, and the brand peach
 // accent) — `next/og` renders via Satori, which doesn't reliably support the
 // `oklch()` CSS function, so the hex values are used directly here instead.
-export const alt = 'Sponti'
+export const alt = 'sponti'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
@@ -85,7 +85,7 @@ export default function Image() {
             letterSpacing: -2,
           }}
         >
-          Sponti
+          sponti
         </div>
 
         <div

@@ -27,7 +27,7 @@ export const viewport = {
 // The image comes from `app/opengraph-image.tsx` / `app/twitter-image.tsx`
 // (Next's file-convention route), which every page inherits unless it defines
 // its own — no page does, so the same branded image is used everywhere.
-const title = 'Sponti'
+const title = 'sponti'
 const description = 'light a flare and get your friends there.'
 
 export const metadata: Metadata = {
