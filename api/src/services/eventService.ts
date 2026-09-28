@@ -8,6 +8,7 @@ import {
   EventMember,
   EventUpdate,
 } from "#models/index";
+import type { ArrivalStatus } from "#models/EventMember";
 import type {
   ActiveMapEventsQuery,
   CreateEventBody,
@@ -55,6 +56,9 @@ export type EventUserIdentity = {
 // there's nothing in the response payload for a non-host to read.
 type EventAttendeeIdentity = EventUserIdentity & {
   willArriveAt?: string | null;
+  // #211: "on_time" / "running_late", the near-term alternative to
+  // willArriveAt. Same host-only visibility rule.
+  arrivalStatus?: ArrivalStatus | null;
 };
 type EventWithPeople<T> = Omit<T, "hostId"> & {
   hostId: string | EventUserIdentity | null;
@@ -213,7 +217,7 @@ const attachEventPeople = async <T extends { _id: unknown; hostId: unknown }>(
     rsvpStatus: "going",
     removedAt: null,
   })
-    .select("eventId userId memberWillArriveAt")
+    .select("eventId userId memberWillArriveAt arrivalStatus")
     .lean();
 
   const userIds = uniqueObjectIdStrings([
@@ -237,6 +241,7 @@ const attachEventPeople = async <T extends { _id: unknown; hostId: unknown }>(
       identity.willArriveAt = member.memberWillArriveAt
         ? new Date(member.memberWillArriveAt).toISOString()
         : null;
+      identity.arrivalStatus = member.arrivalStatus ?? null;
     }
     attendees.push(identity);
     attendeesByEventId.set(eventId, attendees);
@@ -570,17 +575,19 @@ export const getEventById = async (userId: string, eventId: string) => {
   // are only readable by the host and going guests (eventUpdateService).
   const [updateCount, myMembership] = await Promise.all([
     EventUpdate.countDocuments({ eventId: event._id, deletedAt: null }),
-    // #139: the caller's own arrival time, so a going guest can see and change
-    // "you're arriving in 15 min". Other guests' ETAs stay host-only (#90).
+    // #139/#211: the caller's own arrival answer, so a going guest can see and
+    // change "you're arriving in 15 min" or "on time"/"running late". Other
+    // guests' answers stay host-only (#90).
     EventMember.findOne({ eventId: event._id, userId: toObjectId(userId), removedAt: null })
-      .select("memberWillArriveAt")
+      .select("memberWillArriveAt arrivalStatus")
       .lean(),
   ]);
   const myWillArriveAt = myMembership?.memberWillArriveAt
     ? new Date(myMembership.memberWillArriveAt).toISOString()
     : null;
+  const myArrivalStatus = myMembership?.arrivalStatus ?? null;
 
-  return { ...enriched, updateCount, myWillArriveAt };
+  return { ...enriched, updateCount, myWillArriveAt, myArrivalStatus };
 };
 
 /**
@@ -834,6 +841,7 @@ export const inviteEventMembers = async (
             removedAt: null,
             rsvpStatus: "invited",
             memberWillArriveAt: null,
+            arrivalStatus: null,
             invitedBy: hostObjectId,
           },
         },
@@ -1251,6 +1259,7 @@ export const updateMyEventMembership = async (
 
     const previousRsvpStatus = membership.rsvpStatus;
     const previousMemberWillArriveAt = membership.memberWillArriveAt ?? null;
+    const previousArrivalStatus = membership.arrivalStatus ?? null;
     const nextRsvpStatus = input.rsvpStatus;
     // A stranger declining a public flare isn't news to the host; only a join is.
     const rsvpStatusChanged =
@@ -1286,15 +1295,30 @@ export const updateMyEventMembership = async (
       membership.rsvpStatus = input.rsvpStatus;
     }
 
+    // #211: memberWillArriveAt and arrivalStatus are mutually exclusive —
+    // setting one (to a real value) clears the other, regardless of whether
+    // the caller mentioned the other field at all. The schema's refine()
+    // already rejects a request that tries to set both to a real value.
     if ("memberWillArriveAt" in input) {
       membership.memberWillArriveAt = input.memberWillArriveAt ?? null;
+      if (input.memberWillArriveAt) {
+        membership.arrivalStatus = null;
+      }
     }
 
-    // A stale arrival time shouldn't linger once someone says they're not
-    // coming — clear it regardless of what (if anything) this request itself
-    // sent for memberWillArriveAt.
+    if ("arrivalStatus" in input) {
+      membership.arrivalStatus = input.arrivalStatus ?? null;
+      if (input.arrivalStatus) {
+        membership.memberWillArriveAt = null;
+      }
+    }
+
+    // A stale arrival answer shouldn't linger once someone says they're not
+    // coming — clear both regardless of what (if anything) this request
+    // itself sent for them.
     if (membership.rsvpStatus === "declined") {
       membership.memberWillArriveAt = null;
+      membership.arrivalStatus = null;
     }
 
     try {
@@ -1327,6 +1351,9 @@ export const updateMyEventMembership = async (
       if ("memberWillArriveAt" in input) {
         existing.memberWillArriveAt = membership.memberWillArriveAt;
       }
+      if ("arrivalStatus" in input) {
+        existing.arrivalStatus = membership.arrivalStatus;
+      }
       await existing.save({ session });
       membership = existing;
 
@@ -1348,18 +1375,23 @@ export const updateMyEventMembership = async (
     }
 
     const finalMemberWillArriveAt = membership.memberWillArriveAt ?? null;
+    const finalArrivalStatus = membership.arrivalStatus ?? null;
     const memberWillArriveAtChanged =
       "memberWillArriveAt" in input &&
       (previousMemberWillArriveAt?.getTime() ?? null) !==
         (finalMemberWillArriveAt?.getTime() ?? null);
-    // A going member who only moves their arrival time doesn't trip
+    // #211: same idea as memberWillArriveAtChanged, for the near-term
+    // on-time/running-late answer.
+    const arrivalStatusChanged =
+      "arrivalStatus" in input && previousArrivalStatus !== finalArrivalStatus;
+    // A going member who only moves their arrival answer doesn't trip
     // rsvpStatusChanged (their RSVP didn't change), but the host still wants
     // to know — today that update was silent.
-    const etaOnlyChanged =
+    const arrivalOnlyChanged =
       !rsvpStatusChanged &&
       previousRsvpStatus === "going" &&
       membership.rsvpStatus === "going" &&
-      memberWillArriveAtChanged;
+      (memberWillArriveAtChanged || arrivalStatusChanged);
 
     if (rsvpStatusChanged && nextRsvpStatus) {
       await createEventRsvpChangeNotification({
@@ -1369,9 +1401,10 @@ export const updateMyEventMembership = async (
         eventTitle: event.title,
         rsvpStatus: nextRsvpStatus,
         memberWillArriveAt: finalMemberWillArriveAt,
+        arrivalStatus: finalArrivalStatus,
         session,
       });
-    } else if (etaOnlyChanged) {
+    } else if (arrivalOnlyChanged) {
       await createEventRsvpChangeNotification({
         eventId: String(event._id),
         hostId: String(event.hostId),
@@ -1379,6 +1412,7 @@ export const updateMyEventMembership = async (
         eventTitle: event.title,
         rsvpStatus: "going",
         memberWillArriveAt: finalMemberWillArriveAt,
+        arrivalStatus: finalArrivalStatus,
         etaOnly: true,
         session,
       });

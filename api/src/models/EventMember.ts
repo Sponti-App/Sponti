@@ -36,6 +36,15 @@ const eventMemberSchema = new Schema(
       type: Date,
       default: null,
     },
+    // A near-term arrival answer for a flare that hasn't started yet but
+    // starts within the hour (#211) — "on time" / "running late" instead of
+    // a fake-precision minute count. Mutually exclusive with
+    // memberWillArriveAt: the service clears one whenever the other is set.
+    arrivalStatus: {
+      type: String,
+      enum: ["on_time", "running_late"],
+      default: null,
+    },
     // Set when the host removes the guest. The row is kept (not deleted) so a
     // removed person can't find or rejoin the flare, even a public one. Every
     // "is a member" query filters on `removedAt: null`; the host can restore
@@ -56,6 +65,7 @@ eventMemberSchema.index({ userId: 1, rsvpStatus: 1 });
 
 export type EventRole = "host" | "admin" | "guest";
 export type RsvpStatus = "invited" | "going" | "declined";
+export type ArrivalStatus = "on_time" | "running_late";
 export type EventMemberDocument = InferSchemaType<typeof eventMemberSchema>;
 
 export const EventMember: Model<EventMemberDocument> =

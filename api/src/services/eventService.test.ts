@@ -990,6 +990,47 @@ describe("eventService.updateMyEventMembership", () => {
     expect(eventFindOneAndUpdateMock).not.toHaveBeenCalled();
   });
 
+  it("tells the host (#211) when a going member only sets an on-time/running-late status, and clears any stored arrival time", async () => {
+    mockEventFindOneSelectLean({
+      _id: EVENT_ID,
+      hostId: USER_ID,
+      title: "coffee after class",
+    });
+    const membership = {
+      rsvpStatus: "going",
+      memberWillArriveAt: new Date("2026-05-14T13:10:00.000Z") as Date | null,
+      arrivalStatus: null as string | null,
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    mockEventMemberFindOneSession(membership);
+    mockGoingSpotReservationGranted();
+    notificationCreateMock.mockResolvedValue([{}]);
+
+    await updateMyEventMembership(GUEST_ID, EVENT_ID, {
+      arrivalStatus: "running_late",
+    });
+
+    // Setting the status cleared the previously stored timestamp.
+    expect(membership.memberWillArriveAt).toBeNull();
+    expect(membership.arrivalStatus).toBe("running_late");
+
+    expect(notificationCreateMock).toHaveBeenCalledOnce();
+    const docs = notificationCreateMock.mock.calls[0]?.[0] as Array<{
+      userId: unknown;
+      actorId: unknown;
+      title: string;
+      message: string;
+      metadata: { arrivalStatus?: string | null; memberWillArriveAt?: string | null };
+    }>;
+    expect(String(docs[0]?.userId)).toBe(USER_ID);
+    expect(String(docs[0]?.actorId)).toBe(GUEST_ID);
+    expect(docs[0]?.title).toMatch(/arrival time/);
+    expect(docs[0]?.message).toMatch(/running late/);
+    expect(docs[0]?.metadata).toEqual(
+      expect.objectContaining({ arrivalStatus: "running_late", memberWillArriveAt: null })
+    );
+  });
+
   it("does not notify when the host updates their own RSVP", async () => {
     mockEventFindOneSelectLean({
       _id: EVENT_ID,
@@ -1100,7 +1141,8 @@ describe("eventService.getEventById", () => {
       avatarUrl: null,
     });
     // The caller is this event's host, so the going guest's row carries
-    // willArriveAt (#90) — null here since the fixture member has none set.
+    // willArriveAt (#90) and arrivalStatus (#211) — both null here since the
+    // fixture member has neither set.
     expect(result.attendees).toEqual([
       {
         _id: GUEST_ID,
@@ -1108,6 +1150,7 @@ describe("eventService.getEventById", () => {
         displayName: "Alex",
         avatarUrl: null,
         willArriveAt: null,
+        arrivalStatus: null,
       },
     ]);
   });
