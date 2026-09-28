@@ -280,3 +280,53 @@ describe("EventEditPage visibility", () => {
     )
   })
 })
+
+describe("EventEditPage guest removal", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.fetchEventGuests.mockResolvedValue([
+      {
+        user: { _id: "u-sam", displayName: "sam", username: "sam" },
+        role: "guest",
+        rsvpStatus: "invited",
+      },
+    ])
+  })
+
+  it.each([
+    ["upcoming", {}],
+    [
+      "live",
+      {
+        startAt: "2000-01-01T18:00:00.000Z",
+        endAt: "2099-06-01T19:00:00.000Z",
+      },
+    ],
+  ])("lets the host remove a guest from an %s flare", async (_label, overrides) => {
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent(overrides))
+    render(<EventEditPage />)
+
+    expect(
+      await screen.findByRole("button", { name: "remove sam" })
+    ).toBeInTheDocument()
+  })
+
+  it.each([
+    [
+      "ended",
+      {
+        startAt: "2000-01-01T18:00:00.000Z",
+        endAt: "2000-01-01T19:00:00.000Z",
+      },
+    ],
+    ["cancelled", { apiStatus: "cancelled" as const }],
+  ])("doesn't offer removal on an %s flare", async (_label, overrides) => {
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent(overrides))
+    render(<EventEditPage />)
+
+    await screen.findByText("sam")
+    expect(
+      screen.queryByRole("button", { name: "remove sam" })
+    ).not.toBeInTheDocument()
+  })
+})
