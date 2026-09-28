@@ -355,6 +355,18 @@ async function request<T>(
           ? JSON.stringify(opts.body)
           : undefined,
       signal: requestController.signal,
+    }).catch((error: unknown) => {
+      // Aborts (timeout or caller cancel) are handled by the outer catch.
+      if (requestController.signal.aborted) throw error
+      // #212: anything else — CORS rejection, DNS/TLS failure, offline —
+      // rejects with a bare TypeError whose text differs per browser
+      // ("Failed to fetch", "Load failed"). Left unwrapped, the UI can only
+      // show a generic fallback, which hid a CORS misconfiguration.
+      throw new HttpError(
+        0,
+        "Couldn't reach the server — check your connection and try again",
+        "NETWORK_ERROR"
+      )
     })
 
     if (!res.ok) {
