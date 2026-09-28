@@ -617,6 +617,7 @@ describe("eventService.removeEventMember", () => {
       title: "friday drinks",
       status: "active",
       startAt: new Date("2026-05-15T18:00:00.000Z"),
+      endAt: new Date("2026-05-15T21:00:00.000Z"),
       ...overrides,
     });
 
@@ -683,9 +684,27 @@ describe("eventService.removeEventMember", () => {
     expect(eventFindOneMock).not.toHaveBeenCalled();
   });
 
+  it("lets the host remove a guest from a flare that's live right now", async () => {
+    removableEvent({
+      startAt: new Date("2026-05-14T11:00:00.000Z"),
+      endAt: new Date("2026-05-15T21:00:00.000Z"),
+    });
+    eventMemberFindOneAndUpdateMock.mockResolvedValue({ rsvpStatus: "invited" });
+
+    const result = await removeEventMember(USER_ID, EVENT_ID, GUEST_ID);
+
+    expect(result).toEqual({ removedUserId: GUEST_ID, notified: false });
+  });
+
   it.each([
     ["cancelled", { status: "cancelled" }],
-    ["already started", { startAt: new Date("2026-05-14T11:00:00.000Z") }],
+    [
+      "over",
+      {
+        startAt: new Date("2026-05-14T08:00:00.000Z"),
+        endAt: new Date("2026-05-14T11:00:00.000Z"),
+      },
+    ],
   ])("locks the guest list once the flare is %s", async (_label, overrides) => {
     removableEvent(overrides);
 

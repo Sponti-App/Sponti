@@ -925,7 +925,7 @@ export const getCircleUpcomingEvents = async (
  * `removedAt` set, so the person can't see or rejoin the flare (even a public
  * one) until the host invites them again. A guest who had said "going" gets one
  * neutral notice; invited and declined guests aren't told. Only allowed for the
- * host, and only while the flare is active and hasn't started.
+ * host, and only while the flare is active and hasn't ended (upcoming or live).
  */
 export const removeEventMember = async (hostId: string, eventId: string, guestId: string) => {
   if (guestId === hostId) {
@@ -933,16 +933,16 @@ export const removeEventMember = async (hostId: string, eventId: string, guestId
   }
 
   const event = await Event.findOne({ _id: toObjectId(eventId), hostId: toObjectId(hostId) })
-    .select("_id title status startAt visibility")
+    .select("_id title status endAt visibility")
     .lean();
 
   if (!event) {
     throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  if (event.status !== "active" || event.startAt.getTime() <= Date.now()) {
+  if (event.status !== "active" || event.endAt.getTime() <= Date.now()) {
     throw new AppError(
-      "Guests can only be removed from active events that haven't started",
+      "Guests can only be removed from active events that haven't ended",
       409,
       "EVENT_GUEST_LIST_LOCKED"
     );
