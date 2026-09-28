@@ -1043,6 +1043,13 @@ describe("eventService.getEvents", () => {
 });
 
 describe("eventService.getEventById", () => {
+  beforeEach(() => {
+    // The caller's own membership, read for myWillArriveAt (#139).
+    eventMemberFindOneMock.mockReturnValue({
+      select: () => ({ lean: () => Promise.resolve(null) }),
+    });
+  });
+
   it("returns host identity and going guest identities for detail surfaces", async () => {
     const event = eventDocument();
     const leanMock = vi.fn().mockResolvedValue(event);
