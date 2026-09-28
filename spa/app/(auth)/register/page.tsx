@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { HttpError, warmBackends } from "@/lib/http"
+import { getRedirectTarget, useRedirectQuery } from "@/lib/redirect-path"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -21,6 +22,7 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [googleSubmitting, setGoogleSubmitting] = useState(false)
+  const redirectQuery = useRedirectQuery()
 
   // #212: start waking both Render services while the user fills in the form.
   useEffect(() => {
@@ -59,7 +61,8 @@ export default function RegisterPage() {
         email: email.trim(),
         password,
       })
-      router.replace("/")
+      // #219: return to the page that sent the user to sign in, if any.
+      router.replace(getRedirectTarget())
     } catch (err) {
       if (err instanceof HttpError) {
         setError(err.message)
@@ -77,7 +80,7 @@ export default function RegisterPage() {
       setGoogleSubmitting(true)
       try {
         await loginWithGoogle(credential)
-        router.replace("/")
+        router.replace(getRedirectTarget())
       } catch (err) {
         if (err instanceof HttpError) {
           setError(err.message)
@@ -255,7 +258,10 @@ export default function RegisterPage() {
 
             <p className="mt-5 text-center text-sm text-muted-foreground">
               already have an account?{" "}
-              <Link href="/login" className="font-medium text-accent">
+              <Link
+                href={`/login${redirectQuery}`}
+                className="font-medium text-accent"
+              >
                 sign in
               </Link>
             </p>
