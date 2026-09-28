@@ -32,6 +32,7 @@ const {
   createEventInvitationNotifications,
   createEventStatusNotifications,
   getNotifications,
+  markAllNotificationsRead,
   markNotificationsReadBatch,
 } = await import("#services/notificationService");
 
@@ -197,6 +198,29 @@ describe("notificationService.markNotificationsReadBatch", () => {
       readAt: null,
     });
     expect(result).toEqual({ markedRead: 2, unreadCount: 4 });
+  });
+});
+
+describe("notificationService.markAllNotificationsRead", () => {
+  it("marks every one of the caller's unread notifications created up to now, not just a loaded page", async () => {
+    notificationUpdateManyMock.mockResolvedValue({ modifiedCount: 7 });
+    notificationCountDocumentsMock.mockResolvedValue(0);
+
+    const result = await markAllNotificationsRead(USER_ID);
+
+    const filter = notificationUpdateManyMock.mock.calls[0]?.[0] as {
+      userId: unknown;
+      readAt: null;
+      createdAt: { $lte: Date };
+    };
+    expect(String(filter.userId)).toBe(USER_ID);
+    expect(filter.readAt).toBeNull();
+    expect(filter.createdAt.$lte).toBeInstanceOf(Date);
+    expect(notificationCountDocumentsMock).toHaveBeenCalledWith({
+      userId: expect.anything(),
+      readAt: null,
+    });
+    expect(result).toEqual({ markedRead: 7, unreadCount: 0 });
   });
 });
 

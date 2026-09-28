@@ -56,8 +56,10 @@ function AuthenticatedChrome({ children }: { children: React.ReactNode }) {
     loadingMore,
     error,
     hasMore,
+    caughtUpAt,
     loadLatest,
     loadMore,
+    markAllRead,
   } = useNotifications()
   useUnreadCountRefresh()
 
@@ -108,8 +110,10 @@ function AuthenticatedChrome({ children }: { children: React.ReactNode }) {
         loadingMore={loadingMore}
         error={error}
         hasMore={hasMore}
+        caughtUpAt={caughtUpAt}
         onLoadMore={() => void loadMore()}
         onNotificationClick={handleNotificationClick}
+        onMarkAllRead={() => void markAllRead()}
       />
       <div className="fixed inset-x-0 bottom-0 z-40">
         <BottomNav
