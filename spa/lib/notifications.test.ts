@@ -26,7 +26,7 @@ describe("adaptApiNotification", () => {
   it("opens the flare itself for a thread update (#140)", () => {
     const notification = adaptApiNotification(apiNotification())
 
-    expect(notification.href).toBe("/event/event-1")
+    expect(notification.href).toBe("/event/event-1?tab=updates")
     expect(notification.intent).toBe("event")
     expect(notification.subtitle).toBe("grabbing a table")
   })
