@@ -167,3 +167,15 @@
   from { transform: scale(0.85); opacity: 0; }
   to   { transform: scale(1);    opacity: 1; }
 }
+/* iOS Safari zooms the page when a focused field's text is under 16px, and
+   stays zoomed after the keyboard closes. On touch screens, give every
+   text-entry field at least 16px so it never does; desktop keeps text-sm.
+   Unlayered on purpose: it has to beat Tailwind's text-* utilities, which
+   live in a cascade layer. Pinch-zoom stays available (no maximum-scale). */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
