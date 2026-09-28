@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useCallback, useState } from "react"
+import { Suspense, useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { AuthFrame } from "@/components/auth-frame"
@@ -9,7 +9,7 @@ import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { HttpError } from "@/lib/http"
+import { HttpError, warmBackends } from "@/lib/http"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 
 function ResetSuccessBanner() {
@@ -33,6 +33,11 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
   const [googleSubmitting, setGoogleSubmitting] = useState(false)
   const wakingUp = useSlowRequestHint(submitting)
+
+  // #212: start waking both Render services while the user fills in the form.
+  useEffect(() => {
+    warmBackends()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

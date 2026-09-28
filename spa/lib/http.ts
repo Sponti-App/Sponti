@@ -442,6 +442,25 @@ const API_BASE = normalizeApiBaseUrl(
   resolveConfiguredBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
 )
 
+// #212: each Render free-tier service sleeps independently, so a first
+// sign-in after idle pays one cold start for auth and then another for the
+// api when the map loads. Pinging both `/health` endpoints as soon as the
+// auth screens mount starts both wake-ups while the user is still typing.
+// Fire-and-forget: `no-cors` because the response is never read (and a CORS
+// mismatch shouldn't log noise), and failures are swallowed — a real request
+// surfaces its own error later. Once per page load is enough.
+let hasWarmedBackends = false
+
+export function warmBackends(): void {
+  if (hasWarmedBackends || typeof window === "undefined") return
+  hasWarmedBackends = true
+
+  for (const baseUrl of [AUTH_BASE, API_BASE]) {
+    if (!baseUrl) continue
+    fetch(`${baseUrl}/health`, { mode: "no-cors" }).catch(() => {})
+  }
+}
+
 function withApiVersionPrefix(path: string): string {
   if (path.startsWith("/api/v1")) return path
   return `/api/v1${path.startsWith("/") ? path : `/${path}`}`

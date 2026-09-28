@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowRight, Flame } from "lucide-react"
@@ -9,7 +9,7 @@ import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { HttpError } from "@/lib/http"
+import { HttpError, warmBackends } from "@/lib/http"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -21,6 +21,11 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [googleSubmitting, setGoogleSubmitting] = useState(false)
+
+  // #212: start waking both Render services while the user fills in the form.
+  useEffect(() => {
+    warmBackends()
+  }, [])
 
   const usernameValid = /^[a-zA-Z0-9_-]{3,30}$/.test(username)
   const usernameError =
