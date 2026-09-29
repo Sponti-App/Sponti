@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/http"
 import { adaptApiEvent, adaptApiHostedEvent } from "./events.adapter"
 import type {
   ApiEvent,
+  ArrivalStatus,
   CreateEventRequest,
   CreateEventResponse,
   EventGuest,
@@ -179,7 +180,12 @@ export function removeEventGuest(
  */
 export function updateMyRsvp(
   eventId: string,
-  body: { rsvpStatus?: RsvpStatus; memberWillArriveAt?: string | null }
+  body: {
+    rsvpStatus?: RsvpStatus
+    memberWillArriveAt?: string | null
+    // #211: mutually exclusive with memberWillArriveAt on the api.
+    arrivalStatus?: ArrivalStatus | null
+  }
 ) {
   return apiFetch<{ data: unknown }>(`/events/${eventId}/me`, {
     method: "PATCH",

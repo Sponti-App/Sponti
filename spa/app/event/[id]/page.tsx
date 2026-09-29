@@ -28,20 +28,23 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  arrivalStatusLabel,
   etaToIso,
   fetchHostedEventById,
   formatArrivalStatus,
   formatDistance,
   updateMyRsvp,
+  type ArrivalStatus,
   type HostedEvent,
 } from "@/lib/api/events"
 import {
   etaAvailable,
+  etaControlKind,
   flareStatusLine,
   flareTiming,
   flareViewer,
   googleMapsUrl,
-  ownArrivalLabel,
+  ownArrivalSummary,
   spotsLeftLabel,
   type FlareTiming,
   type FlareViewer,
@@ -223,14 +226,17 @@ function FlareDetail({
   }
 
   const join = () => {
-    const willArriveAt = etaAvailable(timing) ? etaToIso(eta) : null
+    const kind = etaControlKind(timing)
+    const willArriveAt = kind === "minutes" ? etaToIso(eta) : null
+    const arrivalStatus = kind === "status" ? (eta as ArrivalStatus | null) : null
     void saveMembership(
-      { rsvpStatus: "going", memberWillArriveAt: willArriveAt },
+      { rsvpStatus: "going", memberWillArriveAt: willArriveAt, arrivalStatus },
       "you're in",
       (current) => ({
         ...current,
         myRsvp: "going",
         myWillArriveAt: willArriveAt,
+        myArrivalStatus: arrivalStatus,
         attendingCount:
           current.myRsvp === "going" ? current.attendingCount : current.attendingCount + 1,
       })
@@ -241,20 +247,51 @@ function FlareDetail({
       ...current,
       myRsvp: "declined",
       myWillArriveAt: null,
+      myArrivalStatus: null,
       attendingCount:
         current.myRsvp === "going"
           ? Math.max(0, current.attendingCount - 1)
           : current.attendingCount,
       attendees: (current.attendees ?? []).filter((a) => a.id !== viewerId),
     }))
-  const changeEta = (choice: string | null) => {
-    const willArriveAt = etaToIso(choice)
+  // Sets a new answer, of whichever kind the current timing offers.
+  const changeEta = (choice: string) => {
     setEta(choice)
     setEditingEta(false)
+    if (etaControlKind(timing) === "status") {
+      const arrivalStatus = choice as ArrivalStatus
+      void saveMembership(
+        { arrivalStatus },
+        "host knows",
+        (current) => ({ ...current, myArrivalStatus: arrivalStatus, myWillArriveAt: null })
+      )
+      return
+    }
+    const willArriveAt = etaToIso(choice)
     void saveMembership(
       { memberWillArriveAt: willArriveAt },
       willArriveAt ? "host knows" : "eta cleared",
-      (current) => ({ ...current, myWillArriveAt: willArriveAt })
+      (current) => ({ ...current, myWillArriveAt: willArriveAt, myArrivalStatus: null })
+    )
+  }
+  // Clears whichever answer is actually stored, independent of what the
+  // picker would currently show (the flare may have tipped from "soon" to
+  // "live" since the answer was given).
+  const clearArrival = () => {
+    setEta(null)
+    setEditingEta(false)
+    if (event.myArrivalStatus) {
+      void saveMembership(
+        { arrivalStatus: null },
+        "eta cleared",
+        (current) => ({ ...current, myArrivalStatus: null })
+      )
+      return
+    }
+    void saveMembership(
+      { memberWillArriveAt: null },
+      "eta cleared",
+      (current) => ({ ...current, myWillArriveAt: null })
     )
   }
 
@@ -395,17 +432,19 @@ function FlareDetail({
             <div className="mt-4">
               <YourPlan
                 summary={
-                  event.myWillArriveAt
-                    ? ownArrivalLabel(event.myWillArriveAt)
-                    : "no arrival time shared"
+                  ownArrivalSummary({
+                    willArriveAt: event.myWillArriveAt,
+                    arrivalStatus: event.myArrivalStatus,
+                  }) ?? "no arrival time shared"
                 }
                 hostFirstName={hostFirstName}
-                hasEta={Boolean(event.myWillArriveAt)}
+                hasEta={Boolean(event.myWillArriveAt || event.myArrivalStatus)}
                 eta={eta}
+                timing={timing}
                 editing={editingEta}
                 onEditingChange={setEditingEta}
                 onEtaChange={changeEta}
-                onClearEta={() => changeEta(null)}
+                onClearEta={clearArrival}
                 onLeave={decline}
                 saving={saving}
               />
@@ -510,6 +549,7 @@ function ArrivalBoard({
     <ul>
       {sorted.map((guest) => {
         const isNext = guest === next
+        const runningLate = guest.arrivalStatus === "running_late"
         return (
           <li
             key={guest.id}
@@ -525,14 +565,16 @@ function ArrivalBoard({
             <span
               className={cn(
                 "shrink-0 text-xs",
-                isNext ? "font-medium text-accent" : "text-muted-foreground"
+                isNext || runningLate ? "font-medium text-accent" : "text-muted-foreground"
               )}
             >
-              {showEtas && guest.willArriveAt
-                ? formatArrivalStatus(guest.willArriveAt, now)
-                : showEtas
-                  ? "no eta"
-                  : "going"}
+              {!showEtas
+                ? "going"
+                : guest.willArriveAt
+                  ? formatArrivalStatus(guest.willArriveAt, now)
+                  : guest.arrivalStatus
+                    ? arrivalStatusLabel(guest.arrivalStatus)
+                    : "no eta"}
             </span>
           </li>
         )

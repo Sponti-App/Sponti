@@ -9,6 +9,7 @@ import { useAuth } from "@/components/auth-provider"
 import { FlareActions, FlareFacts, FlareHeader } from "@/components/flare-detail"
 import { ChevronRight, Navigation, Pencil } from "lucide-react"
 import {
+  arrivalStatusLabel,
   avatarText,
   distanceFromUser,
   eventCoords,
@@ -95,11 +96,11 @@ export function EventDetailSheet({
     ? "hosted by you"
     : `hosted by ${(displayEvent?.host?.name || "host").toLowerCase()}`
 
-  // The api only sends willArriveAt on attendee rows to the flare's host, so
-  // this is naturally empty for anyone else — no separate client-side check
-  // needed beyond the isHost render guard below.
-  const attendeesWithEta = (displayEvent?.attendees ?? []).filter(
-    (a) => a.willArriveAt
+  // The api only sends willArriveAt/arrivalStatus on attendee rows to the
+  // flare's host, so this is naturally empty for anyone else — no separate
+  // client-side check needed beyond the isHost render guard below.
+  const attendeesWithArrival = (displayEvent?.attendees ?? []).filter(
+    (a) => a.willArriveAt || a.arrivalStatus
   )
 
   return (
@@ -214,17 +215,29 @@ export function EventDetailSheet({
                   </div>
                 </div>
 
-                {/* Attendee ETAs — host only; the api only sends
-                    willArriveAt to the host in the first place. */}
-                {isHost && attendeesWithEta.length > 0 && (
+                {/* Attendee arrival answers — host only; the api only sends
+                    willArriveAt/arrivalStatus to the host in the first place. */}
+                {isHost && attendeesWithArrival.length > 0 && (
                   <div className="mt-2 flex flex-col gap-1">
-                    {attendeesWithEta.map((a, i) => (
+                    {attendeesWithArrival.map((a, i) => (
                       <div
                         key={a.id ?? i}
                         className="flex items-center justify-between text-xs text-muted-foreground"
                       >
                         <span>{a.name}</span>
-                        <span>{formatArrivalStatus(a.willArriveAt as string)}</span>
+                        <span
+                          className={
+                            a.arrivalStatus === "running_late"
+                              ? "font-medium text-accent"
+                              : undefined
+                          }
+                        >
+                          {a.willArriveAt
+                            ? formatArrivalStatus(a.willArriveAt)
+                            : a.arrivalStatus
+                              ? arrivalStatusLabel(a.arrivalStatus)
+                              : null}
+                        </span>
                       </div>
                     ))}
                   </div>

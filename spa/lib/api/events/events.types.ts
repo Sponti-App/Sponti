@@ -1,5 +1,9 @@
 export type EventVisibility = "public" | "private"
 export type EventRsvp = "invited" | "going" | "declined"
+// #211: the near-term "on time" / "running late" answer, offered instead of a
+// minute-based memberWillArriveAt while a flare hasn't started but starts
+// within the hour. Mutually exclusive with the timestamp on the api.
+export type ArrivalStatus = "on_time" | "running_late"
 export type EventType =
   | "food"
   | "drinks"
@@ -44,6 +48,8 @@ export interface EventItem {
     // Only ever populated for the host — see api's `attachEventPeople`.
     // Absent (not just null) for any other viewer.
     willArriveAt?: string | null
+    // #211: the near-term alternative to willArriveAt. Same host-only rule.
+    arrivalStatus?: ArrivalStatus | null
   }>
   going: number
 }
@@ -118,6 +124,8 @@ export type HostedEvent = {
     // Only ever populated for the host — see api's `attachEventPeople`.
     // Absent (not just null) for any other viewer.
     willArriveAt?: string | null
+    // #211: the near-term alternative to willArriveAt. Same host-only rule.
+    arrivalStatus?: ArrivalStatus | null
   }>
   guestLimit: number
   // #181: the limit is a hard cap only while this is "none" (no +1/re-share).
@@ -131,6 +139,9 @@ export type HostedEvent = {
   updateCount?: number
   // #139: the viewer's own arrival time. Only on the single-event response.
   myWillArriveAt?: string | null
+  // #211: the viewer's own near-term arrival status, mutually exclusive with
+  // myWillArriveAt. Only on the single-event response.
+  myArrivalStatus?: ArrivalStatus | null
   visibility: EventVisibility
   recurrence: Recurrence
   apiStatus: ApiEventStatus
@@ -272,11 +283,16 @@ export type ApiEvent = {
     avatarUrl?: string | null
     // Only present when the caller is this event's host (#90).
     willArriveAt?: string | null
+    // Only present when the caller is this event's host (#211).
+    arrivalStatus?: ArrivalStatus | null
   }>
   // Only on the single-event response (#140).
   updateCount?: number
   // The caller's own arrival time. Only on the single-event response (#139).
   myWillArriveAt?: string | null
+  // The caller's own near-term arrival status. Only on the single-event
+  // response (#211).
+  myArrivalStatus?: ArrivalStatus | null
   createdAt?: string
   updatedAt?: string
 }

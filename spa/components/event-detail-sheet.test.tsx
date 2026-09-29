@@ -92,4 +92,39 @@ describe("EventDetailSheet", () => {
       await screen.findByRole("link", { name: "open the harp in google maps" })
     ).toHaveAttribute("href", "https://www.google.com/maps/search/?api=1&query=53.55%2C9.99")
   })
+
+  it("offers on time / running late, not minutes, when joining a flare starting within the hour (#211)", async () => {
+    const user = userEvent.setup()
+    const { onJoin } = renderSheet({
+      event: flare({ startAt: at(40), endAt: at(160) }),
+    })
+
+    expect(screen.queryByRole("button", { name: "15m" })).not.toBeInTheDocument()
+    await user.click(await screen.findByRole("button", { name: "running late" }))
+    await user.click(screen.getByRole("button", { name: "join" }))
+
+    expect(onJoin).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "event-1" }),
+      "running_late"
+    )
+  })
+
+  it("shows the host a going attendee's on-time/running-late answer, running late in the accent colour (#211)", async () => {
+    renderSheet({
+      isHost: true,
+      event: flare({
+        startAt: at(40),
+        endAt: at(160),
+        attendees: [
+          { id: "g1", name: "Priya", avatar: "P", color: "bg-stone-300", arrivalStatus: "running_late" },
+          { id: "g2", name: "Tom", avatar: "T", color: "bg-stone-300", arrivalStatus: "on_time" },
+        ],
+      }),
+    })
+
+    const late = await screen.findByText("running late")
+    const onTime = screen.getByText("on time")
+    expect(late).toHaveClass("text-accent")
+    expect(onTime).not.toHaveClass("text-accent")
+  })
 })
