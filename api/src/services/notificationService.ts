@@ -277,6 +277,34 @@ export const markNotificationsReadBatch = async (
   };
 };
 
+// #176: "I'm caught up" marks every notification the caller has *right now*
+// as read, not just the page the client happens to have loaded (read-batch
+// tops out at 10 ids). Scoped to `createdAt <= now` so a notification created
+// mid-request (after this handler starts but before the update runs) isn't
+// silently marked read before the caller ever sees it.
+export const markAllNotificationsRead = async (userId: string) => {
+  const now = new Date();
+
+  const result = await Notification.updateMany(
+    {
+      userId: toObjectId(userId),
+      readAt: null,
+      createdAt: { $lte: now },
+    },
+    {
+      $set: {
+        readAt: now,
+      },
+    }
+  );
+  const { count: unreadCount } = await getUnreadCount(userId);
+
+  return {
+    markedRead: result.modifiedCount,
+    unreadCount,
+  };
+};
+
 export const createConnectionRequestNotification = async ({
   requesterId,
   receiverId,
@@ -424,6 +452,11 @@ const formatEtaLabel = (eta: Date, now: Date = new Date()): string => {
   return hours <= 1 ? "in about 1 hr" : `in about ${hours} hrs`;
 };
 
+// #211: the near-term "on time" / "running late" answer, offered instead of a
+// minute-based ETA while a flare hasn't started but starts within the hour.
+const formatArrivalStatusLabel = (status: "on_time" | "running_late"): string =>
+  status === "on_time" ? "on time" : "running late";
+
 export const createEventRsvpChangeNotification = async ({
   eventId,
   hostId,
@@ -431,9 +464,10 @@ export const createEventRsvpChangeNotification = async ({
   eventTitle,
   rsvpStatus,
   memberWillArriveAt,
+  arrivalStatus,
   // Set when the RSVP status itself didn't change and this is only reporting
-  // a going member moving their arrival time (#90) — distinct copy so the
-  // host isn't told someone "RSVP'd" when they didn't.
+  // a going member moving their arrival time or status (#90, #211) — distinct
+  // copy so the host isn't told someone "RSVP'd" when they didn't.
   etaOnly = false,
   session,
 }: {
@@ -443,6 +477,7 @@ export const createEventRsvpChangeNotification = async ({
   eventTitle: string;
   rsvpStatus: "going" | "declined";
   memberWillArriveAt?: Date | string | null;
+  arrivalStatus?: "on_time" | "running_late" | null;
   etaOnly?: boolean;
   session?: ClientSession;
 }) => {
@@ -457,15 +492,21 @@ export const createEventRsvpChangeNotification = async ({
   const eta =
     rsvpStatus === "going" && memberWillArriveAt ? new Date(memberWillArriveAt) : null;
   const etaLabel = eta ? formatEtaLabel(eta) : null;
+  const statusLabel =
+    rsvpStatus === "going" && arrivalStatus ? formatArrivalStatusLabel(arrivalStatus) : null;
 
   const title = etaOnly
     ? `${attendeeName} updated their arrival time`
     : `${attendeeName} updated their RSVP`;
   const message = etaOnly
-    ? `${attendeeName} is now arriving ${etaLabel ?? "soon"} for ${eventTitle}.`
-    : etaLabel
-      ? `${attendeeName} ${rsvpLabel} ${eventTitle} — arriving ${etaLabel}.`
-      : `${attendeeName} ${rsvpLabel} ${eventTitle}.`;
+    ? statusLabel
+      ? `${attendeeName} is now ${statusLabel} for ${eventTitle}.`
+      : `${attendeeName} is now arriving ${etaLabel ?? "soon"} for ${eventTitle}.`
+    : statusLabel
+      ? `${attendeeName} ${rsvpLabel} ${eventTitle} — ${statusLabel}.`
+      : etaLabel
+        ? `${attendeeName} ${rsvpLabel} ${eventTitle} — arriving ${etaLabel}.`
+        : `${attendeeName} ${rsvpLabel} ${eventTitle}.`;
 
   return createNotifications(
     [
@@ -481,6 +522,7 @@ export const createEventRsvpChangeNotification = async ({
           eventTitle,
           rsvpStatus,
           memberWillArriveAt: eta ? eta.toISOString() : null,
+          arrivalStatus: statusLabel ? arrivalStatus : null,
         },
       },
     ],

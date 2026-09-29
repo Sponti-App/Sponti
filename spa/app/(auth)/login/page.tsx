@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { HttpError, warmBackends } from "@/lib/http"
+import { useRedirectQuery } from "@/lib/redirect-path"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 
 function ResetSuccessBanner() {
@@ -33,6 +34,8 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
   const [googleSubmitting, setGoogleSubmitting] = useState(false)
   const wakingUp = useSlowRequestHint(submitting)
+  // #219: keep the post-sign-in destination if the user switches to register.
+  const redirectQuery = useRedirectQuery()
 
   // #212: start waking both Render services while the user fills in the form.
   useEffect(() => {
@@ -82,7 +85,10 @@ export default function LoginPage() {
       footer={
         <span className="text-muted-foreground">
           no account?{" "}
-          <Link href="/register" className="font-medium text-accent">
+          <Link
+            href={`/register${redirectQuery}`}
+            className="font-medium text-accent"
+          >
             register
           </Link>
         </span>

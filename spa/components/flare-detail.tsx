@@ -9,8 +9,10 @@ import { Check, Clock, ExternalLink, Flame, MapPin, Send, X } from "lucide-react
 import { Button } from "@/components/ui/button"
 import type { EventType } from "@/lib/api/events"
 import {
+  ARRIVAL_STATUS_CHOICES,
   ETA_CHOICES,
   etaAvailable,
+  etaControlKind,
   type FlareTiming,
   type FlareViewer,
 } from "@/lib/flare-detail"
@@ -179,6 +181,7 @@ export function FlareActions({
 }) {
   if (timing === "ended" || timing === "cancelled") return null
   const withEta = etaAvailable(timing)
+  const etaKind = etaControlKind(timing)
 
   if (viewer === "invited") {
     return (
@@ -189,7 +192,7 @@ export function FlareActions({
           </p>
         )}
         <div className="flex items-center gap-1">
-          {withEta &&
+          {etaKind === "minutes" &&
             ETA_CHOICES.map((choice) => (
               <EtaChip
                 key={choice}
@@ -198,6 +201,17 @@ export function FlareActions({
                 onClick={() => onEtaChange(eta === choice ? null : choice)}
               >
                 {shortEta(choice)}
+              </EtaChip>
+            ))}
+          {etaKind === "status" &&
+            ARRIVAL_STATUS_CHOICES.map((choice) => (
+              <EtaChip
+                key={choice.value}
+                compact
+                selected={eta === choice.value}
+                onClick={() => onEtaChange(eta === choice.value ? null : choice.value)}
+              >
+                {choice.label}
               </EtaChip>
             ))}
           <Button
@@ -258,6 +272,7 @@ export function YourPlan({
   hostFirstName,
   hasEta,
   eta,
+  timing,
   editing,
   onEditingChange,
   onEtaChange,
@@ -269,6 +284,8 @@ export function YourPlan({
   hostFirstName: string
   hasEta: boolean
   eta: string | null
+  /** Picks which picker reopens on "change" — minutes while live, status while soon. */
+  timing: FlareTiming
   editing: boolean
   onEditingChange: (editing: boolean) => void
   onEtaChange: (eta: string) => void
@@ -276,6 +293,7 @@ export function YourPlan({
   onLeave: () => void
   saving?: boolean
 }) {
+  const etaKind = etaControlKind(timing)
   return (
     <div className="border-l-[3px] border-l-accent pl-3">
       <div className="flex items-center gap-2">
@@ -310,15 +328,26 @@ export function YourPlan({
       </div>
       {editing && (
         <div className="mt-2 flex gap-1.5">
-          {ETA_CHOICES.map((choice) => (
-            <EtaChip
-              key={choice}
-              selected={eta === choice}
-              onClick={() => onEtaChange(choice)}
-            >
-              {choice}
-            </EtaChip>
-          ))}
+          {etaKind === "minutes" &&
+            ETA_CHOICES.map((choice) => (
+              <EtaChip
+                key={choice}
+                selected={eta === choice}
+                onClick={() => onEtaChange(choice)}
+              >
+                {choice}
+              </EtaChip>
+            ))}
+          {etaKind === "status" &&
+            ARRIVAL_STATUS_CHOICES.map((choice) => (
+              <EtaChip
+                key={choice.value}
+                selected={eta === choice.value}
+                onClick={() => onEtaChange(choice.value)}
+              >
+                {choice.label}
+              </EtaChip>
+            ))}
         </div>
       )}
       <button

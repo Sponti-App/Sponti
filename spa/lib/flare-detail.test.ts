@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest"
 import {
   etaAvailable,
+  etaControlKind,
   flareStatusLine,
   flareTiming,
   flareViewer,
   googleMapsUrl,
   ownArrivalLabel,
+  ownArrivalStatusLabel,
+  ownArrivalSummary,
   shouldDrawRoute,
   spotsLeftLabel,
 } from "./flare-detail"
@@ -50,6 +53,22 @@ describe("flareTiming and the ETA window", () => {
     expect(etaAvailable("later")).toBe(false)
     expect(etaAvailable("ended")).toBe(false)
     expect(etaAvailable("cancelled")).toBe(false)
+  })
+})
+
+describe("etaControlKind (#211)", () => {
+  it("offers minute chips while live", () => {
+    expect(etaControlKind("live")).toBe("minutes")
+  })
+
+  it("offers on-time/running-late while starting within the hour but not yet live", () => {
+    expect(etaControlKind("soon")).toBe("status")
+  })
+
+  it("offers no control further out, ended or cancelled", () => {
+    expect(etaControlKind("later")).toBeNull()
+    expect(etaControlKind("ended")).toBeNull()
+    expect(etaControlKind("cancelled")).toBeNull()
   })
 })
 
@@ -131,5 +150,29 @@ describe("ownArrivalLabel", () => {
     expect(ownArrivalLabel(at(15), NOW)).toBe("you're arriving in 15 min")
     expect(ownArrivalLabel(at(-1), NOW)).toBe("you should be there")
     expect(ownArrivalLabel(at(60), NOW)).toBe("you're arriving in about 1 hr")
+  })
+})
+
+describe("ownArrivalStatusLabel and ownArrivalSummary (#211)", () => {
+  it("reads the near-term status as the viewer's own plan", () => {
+    expect(ownArrivalStatusLabel("on_time")).toBe("you'll be on time")
+    expect(ownArrivalStatusLabel("running_late")).toBe("you're running late")
+  })
+
+  it("prefers the status over a timestamp when both are somehow present", () => {
+    expect(
+      ownArrivalSummary({ willArriveAt: at(15), arrivalStatus: "running_late" }, NOW)
+    ).toBe("you're running late")
+  })
+
+  it("falls back to the timestamp label when only a time is set", () => {
+    expect(ownArrivalSummary({ willArriveAt: at(15), arrivalStatus: null }, NOW)).toBe(
+      "you're arriving in 15 min"
+    )
+  })
+
+  it("is null when neither field is set", () => {
+    expect(ownArrivalSummary({ willArriveAt: null, arrivalStatus: null }, NOW)).toBeNull()
+    expect(ownArrivalSummary({}, NOW)).toBeNull()
   })
 })

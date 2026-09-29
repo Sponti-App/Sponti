@@ -14,8 +14,10 @@ import {
   isImminent,
   isJoined,
   updateMyRsvp,
+  type ArrivalStatus,
   type EventItem,
 } from "@/lib/api/events"
+import { etaControlKind, flareTiming } from "@/lib/flare-detail"
 import { haptic } from "@/lib/haptics"
 import { HttpError } from "@/lib/http"
 
@@ -60,12 +62,15 @@ export default function Home() {
       return next
     })
     // PATCH /events/:id/me — backend writes to EventMember (rsvpStatus +
-    // memberWillArriveAt). The "let host know" ETA chip is the user's
-    // committed arrival time; the Routes API ETA shown in the route pill is
-    // separate (display-only, not persisted).
+    // memberWillArriveAt, or arrivalStatus for a flare starting within the
+    // hour, #211). The "let host know" chip is the user's committed answer;
+    // the Routes API ETA shown in the route pill is separate (display-only,
+    // not persisted).
+    const kind = etaControlKind(flareTiming({ startAt: event.startAt, endAt: event.endAt }))
     void updateMyRsvp(event.id, {
       rsvpStatus: "going",
-      memberWillArriveAt: etaToIso(eta),
+      memberWillArriveAt: kind === "minutes" ? etaToIso(eta) : null,
+      arrivalStatus: kind === "status" ? (eta as ArrivalStatus | null) : null,
     })
       .then(() => showActionFeedback("you're in"))
       .catch((err) => {

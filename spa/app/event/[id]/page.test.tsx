@@ -165,6 +165,31 @@ describe("EventDetailPage layout (#139)", () => {
     ])
   })
 
+  it("shows the host on-time/running-late answers for a flare starting soon (#211)", async () => {
+    mocks.userId = "host-1"
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({
+        myRsvp: "going",
+        startAt: at(40),
+        endAt: at(160),
+        attendingCount: 2,
+        attendees: [
+          { id: "g-late", displayName: "Priya Shah", arrivalStatus: "running_late" },
+          { id: "g-ontime", displayName: "Tom Okafor", arrivalStatus: "on_time" },
+        ],
+      })
+    )
+
+    render(<EventDetailPage />)
+
+    const board = await screen.findByRole("list")
+    const rows = within(board).getAllByRole("listitem")
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "PSpriya shahrunning late",
+      "TOtom okaforon time",
+    ])
+  })
+
   it("shows guests names only, never ETAs", async () => {
     mocks.fetchHostedEventById.mockResolvedValue(
       hostedEvent({
@@ -223,6 +248,70 @@ describe("EventDetailPage layout (#139)", () => {
     const minutes = (new Date(body.memberWillArriveAt).getTime() - Date.now()) / MIN
     expect(minutes).toBeGreaterThan(14)
     expect(minutes).toBeLessThanOrEqual(15)
+  })
+
+  it("offers on time / running late, not minutes, when joining a flare starting within the hour (#211)", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ startAt: at(40), endAt: at(160) })
+    )
+    const user = userEvent.setup()
+
+    render(<EventDetailPage />)
+
+    expect(await screen.findByText("when will you get there?")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "15m" })).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "running late" }))
+    await user.click(screen.getByRole("button", { name: "join" }))
+
+    const body = mocks.updateMyRsvp.mock.calls[0]?.[1]
+    expect(body).toEqual(
+      expect.objectContaining({ rsvpStatus: "going", arrivalStatus: "running_late" })
+    )
+    expect(body.memberWillArriveAt).toBeNull()
+  })
+
+  it("shows a joined guest their near-term status while soon, and cancel clears it (#211)", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({
+        myRsvp: "going",
+        startAt: at(40),
+        endAt: at(160),
+        myArrivalStatus: "running_late",
+      })
+    )
+    const user = userEvent.setup()
+
+    render(<EventDetailPage />)
+
+    expect(await screen.findByText("you're running late")).toBeInTheDocument()
+    expect(screen.getByText("only sarah sees this")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "cancel" }))
+
+    expect(mocks.updateMyRsvp).toHaveBeenCalledWith("event-1", {
+      arrivalStatus: null,
+    })
+  })
+
+  it("reopens the on-time/running-late picker on 'change' while soon (#211)", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({
+        myRsvp: "going",
+        startAt: at(40),
+        endAt: at(160),
+        myArrivalStatus: "on_time",
+      })
+    )
+    const user = userEvent.setup()
+
+    render(<EventDetailPage />)
+
+    await user.click(await screen.findByRole("button", { name: "change" }))
+    await user.click(screen.getByRole("button", { name: "running late" }))
+
+    expect(mocks.updateMyRsvp).toHaveBeenCalledWith("event-1", {
+      arrivalStatus: "running_late",
+    })
   })
 
   it("doesn't ask for an ETA on a flare that starts more than 1h out", async () => {

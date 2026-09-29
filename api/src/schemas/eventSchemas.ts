@@ -123,14 +123,25 @@ export const inviteEventMembersBodySchema = z
     message: "At least one member or circle must be provided",
   });
 
+const arrivalStatusSchema = z.enum(["on_time", "running_late"]);
+
 export const updateMyEventMembershipBodySchema = z
   .object({
     rsvpStatus: z.enum(["going", "declined"]).optional(),
     memberWillArriveAt: isoDateSchema.nullable().optional(),
+    // #211: "on time" / "running late" for a flare that starts within the
+    // hour but hasn't started yet. Mutually exclusive with
+    // memberWillArriveAt — sending a real value for both at once is invalid;
+    // setting one (to a real value) clears the other server-side.
+    arrivalStatus: arrivalStatusSchema.nullable().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {
     message: "At least one field must be provided",
+  })
+  .refine((body) => !(body.memberWillArriveAt != null && body.arrivalStatus != null), {
+    message: "memberWillArriveAt and arrivalStatus are mutually exclusive",
+    path: ["arrivalStatus"],
   });
 
 export const getEventsQuerySchema = paginationQuerySchema

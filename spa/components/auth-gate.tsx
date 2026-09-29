@@ -3,23 +3,16 @@
 import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
+import {
+  AUTH_PATHS,
+  buildLoginPath,
+  getRedirectTarget,
+} from "@/lib/redirect-path"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 
-const AUTH_PATHS = [
-  "/login",
-  "/register",
-  "/forgot-password",
-  "/reset-password",
-]
 const LEGAL_PATHS = ["/menu/terms", "/menu/privacy"]
 const PUBLIC_PATHS = [...AUTH_PATHS, ...LEGAL_PATHS]
 const QR_PATH_PREFIX = "/qr/"
-
-function getSafeRedirectPath(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/"
-  if (AUTH_PATHS.some((path) => value === path)) return "/"
-  return value
-}
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { status } = useAuth()
@@ -37,14 +30,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (status === "loading") return
     if (status === "unauthenticated" && !isPublic) {
-      router.replace("/login")
+      // #219: remember where the user was heading so signing in returns
+      // them there instead of dropping them on the home map.
+      router.replace(buildLoginPath(`${pathname}${window.location.search}`))
     } else if (status === "authenticated" && isAuthPage) {
-      const redirectPath = getSafeRedirectPath(
-        new URLSearchParams(window.location.search).get("redirectTo")
-      )
-      router.replace(redirectPath)
+      router.replace(getRedirectTarget())
     }
-  }, [status, isPublic, isAuthPage, router])
+  }, [status, pathname, isPublic, isAuthPage, router])
 
   if (status === "loading") {
     return (

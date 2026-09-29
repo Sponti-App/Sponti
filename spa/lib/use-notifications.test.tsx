@@ -1,18 +1,26 @@
-import { renderHook } from "@testing-library/react"
+import { act, renderHook } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => {
   process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.sponti.test"
   return {
+    fetchNotifications: vi.fn(),
     fetchUnreadNotificationCount: vi.fn(),
+    markAllNotificationsRead: vi.fn(),
     emitEventsChanged: vi.fn(),
   }
 })
 
 vi.mock("@/lib/api/notifications", () => ({
-  fetchNotifications: vi.fn(),
+  fetchNotifications: mocks.fetchNotifications,
   fetchUnreadNotificationCount: mocks.fetchUnreadNotificationCount,
-  markNotificationsReadBatch: vi.fn(),
+  // Resolved (not left as a bare vi.fn()) so the 900ms auto-read timer
+  // loadLatest() schedules doesn't reject unobserved once markAllRead tests
+  // start actually loading notifications into the store.
+  markNotificationsReadBatch: vi
+    .fn()
+    .mockResolvedValue({ markedRead: 0, unreadCount: 0 }),
+  markAllNotificationsRead: mocks.markAllNotificationsRead,
 }))
 
 vi.mock("@/lib/use-events", () => ({
@@ -20,6 +28,7 @@ vi.mock("@/lib/use-events", () => ({
 }))
 
 import {
+  markAllRead,
   refreshUnreadCount,
   useNotifications,
   useUnreadCountRefresh,
@@ -124,5 +133,78 @@ describe("useUnreadCountRefresh", () => {
     await vi.advanceTimersByTimeAsync(30_000)
 
     expect(mocks.emitEventsChanged).not.toHaveBeenCalled()
+  })
+})
+
+// #176: "I'm caught up" must clear both the loaded list's unread dots and
+// the badge count, and record when it happened so the feed can collapse.
+describe("markAllRead", () => {
+  const notification = {
+    id: "n1",
+    type: "event_invitation" as const,
+    targetType: "event" as const,
+    targetId: "e1",
+    title: "you're invited",
+    subtitle: "tap to view",
+    createdAt: new Date().toISOString(),
+    readAt: null,
+    read: false,
+    href: "/event",
+    intent: "event" as const,
+    actorName: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("marks the loaded notifications read, zeroes the unread count, and records when caught up", async () => {
+    mocks.fetchNotifications.mockResolvedValue({
+      notifications: [notification],
+      pagination: { nextCursor: null },
+    })
+    mocks.markAllNotificationsRead.mockResolvedValue({
+      markedRead: 1,
+      unreadCount: 0,
+    })
+
+    const { result } = renderHook(() => useNotifications())
+    await act(async () => {
+      await result.current.loadLatest()
+    })
+    expect(result.current.notifications[0]?.read).toBe(false)
+    expect(result.current.caughtUpAt).toBeNull()
+
+    await act(async () => {
+      await markAllRead()
+    })
+
+    expect(mocks.markAllNotificationsRead).toHaveBeenCalledTimes(1)
+    expect(result.current.unreadCount).toBe(0)
+    expect(result.current.notifications[0]?.read).toBe(true)
+    expect(result.current.caughtUpAt).not.toBeNull()
+  })
+
+  it("leaves state untouched if the request fails", async () => {
+    mocks.fetchNotifications.mockResolvedValue({
+      notifications: [notification],
+      pagination: { nextCursor: null },
+    })
+    mocks.markAllNotificationsRead.mockRejectedValue(new Error("network down"))
+
+    const { result } = renderHook(() => useNotifications())
+    await act(async () => {
+      await result.current.loadLatest()
+    })
+    // The store is a module singleton shared across cases in this file, so
+    // compare against the caught-up state going in rather than assuming null.
+    const caughtUpAtBefore = result.current.caughtUpAt
+
+    await act(async () => {
+      await markAllRead()
+    })
+
+    expect(result.current.notifications[0]?.read).toBe(false)
+    expect(result.current.caughtUpAt).toBe(caughtUpAtBefore)
   })
 })

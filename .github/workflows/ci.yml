@@ -1,0 +1,89 @@
+name: CI
+
+# Runs the same checks a developer runs before opening a PR, so a red X on the
+# PR means something broke — no one has to remember to run them locally.
+#   spa: typecheck, lint, unit tests, and the Playwright browser smoke tests
+#   api: typecheck, lint, tests (in-memory Mongo, no shared database)
+# Nothing here touches a real backend: the browser tests stub every request,
+# and the api tests use mongodb-memory-server.
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# A new push to the same PR cancels the older, now-stale run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spa:
+    name: spa (typecheck, lint, unit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: spa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: spa/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  spa-e2e:
+    name: spa (browser smoke tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: spa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: spa/package-lock.json
+      - run: npm ci
+      # CI sets CI=true, so playwright.config.ts uses Playwright's bundled
+      # chromium instead of a locally installed Chrome.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: spa/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  api:
+    name: api (typecheck, lint, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test

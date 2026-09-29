@@ -45,7 +45,7 @@ The app is designed for low-friction, low-noise coordination among trusted circl
 | Maps | Google Maps via `@vis.gl/react-google-maps` |
 | Icons | Lucide React |
 | Mobile | Capacitor 7 (iOS + Android WebView wrapper) |
-| Testing | Vitest + Testing Library |
+| Testing | Vitest + Testing Library, Playwright (browser smoke tests) |
 | Bundler | Turbopack |
 
 ### API Server — `api/`
@@ -205,6 +205,16 @@ npm run build:mobile     # Build + sync to native projects
 npx cap run ios          # Run in iOS Simulator
 npx cap run android      # Run in Android Emulator
 ```
+
+### Testing
+
+```bash
+cd spa
+npm run test              # Vitest unit/component tests
+npm run test:e2e          # Playwright browser smoke tests (mobile + desktop viewports)
+```
+
+`test:e2e` drives a real Chromium browser against `next dev --webpack` with every request to the auth/api base URLs stubbed via `page.route` — no backend, no database, nothing shared. Locally it reuses your installed Chrome (`channel: "chrome"`), so no browser download is needed; a fresh environment (or CI) needs `npx playwright install --with-deps chromium` once first. `.github/workflows/ci.yml` runs typecheck, lint, unit tests and these browser tests for `spa/`, plus typecheck, lint and tests for `api/`, on every PR into `dev` or `main`.
 
 ---
 

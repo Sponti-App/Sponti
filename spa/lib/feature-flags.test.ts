@@ -1,0 +1,51 @@
+import { afterEach, describe, expect, it, vi } from "vitest"
+
+// #93: NEXT_PUBLIC_FEATURE_PROFILE picks the compile-time profile that
+// gates unfinished surfaces. Each flag must fail closed (tester) unless the
+// env var explicitly says "full", so a misconfigured build never exposes a
+// half-wired surface to external testers.
+
+async function loadFlags() {
+  vi.resetModules()
+  return import("./feature-flags")
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
+describe("featureFlags profile", () => {
+  it("defaults to the tester profile (reshare off) when unset", async () => {
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", undefined)
+    const { featureFlags } = await loadFlags()
+    expect(featureFlags.reshare).toBe(false)
+  })
+
+  it("stays on the tester profile for any value other than 'full'", async () => {
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "tester")
+    const { featureFlags: tester } = await loadFlags()
+    expect(tester.reshare).toBe(false)
+
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "not-a-real-profile")
+    const { featureFlags: garbage } = await loadFlags()
+    expect(garbage.reshare).toBe(false)
+  })
+
+  it("turns on full-app flags when set to 'full'", async () => {
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "full")
+    const { featureFlags } = await loadFlags()
+    expect(featureFlags.reshare).toBe(true)
+  })
+
+  it("keeps seedDemoData reading its own env var, independent of the profile", async () => {
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "full")
+    vi.stubEnv("NEXT_PUBLIC_SEED_DEMO_DATA", undefined)
+    const { featureFlags: full } = await loadFlags()
+    expect(full.seedDemoData).toBe(false)
+
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "tester")
+    vi.stubEnv("NEXT_PUBLIC_SEED_DEMO_DATA", "true")
+    const { featureFlags: tester } = await loadFlags()
+    expect(tester.seedDemoData).toBe(true)
+  })
+})

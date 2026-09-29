@@ -50,12 +50,30 @@ function isSessionRejected(error: unknown): boolean {
 // session.
 const RETRY_DELAY_MS = 5_000
 
+const noopSubscribe = () => () => {}
+
+// #219: false on the server and during the hydration render, true on every
+// client render after that. The session lives in localStorage, which the
+// server can't see, so `useSyncExternalStore` hands the hydration render the
+// empty server snapshot. Without this flag that one render reports
+// "unauthenticated" for a signed-in user, and AuthGate's effect redirects a
+// cold-loaded or refreshed protected page to /login before the real session
+// is read.
+function useIsHydrated(): boolean {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false
+  )
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const session = useSyncExternalStore(
     subscribeSession,
     readSession,
     readServerSession
   )
+  const hydrated = useIsHydrated()
   // Tracks which token has been confirmed against /auth/me. Until that check
   // resolves the session is "loading" — guards against stale or revoked tokens.
   const [revalidatedFor, setRevalidatedFor] = useState<string | null>(null)
@@ -134,15 +152,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [pendingRetryFor, retryTick])
 
-  const status: Status = !session.accessToken
-    ? "unauthenticated"
-    : !session.refreshToken
+  // Until hydration has finished the stored session hasn't been read yet, so
+  // the honest answer is "loading", never "unauthenticated" (#219).
+  const status: Status = !hydrated
+    ? "loading"
+    : !session.accessToken
       ? "unauthenticated"
-      : revalidatedFor === session.accessToken
-        ? "authenticated"
-        : pendingRetryFor === session.accessToken
+      : !session.refreshToken
+        ? "unauthenticated"
+        : revalidatedFor === session.accessToken
           ? "authenticated"
-          : "loading"
+          : pendingRetryFor === session.accessToken
+            ? "authenticated"
+            : "loading"
 
   const handleLogin = useCallback(async (email: string, password: string) => {
     const {

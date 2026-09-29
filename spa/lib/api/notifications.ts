@@ -91,3 +91,15 @@ export function markNotificationsReadBatch(
     }
   ).then((response) => response.data)
 }
+
+// "I'm caught up" (#176): marks every current notification read, not just
+// whatever page the client has loaded.
+export function markAllNotificationsRead(): Promise<{
+  markedRead: number
+  unreadCount: number
+}> {
+  return apiFetch<{ data: { markedRead: number; unreadCount: number } }>(
+    "/notifications/read-all",
+    { method: "PATCH" }
+  ).then((response) => response.data)
+}
