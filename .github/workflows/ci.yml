@@ -4,6 +4,10 @@ name: CI
 # PR means something broke — no one has to remember to run them locally.
 #   spa: typecheck, lint, unit tests, and the Playwright browser smoke tests
 #   api: typecheck, lint, tests (in-memory Mongo, no shared database)
+#   auth-server: build (tsc) — it has no lint or tests yet, but a broken build
+#     here means nobody can sign in
+#   auth-server: build (tsc) — it has no lint or tests yet, but a broken build
+#     here means nobody can sign in
 # Nothing here touches a real backend: the browser tests stub every request,
 # and the api tests use mongodb-memory-server.
 on:
@@ -87,3 +91,41 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+
+  auth-server:
+    name: auth-server (build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: auth-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: auth-server/package-lock.json
+      - run: npm ci
+      # tsc is the type check; a successful build also proves the
+      # `imports` map resolves against dist/.
+      - run: npm run build
+
+  auth-server:
+    name: auth-server (build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: auth-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: auth-server/package-lock.json
+      - run: npm ci
+      # tsc is the type check; a successful build also proves the
+      # `imports` map resolves against dist/.
+      - run: npm run build

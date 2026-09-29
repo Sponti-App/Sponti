@@ -214,7 +214,7 @@ npm run test              # Vitest unit/component tests
 npm run test:e2e          # Playwright browser smoke tests (mobile + desktop viewports)
 ```
 
-`test:e2e` drives a real Chromium browser against `next dev --webpack` with every request to the auth/api base URLs stubbed via `page.route` — no backend, no database, nothing shared. Locally it reuses your installed Chrome (`channel: "chrome"`), so no browser download is needed; a fresh environment (or CI) needs `npx playwright install --with-deps chromium` once first. `.github/workflows/ci.yml` runs typecheck, lint, unit tests and these browser tests for `spa/`, plus typecheck, lint and tests for `api/`, on every PR into `dev` or `main`.
+`test:e2e` drives a real Chromium browser against `next dev --webpack` with every request to the auth/api base URLs stubbed via `page.route` — no backend, no database, nothing shared. Locally it reuses your installed Chrome (`channel: "chrome"`), so no browser download is needed; a fresh environment (or CI) needs `npx playwright install --with-deps chromium` once first. `.github/workflows/ci.yml` runs typecheck, lint, unit tests and these browser tests for `spa/`, typecheck, lint and tests for `api/`, plus a build check for `auth-server/`, on every PR into `dev` or `main`.
 
 ---
 
