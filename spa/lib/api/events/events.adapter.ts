@@ -1,6 +1,7 @@
 import { displayLocationName } from "@/lib/current-location"
 import type {
   ApiEvent,
+  ArrivalStatus,
   CreateEventRequest,
   DraftEvent,
   EventAudienceTarget,
@@ -93,6 +94,15 @@ export function formatArrivalStatus(
   return hours <= 1
     ? "arriving in about 1 hr"
     : `arriving in about ${hours} hrs`
+}
+
+/**
+ * "on time" / "running late" — the host-facing label for a going attendee's
+ * near-term arrival status (#211), shown instead of formatArrivalStatus while
+ * a flare hasn't started but starts within the hour.
+ */
+export function arrivalStatusLabel(status: ArrivalStatus): string {
+  return status === "on_time" ? "on time" : "running late"
 }
 
 export function avatarText(bgColor: string): string {
@@ -226,9 +236,10 @@ export function adaptApiEvent(api: ApiEvent): EventItem {
         name,
         avatar: name.charAt(0).toUpperCase(),
         color: "bg-stone-300",
-        // The api only sends this field at all when the caller is this
-        // event's host; it's normalized to null here for any other viewer.
+        // The api only sends these fields at all when the caller is this
+        // event's host; normalized to null here for any other viewer.
         willArriveAt: a.willArriveAt ?? null,
+        arrivalStatus: a.arrivalStatus ?? null,
       }
     }),
     going: api.goingCount ?? api.attendees?.length ?? 0,
@@ -260,9 +271,10 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
       displayName: a.displayName || a.username || "guest",
       username: a.username,
       avatarUrl: a.avatarUrl ?? null,
-      // The api only sends this field at all when the caller is this
-      // event's host; it's normalized to null here for any other viewer.
+      // The api only sends these fields at all when the caller is this
+      // event's host; normalized to null here for any other viewer.
       willArriveAt: a.willArriveAt ?? null,
+      arrivalStatus: a.arrivalStatus ?? null,
     })),
     visibility: api.visibility,
     guestLimit: api.guestInviteLimit,
@@ -270,6 +282,7 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     myRsvp: api.myRsvp ?? null,
     updateCount: api.updateCount ?? 0,
     myWillArriveAt: api.myWillArriveAt ?? null,
+    myArrivalStatus: api.myArrivalStatus ?? null,
     recurrence: "none",
     apiStatus: api.status,
     createdAt: api.createdAt ?? api.startAt,

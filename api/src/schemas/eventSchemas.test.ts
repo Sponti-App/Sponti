@@ -42,6 +42,42 @@ describe("updateMyEventMembershipBodySchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("accepts an arrivalStatus of on_time or running_late (#211)", () => {
+    expect(
+      updateMyEventMembershipBodySchema.safeParse({ arrivalStatus: "on_time" }).success
+    ).toBe(true);
+    expect(
+      updateMyEventMembershipBodySchema.safeParse({ arrivalStatus: "running_late" }).success
+    ).toBe(true);
+    expect(
+      updateMyEventMembershipBodySchema.safeParse({ arrivalStatus: "on-time" }).success
+    ).toBe(false);
+  });
+
+  it("rejects sending a real memberWillArriveAt and a real arrivalStatus together (#211)", () => {
+    const result = updateMyEventMembershipBodySchema.safeParse({
+      memberWillArriveAt: "2026-05-14T13:10:00.000Z",
+      arrivalStatus: "on_time",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("allows clearing one field alongside setting the other (#211)", () => {
+    expect(
+      updateMyEventMembershipBodySchema.safeParse({
+        memberWillArriveAt: null,
+        arrivalStatus: "on_time",
+      }).success
+    ).toBe(true);
+    expect(
+      updateMyEventMembershipBodySchema.safeParse({
+        memberWillArriveAt: "2026-05-14T13:10:00.000Z",
+        arrivalStatus: null,
+      }).success
+    ).toBe(true);
+  });
 });
 
 describe("inviteEventMembersBodySchema", () => {

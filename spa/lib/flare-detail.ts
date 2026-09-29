@@ -3,6 +3,7 @@
 // "who is looking, when is it, what can they do" the same way.
 
 import type {
+  ArrivalStatus,
   EventCoordinates,
   EventGuestInviteMode,
   EventRsvp,
@@ -47,9 +48,22 @@ export function flareTiming(
   return start - now <= ETA_WINDOW_MS ? "soon" : "later"
 }
 
-/** An arrival time is only asked for while the flare is live or starting within 1h. */
+/**
+ * Which arrival control applies for this timing (#211): minute chips while
+ * live, on-time/running-late while starting within the hour but not yet
+ * live, no control further out.
+ */
+export type EtaControlKind = "minutes" | "status" | null
+
+export function etaControlKind(timing: FlareTiming): EtaControlKind {
+  if (timing === "live") return "minutes"
+  if (timing === "soon") return "status"
+  return null
+}
+
+/** An arrival answer is only asked for while the flare is live or starting within 1h. */
 export function etaAvailable(timing: FlareTiming): boolean {
-  return timing === "live" || timing === "soon"
+  return etaControlKind(timing) !== null
 }
 
 /** The drawn walking route is capped to walking distance (straight line). */
@@ -146,3 +160,37 @@ export function ownArrivalLabel(
 
 /** ETA choices, as labels `etaToIso` understands. */
 export const ETA_CHOICES = ["5 min", "15 min", "30 min", "1 hr"] as const
+
+/**
+ * The near-term arrival choices (#211), offered instead of ETA_CHOICES while
+ * a flare hasn't started but starts within the hour.
+ */
+export const ARRIVAL_STATUS_CHOICES: ReadonlyArray<{
+  value: ArrivalStatus
+  label: string
+}> = [
+  { value: "on_time", label: "on time" },
+  { value: "running_late", label: "running late" },
+]
+
+/** "you'll be on time" / "you're running late" for the viewer's own plan row. */
+export function ownArrivalStatusLabel(status: ArrivalStatus): string {
+  return status === "on_time" ? "you'll be on time" : "you're running late"
+}
+
+/**
+ * The viewer's own plan summary, given whichever of the two mutually
+ * exclusive arrival fields is set (an api invariant — #211). Null when
+ * neither is set, so callers can supply their own "no answer" copy.
+ */
+export function ownArrivalSummary(
+  {
+    willArriveAt,
+    arrivalStatus,
+  }: { willArriveAt?: string | null; arrivalStatus?: ArrivalStatus | null },
+  now: number = Date.now()
+): string | null {
+  if (arrivalStatus) return ownArrivalStatusLabel(arrivalStatus)
+  if (willArriveAt) return ownArrivalLabel(willArriveAt, now)
+  return null
+}

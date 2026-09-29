@@ -211,6 +211,7 @@ Table event_members {
   rsvpStatus rsvpStatus
 
   memberWillArriveAt datetime // The time, calculate it before (null if it's the host)
+  arrivalStatus arrivalStatus // "on time" / "running late" for a flare starting within 1h but not yet live (#211); mutually exclusive with memberWillArriveAt — setting one clears the other. Null otherwise
 
   removedAt datetime // Set when the host removes the guest; the row is kept so they can't rejoin. Null otherwise
 
@@ -227,6 +228,11 @@ Enum rsvpStatus {
   invited // default
   going
   declined
+}
+
+Enum arrivalStatus {
+  on_time
+  running_late
 }
 
 Enum role {

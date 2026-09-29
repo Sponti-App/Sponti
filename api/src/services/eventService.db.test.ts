@@ -506,6 +506,97 @@ describe("eventService attendee ETA visibility database behavior (#90)", () => {
   });
 });
 
+describe("eventService near-term arrival status database behavior (#211)", () => {
+  const rsvpNotices = (eventId: string) =>
+    Notification.find({ targetId: eventId, type: "event_rsvp_change" }).lean();
+
+  it("shows the host a going attendee's arrival status, but leaves it off the response for anyone else", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("private");
+
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, {
+      arrivalStatus: "running_late",
+    });
+
+    const hostView = await getEventById(HOST_ID, eventId);
+    expect(hostView.attendees.find((a) => a._id === GOING_GUEST_ID)?.arrivalStatus).toBe(
+      "running_late"
+    );
+
+    const guestView = await getEventById(GOING_GUEST_ID, eventId);
+    expect(
+      guestView.attendees.find((a) => a._id === GOING_GUEST_ID)
+    ).not.toHaveProperty("arrivalStatus");
+  });
+
+  it("gives each caller only their own arrival status as myArrivalStatus", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("public");
+
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, {
+      arrivalStatus: "on_time",
+    });
+
+    expect((await getEventById(GOING_GUEST_ID, eventId)).myArrivalStatus).toBe("on_time");
+    expect((await getEventById(HOST_ID, eventId)).myArrivalStatus).toBeNull();
+    expect((await getEventById(STRANGER_ID, eventId)).myArrivalStatus).toBeNull();
+  });
+
+  it("setting an arrival status clears a stored arrival time, and setting a time clears a stored status", async () => {
+    const { eventId, arrival } = await seedFlareWithGoingGuest("private");
+
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, {
+      arrivalStatus: "on_time",
+    });
+    let member = await EventMember.findOne({ eventId, userId: GOING_GUEST_ID }).lean();
+    expect(member).toMatchObject({ arrivalStatus: "on_time", memberWillArriveAt: null });
+
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, {
+      memberWillArriveAt: arrival,
+    });
+    member = await EventMember.findOne({ eventId, userId: GOING_GUEST_ID }).lean();
+    expect(member?.arrivalStatus).toBeNull();
+    expect(member?.memberWillArriveAt?.getTime()).toBe(arrival.getTime());
+  });
+
+  it("tells the host when a going member only updates their arrival status", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("private");
+
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, {
+      arrivalStatus: "running_late",
+    });
+
+    const notices = await rsvpNotices(eventId);
+    expect(notices).toHaveLength(1);
+    expect(String(notices[0]?.userId)).toBe(HOST_ID);
+    expect(String(notices[0]?.actorId)).toBe(GOING_GUEST_ID);
+    expect(notices[0]?.title).toMatch(/arrival time/);
+    expect(notices[0]?.message).toMatch(/running late/);
+    expect(notices[0]?.metadata?.arrivalStatus).toBe("running_late");
+  });
+
+  it("doesn't notify again when a going member resubmits the same arrival status", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("private");
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, { arrivalStatus: "on_time" });
+
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, { arrivalStatus: "on_time" });
+
+    expect(await rsvpNotices(eventId)).toHaveLength(1);
+  });
+
+  it("clears both arrival fields once a going member declines", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("private");
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, { arrivalStatus: "on_time" });
+
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, { rsvpStatus: "declined" });
+
+    const member = await EventMember.findOne({ eventId, userId: GOING_GUEST_ID }).lean();
+    expect(member).toMatchObject({
+      rsvpStatus: "declined",
+      memberWillArriveAt: null,
+      arrivalStatus: null,
+    });
+  });
+});
+
 describe("eventService public/private switching database behavior", () => {
   it("keeps going joiners and invited guests when a flare goes private, and hides it from everyone else", async () => {
     const { eventId } = await seedFlareWithGoingGuest("public");
