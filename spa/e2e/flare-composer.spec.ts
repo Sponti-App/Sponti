@@ -29,6 +29,9 @@ test.describe("flare composer", () => {
   test("opens from the map FAB with the title input and CTA in view", async ({
     page,
   }) => {
+    // The map opens at mid, where the nav's flare button stands in for the
+    // FAB; the FAB shows at peek (#223).
+    await page.getByRole("button", { name: "hide cards" }).click()
     await page
       .getByRole("button", { name: "Light a flare", exact: true })
       .click()

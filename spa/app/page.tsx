@@ -66,14 +66,18 @@ export default function Home() {
     // hour, #211). The "let host know" chip is the user's committed answer;
     // the Routes API ETA shown in the route pill is separate (display-only,
     // not persisted).
-    const kind = etaControlKind(flareTiming({ startAt: event.startAt, endAt: event.endAt }))
+    const kind = etaControlKind(
+      flareTiming({ startAt: event.startAt, endAt: event.endAt })
+    )
     void updateMyRsvp(event.id, {
       rsvpStatus: "going",
       memberWillArriveAt: kind === "minutes" ? etaToIso(eta) : null,
       // Only sent for a near-term flare: the api rejects unknown body keys, so
       // an always-present `arrivalStatus: null` broke every join against an
       // api that hadn't shipped #211 yet.
-      ...(kind === "status" && eta ? { arrivalStatus: eta as ArrivalStatus } : {}),
+      ...(kind === "status" && eta
+        ? { arrivalStatus: eta as ArrivalStatus }
+        : {}),
     })
       .then(() => showActionFeedback("you're in"))
       .catch((err) => {
@@ -145,8 +149,13 @@ export default function Home() {
   }
 
   return (
+    // Fixed to the viewport, not a min-h-dvh block inside the body: the body's
+    // safe-area padding made the document taller than the screen, so it
+    // scrolled, and scrolling let Safari collapse its toolbars and lift the
+    // page against the fixed nav (#223). A fixed page leaves nothing to
+    // scroll; the map and calendar scroll inside themselves.
     <div
-      className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background"
+      className="fixed inset-0 flex w-full flex-col overflow-hidden bg-background"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
@@ -192,7 +201,7 @@ export default function Home() {
               }}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm active:scale-[0.97] ${
                 view === "map"
-                  ? "bg-card text-foreground font-semibold"
+                  ? "bg-card font-semibold text-foreground"
                   : "text-muted-foreground"
               }`}
             >
@@ -206,7 +215,7 @@ export default function Home() {
               }}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm active:scale-[0.97] ${
                 view === "calendar"
-                  ? "bg-card text-foreground font-semibold"
+                  ? "bg-card font-semibold text-foreground"
                   : "text-muted-foreground"
               }`}
             >
