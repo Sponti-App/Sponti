@@ -55,3 +55,43 @@ export async function searchUsers(q: string): Promise<UserSearchResult[]> {
     .map(adaptUserSearchResult)
     .filter((user): user is UserSearchResult => Boolean(user))
 }
+
+/**
+ * How the viewer stands with a profile they opened, as the api decides it
+ * (`GET /users/by-username/:username`, #199). Mirrors the QR contact flow's
+ * vocabulary, plus "blocked" for someone the viewer blocked.
+ */
+export type ProfileRelationship =
+  | "self"
+  | "connected"
+  | "pending_outgoing"
+  | "pending_incoming"
+  | "blocked"
+  | "none"
+
+export type UserProfile = {
+  profile: {
+    id: string
+    username: string
+    displayName: string
+    avatarUrl: string | null
+  }
+  relationship: ProfileRelationship
+  // The pending request to cancel or accept; null otherwise.
+  connectionId: string | null
+}
+
+/**
+ * Someone's public identity by username. The api only ever sends display
+ * name, @username and avatar, and answers 404 both for an unknown username
+ * and for a user who blocked the viewer.
+ */
+export function fetchUserProfile(
+  username: string,
+  signal?: AbortSignal
+): Promise<UserProfile> {
+  return apiFetch<{ data: UserProfile }>(
+    `/users/by-username/${encodeURIComponent(username)}`,
+    { signal }
+  ).then((response) => response.data)
+}
