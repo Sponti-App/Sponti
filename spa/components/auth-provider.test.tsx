@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from "@testing-library/react"
+import { act, render, renderHook, waitFor } from "@testing-library/react"
+import { renderToString } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { AuthUser } from "@/lib/auth-store"
 
@@ -164,5 +165,63 @@ describe("AuthProvider session revalidation on app open (#191)", () => {
 
     await waitFor(() => expect(result.current.status).toBe("unauthenticated"))
     expect(authStore.getToken()).toBeNull()
+  })
+})
+
+// #219: the session lives in localStorage, which the server (and the static
+// export) can't see. The hydration render therefore gets the empty server
+// snapshot, and used to report "unauthenticated" for a signed-in user, long
+// enough for AuthGate to redirect a cold-loaded page to /login.
+describe("AuthProvider during hydration (#219)", () => {
+  async function hydrateAndRecordStatuses() {
+    const { AuthProvider, useAuth } = await loadProvider()
+    const seen: string[] = []
+    function Probe() {
+      const { status } = useAuth()
+      seen.push(status)
+      return <span data-testid="status">{status}</span>
+    }
+    const tree = (
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    )
+    const container = document.createElement("div")
+    container.innerHTML = renderToString(tree)
+    const serverStatuses = [...seen]
+    seen.length = 0
+    document.body.appendChild(container)
+    const view = render(tree, { container, hydrate: true })
+    return { seen, serverStatuses, view }
+  }
+
+  it("reports loading, never unauthenticated, while hydrating a stored session", async () => {
+    window.localStorage.setItem("sponti.auth.access-token.v1", "old-access")
+    window.localStorage.setItem("sponti.auth.refresh-token.v1", "old-refresh")
+    window.localStorage.setItem("sponti.auth.user.v1", JSON.stringify(USER))
+    me.mockResolvedValue({ user: USER })
+
+    const { seen, serverStatuses, view } = await hydrateAndRecordStatuses()
+
+    expect(serverStatuses).toEqual(["loading"])
+    await waitFor(() =>
+      expect(view.getByTestId("status")).toHaveTextContent("authenticated")
+    )
+    expect(seen[0]).toBe("loading")
+    expect(seen).not.toContain("unauthenticated")
+    expect(me).toHaveBeenCalledTimes(1)
+    view.unmount()
+  })
+
+  it("settles on unauthenticated after hydration when nothing is stored", async () => {
+    const { seen, view } = await hydrateAndRecordStatuses()
+
+    await waitFor(() =>
+      expect(view.getByTestId("status")).toHaveTextContent("unauthenticated")
+    )
+    // The hydration render itself must still say "loading".
+    expect(seen[0]).toBe("loading")
+    expect(me).not.toHaveBeenCalled()
+    view.unmount()
   })
 })
