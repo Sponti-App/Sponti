@@ -185,7 +185,7 @@ describe("markAllRead", () => {
     expect(result.current.caughtUpAt).not.toBeNull()
   })
 
-  it("leaves state untouched if the request fails", async () => {
+  it("leaves the list untouched and shows an error if the request fails", async () => {
     mocks.fetchNotifications.mockResolvedValue({
       notifications: [notification],
       pagination: { nextCursor: null },
@@ -206,5 +206,6 @@ describe("markAllRead", () => {
 
     expect(result.current.notifications[0]?.read).toBe(false)
     expect(result.current.caughtUpAt).toBe(caughtUpAtBefore)
+    expect(result.current.error).toBe("couldn't mark as read, try again")
   })
 })
