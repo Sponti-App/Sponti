@@ -95,6 +95,20 @@ describe("EventEditPage action feedback", () => {
     expect(mocks.push).toHaveBeenCalledWith("/event")
   })
 
+  it("keeps the disabled save button a solid surface instead of see-through", async () => {
+    render(<EventEditPage />)
+
+    await screen.findByDisplayValue("coffee at annex")
+    const saveButton = screen.getByRole("button", { name: "no changes yet" })
+
+    expect(saveButton).toBeDisabled()
+    // A disabled floating button must stay a solid surface (muted colours on
+    // an opaque bg), not fade out via opacity — otherwise page content
+    // scrolling underneath shows through it (#217).
+    expect(saveButton.className).not.toMatch(/disabled:opacity-(?!100\b)/)
+    expect(saveButton.className).toMatch(/disabled:bg-muted/)
+  })
+
   it("confirms when a flare is cancelled", async () => {
     const user = userEvent.setup()
     render(<EventEditPage />)

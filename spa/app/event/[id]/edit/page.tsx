@@ -649,11 +649,11 @@ export default function EventEditPage() {
       </div>
 
       {!isPast && !isCancelled && (
-        <div className="absolute right-0 bottom-24 left-0 z-20 px-4">
+        <div className="absolute right-0 bottom-24 left-0 z-20 bg-background px-4">
           <Button
             onClick={() => void handleSaveClick()}
             disabled={!dirty || saving}
-            className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
+            className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
           >
             {saving ? "saving..." : dirty ? "save changes" : "no changes yet"}
           </Button>

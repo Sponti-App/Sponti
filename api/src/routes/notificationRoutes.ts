@@ -19,5 +19,6 @@ router.patch(
   validateRequest({ body: readNotificationsBatchBodySchema }),
   notificationController.markNotificationsReadBatch
 );
+router.patch("/read-all", notificationController.markAllNotificationsRead);
 
 export default router;

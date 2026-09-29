@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Bell,
   Check,
+  ChevronDown,
   Flame,
   Loader2,
   MessageSquare,
@@ -63,8 +64,10 @@ export function NotificationsPopover({
   loadingMore,
   error,
   hasMore,
+  caughtUpAt,
   onLoadMore,
   onNotificationClick,
+  onMarkAllRead,
 }: {
   open: boolean
   onClose: () => void
@@ -74,11 +77,25 @@ export function NotificationsPopover({
   loadingMore?: boolean
   error?: string | null
   hasMore?: boolean
+  caughtUpAt?: string | null
   onLoadMore?: () => void
   onNotificationClick?: (notification: Notification) => void
+  onMarkAllRead?: () => void
 }) {
   const scrollRef = useRef<HTMLUListElement | null>(null)
   const sentinelRef = useRef<HTMLLIElement | null>(null)
+  // Lets the user peek at the collapsed feed again without waiting for a new
+  // notification to arrive. Local and ephemeral: it resets on close so the
+  // feed shows caught-up again the next time there's nothing new (#176).
+  const [manuallyExpanded, setManuallyExpanded] = useState(false)
+
+  useEffect(() => {
+    if (open) return
+    const timeout = window.setTimeout(() => {
+      setManuallyExpanded(false)
+    }, 0)
+    return () => window.clearTimeout(timeout)
+  }, [open])
 
   useEffect(() => {
     if (!open || !hasMore || !onLoadMore) return
@@ -98,6 +115,25 @@ export function NotificationsPopover({
     observer.observe(sentinel)
     return () => observer.disconnect()
   }, [open, hasMore, onLoadMore, notifications.length])
+
+  // "I'm caught up" collapses the feed once everything loaded is no newer
+  // than the moment it was tapped. A notification newer than that reopens it
+  // — derived here rather than stored, so it needs no separate reset (#176).
+  const hasNewSinceCaughtUp =
+    caughtUpAt != null &&
+    notifications.some(
+      (notification) =>
+        new Date(notification.createdAt).getTime() >
+        new Date(caughtUpAt).getTime()
+    )
+  const isCaughtUp =
+    caughtUpAt != null && notifications.length > 0 && !hasNewSinceCaughtUp
+  const showCollapsed = isCaughtUp && !manuallyExpanded
+
+  const handleMarkAllRead = () => {
+    setManuallyExpanded(false)
+    onMarkAllRead?.()
+  }
 
   return (
     <>
@@ -150,6 +186,19 @@ export function NotificationsPopover({
             <p className="mt-1 text-xs text-muted-foreground">
               invites and rsvps will land here
             </p>
+          </div>
+        ) : showCollapsed ? (
+          <div className="px-4 py-10 text-center">
+            <Check className="mx-auto h-5 w-5 text-accent" />
+            <p className="mt-2 text-sm font-medium">you&rsquo;re caught up</p>
+            <button
+              type="button"
+              onClick={() => setManuallyExpanded(true)}
+              className="mt-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              show {notifications.length} earlier
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
           </div>
         ) : (
           <ul
@@ -216,9 +265,16 @@ export function NotificationsPopover({
           </div>
         )}
 
-        {notifications.length > 0 && !hasMore && !loadingMore && (
+        {notifications.length > 0 && !hasMore && !loadingMore && !showCollapsed && (
           <div className="border-t border-border px-4 py-3 text-center">
-            <Check className="mx-auto h-4 w-4 text-muted-foreground" />
+            <button
+              type="button"
+              onClick={handleMarkAllRead}
+              aria-label="Mark all as seen"
+              className="mx-auto flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
+            >
+              <Check className="h-4 w-4" />
+            </button>
           </div>
         )}
 

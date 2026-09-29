@@ -29,3 +29,9 @@ export const markNotificationsReadBatch = asyncHandler(async (req, res) => {
 
   res.json({ data });
 });
+
+export const markAllNotificationsRead = asyncHandler(async (req, res) => {
+  const data = await notificationService.markAllNotificationsRead(getAuthenticatedUserId(req));
+
+  res.json({ data });
+});
