@@ -10,8 +10,8 @@ should not render `BottomNav` directly.
 - Mounts `useNotifications()` once at the app-shell level.
 - Passes `notificationsUnread` from the backend unread-count cache into
   `BottomNav`.
-- Owns `NotificationsPopover` open/close state and notification click routing.
-- Closes the notification popover on route changes and when the new-event drawer
+- Owns `NotificationsSheet` open/close state and notification click routing.
+- Closes the notification sheet on route changes and when the new-event drawer
   opens.
 - Keeps `BottomNav` in the same provider scope as `NewEventDrawerProvider`, so
   the "light a flare" action continues to use the global drawer.
@@ -48,8 +48,9 @@ Known dependents:
 
 - `spa/components/map-view.tsx` positions the collapsed sheet and floating map
   buttons relative to `--sponti-nav-h`.
-- `spa/components/notifications-popover.tsx` positions the popover above the nav
-  with the same variable.
+- `spa/components/notifications-sheet.tsx` is a vaul bottom sheet docked on
+  the nav with the same variable (it also publishes `--sponti-bottom-occupied`
+  while open so the toast sits above it).
 
 Pages with scrollable content should reserve enough bottom padding for the fixed
 nav. Existing page-level padding such as `pb-28`, `pb-32`, or `pb-44` may remain
@@ -58,7 +59,7 @@ when it protects content or fixed page CTAs from the nav.
 ## Z-Index Expectations
 
 - Shared bottom nav: `z-40`.
-- Notification popover panel: `z-50`.
+- Notification sheet: `z-50` (docked above the nav, not covering it).
 - Full-height drawers and modal sheets should render at `z-50` or above when
   they need to cover the nav.
 - The map bottom sheet can cover the nav when expanded and sit above it by

@@ -1,68 +1,329 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 import { makeStubFlare, stubBackend } from "./support/stubs"
 
-// #223: the home map's "flares near you" sheet should sit flush on the
-// bottom nav at its default "peek" snap — no gap showing map behind it, and
-// without covering the nav. Chromium in a normal viewport doesn't reproduce
-// the Safari-fullscreen-toolbar trigger #223 was actually filed against
-// (that's a WebKit safe-area/viewport quirk), but the underlying geometry
-// contract — sheet bottom flush with nav top, nav still hit-testable — is
-// the same one #109 asked this suite to guard.
-test.describe("home map sheet geometry (#223)", () => {
+// #223: the home map's "flares near you" drawer is a dock (filter bar, plus
+// the FAB at peek or a card rail at mid) and a full-height list page, all
+// fixed to bottom: var(--sponti-nav-h). These guard the geometry contract
+// #109 asked for: whatever the map docks sits flush on the nav, never covers
+// it, and the document itself never scrolls. Chromium doesn't reproduce
+// Safari collapsing its toolbars, so one test forces what Safari does then
+// (a 34px bottom safe-area inset) with a style tag, as the #234 prototype did.
+
+const MIN = 60_000
+
+function flares() {
+  const now = Date.now()
+  return [
+    makeStubFlare({
+      _id: "event-live-drinks",
+      title: "drinks after work",
+      type: "drinks",
+    }),
+    makeStubFlare({
+      _id: "event-live-sports",
+      title: "sunset frisbee",
+      type: "sports",
+      goingCount: 0,
+    }),
+    makeStubFlare({
+      _id: "event-soon-culture",
+      title: "gallery late opening",
+      type: "culture",
+      startAt: new Date(now + 40 * MIN).toISOString(),
+      endAt: new Date(now + 160 * MIN).toISOString(),
+    }),
+  ]
+}
+
+type Box = { x: number; y: number; width: number; height: number }
+
+async function box(locator: Locator): Promise<Box> {
+  const b = await locator.boundingBox()
+  if (!b) throw new Error("expected the element to have a layout box")
+  return b
+}
+
+const nav = (page: Page) => page.getByRole("navigation", { name: "Primary" })
+const dock = (page: Page) => page.locator("[data-map-dock]")
+const rail = (page: Page) =>
+  page.getByRole("region", { name: "flares near you" })
+const navFlare = (page: Page) =>
+  page.getByRole("button", { name: "flare", exact: true })
+
+/** The nav is the hit target at its own centre, i.e. nothing covers it. */
+async function navIsOnTop(page: Page): Promise<boolean> {
+  const b = await box(nav(page))
+  return page.evaluate(
+    ({ x, y }) =>
+      document.elementFromPoint(x, y)?.closest('nav[aria-label="Primary"]') !=
+      null,
+    { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+  )
+}
+
+/** Bottom edge of `locator` minus the nav's top edge (0 = flush). */
+async function gapAboveNav(page: Page, locator: Locator): Promise<number> {
+  const [n, b] = await Promise.all([box(nav(page)), box(locator)])
+  return n.y - (b.y + b.height)
+}
+
+test.describe("home map dock geometry (#223)", () => {
   test.beforeEach(async ({ page }) => {
-    await stubBackend(page, { mapEvents: [makeStubFlare()] })
+    await stubBackend(page, { mapEvents: flares() })
     await page.goto("/")
-    await expect(
-      page.getByRole("navigation", { name: "Primary" })
-    ).toBeVisible()
+    await expect(nav(page)).toBeVisible()
+    await expect(rail(page).getByText("drinks after work")).toBeVisible()
   })
 
-  test("the flares sheet sits flush above the bottom nav with no gap and doesn't cover it", async ({
+  test("opens at mid: the card rail sits in a dock flush on the nav, and the nav stays on top", async ({
     page,
   }) => {
-    const nav = page.getByRole("navigation", { name: "Primary" })
-    await expect(page.getByRole("heading", { name: "flares near you" })).toBeVisible()
+    expect(Math.abs(await gapAboveNav(page, dock(page)))).toBeLessThanOrEqual(1)
+    // The rail is inside the dock, above the filter bar.
+    const railBox = await box(rail(page))
+    const dockBox = await box(dock(page))
+    expect(railBox.y).toBeGreaterThanOrEqual(dockBox.y)
+    // FAB only at peek: from mid up the nav's flare button does the same.
+    await expect(
+      page.getByRole("button", { name: "Light a flare", exact: true })
+    ).toBeHidden()
+    expect(await navIsOnTop(page)).toBe(true)
+  })
 
-    // `bg-background` (not `bg-card`, which the flare-composer sheet uses)
-    // keeps this locator from ever matching the compose drawer's card.
-    const sheet = page.locator("div.rounded-t-3xl.bg-background")
-    await expect(sheet).toBeVisible()
+  test("peek: the filter bar and FAB stay flush on the nav without the rail", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "hide cards" }).click()
+    await expect(rail(page)).toBeHidden()
+    await expect(
+      page.getByRole("button", { name: "Light a flare", exact: true })
+    ).toBeVisible()
+    expect(Math.abs(await gapAboveNav(page, dock(page)))).toBeLessThanOrEqual(1)
+    expect(await navIsOnTop(page)).toBe(true)
 
-    const viewportSize = page.viewportSize()
-    const [navBox, sheetBox] = await Promise.all([
-      nav.boundingBox(),
-      sheet.boundingBox(),
+    await page.getByRole("button", { name: "show cards" }).click()
+    await expect(rail(page)).toBeVisible()
+  })
+
+  test("full: the list page runs from under the header chips down to the nav, without covering either", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "list", exact: true }).click()
+    const list = page.getByRole("region", { name: "flare list" })
+    await expect(
+      list.getByRole("heading", { name: "flares near you" })
+    ).toBeVisible()
+    await expect(dock(page)).toBeHidden()
+
+    // The page slides in (500ms); measure once it has settled.
+    await expect
+      .poll(async () => Math.abs(await gapAboveNav(page, list)))
+      .toBeLessThanOrEqual(1)
+    const [listBox, settingsBox] = await Promise.all([
+      box(list),
+      box(page.getByRole("button", { name: "Settings" })),
     ])
-    if (!navBox || !sheetBox || !viewportSize) {
-      throw new Error(
-        "expected the nav, the sheet, and the viewport to all have a layout box"
+    expect(listBox.y).toBeGreaterThanOrEqual(settingsBox.y + settingsBox.height)
+    expect(await navIsOnTop(page)).toBe(true)
+    await expect(list.getByText("gallery late opening")).toBeVisible()
+
+    await list.getByRole("button", { name: "map", exact: true }).click()
+    await expect(rail(page)).toBeVisible()
+    await expect(list).toBeHidden()
+  })
+
+  test("rail cards are content-height, not stretched to the taller CTA card", async ({
+    page,
+  }) => {
+    const card = rail(page).locator('[data-rail-id="event-live-drinks"]')
+    const cta = rail(page).locator('[data-rail-id="cta"]')
+    await expect(cta).toBeAttached()
+    const emptyBelowContent = await card.evaluate((el) => {
+      const last = el.lastElementChild as HTMLElement
+      return (
+        el.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom
       )
-    }
+    })
+    // p-3 plus the 1px border: anything more is stretched empty space.
+    expect(emptyBelowContent).toBeLessThanOrEqual(13.5)
+    expect((await box(card)).height).toBeLessThan((await box(cta)).height)
+  })
 
-    // No gap: at peek the sheet is anchored flush to the true bottom of the
-    // screen (`bottom: 0` in map-view.tsx's sheetStyle) and sits *behind*
-    // the nav (which wins the z-index and renders on top over the portion
-    // they share) rather than stopping short and leaving a strip of map
-    // visible above the nav. A regression that swapped the peek sheet's
-    // offset back to something nav-height-aware (the mini-state pattern)
-    // would open exactly that gap and fail this.
-    expect(
-      Math.abs(sheetBox.y + sheetBox.height - viewportSize.height)
-    ).toBeLessThanOrEqual(1)
+  for (const colorScheme of ["light", "dark"] as const) {
+    test(`the nav's flare button is a peach circle that stays inside the nav (${colorScheme})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme })
+      await page.reload()
+      await expect(nav(page)).toBeVisible()
+      const circle = navFlare(page).locator("[data-nav-flare-circle]")
+      const [navBox, circleBox] = await Promise.all([
+        box(nav(page)),
+        box(circle),
+      ])
+      // The ring (ring-2 + ring-offset-2) reaches 4px past the circle.
+      expect(circleBox.y - 4).toBeGreaterThanOrEqual(navBox.y)
+      expect(circleBox.y + circleBox.height + 4).toBeLessThanOrEqual(
+        navBox.y + navBox.height
+      )
+      const [fill, accent] = await circle.evaluate((el) => {
+        const probe = document.createElement("div")
+        probe.style.background = "var(--accent)"
+        document.body.appendChild(probe)
+        const accent = getComputedStyle(probe).backgroundColor
+        probe.remove()
+        return [getComputedStyle(el).backgroundColor, accent]
+      })
+      expect(fill).toBe(accent)
+    })
+  }
 
-    // Doesn't cover it: the nav is still the hit target at its own center,
-    // not occluded by the sheet sitting on top of it.
-    const navCenter = {
-      x: navBox.x + navBox.width / 2,
-      y: navBox.y + navBox.height / 2,
-    }
-    const navIsOnTop = await page.evaluate(
-      ({ x, y }) => {
-        const el = document.elementFromPoint(x, y)
-        return el?.closest('nav[aria-label="Primary"]') != null
-      },
-      navCenter
-    )
-    expect(navIsOnTop).toBe(true)
+  test("simulated Safari fullscreen: --sponti-nav-h follows the nav's grown padding, the dock stays flush, and the page can't scroll", async ({
+    page,
+  }) => {
+    const navBefore = await box(nav(page))
+    // What Safari does when its toolbars collapse: the bottom safe-area
+    // inset goes from 0 to 34px. env() can't be overridden, so force the
+    // two paddings that read it.
+    await page.addStyleTag({
+      content: `
+        nav[aria-label="Primary"] { padding-bottom: 34px !important; }
+        body { padding-bottom: 34px !important; }
+      `,
+    })
+    await expect
+      .poll(async () => (await box(nav(page))).height)
+      .toBeGreaterThan(navBefore.height + 20)
+
+    // The nav's ResizeObserver writes the variable on the next frame. With
+    // the default content-box observer it never would: only padding changed.
+    const grownNavH = `${Math.round((await box(nav(page))).height)}px`
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          getComputedStyle(document.documentElement)
+            .getPropertyValue("--sponti-nav-h")
+            .trim()
+        )
+      )
+      .toBe(grownNavH)
+    await expect
+      .poll(async () => Math.abs(await gapAboveNav(page, dock(page))))
+      .toBeLessThanOrEqual(1)
+
+    // Nothing to scroll, so Safari has nothing to lift the page with.
+    const scroll = await page.evaluate(() => {
+      window.scrollTo(0, 1000)
+      return {
+        scrollY: window.scrollY,
+        overflow: document.documentElement.scrollHeight - window.innerHeight,
+      }
+    })
+    expect(scroll.scrollY).toBe(0)
+    expect(scroll.overflow).toBeLessThanOrEqual(0)
+  })
+})
+
+test.describe("quiet state: one type selected, nothing of it live (#223)", () => {
+  test.beforeEach(async ({ page }) => {
+    await stubBackend(page, { mapEvents: flares() })
+    await page.goto("/")
+    await expect(nav(page)).toBeVisible()
+    await expect(rail(page).getByText("drinks after work")).toBeVisible()
+  })
+
+  const quietCard = (page: Page) => page.locator("[data-quiet-card]")
+  const chip = (page: Page, name: string) =>
+    dock(page).getByRole("button", { name, exact: true })
+
+  test("shows the type card and the nav's type icon, and reverts on a second chip or deselecting", async ({
+    page,
+  }) => {
+    await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
+
+    await chip(page, "food").click()
+    await expect(quietCard(page)).toBeVisible()
+    await expect(quietCard(page).getByText("up for food?")).toBeVisible()
+    await expect(
+      quietCard(page).getByRole("button", { name: "light a food flare" })
+    ).toBeVisible()
+    await expect(rail(page)).toBeHidden()
+    await expect(
+      navFlare(page).locator("svg.lucide-utensils-crossed")
+    ).toBeVisible()
+    // The card floats above the dock's filter bar, inside the dock.
+    expect(Math.abs(await gapAboveNav(page, dock(page)))).toBeLessThanOrEqual(1)
+
+    // A second chip: no longer exactly one type.
+    await chip(page, "party").click()
+    await expect(quietCard(page)).toBeHidden()
+    await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
+
+    await chip(page, "party").click()
+    await expect(quietCard(page).getByText("up for food?")).toBeVisible()
+
+    // Deselecting the chip.
+    await chip(page, "food").click()
+    await expect(quietCard(page)).toBeHidden()
+    await expect(rail(page)).toBeVisible()
+    await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
+  })
+
+  test("a live flare of the selected type keeps the rail and the plain nav icon", async ({
+    page,
+  }) => {
+    await chip(page, "drinks").click()
+    await expect(rail(page).getByText("drinks after work")).toBeVisible()
+    await expect(rail(page).getByText("up for drinks?")).toBeVisible()
+    await expect(quietCard(page)).toBeHidden()
+    await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
+  })
+
+  test("upcoming flares of the type don't count: nothing is live", async ({
+    page,
+  }) => {
+    await chip(page, "culture").click()
+    await expect(quietCard(page).getByText("up for culture?")).toBeVisible()
+    await expect(navFlare(page).locator("svg.lucide-landmark")).toBeVisible()
+  })
+
+  test("the card shows at peek too, next to the FAB, and opens the composer", async ({
+    page,
+  }) => {
+    await chip(page, "food").click()
+    await page.getByRole("button", { name: "hide cards" }).click()
+    await expect(quietCard(page)).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "Light a flare", exact: true })
+    ).toBeVisible()
+
+    await quietCard(page)
+      .getByRole("button", { name: "light a food flare" })
+      .click()
+    await expect(
+      page.getByPlaceholder("what's the plan? e.g. drinks after work")
+    ).toBeInViewport()
+  })
+
+  test("the nav icon resets when leaving the home map", async ({ page }) => {
+    await chip(page, "food").click()
+    await expect(
+      navFlare(page).locator("svg.lucide-utensils-crossed")
+    ).toBeVisible()
+
+    // The calendar view unmounts the map.
+    await page.getByRole("button", { name: "calendar" }).click()
+    await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
+
+    await page.getByRole("button", { name: "map" }).click()
+    await chip(page, "food").click()
+    await expect(
+      navFlare(page).locator("svg.lucide-utensils-crossed")
+    ).toBeVisible()
+
+    // Another route.
+    await page.getByRole("button", { name: "my flares", exact: true }).click()
+    await expect(page).toHaveURL(/\/event$/)
+    await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
   })
 })

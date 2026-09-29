@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import {
   APIProvider,
   Map,
@@ -12,15 +12,17 @@ import {
 import { Card } from "@/components/ui/card"
 import {
   ChevronRight,
-  ChevronUp,
   ChevronDown,
   Check,
   Flame,
+  List,
   LocateFixed,
+  Map as MapIcon,
   MapPin,
   AlertCircle,
   Calendar as CalendarIcon,
   Expand,
+  Users,
   X,
 } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -40,10 +42,14 @@ import {
 } from "@/lib/geolocation"
 import { useMapEvents } from "@/lib/use-events"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
+import { setSuggestedFlareType } from "@/lib/suggested-flare-type"
 import { haptic } from "@/lib/haptics"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
-import { FitBoundsOnce, GoogleMapPolyline } from "@/components/google-map-overlays"
+import {
+  FitBoundsOnce,
+  GoogleMapPolyline,
+} from "@/components/google-map-overlays"
 import { EVENT_TYPES } from "@/types/utils"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
@@ -66,11 +72,14 @@ function StaticMapFallback({
   onEventSelect,
   joinedIds,
   user,
+  highlightId = null,
 }: {
   events: EventItem[]
   onEventSelect: (event: EventItem) => void
   joinedIds: Set<string>
   user: GeoCoords
+  /** The flare whose rail card is centred; its pin grows. */
+  highlightId?: string | null
 }) {
   return (
     <div className="relative h-full w-full bg-muted">
@@ -102,13 +111,16 @@ function StaticMapFallback({
             key={event.id}
             onClick={() => onEventSelect(event)}
             style={pos}
-            className="absolute flex cursor-pointer flex-col items-center"
+            className={`absolute flex cursor-pointer flex-col items-center ${
+              highlightId === event.id ? "z-10" : ""
+            }`}
           >
             <div
-              className={`flex h-10 w-10 items-center justify-center rounded-full border-2 border-accent bg-background text-sm font-medium shadow-lg ${isJoined(event, joinedIds)
+              className={`flex h-10 w-10 items-center justify-center rounded-full border-2 border-accent bg-background text-sm font-medium shadow-lg transition-transform duration-200 ${
+                isJoined(event, joinedIds)
                   ? "ring-2 ring-accent ring-offset-2"
                   : ""
-                }`}
+              } ${highlightId === event.id ? "scale-125" : ""}`}
             >
               {eventIcon(event.type, event.host.avatar)}
             </div>
@@ -139,6 +151,7 @@ function GoogleMapContent({
   cameraCenter,
   currentLocation,
   recenterTick,
+  highlightId,
 }: {
   events: EventItem[]
   onEventSelect: (event: EventItem) => void
@@ -150,6 +163,8 @@ function GoogleMapContent({
   cameraCenter: GeoCoords
   currentLocation: GeoCoords | null
   recenterTick: number
+  /** The flare whose rail card is centred; its pin grows. */
+  highlightId: string | null
 }) {
   const status = useApiLoadingStatus()
   const map = useMap()
@@ -188,6 +203,7 @@ function GoogleMapContent({
         onEventSelect={onEventSelect}
         joinedIds={joinedIds}
         user={cameraCenter}
+        highlightId={highlightId}
       />
     )
   }
@@ -224,7 +240,10 @@ function GoogleMapContent({
           <AdvancedMarker
             key={event.id}
             position={coords}
-            onClick={() => setPreviewEvent(prev => prev?.id === event.id ? null : event)}
+            zIndex={highlightId === event.id ? 500 : undefined}
+            onClick={() =>
+              setPreviewEvent((prev) => (prev?.id === event.id ? null : event))
+            }
           >
             <div className="flex cursor-pointer flex-col items-center">
               <div className="relative flex items-center justify-center">
@@ -235,10 +254,11 @@ function GoogleMapContent({
                   />
                 )}
                 <div
-                  className={`relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent bg-background text-xs font-medium shadow-lg ${isJoined(event, joinedIds)
+                  className={`relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent bg-background text-xs font-medium shadow-lg transition-transform duration-200 ${
+                    isJoined(event, joinedIds)
                       ? "ring-2 ring-accent ring-offset-2"
                       : ""
-                    }`}
+                  } ${highlightId === event.id ? "scale-125" : ""}`}
                 >
                   {eventIcon(event.type, event.host.avatar)}
                 </div>
@@ -253,10 +273,7 @@ function GoogleMapContent({
         )
       })}
       {previewEvent && eventCoords(previewEvent) && (
-        <AdvancedMarker
-          position={eventCoords(previewEvent)!}
-          zIndex={1000}
-        >
+        <AdvancedMarker position={eventCoords(previewEvent)!} zIndex={1000}>
           <div className="relative mb-10 flex origin-bottom animate-[scale-in_150ms_ease-out] flex-col items-center">
             <div className="relative w-52 rounded-2xl border border-border/60 bg-background p-3.5 shadow-xl">
               <button
@@ -286,7 +303,9 @@ function GoogleMapContent({
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span>{previewEvent.going} going</span>
                   <span className="text-border">·</span>
-                  <span>by {previewEvent.host.name.trim().split(/\s+/)[0]}</span>
+                  <span>
+                    by {previewEvent.host.name.trim().split(/\s+/)[0]}
+                  </span>
                 </div>
               </button>
             </div>
@@ -305,38 +324,63 @@ function GoogleMapContent({
   )
 }
 
-type PeekState = "mini" | "peek" | "expanded"
+// Variant C of #223: no draggable sheet. The dock (filter bar, plus the FAB
+// at peek or the card rail at mid) and the full list page are fixed to
+// bottom: var(--sponti-nav-h), the same coordinate system as the nav, so
+// they sit flush on it in every browser mode and never cover it. Buttons
+// switch the state; a vertical swipe on the dock is only a shortcut.
+//   peek: filter bar + FAB
+//   mid:  filter bar + a horizontal card rail
+//   full: a plain list page from under the header chips down to the nav
+export type DockState = "peek" | "mid" | "full"
 
-// Fixed pixel heights for mini and peek states
-const SHEET_PX = { mini: 64, peek: 268 } as const
-
-// The collapsed sheet and FAB sit above the BottomNav. BottomNav writes its
-// actual rendered height (incl. safe-area inset) to --sponti-nav-h so we get
-// a pixel-perfect anchor on every device. Fallback covers the first paint
-// before the ResizeObserver fires.
+// BottomNav writes its rendered height (incl. safe-area inset) to
+// --sponti-nav-h. The fallback covers the first paint before its
+// ResizeObserver fires.
 const NAV_RESERVED_CSS = "var(--sponti-nav-h, 64px)"
+
+// Space the header chip row needs at the top: the same offset page.tsx gives
+// that row, plus the 42px view toggle and a gap. The full list page starts
+// below it so the map/calendar toggle stays reachable.
+const TOP_RESERVED_CSS = "calc(max(0.75rem, env(safe-area-inset-top)) + 3.5rem)"
+
+// The curve and duration vaul uses, so the list page moves like the app's
+// other sheets.
+const SHEET_EASE = "cubic-bezier(0.32, 0.72, 0, 1)"
 
 // Distance from the viewport bottom to the top of whatever is docked at the
 // bottom, published on the document root the same way BottomNav publishes
 // --sponti-nav-h. The map view is the only writer (see the effect below); it
 // resets the property on unmount so other routes fall back to plain
-// --sponti-nav-h. Bottom-docked UI that isn't part of the sheet/nav — e.g.
-// the ActionFeedbackProvider toast — reads this instead of assuming the nav
+// --sponti-nav-h. Bottom-docked UI that isn't part of the dock/nav, e.g.
+// the ActionFeedbackProvider toast, reads this instead of assuming the nav
 // is the only thing at the bottom of the screen (#112).
-export function bottomOccupiedCss(state: PeekState): string {
-  switch (state) {
-    case "mini":
-      // Mini sheet sits above the nav — reserve both.
-      return `calc(${NAV_RESERVED_CSS} + ${SHEET_PX.mini}px)`
-    case "peek":
-      // Peek sheet sits at bottom: 0, so the nav sits behind (inside) it.
-      return `${SHEET_PX.peek}px`
-    case "expanded":
-      // The expanded sheet also sits at bottom: 0 and covers the nav, but
-      // bottom-docked UI should float just above the nav rather than fight
-      // the tall sheet for space.
-      return NAV_RESERVED_CSS
-  }
+export function bottomOccupiedCss(state: DockState, dockPx: number): string {
+  // The full list page ends at the nav, and bottom-docked UI should float
+  // just above the nav rather than halfway up the list.
+  if (state === "full") return NAV_RESERVED_CSS
+  // Peek and mid: the dock sits on the nav, so reserve both.
+  return `calc(${NAV_RESERVED_CSS} + ${Math.round(dockPx)}px)`
+}
+
+// The quiet state (#223): exactly one type chip is on and no flare of that
+// type is live right now. The map then suggests lighting one (a floating
+// card above the dock) and the nav's flare button shows the type's icon.
+// Upcoming flares of the type don't count: nothing is happening *now*.
+export function quietFlareType(
+  types: ReadonlySet<EventType>,
+  events: readonly EventItem[],
+  now: number
+): EventType | null {
+  if (types.size !== 1) return null
+  const [type] = types
+  const liveOfType = events.some((e) => {
+    if (e.type !== type) return false
+    const start = new Date(e.startAt).getTime()
+    const end = new Date(e.endAt).getTime()
+    return now >= start && now <= end
+  })
+  return liveOfType ? null : type
 }
 
 // One-shot dev warning: AdvancedMarker silently renders nothing when the map
@@ -375,26 +419,38 @@ export function MapView({
 }) {
   const { open: composeOpen, openDrawer } = useNewEventDrawer()
   const router = useRouter()
-  const [peekState, setPeekState] = useState<PeekState>("peek")
-  const dragStartY = useRef<number | null>(null)
-  const dragStartTime = useRef<number | null>(null)
+  // Always opens at mid (the prototype's default): the rail shows what's on
+  // without covering the map. Not remembered across visits.
+  const [dock, setDock] = useState<DockState>("mid")
+  const dockRef = useRef<HTMLDivElement | null>(null)
+  const [dockPx, setDockPx] = useState(0)
+
+  // Track the dock's rendered height (it grows with the rail, the quiet
+  // card, or wrapping chips) for --sponti-bottom-occupied.
+  useEffect(() => {
+    const el = dockRef.current
+    if (!el) return
+    const write = () => setDockPx(el.offsetHeight)
+    write()
+    const ro = new ResizeObserver(write)
+    ro.observe(el, { box: "border-box" })
+    return () => ro.disconnect()
+  }, [])
 
   // Publish --sponti-bottom-occupied so bottom-docked UI outside this
-  // component (the action-feedback toast) can sit above the sheet instead of
+  // component (the action-feedback toast) can sit above the dock instead of
   // assuming the nav is the only thing docked at the bottom. Reset on
-  // unmount — not on every peekState change — so other routes cleanly fall
-  // back to --sponti-nav-h instead of flashing an unset value between writes.
+  // unmount (not on every change) so other routes cleanly fall back to
+  // --sponti-nav-h instead of flashing an unset value between writes.
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--sponti-bottom-occupied",
-      bottomOccupiedCss(peekState)
+      bottomOccupiedCss(dock, dockPx)
     )
-  }, [peekState])
+  }, [dock, dockPx])
   useEffect(() => {
     return () => {
-      document.documentElement.style.removeProperty(
-        "--sponti-bottom-occupied"
-      )
+      document.documentElement.style.removeProperty("--sponti-bottom-occupied")
     }
   }, [])
 
@@ -430,11 +486,11 @@ export function MapView({
 
   const [searchRadiusKm, setSearchRadiusKm] = useState(DEFAULT_RADIUS_KM)
   const [typeFilters, setTypeFilters] = useState<Set<EventType>>(new Set())
-  const [timeFilter, setTimeFilter] = useState<"live" | "upcoming" | "all">(
-    "all"
-  )
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all")
   const [showEnded, setShowEnded] = useState(false)
   const [previewEvent, setPreviewEvent] = useState<EventItem | null>(null)
+  // The rail card nearest the rail's centre; its pin is highlighted.
+  const [railFocusId, setRailFocusId] = useState<string | null>(null)
   const [nowMs, setNowMs] = useState(0)
   useEffect(() => {
     const updateNow = () => setNowMs(Date.now())
@@ -480,10 +536,57 @@ export function MapView({
     if (timeFilter === "upcoming") return groupedEvents.upcoming
     return [...groupedEvents.live, ...groupedEvents.upcoming]
   }, [groupedEvents, timeFilter])
-  const activeCount =
-    groupedEvents.live.length + groupedEvents.upcoming.length
-  const endedVisible =
-    timeFilter === "all" && groupedEvents.ended.length > 0
+  const activeCount = groupedEvents.live.length + groupedEvents.upcoming.length
+  const endedVisible = timeFilter === "all" && groupedEvents.ended.length > 0
+  const mapFailedEmpty = !!map.error && mapEvents.length === 0
+
+  // Quiet state: only once the results are real (location known, loaded, no
+  // failed first fetch), so the card never flashes during a load.
+  const quietType =
+    cameraCenter && nowMs > 0 && !map.loading && !mapFailedEmpty
+      ? quietFlareType(typeFilters, mapEvents, nowMs)
+      : null
+  const quietTypeInfo = quietType
+    ? EVENT_TYPES.find((t) => t.value === quietType)
+    : undefined
+  // Tell the nav which type to show on its flare button. Reset on unmount so
+  // leaving the map (another route, or the calendar view) restores the flame.
+  useEffect(() => {
+    setSuggestedFlareType(quietType)
+  }, [quietType])
+  useEffect(() => () => setSuggestedFlareType(null), [])
+
+  const showRail = dock === "mid" && !quietType
+  const highlightId = showRail
+    ? visibleEvents.some((e) => e.id === railFocusId)
+      ? railFocusId
+      : (visibleEvents[0]?.id ?? null)
+    : null
+
+  const toggleType = (type: EventType) => {
+    haptic("selection")
+    setRailFocusId(null)
+    setTypeFilters((prev) => {
+      const next = new Set(prev)
+      if (next.has(type)) next.delete(type)
+      else next.add(type)
+      return next
+    })
+  }
+  const clearTypes = () => {
+    haptic("selection")
+    setRailFocusId(null)
+    setTypeFilters(new Set())
+  }
+  const changeTimeFilter = (next: TimeFilter) => {
+    haptic("selection")
+    setRailFocusId(null)
+    setTimeFilter(next)
+  }
+  const lightFlare = () => {
+    haptic("medium")
+    openDrawer()
+  }
 
   // ---- Routes API: compute route + ETA when activeRoute changes ----
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null)
@@ -545,18 +648,20 @@ export function MapView({
     return () => ac.abort()
   }, [activeRoute, routeDestination, routeOrigin, apiKey])
 
-  // Pull-to-refresh on the sheet list. Fires only when the scroll container is
-  // at the top (scrollTop === 0) and the user drags down more than 56px.
+  // Pull-to-refresh on the full list. Fires only when the list is scrolled
+  // to the top (scrollTop === 0) and the user drags down more than 56px.
+  // The list scrolls natively and nothing else claims the drag, so the two
+  // don't compete.
   const [isRefreshing, setIsRefreshing] = useState(false)
   const pullStartY = useRef<number | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
-  const handleSheetTouchStart = (e: React.TouchEvent) => {
+  const handleListTouchStart = (e: React.TouchEvent) => {
     if ((scrollRef.current?.scrollTop ?? 0) === 0) {
       pullStartY.current = e.touches[0].clientY
     }
   }
-  const handleSheetTouchEnd = (e: React.TouchEvent) => {
+  const handleListTouchEnd = (e: React.TouchEvent) => {
     if (pullStartY.current === null) return
     const dist = e.changedTouches[0].clientY - pullStartY.current
     pullStartY.current = null
@@ -567,66 +672,71 @@ export function MapView({
     setTimeout(() => setIsRefreshing(false), 800)
   }
 
-  // Velocity-aware snap: a fast flick overrides the distance threshold.
-  // Velocity is measured in px/ms; anything above 0.4 is considered a throw.
-  const FLICK_VX = 0.4
-  const DELTA_PX = 50
-
-  const snap = useCallback(
-    (next: PeekState) => {
-      if (next === peekState) return
-      setPeekState(next)
-      haptic("selection")
-    },
-    [peekState]
-  )
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    dragStartY.current = e.clientY
-    dragStartTime.current = performance.now()
-    e.currentTarget.setPointerCapture(e.pointerId)
+  const snap = (next: DockState) => {
+    if (next === dock) return
+    setDock(next)
+    haptic("selection")
   }
 
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragStartY.current === null || dragStartTime.current === null) return
-    const delta = e.clientY - dragStartY.current
-    const elapsed = performance.now() - dragStartTime.current
-    const velocity = Math.abs(delta) / Math.max(elapsed, 1)
-    dragStartY.current = null
-    dragStartTime.current = null
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    } catch {
-      /* already released */
-    }
-    const isFlick = velocity > FLICK_VX
-    const goDown = delta > DELTA_PX || (isFlick && delta > 0)
-    const goUp = delta < -DELTA_PX || (isFlick && delta < 0)
-    if (goDown) {
-      if (peekState === "expanded") snap("peek")
-      else if (peekState === "peek") snap("mini")
-    } else if (goUp) {
-      if (peekState === "mini") snap("peek")
-      else if (peekState === "peek") snap("expanded")
-    }
+  // A vertical swipe on the dock steps peek → mid → full (up) or mid → peek
+  // (down). Only a shortcut: the buttons do all the work, so there's no drag
+  // physics to get wrong. Horizontal swipes belong to the rail and chips.
+  const dockSwipe = useRef<{ x: number; y: number } | null>(null)
+  const handleDockTouchStart = (e: React.TouchEvent) => {
+    dockSwipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }
+  const handleDockTouchEnd = (e: React.TouchEvent) => {
+    const start = dockSwipe.current
+    dockSwipe.current = null
+    if (!start) return
+    const dx = e.changedTouches[0].clientX - start.x
+    const dy = e.changedTouches[0].clientY - start.y
+    if (Math.abs(dy) < 40 || Math.abs(dy) < Math.abs(dx)) return
+    if (dy < 0) snap(dock === "peek" ? "mid" : "full")
+    else if (dock === "mid") snap("peek")
   }
 
-  const sheetStyle: React.CSSProperties =
-    peekState === "expanded"
-      ? { height: "55vh", bottom: 0 }
-      : peekState === "mini"
-        ? { height: `${SHEET_PX.mini}px`, bottom: NAV_RESERVED_CSS }
-        : { height: `${SHEET_PX.peek}px`, bottom: 0 }
+  const railRef = useRef<HTMLDivElement | null>(null)
+  const syncRailFocus = () => {
+    const rail = railRef.current
+    if (!rail) return
+    const centre = rail.scrollLeft + rail.clientWidth / 2
+    let best: string | null = null
+    let bestDist = Infinity
+    for (const child of Array.from(rail.children) as HTMLElement[]) {
+      const id = child.dataset.railId
+      if (!id) continue
+      const d = Math.abs(child.offsetLeft + child.offsetWidth / 2 - centre)
+      if (d < bestDist) {
+        bestDist = d
+        best = id
+      }
+    }
+    // The CTA card at the end of the rail has no pin to highlight.
+    setRailFocusId(best === RAIL_CTA_ID ? null : best)
+  }
 
-  const fabBottomStyle: React.CSSProperties =
-    peekState === "mini"
-      ? { bottom: `calc(${NAV_RESERVED_CSS} + ${SHEET_PX.mini + 12}px)` }
-      : { bottom: `${SHEET_PX.peek + 12}px` }
-  // Recenter sits above the primary flare FAB. 56 = 44 (recenter) + 12 gap.
-  const recenterBottomStyle: React.CSSProperties =
-    peekState === "mini"
-      ? { bottom: `calc(${NAV_RESERVED_CSS} + ${SHEET_PX.mini + 12 + 68}px)` }
-      : { bottom: `${SHEET_PX.peek + 12 + 68}px` }
+  const singleType =
+    typeFilters.size === 1
+      ? EVENT_TYPES.find((t) => typeFilters.has(t.value))
+      : undefined
+  const ctaLabel = singleType
+    ? `light a ${singleType.label} flare`
+    : "light a flare"
+  const CtaIcon = singleType?.icon ?? Flame
+
+  const statusLabel = !cameraCenter
+    ? locationStatusLabel(geo.status)
+    : map.loading
+      ? mapWakingUp
+        ? "waking up the server…"
+        : "loading..."
+      : map.refreshing
+        ? "updating..."
+        : `${activeCount} active`
+
+  const dockHidden = dock === "full" || composeOpen
+  const listOpen = dock === "full" && !composeOpen
 
   return (
     <div
@@ -655,6 +765,7 @@ export function MapView({
             cameraCenter={cameraCenter}
             currentLocation={geo.coords}
             recenterTick={recenterTick}
+            highlightId={highlightId}
           />
         </APIProvider>
       ) : (
@@ -663,15 +774,20 @@ export function MapView({
           onEventSelect={onEventSelect}
           joinedIds={joinedIds}
           user={cameraCenter}
+          highlightId={highlightId}
         />
       )}
 
-      {/* Geolocation + route error banners — top-16 clears the floating header chips */}
-      <GeolocationBanner
-        status={geo.status}
-        showingCachedLocation={isUsingCachedLocation}
-        onRetry={geo.request}
-      />
+      {/* Geolocation + route error banners — top-16 clears the floating
+          header chips. With the list page open the banner moves into the
+          list's header instead of floating over it. */}
+      {!listOpen && (
+        <GeolocationBanner
+          status={geo.status}
+          showingCachedLocation={isUsingCachedLocation}
+          onRetry={geo.request}
+        />
+      )}
 
       {routeError && (
         <div className="absolute top-28 right-3 z-30 flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1.5 text-xs shadow">
@@ -680,251 +796,343 @@ export function MapView({
         </div>
       )}
 
-      {/* Primary FAB: light a flare. Sits in the natural thumb-reach spot,
-          above the bottom sheet. Recenter sits above it as a utility.
-          Hidden while composing: it used to survive only by being occluded by
-          the compose sheet, so it reappeared the moment that sheet moved (#94). */}
-      {!composeOpen && (
-        <button
-          type="button"
-          onClick={() => {
-            haptic("medium")
-            openDrawer()
-          }}
-          style={fabBottomStyle}
-          aria-label="Light a flare"
-          className="absolute right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg transition-[bottom,transform] duration-300 ease-out active:scale-95"
-        >
-          <Flame className="h-6 w-6" />
-        </button>
-      )}
-
-      {/* Recenter button — only meaningful on a real Google map; hidden in the
-          static fallback where pan/zoom and panTo don't apply. */}
-      {hasInteractiveMap && !composeOpen && (
-        <button
-          type="button"
-          onClick={() => {
-            haptic("light")
-            if (!hasCurrentLocation) geo.request()
-            else setRecenterTick((n) => n + 1)
-          }}
-          style={recenterBottomStyle}
-          aria-label="Recenter on my location"
-          className="absolute right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md transition-[bottom,transform] duration-300 ease-out active:scale-95"
-        >
-          <LocateFixed className="h-5 w-5" />
-        </button>
-      )}
-
-      {/* Bottom sheet — z-50 when expanded so it covers the nav pill. Hidden
-          while composing: two bottom sheets on screen at once was the most
-          confusing symptom of #94, and occlusion alone did not prevent it. */}
+      {/* Dock: sits on the nav. Hidden at full (the list page takes over)
+          and while composing: two bottom surfaces on screen at once was the
+          most confusing symptom of #94. */}
       <div
-        style={sheetStyle}
-        aria-hidden={composeOpen}
-        className={`absolute right-0 left-0 rounded-t-3xl bg-background shadow-(--shadow-sheet) transition-all duration-300 ease-out ${composeOpen ? "invisible" : ""} ${peekState === "expanded" ? "z-50" : "z-20"
-          }`}
+        ref={dockRef}
+        data-map-dock
+        aria-hidden={dockHidden}
+        onTouchStart={handleDockTouchStart}
+        onTouchEnd={handleDockTouchEnd}
+        style={{ bottom: NAV_RESERVED_CSS }}
+        className={`pointer-events-none fixed inset-x-0 z-20 flex flex-col gap-2 pb-2 transition-opacity duration-200 ${
+          dockHidden ? "invisible opacity-0" : ""
+        }`}
       >
-        <div
-          className="flex cursor-grab touch-none justify-center py-3 active:cursor-grabbing"
-          onPointerDown={handlePointerDown}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-        >
-          <div className="h-1 w-10 rounded-full bg-muted-foreground/30 transition-transform active:scale-x-125" />
-        </div>
-
-        {peekState === "mini" ? (
-          <button
-            onClick={() => setPeekState("peek")}
-            aria-label="Expand flares sheet"
-            className="flex h-[calc(100%-44px)] w-full items-center justify-center gap-2 px-4 text-sm font-medium text-muted-foreground active:bg-muted/40"
-          >
-            <ChevronUp className="h-5 w-5" />
-            {sheetSummary(
-              map.loading,
-              Boolean(map.refreshing),
-              mapEvents.length,
-              map.error,
-              !cameraCenter,
-              mapWakingUp
+        {/* Map controls. The plain FAB only shows at peek: from mid up the
+            nav's flare button is right below and does the same. Recenter
+            is only meaningful on a real Google map. */}
+        {(dock === "peek" || (hasInteractiveMap && dock === "mid")) && (
+          <div className="flex flex-col items-end gap-3 px-4">
+            {hasInteractiveMap && (
+              <button
+                type="button"
+                onClick={() => {
+                  haptic("light")
+                  if (!hasCurrentLocation) geo.request()
+                  else setRecenterTick((n) => n + 1)
+                }}
+                aria-label="Recenter on my location"
+                className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md active:scale-95"
+              >
+                <LocateFixed className="h-5 w-5" />
+              </button>
             )}
-          </button>
-        ) : (
+            {dock === "peek" && (
+              <button
+                type="button"
+                onClick={() => lightFlare()}
+                aria-label="Light a flare"
+                className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg active:scale-95"
+              >
+                <Flame className="h-6 w-6" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {quietTypeInfo ? (
+          <QuietTypeCard type={quietTypeInfo} onLight={() => lightFlare()} />
+        ) : showRail ? (
           <div
-            ref={scrollRef}
-            onTouchStart={handleSheetTouchStart}
-            onTouchEnd={handleSheetTouchEnd}
-            className={`h-[calc(100%-44px)] overflow-y-auto px-4 ${peekState === "expanded" ? "pb-8" : "pb-24"
-              }`}
+            key={`${timeFilter}:${[...typeFilters].join(",")}`}
+            ref={railRef}
+            onScroll={syncRailFocus}
+            aria-label="flares near you"
+            role="region"
+            className="scrollbar-none pointer-events-auto flex touch-pan-x snap-x snap-mandatory scroll-px-3 items-end gap-2 overflow-x-auto px-3 py-2"
           >
-            {/* Pull-to-refresh indicator */}
-            {isRefreshing && (
-              <div className="mb-2 flex items-center justify-center gap-1.5 py-1 text-xs text-muted-foreground">
-                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-                refreshing…
-              </div>
-            )}
-
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold">flares near you</h2>
-              <span className="text-xs text-muted-foreground">
-                {!cameraCenter
-                  ? locationStatusLabel(geo.status)
-                  : map.loading
-                    ? mapWakingUp
-                      ? "waking up the server…"
-                      : "loading..."
-                    : map.refreshing
-                      ? "updating..."
-                      : `${activeCount} active`}
-              </span>
-            </div>
-
-            {/* Time-range segmented control + type chips. Both hidden when
-                there are no events nearby (nothing to filter). */}
-            {cameraCenter && mapEvents.length > 0 && (
-              <div className="mb-3 space-y-2">
-                <Tabs
-                  value={timeFilter}
-                  onValueChange={(v) => {
-                    haptic("selection")
-                    setTimeFilter(v as "live" | "upcoming" | "all")
-                  }}
-                >
-                  <TabsList className="h-8 w-full">
-                    <TabsTrigger value="live" className="text-xs">
-                      live
-                    </TabsTrigger>
-                    <TabsTrigger value="upcoming" className="text-xs">
-                      soon
-                    </TabsTrigger>
-                    <TabsTrigger value="all" className="text-xs">
-                      all
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-                <div className="scrollbar-none -mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1">
-                  {EVENT_TYPES.map((t) => (
-                    <FilterChip
-                      key={t.value}
-                      label={t.label}
-                      icon={t.icon}
-                      active={typeFilters.has(t.value)}
-                      onClick={() => {
-                        haptic("selection")
-                        setTypeFilters((prev) => {
-                          const next = new Set(prev)
-                          if (next.has(t.value)) next.delete(t.value)
-                          else next.add(t.value)
-                          return next
-                        })
-                      }}
-                    />
-                  ))}
-                  {typeFilters.size > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        haptic("selection")
-                        setTypeFilters(new Set())
-                      }}
-                      className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-3 w-3" />
-                      clear
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
             {!cameraCenter ? (
-              <LocationSheetState
-                status={geo.status}
-                errorMessage={geo.errorMessage}
-                onRetry={geo.request}
-              />
-            ) : map.error && mapEvents.length === 0 ? (
-              <ErrorPanel message={map.error} onRetry={map.refresh} />
-            ) : visibleEvents.length === 0 &&
-              !endedVisible &&
-              !map.loading ? (
-              <EmptyState
-                compact={peekState !== "expanded"}
-                radiusKm={searchRadiusKm}
-                onWiden={
-                  searchRadiusKm < WIDE_RADIUS_KM
-                    ? () => setSearchRadiusKm(WIDE_RADIUS_KM)
-                    : null
-                }
-                onSeeCalendar={onSeeCalendar}
-                onFindConnections={() => router.push("/circles?tab=people")}
-              />
+              <RailPanel>
+                <LocationSheetState
+                  status={geo.status}
+                  errorMessage={geo.errorMessage}
+                  onRetry={geo.request}
+                />
+              </RailPanel>
+            ) : mapFailedEmpty ? (
+              <RailPanel>
+                <ErrorPanel message={map.error!} onRetry={map.refresh} />
+              </RailPanel>
+            ) : visibleEvents.length === 0 && map.loading ? (
+              <RailPanel padded>
+                <p className="flex items-center justify-center gap-2 py-1 text-sm text-muted-foreground">
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                  {mapWakingUp ? "waking up the server…" : "loading flares..."}
+                </p>
+              </RailPanel>
+            ) : visibleEvents.length === 0 ? (
+              <RailPanel padded>
+                <EmptyState
+                  compact
+                  radiusKm={searchRadiusKm}
+                  onWiden={
+                    searchRadiusKm < WIDE_RADIUS_KM
+                      ? () => setSearchRadiusKm(WIDE_RADIUS_KM)
+                      : null
+                  }
+                  onSeeCalendar={onSeeCalendar}
+                  onFindConnections={() => router.push("/circles?tab=people")}
+                />
+              </RailPanel>
             ) : (
-              <div className="space-y-2">
-                {map.refreshing && mapEvents.length > 0 && (
-                  <div className="flex items-center justify-center gap-1.5 py-1 text-xs text-muted-foreground">
-                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-                    loading nearby events...
-                  </div>
-                )}
-                {map.error && mapEvents.length > 0 && (
-                  <div className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
-                    couldn&apos;t refresh nearby flares
-                  </div>
-                )}
+              <>
                 {visibleEvents.map((event) => (
-                  <FlareCard
+                  <RailCard
                     key={event.id}
                     event={event}
                     joined={isJoined(event, joinedIds)}
                     user={geo.coords}
-                    status={isLive(event) ? "live" : "upcoming"}
                     onClick={() => onEventSelect(event)}
-                    onSwipeJoin={() => {
-                      haptic("success")
-                      onEventSelect(event)
-                    }}
                   />
                 ))}
-                {endedVisible && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        haptic("selection")
-                        setShowEnded((s) => !s)
-                      }}
-                      className="flex w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      <span>
-                        {showEnded ? "hide" : "show"}{" "}
-                        {groupedEvents.ended.length} ended
-                      </span>
-                      <ChevronDown
-                        className={`h-4 w-4 transition-transform ${showEnded ? "rotate-180" : ""
-                          }`}
-                      />
-                    </button>
-                    {showEnded &&
-                      groupedEvents.ended.map((event) => (
-                        <FlareCard
-                          key={event.id}
-                          event={event}
-                          joined={isJoined(event, joinedIds)}
-                          user={geo.coords}
-                          status="ended"
-                          onClick={() => onEventSelect(event)}
-                        />
-                      ))}
-                  </>
-                )}
-              </div>
+                <div
+                  data-rail-id={RAIL_CTA_ID}
+                  className="flex w-[78%] max-w-80 shrink-0 snap-center flex-col gap-2 rounded-2xl border border-border bg-card p-3 shadow-(--shadow-card)"
+                >
+                  <div>
+                    <p className="text-base font-semibold">
+                      {singleType
+                        ? `up for ${singleType.label}?`
+                        : "nothing you fancy?"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      start one and your circles will see it
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => lightFlare()}
+                    className="flex h-9 items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground active:scale-[0.98]"
+                  >
+                    <CtaIcon className="h-4 w-4" />
+                    {ctaLabel}
+                  </button>
+                </div>
+              </>
             )}
           </div>
-        )}
+        ) : null}
+
+        {/* Filter bar */}
+        <div className="pointer-events-auto mx-3 space-y-2 rounded-2xl border border-border/60 bg-background/90 p-2 shadow-(--shadow-card) backdrop-blur-md">
+          <div className="flex items-center gap-2">
+            <TimeTabs
+              value={timeFilter}
+              onChange={changeTimeFilter}
+              className="flex-1"
+            />
+            <button
+              type="button"
+              onClick={() => snap(dock === "mid" ? "peek" : "mid")}
+              aria-label={dock === "mid" ? "hide cards" : "show cards"}
+              className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 text-xs font-medium active:scale-[0.97]"
+            >
+              {dock === "mid" ? (
+                <>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  hide
+                </>
+              ) : (
+                <>
+                  {map.loading ? (
+                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                  ) : (
+                    <span>{visibleEvents.length}</span>
+                  )}
+                  nearby
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => snap("full")}
+              className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-card px-2.5 text-xs font-medium text-primary active:scale-[0.97]"
+            >
+              <List className="h-3.5 w-3.5" />
+              list
+            </button>
+          </div>
+          <TypeChips
+            active={typeFilters}
+            onToggle={toggleType}
+            onClear={clearTypes}
+            className="mx-0 px-0"
+          />
+        </div>
+      </div>
+
+      {/* Full: a plain list page between the header chips and the nav. It
+          scrolls natively; nothing to drag. */}
+      <div
+        role="region"
+        aria-label="flare list"
+        aria-hidden={!listOpen}
+        data-map-list
+        style={{
+          top: TOP_RESERVED_CSS,
+          bottom: NAV_RESERVED_CSS,
+          transitionTimingFunction: SHEET_EASE,
+        }}
+        className={`fixed inset-x-0 z-20 flex flex-col rounded-t-3xl bg-background shadow-(--shadow-sheet) transition-[translate,visibility] duration-500 ${
+          listOpen
+            ? "translate-y-0"
+            : "pointer-events-none invisible translate-y-[calc(100%+8rem)]"
+        }`}
+      >
+        <div className="shrink-0 space-y-2 px-4 pt-4 pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-base font-semibold">flares near you</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {statusLabel}
+              </span>
+              <button
+                type="button"
+                onClick={() => snap("mid")}
+                className="flex h-8 items-center gap-1 rounded-full bg-card px-3 text-xs font-medium text-primary active:scale-[0.97]"
+              >
+                <MapIcon className="h-3.5 w-3.5" />
+                map
+              </button>
+            </div>
+          </div>
+          {listOpen && (
+            <GeolocationBanner
+              inline
+              status={geo.status}
+              showingCachedLocation={isUsingCachedLocation}
+              onRetry={geo.request}
+            />
+          )}
+          <TimeTabs value={timeFilter} onChange={changeTimeFilter} />
+          <TypeChips
+            active={typeFilters}
+            onToggle={toggleType}
+            onClear={clearTypes}
+          />
+        </div>
+
+        <div
+          ref={scrollRef}
+          onTouchStart={handleListTouchStart}
+          onTouchEnd={handleListTouchEnd}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-1 pb-6"
+        >
+          {/* Pull-to-refresh indicator */}
+          {isRefreshing && (
+            <div className="mb-2 flex items-center justify-center gap-1.5 py-1 text-xs text-muted-foreground">
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+              refreshing…
+            </div>
+          )}
+
+          {!cameraCenter ? (
+            <LocationSheetState
+              status={geo.status}
+              errorMessage={geo.errorMessage}
+              onRetry={geo.request}
+            />
+          ) : mapFailedEmpty ? (
+            <ErrorPanel message={map.error!} onRetry={map.refresh} />
+          ) : visibleEvents.length === 0 && !endedVisible && !map.loading ? (
+            <EmptyState
+              compact={false}
+              radiusKm={searchRadiusKm}
+              onWiden={
+                searchRadiusKm < WIDE_RADIUS_KM
+                  ? () => setSearchRadiusKm(WIDE_RADIUS_KM)
+                  : null
+              }
+              onSeeCalendar={onSeeCalendar}
+              onFindConnections={() => router.push("/circles?tab=people")}
+            />
+          ) : (
+            <div className="space-y-2">
+              {map.refreshing && mapEvents.length > 0 && (
+                <div className="flex items-center justify-center gap-1.5 py-1 text-xs text-muted-foreground">
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                  loading nearby events...
+                </div>
+              )}
+              {map.error && mapEvents.length > 0 && (
+                <div className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+                  couldn&apos;t refresh nearby flares
+                </div>
+              )}
+              {visibleEvents.map((event) => (
+                <FlareCard
+                  key={event.id}
+                  event={event}
+                  joined={isJoined(event, joinedIds)}
+                  user={geo.coords}
+                  status={isLive(event) ? "live" : "upcoming"}
+                  onClick={() => onEventSelect(event)}
+                  onSwipeJoin={() => {
+                    haptic("success")
+                    onEventSelect(event)
+                  }}
+                />
+              ))}
+              {endedVisible && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      haptic("selection")
+                      setShowEnded((s) => !s)
+                    }}
+                    className="flex w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <span>
+                      {showEnded ? "hide" : "show"} {groupedEvents.ended.length}{" "}
+                      ended
+                    </span>
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${
+                        showEnded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {showEnded &&
+                    groupedEvents.ended.map((event) => (
+                      <FlareCard
+                        key={event.id}
+                        event={event}
+                        joined={isJoined(event, joinedIds)}
+                        user={geo.coords}
+                        status="ended"
+                        onClick={() => onEventSelect(event)}
+                      />
+                    ))}
+                </>
+              )}
+              {visibleEvents.length > 0 && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => lightFlare()}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-accent-foreground active:scale-[0.98]"
+                  >
+                    <CtaIcon className="h-4 w-4" />
+                    {ctaLabel}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -987,9 +1195,12 @@ function GeolocationBanner({
   status,
   showingCachedLocation,
   onRetry,
+  inline = false,
 }: {
   status: GeoStatus
   showingCachedLocation: boolean
+  /** In the list page's header rather than floating under the header chips. */
+  inline?: boolean
   onRetry: () => void
 }) {
   if (!showingCachedLocation) return null
@@ -1000,7 +1211,13 @@ function GeolocationBanner({
       ? "showing last known area - enable location for nearby flares"
       : "couldn't update your location - showing last known area"
   return (
-    <div className="absolute top-16 right-3 left-3 z-30 flex items-center gap-2 rounded-xl border border-border bg-background/95 px-3 py-2 text-xs shadow-md">
+    <div
+      className={`flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs ${
+        inline
+          ? "bg-background"
+          : "absolute top-16 right-3 left-3 z-30 bg-background/95 shadow-md"
+      }`}
+    >
       <MapPin className="h-3.5 w-3.5 shrink-0 text-accent" />
       <span className="flex-1">{msg}</span>
       <button onClick={onRetry} className="shrink-0 font-medium text-accent">
@@ -1172,22 +1389,6 @@ function EmptyState({
   )
 }
 
-function sheetSummary(
-  loading: boolean,
-  refreshing: boolean,
-  count: number,
-  error: string | null,
-  needsLocation: boolean,
-  wakingUp = false
-): string {
-  if (needsLocation) return "finding your location"
-  if (error) return "tap to retry"
-  if (loading) return wakingUp ? "waking up the server…" : "loading flares..."
-  if (refreshing && count > 0) return `${count} updating`
-  if (count === 0) return "no flares near you"
-  return `${count} flare${count === 1 ? "" : "s"} near you`
-}
-
 function endingInLabel(event: EventItem, now: number = Date.now()): string {
   const end = new Date(event.endAt).getTime()
   const mins = Math.max(0, Math.round((end - now) / 60_000))
@@ -1195,6 +1396,27 @@ function endingInLabel(event: EventItem, now: number = Date.now()): string {
   const hours = Math.floor(mins / 60)
   const rem = mins % 60
   return rem === 0 ? `ending in ${hours}h` : `ending in ${hours}h ${rem}m`
+}
+
+/** "by sarah · 0.4 km · ending in 42 min", shared by the list and rail cards. */
+function useFlareMeta(
+  event: EventItem,
+  user: GeoCoords | null,
+  status: "live" | "upcoming" | "ended"
+): string {
+  const { user: authUser } = useAuth()
+  const dist = distanceFromUser(event, user)
+  const hostFirst =
+    event.host.id === authUser?.id
+      ? "you"
+      : event.host.name.trim().split(/\s+/)[0]
+  const timeLabel =
+    status === "live"
+      ? endingInLabel(event)
+      : status === "ended"
+        ? "ended"
+        : formatRelativeStatus(event)
+  return [`by ${hostFirst}`, dist?.label, timeLabel].filter(Boolean).join(" · ")
 }
 
 function FlareCard({
@@ -1212,7 +1434,6 @@ function FlareCard({
   onClick: () => void
   onSwipeJoin?: () => void
 }) {
-  const dist = distanceFromUser(event, user)
   const isEnded = status === "ended"
   const isLiveStatus = status === "live"
   const swipeStartX = useRef<number | null>(null)
@@ -1242,16 +1463,7 @@ function FlareCard({
     }
   }
 
-  const { user: authUser } = useAuth()
-  const hostFirst = event.host.id === authUser?.id ? "you" : event.host.name.trim().split(/\s+/)[0]
-  const timeLabel = isLiveStatus
-    ? endingInLabel(event)
-    : isEnded
-      ? "ended"
-      : formatRelativeStatus(event)
-  const metaText = [`by ${hostFirst}`, dist?.label, timeLabel]
-    .filter(Boolean)
-    .join(" · ")
+  const metaText = useFlareMeta(event, user, status)
 
   return (
     <div className="relative overflow-hidden rounded-xl">
@@ -1266,10 +1478,9 @@ function FlareCard({
       )}
 
       <Card
-        className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 active:bg-muted ${isLiveStatus
-            ? "border-l-[3px] border-l-accent"
-            : ""
-          } ${isEnded ? "border-border bg-muted/30" : "border-border"}`}
+        className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 active:bg-muted ${
+          isLiveStatus ? "border-l-[3px] border-l-accent" : ""
+        } ${isEnded ? "border-border bg-muted/30" : "border-border"}`}
         style={{
           transform: `translateX(${swipeX}px)`,
           transition: swipeX === 0 ? "transform 0.2s ease-out" : "none",
@@ -1281,23 +1492,20 @@ function FlareCard({
         onClick={swipeX > 4 ? undefined : onClick}
       >
         <div
-          className={`flex h-10 w-10 items-center justify-center rounded-full ${isEnded
+          className={`flex h-10 w-10 items-center justify-center rounded-full ${
+            isEnded
               ? "bg-muted text-muted-foreground"
               : "bg-muted text-foreground"
-            }`}
+          }`}
         >
-          {(() => {
-            const match = EVENT_TYPES.find((t) => t.value === event.type)
-            if (!match) return <span className="text-sm">{event.host.avatar}</span>
-            const Icon = match.icon
-            return <Icon className="h-5 w-5" />
-          })()}
+          <FlareTypeIcon event={event} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p
-              className={`truncate font-medium ${isEnded ? "text-muted-foreground" : "text-foreground"
-                }`}
+              className={`truncate font-medium ${
+                isEnded ? "text-muted-foreground" : "text-foreground"
+              }`}
             >
               {event.title.split("·", 2)[0]}
             </p>
@@ -1308,15 +1516,17 @@ function FlareCard({
             )}
           </div>
           <p
-            className={`truncate text-xs ${isEnded ? "text-muted-foreground/70" : "text-muted-foreground"
-              }`}
+            className={`truncate text-xs ${
+              isEnded ? "text-muted-foreground/70" : "text-muted-foreground"
+            }`}
           >
             {metaText}
           </p>
         </div>
         <ChevronRight
-          className={`h-5 w-5 shrink-0 ${isEnded ? "text-muted-foreground/50" : "text-muted-foreground"
-            }`}
+          className={`h-5 w-5 shrink-0 ${
+            isEnded ? "text-muted-foreground/50" : "text-muted-foreground"
+          }`}
         />
       </Card>
     </div>
@@ -1338,13 +1548,217 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors active:scale-[0.97] ${active
+      className={`flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors active:scale-[0.97] ${
+        active
           ? "border-accent bg-accent text-accent-foreground"
           : "border-border bg-background text-muted-foreground hover:text-foreground"
-        }`}
+      }`}
     >
       {Icon && <Icon className="h-3 w-3" />}
       {label}
     </button>
   )
+}
+
+type TimeFilter = "live" | "upcoming" | "all"
+
+// data-rail-id of the CTA card at the end of the rail (it has no pin).
+const RAIL_CTA_ID = "cta"
+
+function TimeTabs({
+  value,
+  onChange,
+  className,
+}: {
+  value: TimeFilter
+  onChange: (next: TimeFilter) => void
+  className?: string
+}) {
+  return (
+    <Tabs
+      value={value}
+      onValueChange={(v) => onChange(v as TimeFilter)}
+      className={className}
+    >
+      <TabsList className="h-8 w-full">
+        <TabsTrigger value="live" className="text-xs">
+          live
+        </TabsTrigger>
+        <TabsTrigger value="upcoming" className="text-xs">
+          soon
+        </TabsTrigger>
+        <TabsTrigger value="all" className="text-xs">
+          all
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+  )
+}
+
+function TypeChips({
+  active,
+  onToggle,
+  onClear,
+  className = "",
+}: {
+  active: ReadonlySet<EventType>
+  onToggle: (type: EventType) => void
+  onClear: () => void
+  className?: string
+}) {
+  // touch-pan-x: the row scrolls sideways; vertical swipes stay with the dock.
+  return (
+    <div
+      className={`scrollbar-none -mx-4 flex touch-pan-x items-center gap-2 overflow-x-auto px-4 pb-1 ${className}`}
+    >
+      {EVENT_TYPES.map((t) => (
+        <FilterChip
+          key={t.value}
+          label={t.label}
+          icon={t.icon}
+          active={active.has(t.value)}
+          onClick={() => onToggle(t.value)}
+        />
+      ))}
+      {active.size > 0 && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+        >
+          <X className="h-3 w-3" />
+          clear
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** A full-width floating panel in the rail for loading, empty and error states. */
+function RailPanel({
+  padded = false,
+  children,
+}: {
+  padded?: boolean
+  children: React.ReactNode
+}) {
+  // Unpadded panels wrap a component that brings its own border and padding.
+  return (
+    <div
+      className={`w-full shrink-0 rounded-xl bg-background shadow-(--shadow-card) ${
+        padded ? "border border-border p-3" : ""
+      }`}
+    >
+      {children}
+    </div>
+  )
+}
+
+/**
+ * The quiet-state card: one type chip on, nothing of that type live. For now
+ * it is the generic type card and opens the composer as today; #243 turns it
+ * into a pre-filled idea card.
+ */
+function QuietTypeCard({
+  type,
+  onLight,
+}: {
+  type: (typeof EVENT_TYPES)[number]
+  onLight: () => void
+}) {
+  const Icon = type.icon
+  return (
+    <div
+      data-quiet-card
+      className="pointer-events-auto mx-3 flex flex-col gap-2 rounded-2xl border border-border bg-card p-3 shadow-(--shadow-card)"
+    >
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-semibold">up for {type.label}?</p>
+          <p className="text-xs text-muted-foreground">
+            start one and your circles will see it
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onLight}
+        className="flex h-9 items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground active:scale-[0.98]"
+      >
+        <Icon className="h-4 w-4" />
+        light a {type.label} flare
+      </button>
+    </div>
+  )
+}
+
+/**
+ * A flare in the mid-state rail. Content height (the rail aligns its items to
+ * the end, so a taller neighbour doesn't stretch it), and no swipe-to-join:
+ * horizontal swipes scroll the rail.
+ */
+function RailCard({
+  event,
+  joined,
+  user,
+  onClick,
+}: {
+  event: EventItem
+  joined: boolean
+  user: GeoCoords | null
+  onClick: () => void
+}) {
+  const live = isLive(event)
+  const metaText = useFlareMeta(event, user, live ? "live" : "upcoming")
+  return (
+    <button
+      type="button"
+      data-rail-id={event.id}
+      onClick={onClick}
+      className={`flex w-[78%] max-w-80 shrink-0 snap-center flex-col gap-2 rounded-2xl border border-border bg-card p-3 text-left shadow-(--shadow-card) active:scale-[0.99] ${
+        live ? "border-l-[3px] border-l-accent" : ""
+      }`}
+    >
+      <div className="flex w-full items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
+          <FlareTypeIcon event={event} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium text-foreground">
+            {event.title.split("·", 2)[0]}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">{metaText}</p>
+        </div>
+      </div>
+      <div className="flex w-full items-center justify-between text-xs text-muted-foreground">
+        {event.going > 0 ? (
+          <span className="flex items-center gap-1">
+            <Users className="h-3.5 w-3.5" />
+            {event.going} going
+          </span>
+        ) : (
+          <span />
+        )}
+        {joined ? (
+          <span className="flex items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 font-medium text-accent">
+            <Check className="h-2.5 w-2.5" /> going
+          </span>
+        ) : (
+          <span className="font-medium text-foreground">
+            {live ? "live now" : "soon"}
+          </span>
+        )}
+      </div>
+    </button>
+  )
+}
+
+function FlareTypeIcon({ event }: { event: EventItem }) {
+  const match = EVENT_TYPES.find((t) => t.value === event.type)
+  if (!match) return <span className="text-sm">{event.host.avatar}</span>
+  const Icon = match.icon
+  return <Icon className="h-5 w-5" />
 }

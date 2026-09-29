@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Bricolage_Grotesque } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/components/auth-provider'
@@ -15,10 +15,17 @@ const bricolageGrotesque = Bricolage_Grotesque({
   fallback: ['sans-serif'],
 })
 
-export const viewport = {
+export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  viewportFit: 'cover' as const,
+  viewportFit: 'cover',
+  // Browser / standalone chrome colour (#131), matching `--background` in each
+  // scheme (BRAND.md; hex via oklch -> sRGB, same as `app/manifest.ts`). These
+  // follow the OS scheme, like ThemeProvider's `defaultTheme="system"`.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fdf1f7' },
+    { media: '(prefers-color-scheme: dark)', color: '#171a21' },
+  ],
 }
 
 // Shared link-preview copy (#127). This is intentionally the same for every
@@ -42,6 +49,21 @@ export const metadata: Metadata = {
   icons: {
     apple: '/apple-icon.png',
   },
+  // iOS home-screen launch (#131). `default` keeps the status bar opaque and
+  // the webview below it, so it never overlaps content and doesn't stack with
+  // the `env(safe-area-inset-top)` padding on `body` (`black-translucent` would
+  // draw under the bar and double up those insets).
+  appleWebApp: {
+    capable: true,
+    title,
+    statusBarStyle: 'default',
+  },
+  // Next only emits the standard `mobile-web-app-capable` for `capable: true`;
+  // iOS before 16.4 only honours the Apple-prefixed tag (no manifest `display`
+  // support), so testers on older iPhones would otherwise get a Safari tab.
+  other: {
+    'apple-mobile-web-app-capable': 'yes',
+  },
   openGraph: {
     title,
     description,
@@ -61,7 +83,11 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={bricolageGrotesque.variable} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={bricolageGrotesque.variable}
+      suppressHydrationWarning
+    >
       <body className="font-sans antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider>

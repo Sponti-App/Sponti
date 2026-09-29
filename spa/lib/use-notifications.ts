@@ -20,7 +20,7 @@ type NotificationsState = {
   unreadCountLoaded: boolean
   // Set when the user last tapped "I'm caught up" (#176). The feed stays
   // collapsed while every loaded notification is no newer than this — once
-  // something newer shows up, it's derived back open (see notifications-popover).
+  // something newer shows up, it's derived back open (see notifications-sheet).
   caughtUpAt: string | null
 }
 
@@ -272,6 +272,8 @@ export async function markAllRead(): Promise<void> {
     }))
   } catch (err) {
     console.warn("[Sponti] failed to mark all notifications read", err)
+    // Surface it: the check mark otherwise looks dead when the call fails.
+    setState((current) => ({ ...current, error: "couldn't mark as read, try again" }))
   }
 }
 
