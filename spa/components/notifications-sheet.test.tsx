@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 import type { Notification } from "@/lib/notifications"
-import { NotificationsPopover } from "./notifications-popover"
+import { NotificationsSheet } from "./notifications-sheet"
 
 const baseNotification: Notification = {
   id: "n1",
@@ -20,10 +20,10 @@ const baseNotification: Notification = {
 }
 
 function renderPopover(
-  overrides: Partial<React.ComponentProps<typeof NotificationsPopover>> = {}
+  overrides: Partial<React.ComponentProps<typeof NotificationsSheet>> = {}
 ) {
   const onMarkAllRead = vi.fn()
-  const props: React.ComponentProps<typeof NotificationsPopover> = {
+  const props: React.ComponentProps<typeof NotificationsSheet> = {
     open: true,
     onClose: vi.fn(),
     notifications: [baseNotification],
@@ -33,13 +33,13 @@ function renderPopover(
     onMarkAllRead,
     ...overrides,
   }
-  render(<NotificationsPopover {...props} />)
+  render(<NotificationsSheet {...props} />)
   return { onMarkAllRead }
 }
 
 // #176: the check mark at the bottom of the feed used to be purely
 // decorative — tapping it did nothing.
-describe("NotificationsPopover caught up", () => {
+describe("NotificationsSheet caught up", () => {
   it("calls onMarkAllRead when the check mark is tapped, once fully loaded", async () => {
     const user = userEvent.setup()
     const { onMarkAllRead } = renderPopover()

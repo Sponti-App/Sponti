@@ -10,7 +10,7 @@ should not render `BottomNav` directly.
 - Mounts `useNotifications()` once at the app-shell level.
 - Passes `notificationsUnread` from the backend unread-count cache into
   `BottomNav`.
-- Owns `NotificationsPopover` open/close state and notification click routing.
+- Owns `NotificationsSheet` open/close state and notification click routing.
 - Closes the notification popover on route changes and when the new-event drawer
   opens.
 - Keeps `BottomNav` in the same provider scope as `NewEventDrawerProvider`, so
@@ -48,7 +48,7 @@ Known dependents:
 
 - `spa/components/map-view.tsx` positions the collapsed sheet and floating map
   buttons relative to `--sponti-nav-h`.
-- `spa/components/notifications-popover.tsx` positions the popover above the nav
+- `spa/components/notifications-sheet.tsx` positions the popover above the nav
   with the same variable.
 
 Pages with scrollable content should reserve enough bottom padding for the fixed

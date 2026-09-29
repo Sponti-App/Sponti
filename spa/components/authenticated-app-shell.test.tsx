@@ -52,8 +52,8 @@ vi.mock("@/components/bottom-nav", () => ({
   }) => <button onClick={onOpenNotifications}>toggle feed</button>,
 }))
 
-vi.mock("@/components/notifications-popover", () => ({
-  NotificationsPopover: ({ open }: { open: boolean }) =>
+vi.mock("@/components/notifications-sheet", () => ({
+  NotificationsSheet: ({ open }: { open: boolean }) =>
     open ? <div data-testid="notifications-feed" /> : null,
 }))
 

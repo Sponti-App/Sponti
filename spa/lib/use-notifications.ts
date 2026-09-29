@@ -20,7 +20,7 @@ type NotificationsState = {
   unreadCountLoaded: boolean
   // Set when the user last tapped "I'm caught up" (#176). The feed stays
   // collapsed while every loaded notification is no newer than this — once
-  // something newer shows up, it's derived back open (see notifications-popover).
+  // something newer shows up, it's derived back open (see notifications-sheet).
   caughtUpAt: string | null
 }
 

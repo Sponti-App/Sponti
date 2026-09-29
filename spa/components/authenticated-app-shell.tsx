@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { BottomNav } from "@/components/bottom-nav"
-import { NotificationsPopover } from "@/components/notifications-popover"
+import { NotificationsSheet } from "@/components/notifications-sheet"
 import { useAuth } from "@/components/auth-provider"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import type { Notification } from "@/lib/notifications"
@@ -101,7 +101,7 @@ function AuthenticatedChrome({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      <NotificationsPopover
+      <NotificationsSheet
         open={notificationsOpen}
         onClose={closeNotifications}
         notifications={notifications}

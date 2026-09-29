@@ -55,7 +55,7 @@ const TYPE_VISUAL: Record<Notification["type"], Visual> = {
   },
 }
 
-export function NotificationsPopover({
+export function NotificationsSheet({
   open,
   onClose,
   notifications,

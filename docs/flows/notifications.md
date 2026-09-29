@@ -7,7 +7,7 @@ the behavior is consistent across authenticated app pages.
 ## User Flow
 
 - The Feed item in `BottomNav` shows the backend unread count.
-- Tapping Feed opens `NotificationsPopover` from the shared app shell.
+- Tapping Feed opens `NotificationsSheet` from the shared app shell.
 - Opening the popover fetches the latest notification page.
 - The feed renders read and unread notifications together, newest first.
 - Displayed unread notifications are marked read through the read-batch flow.
@@ -19,7 +19,7 @@ the behavior is consistent across authenticated app pages.
   `useNotifications()`, and `BottomNav` unread props.
 - `spa/lib/use-notifications.ts` owns the in-memory notification cache,
   pagination state, unread-count refresh, and read-batch updates.
-- `spa/components/notifications-popover.tsx` renders the fixed popover above the
+- `spa/components/notifications-sheet.tsx` renders the fixed popover above the
   shared nav.
 - `spa/components/bottom-nav.tsx` displays the unread badge passed in by the
   shell.

@@ -258,7 +258,7 @@ Notification fetching should live in a frontend API module and a shared hook:
 
 - API client: `spa/lib/api/notifications.ts`
 - Hook/cache layer: `spa/lib/use-notifications.ts`
-- Display component: `spa/components/notifications-popover.tsx`
+- Display component: `spa/components/notifications-sheet.tsx`
 - App-shell integration: `spa/components/authenticated-app-shell.tsx`
 - Badge display: `spa/components/bottom-nav.tsx`
 
