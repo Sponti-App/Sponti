@@ -85,6 +85,63 @@ describe("EventDetailSheet", () => {
     expect(mocks.push).toHaveBeenCalledWith("/event/event-1")
   })
 
+  it("links the host's row to their profile (#199)", async () => {
+    const user = userEvent.setup()
+    const { onClose } = renderSheet({
+      event: flare({
+        host: { id: "host-1", name: "Sarah Kim", username: "sarah", avatar: "SK", color: "bg-stone-400", note: "" },
+      }),
+    })
+
+    const link = await screen.findByRole("link", { name: /hosted by sarah kim/ })
+    expect(link).toHaveAttribute("href", "/profile/sarah")
+    await user.click(link)
+    // Closes first, like the other exits, so vaul's scroll lock doesn't leak (#168).
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("leaves the host row plain when it is you, or there is no username to link", async () => {
+    renderSheet({
+      event: flare({
+        host: { id: "guest-1", name: "Me", username: "me", avatar: "M", color: "bg-stone-400", note: "" },
+      }),
+    })
+    expect(await screen.findByText("hosted by you")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /open profile/ })).not.toBeInTheDocument()
+  })
+
+  it("does not link a host the api sent without a username", async () => {
+    renderSheet()
+    expect(await screen.findByText("hosted by sarah kim")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /open profile/ })).not.toBeInTheDocument()
+  })
+
+  it("keeps the secondary actions together in one row, not beside the main action", async () => {
+    renderSheet({ joined: true, event: flare({ startAt: at(60 * 24), endAt: at(60 * 27) }) })
+
+    const cantMakeIt = await screen.findByRole("button", { name: "can't make it" })
+    const openFlare = screen.getByRole("button", { name: /open flare/ })
+    const share = screen.getByRole("button", { name: /share an update/ })
+
+    // Same row as "open flare", and out of the main action's row.
+    expect(cantMakeIt.parentElement).toBe(openFlare.parentElement)
+    expect(share.parentElement).not.toBe(cantMakeIt.parentElement)
+  })
+
+  it("pairs the host's edit and open actions, and lets a lone action take the full width", async () => {
+    renderSheet({ isHost: true })
+    const edit = await screen.findByRole("button", { name: /edit flare/ })
+    const open = screen.getByRole("button", { name: /open flare/ })
+    expect(edit.parentElement).toBe(open.parentElement)
+    expect(edit.parentElement).toHaveClass("grid-cols-2")
+  })
+
+  it("says so in one line when no one is going yet, instead of a label over an empty row", async () => {
+    renderSheet({ event: flare({ going: 0, attendees: [] }) })
+    expect(await screen.findByText("no one going yet")).toBeInTheDocument()
+    expect(screen.queryByText("who's going")).not.toBeInTheDocument()
+  })
+
   it("links the place to Google Maps", async () => {
     renderSheet()
 

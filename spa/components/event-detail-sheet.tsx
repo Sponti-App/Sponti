@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Drawer } from "vaul"
-import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
 import { FlareActions, FlareFacts, FlareHeader } from "@/components/flare-detail"
-import { ChevronRight, Navigation, Pencil } from "lucide-react"
+import { ChevronRight, Navigation, Pencil, UserRound } from "lucide-react"
 import {
   arrivalStatusLabel,
   avatarText,
@@ -92,9 +92,16 @@ export function EventDetailSheet({
     router.push(`/event/${displayEvent.id}${query}`)
   }
 
-  const hostLabel = user && displayEvent?.host?.id === user.id
+  const hostIsViewer = Boolean(user && displayEvent?.host?.id === user.id)
+  const hostLabel = hostIsViewer
     ? "hosted by you"
     : `hosted by ${(displayEvent?.host?.name || "host").toLowerCase()}`
+  // Your own row has nowhere to go (your profile page only lists other
+  // people), and a host without a username can't be linked.
+  const hostProfileHref =
+    !hostIsViewer && displayEvent?.host?.username
+      ? `/profile/${encodeURIComponent(displayEvent.host.username)}`
+      : null
 
   // The api only sends willArriveAt/arrivalStatus on attendee rows to the
   // flare's host, so this is naturally empty for anyone else — no separate
@@ -157,63 +164,57 @@ export function EventDetailSheet({
                 />
               </div>
 
-              {/* Host Note */}
-              <Card className="mb-4 border-0 bg-muted p-3">
-                <div className="flex items-start gap-2">
-                  {displayEvent.host.avatarUrl ? (
-                    // Static export (required for the Capacitor iOS/Android wrapper) can't
-                    // use next/image's server-side optimizer, and host avatar URLs are
-                    // arbitrary/remote, so a plain <img> is intentional here.
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={displayEvent.host.avatarUrl}
-                      alt={displayEvent.host.name}
-                      className="h-6 w-6 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div
-                      className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${displayEvent.host.color} ${avatarText(
-                        displayEvent.host.color
-                      )}`}
-                    >
-                      {displayEvent.host.avatar || displayEvent.host.name?.charAt(0).toUpperCase() || "H"}
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <div className="truncate text-sm font-medium">{hostLabel}</div>
+              {/* Host: one compact row, a link to their profile (#199). The
+                  note, when there is one, sits under the name. */}
+              <HostRow
+                href={hostProfileHref}
+                onNavigate={() => onClose()}
+                label={hostLabel}
+                name={displayEvent.host.name}
+                avatarUrl={displayEvent.host.avatarUrl}
+                avatar={displayEvent.host.avatar}
+                color={displayEvent.host.color}
+                note={displayEvent.host.note}
+              />
 
-                    {displayEvent.host.note ? (
-                      <div className="mt-0.5 text-sm text-muted-foreground">{displayEvent.host.note}</div>
-                    ) : null}
-                  </div>
-                </div>
-              </Card>
-
-              {/* Who's Going */}
+              {/* Who's Going. With nobody yet it is one quiet line instead of
+                  a label over an empty row. */}
               <div className="mb-4">
-                <p className="mb-2 text-xs text-muted-foreground">
-                  who&apos;s going
-                </p>
-                <div className="flex items-center gap-3">
-                  <div className="flex -space-x-2">
-                    {displayEvent.attendees.map((a, i) => (
-                      <div
-                        key={i}
-                        className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-xs ${a.color} ${avatarText(a.color)}`}
-                      >
-                        {a.avatar || a.name?.charAt(0).toUpperCase() || "U"}
+                {displayEvent.going === 0 && displayEvent.attendees.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">no one going yet</p>
+                ) : (
+                  <>
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      who&apos;s going
+                    </p>
+                    <div className="flex items-center gap-3">
+                      {displayEvent.attendees.length > 0 && (
+                        <div className="flex -space-x-2">
+                          {displayEvent.attendees.map((a, i) => (
+                            <div
+                              key={i}
+                              className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-xs ${a.color} ${avatarText(a.color)}`}
+                            >
+                              {a.avatar || a.name?.charAt(0).toUpperCase() || "U"}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div>
+                        {displayEvent.attendees.length > 0 && (
+                          <p className="font-medium">
+                            {displayEvent.attendees
+                              .map((a) => a.name.toLowerCase())
+                              .join(", ")}
+                          </p>
+                        )}
+                        <p className="text-sm text-muted-foreground">
+                          {displayEvent.going} going
+                        </p>
                       </div>
-                    ))}
-                  </div>
-                  <div>
-                    <p className="font-medium">
-                      {displayEvent.attendees.map((a) => a.name.toLowerCase()).join(", ")}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {displayEvent.going} going
-                    </p>
-                  </div>
-                </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Attendee arrival answers — host only; the api only sends
                     willArriveAt/arrivalStatus to the host in the first place. */}
@@ -249,6 +250,7 @@ export function EventDetailSheet({
                 timing={timing}
                 declined={!joined && displayEvent.myRsvp === "declined"}
                 eta={selectedEta}
+                declineInline={false}
                 onEtaChange={(eta) => {
                   haptic("selection")
                   setSelectedEta(eta)
@@ -267,7 +269,10 @@ export function EventDetailSheet({
                 }}
               />
 
-              <div className="mt-2 flex flex-col gap-1">
+              {/* Everything after the main action, in one two-column row so
+                  the sheet ends on a balanced pair rather than a stack. An odd
+                  one out spans the full width. */}
+              <div className="mt-3 grid grid-cols-2 gap-2 [&>*:last-child:nth-child(odd)]:col-span-2">
                 {viewer === "joined" && withEta && eventCoords(displayEvent) && (
                   <SecondaryAction
                     onClick={() => {
@@ -275,19 +280,21 @@ export function EventDetailSheet({
                       onSeeRoute(displayEvent)
                     }}
                   >
-                    <Navigation className="h-4 w-4" /> see route on map
+                    <Navigation className="h-4 w-4" /> see route
                   </SecondaryAction>
                 )}
-                {viewer === "joined" && withEta && (
-                  <SecondaryAction
-                    onClick={() => {
-                      haptic("warning")
-                      onLeave(displayEvent)
-                    }}
-                  >
-                    can&apos;t make it
-                  </SecondaryAction>
-                )}
+                {viewer === "joined" &&
+                  timing !== "ended" &&
+                  timing !== "cancelled" && (
+                    <SecondaryAction
+                      onClick={() => {
+                        haptic("warning")
+                        onLeave(displayEvent)
+                      }}
+                    >
+                      can&apos;t make it
+                    </SecondaryAction>
+                  )}
                 {viewer === "host" && (
                   <SecondaryAction onClick={() => openFlarePage("/edit")}>
                     <Pencil className="h-4 w-4" /> edit flare
@@ -314,13 +321,78 @@ function SecondaryAction({
   children: React.ReactNode
 }) {
   return (
+    // Neutral, so the peach main action stays the only call to action.
     <Button
       variant="ghost"
-      className="h-10 w-full rounded-full text-sm text-muted-foreground"
+      className="h-10 w-full rounded-full bg-muted text-sm text-foreground hover:bg-muted/70"
       onClick={onClick}
     >
       {children}
     </Button>
+  )
+}
+
+function HostRow({
+  href,
+  onNavigate,
+  label,
+  name,
+  avatarUrl,
+  avatar,
+  color,
+  note,
+}: {
+  href: string | null
+  onNavigate: () => void
+  label: string
+  name: string
+  avatarUrl?: string | null
+  avatar: string
+  color: string
+  note: string
+}) {
+  const face = avatarUrl ? (
+    // Static export (required for the Capacitor iOS/Android wrapper) can't
+    // use next/image's server-side optimizer, and host avatar URLs are
+    // arbitrary/remote, so a plain <img> is intentional here.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={avatarUrl} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />
+  ) : (
+    <div
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs ${color} ${avatarText(color)}`}
+    >
+      {avatar || name?.charAt(0).toUpperCase() || <UserRound className="h-4 w-4" />}
+    </div>
+  )
+  const text = (
+    <div className="min-w-0 flex-1">
+      <p className="truncate text-sm font-medium">{label}</p>
+      {note ? (
+        <p className="line-clamp-2 text-xs text-muted-foreground">{note}</p>
+      ) : null}
+    </div>
+  )
+  const rowClass = "mb-3 flex min-h-11 items-center gap-2.5"
+
+  if (!href) {
+    return (
+      <div className={rowClass}>
+        {face}
+        {text}
+      </div>
+    )
+  }
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      aria-label={`${label}, open profile`}
+      className={`${rowClass} rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-muted`}
+    >
+      {face}
+      {text}
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+    </Link>
   )
 }
 

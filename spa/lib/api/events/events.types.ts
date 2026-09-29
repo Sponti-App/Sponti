@@ -29,6 +29,9 @@ export interface EventItem {
   host: {
     id: string
     name: string
+    // Lets the detail sheet link to /profile/[username] (#199). Absent for
+    // mock data and when the api only sent the host's id.
+    username?: string
     avatar: string
     avatarUrl?: string | null
     color: string

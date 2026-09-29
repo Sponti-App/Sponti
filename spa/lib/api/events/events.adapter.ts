@@ -182,6 +182,7 @@ function hostFromApi(host: ApiEvent["hostId"]): EventItem["host"] {
   return {
     id: host._id,
     name,
+    username: host.username,
     avatar: initials,
     avatarUrl,
     color: "bg-stone-400",
