@@ -277,6 +277,34 @@ export const markNotificationsReadBatch = async (
   };
 };
 
+// #176: "I'm caught up" marks every notification the caller has *right now*
+// as read, not just the page the client happens to have loaded (read-batch
+// tops out at 10 ids). Scoped to `createdAt <= now` so a notification created
+// mid-request (after this handler starts but before the update runs) isn't
+// silently marked read before the caller ever sees it.
+export const markAllNotificationsRead = async (userId: string) => {
+  const now = new Date();
+
+  const result = await Notification.updateMany(
+    {
+      userId: toObjectId(userId),
+      readAt: null,
+      createdAt: { $lte: now },
+    },
+    {
+      $set: {
+        readAt: now,
+      },
+    }
+  );
+  const { count: unreadCount } = await getUnreadCount(userId);
+
+  return {
+    markedRead: result.modifiedCount,
+    unreadCount,
+  };
+};
+
 export const createConnectionRequestNotification = async ({
   requesterId,
   receiverId,

@@ -55,6 +55,7 @@ Error:
 - Posting is only open while the flare is `active` and hasn't ended (`409 EVENT_THREAD_CLOSED` otherwise); a cancelled or ended thread stays readable, and reactivating reopens it. A host's update notifies each going guest once (`event_update`); a guest's notifies nobody.
 - An update can be deleted (soft, idempotent) by its author or the flare's host. There is no editing.
 - `GET /events/:id` returns `myWillArriveAt`, the caller's own arrival time (or `null`). Other guests' arrival times are only ever sent to the host, on `attendees[].willArriveAt`.
+- `PATCH /notifications/read-batch` marks up to 10 caller-owned notification ids read at once. `PATCH /notifications/read-all` ("I'm caught up") marks every one of the caller's unread notifications read in one call, not just a loaded page — scoped to `createdAt` at or before the moment the request is handled, so a notification created mid-request isn't swallowed before the caller ever saw it. Both return the caller's resulting `unreadCount`.
 - Circles can only be managed by their owner.
 - Circles are snapshots: sending a flare to a circle copies its members into the flare at that moment. The flare remembers which circles it was sent to (`invitedCircleIds`) only so the host can be asked whether someone added to the circle later should be invited too; that is always an explicit host action (`POST /events/:id/members`), never automatic. `GET /circles/:id/events` lists the owner's upcoming flares for a circle.
 - Circle members must be accepted directional connections of the owner.

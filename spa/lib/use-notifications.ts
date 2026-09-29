@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore } from "react"
 import {
   fetchNotifications,
   fetchUnreadNotificationCount,
+  markAllNotificationsRead,
   markNotificationsReadBatch,
 } from "@/lib/api/notifications"
 import type { Notification } from "@/lib/notifications"
@@ -17,6 +18,10 @@ type NotificationsState = {
   error: string | null
   unreadCount: number
   unreadCountLoaded: boolean
+  // Set when the user last tapped "I'm caught up" (#176). The feed stays
+  // collapsed while every loaded notification is no newer than this — once
+  // something newer shows up, it's derived back open (see notifications-popover).
+  caughtUpAt: string | null
 }
 
 type NotificationsSnapshot = NotificationsState & {
@@ -24,6 +29,7 @@ type NotificationsSnapshot = NotificationsState & {
   loadLatest: () => Promise<void>
   loadMore: () => Promise<void>
   refreshUnreadCount: () => Promise<void>
+  markAllRead: () => Promise<void>
 }
 
 type Listener = () => void
@@ -45,6 +51,7 @@ let state: NotificationsState = {
   error: null,
   unreadCount: 0,
   unreadCountLoaded: false,
+  caughtUpAt: null,
 }
 let cachedSnapshot: NotificationsSnapshot | null = null
 
@@ -82,6 +89,7 @@ function snapshot(): NotificationsSnapshot {
     loadLatest,
     loadMore,
     refreshUnreadCount,
+    markAllRead,
   }
 
   return cachedSnapshot
@@ -96,10 +104,12 @@ function serverSnapshot(): NotificationsSnapshot {
     error: null,
     unreadCount: 0,
     unreadCountLoaded: false,
+    caughtUpAt: null,
     hasMore: false,
     loadLatest,
     loadMore,
     refreshUnreadCount,
+    markAllRead,
   }
 }
 
@@ -239,6 +249,29 @@ export async function loadMore(): Promise<void> {
       loadingMore: false,
       error: errMessage(err),
     }))
+  }
+}
+
+// "I'm caught up" (#176): marks every current notification read on the
+// server — not only what's been paged into `notifications` — and records
+// when, so the feed can collapse. Optimistically marks the loaded page read
+// too, rather than waiting on the next fetch.
+export async function markAllRead(): Promise<void> {
+  if (!apiEnabled()) return
+
+  try {
+    const { unreadCount } = await markAllNotificationsRead()
+    const readAt = new Date().toISOString()
+    setState((current) => ({
+      ...current,
+      unreadCount,
+      caughtUpAt: readAt,
+      notifications: current.notifications.map((notification) =>
+        notification.read ? notification : { ...notification, read: true, readAt }
+      ),
+    }))
+  } catch (err) {
+    console.warn("[Sponti] failed to mark all notifications read", err)
   }
 }
 
