@@ -80,6 +80,18 @@ test.describe("notifications sheet (#137)", () => {
       Math.abs(sheetBox.y + sheetBox.height - navBox.y)
     ).toBeLessThanOrEqual(1)
 
+    // The box being flush isn't enough: vaul paints a `::after` that extends
+    // the sheet's background 200% below it, which lands on the nav. What is
+    // hit at the nav's centre must not belong to the sheet.
+    const coversNav = await sheet.evaluate((el, box) => {
+      const hit = document.elementFromPoint(
+        box.x + box.width / 2,
+        box.y + box.height / 2
+      )
+      return hit ? el.contains(hit) : false
+    }, navBox)
+    expect(coversNav).toBe(false)
+
     // Same top radius the other sheets get from `rounded-t-3xl`.
     const [radius, referenceRadius] = await Promise.all([
       sheet.evaluate((el) => getComputedStyle(el).borderTopLeftRadius),

@@ -54,6 +54,8 @@ describe("NotificationsSheet presentation", () => {
     const dialog = screen.getByRole("dialog", { name: "notifications" })
     expect(dialog).toHaveClass("rounded-t-3xl", "bg-background")
     expect(dialog.className).toContain("bottom-[var(--sponti-nav-h,64px)]")
+    // vaul's ::after would paint the sheet's background over the nav.
+    expect(dialog).toHaveClass("after:hidden")
     expect(screen.getByText("maya invited you")).toBeInTheDocument()
   })
 
