@@ -5,7 +5,10 @@ import Link from "next/link"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import MonthCalendar from "@/components/month-calendar"
+import MonthCalendar, {
+  monthCollapseDistance,
+  useCompactMonthRows,
+} from "@/components/month-calendar"
 import {
   Check,
   ChevronLeft,
@@ -110,7 +113,6 @@ export function CalendarView({
   const [viewMode, setViewMode] = useState<"week" | "month">("week")
   const { events, loading, error, refresh } = useCalendarEvents()
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-  const daySectionRef = useRef<HTMLDivElement | null>(null)
 
   const weekStart = useMemo(() => startOfWeek(anchor), [anchor])
   const weekDays = useMemo(
@@ -161,35 +163,93 @@ export function CalendarView({
   const canGoNext =
     viewMode === "month"
       ? anchor.getFullYear() < today.getFullYear() ||
-      anchor.getMonth() < today.getMonth() + 1
+        anchor.getMonth() < today.getMonth() + 1
       : nextWeekStart.getTime() <= maxDate.getTime()
   const showTodayPill =
     viewMode === "month"
       ? anchor.getMonth() !== today.getMonth() ||
-      anchor.getFullYear() !== today.getFullYear()
+        anchor.getFullYear() !== today.getFullYear()
       : !isSameDay(weekStart, startOfWeek(today))
+
+  // Month mode: the list reserves this much space above the selected day's
+  // section, which the expanded month overlay covers (#224). Scrolling the
+  // list by exactly this much collapses the month to its pinned week row.
+  const compactMonthRows = useCompactMonthRows()
+  const collapseDistance = monthCollapseDistance(anchor, compactMonthRows)
+
+  // Scrolls the list; the month overlay follows scroll position, so this is
+  // also how the calendar expands (top 0) or collapses (top = distance).
+  const scrollListTo = (top: number) => {
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches
+    scrollContainerRef.current?.scrollTo({
+      top,
+      behavior: reduceMotion ? "auto" : "smooth",
+    })
+  }
+
+  // Selecting a day in month mode collapses the month to that day's week, so
+  // its first flare sits right under the pinned row. Deferred one frame so
+  // the new month's spacer has rendered before we scroll.
+  const selectMonthDay = (d: Date) => {
+    setAnchor(d)
+    setSelected(d)
+    const distance = monthCollapseDistance(d, compactMonthRows)
+    requestAnimationFrame(() => scrollListTo(distance))
+  }
+
+  // Changing month in month mode re-expands it so the new month is visible.
+  const expandMonth = () => {
+    if (viewMode === "month") scrollListTo(0)
+  }
+
+  const switchViewMode = (mode: "week" | "month") => {
+    if (mode === viewMode) return
+    setViewMode(mode)
+    // Start each mode at the top: month mode expanded, week mode as before.
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0
+  }
 
   const goToday = () => {
     setAnchor(today)
     setSelected(today)
+    expandMonth()
   }
 
   const goPrev = () => {
     setAnchor((d) => (viewMode === "month" ? addMonths(d, -1) : addDays(d, -7)))
+    expandMonth()
   }
   const goNext = () => {
     setAnchor((d) => (viewMode === "month" ? addMonths(d, 1) : addDays(d, 7)))
+    expandMonth()
   }
 
+  const selectAgendaDay = (day: Date) => {
+    if (viewMode === "month") {
+      selectMonthDay(day)
+      return
+    }
+    setAnchor(day)
+    setSelected(day)
+  }
 
   return (
-    /* pb-28 leaves room for the floating nav pill.
-       pt-10 keeps the heading just below the floating header chip row (~48px)
-       while reclaiming vertical space the old pt-12 was wasting. */
-    <div ref={scrollContainerRef} className="h-full overflow-y-auto px-4 pt-10 pb-28">
-      {/* Sticky header + week/month strip — stays pinned while the agenda scrolls.
-          top-10 clears the floating header chip row. */}
-      <div className="sticky top-10 z-10 -mx-4 border-b border-border/60 bg-background px-4 pt-1 pb-3">
+    /* Two layers (#224): the header sits above the scrolling list rather than
+       sticking inside it, so its size never feeds back into the list's
+       scroll position. In month mode the header's in-flow height is just the
+       pinned week row; the rest of the month is an overlay hanging over the
+       list (see MonthCalendar). */
+    <div className="flex h-full flex-col">
+      {/* Header + week/month strip — pinned while the agenda scrolls.
+          The top padding clears the floating header chip row: the same
+          offset page.tsx gives that row, plus the 42px pill and a 6px gap. */}
+      <div
+        className={`relative z-10 flex-none bg-background px-4 pt-[calc(max(0.75rem,env(safe-area-inset-top))+3rem)] ${
+          viewMode === "week" ? "border-b border-border/60 pb-3" : ""
+        }`}
+      >
         {/* Calendar header with navigation */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
@@ -219,15 +279,15 @@ export function CalendarView({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setViewMode("week")}
-              className={`rounded-full px-3 py-1 text-sm transition-colors active:scale-[0.97] ${viewMode === "week" ? "bg-card text-foreground font-semibold" : "text-muted-foreground font-medium hover:text-foreground"}`}
+              onClick={() => switchViewMode("week")}
+              className={`rounded-full px-3 py-1 text-sm transition-colors active:scale-[0.97] ${viewMode === "week" ? "bg-card font-semibold text-foreground" : "font-medium text-muted-foreground hover:text-foreground"}`}
             >
               week
             </button>
             <button
               type="button"
-              onClick={() => setViewMode("month")}
-              className={`rounded-full px-3 py-1 text-sm transition-colors active:scale-[0.97] ${viewMode === "month" ? "bg-card text-foreground font-semibold" : "text-muted-foreground font-medium hover:text-foreground"}`}
+              onClick={() => switchViewMode("month")}
+              className={`rounded-full px-3 py-1 text-sm transition-colors active:scale-[0.97] ${viewMode === "month" ? "bg-card font-semibold text-foreground" : "font-medium text-muted-foreground hover:text-foreground"}`}
             >
               month
             </button>
@@ -276,15 +336,16 @@ export function CalendarView({
                     month: "short",
                     day: "numeric",
                   })}
-                  className={`flex flex-col items-center justify-center rounded-lg py-1.5 transition-colors active:scale-[0.97] ${beyondHorizon
-                    ? "cursor-not-allowed opacity-30"
-                    : isSelected
-                      ? "bg-card"
-                      : "hover:bg-secondary"
-                    }`}
+                  className={`flex flex-col items-center justify-center rounded-lg py-1.5 transition-colors active:scale-[0.97] ${
+                    beyondHorizon
+                      ? "cursor-not-allowed opacity-30"
+                      : isSelected
+                        ? "bg-card"
+                        : "hover:bg-secondary"
+                  }`}
                 >
                   <span
-                    className={`text-xs font-medium uppercase tracking-wide ${
+                    className={`text-xs font-medium tracking-wide uppercase ${
                       isSelected
                         ? "text-primary"
                         : isToday
@@ -330,137 +391,143 @@ export function CalendarView({
               eventsByDay={eventsByDay}
               maxDate={maxDate}
               scrollContainerRef={scrollContainerRef}
-              onSelectDay={(d: Date) => {
-                setAnchor(d)
-                setSelected(d)
-                const hasEvents = (eventsByDay.get(dayKey(d))?.length ?? 0) > 0
-                if (hasEvents) {
-                  // Defer one frame so the selected day's section is rendered
-                  // before we scroll to it.
-                  requestAnimationFrame(() => {
-                    daySectionRef.current?.scrollIntoView({
-                      behavior: "smooth",
-                      block: "start",
-                    })
-                  })
-                }
-              }}
+              compact={compactMonthRows}
+              onSelectDay={selectMonthDay}
             />
           </div>
         )}
       </div>
 
-      <div ref={daySectionRef} className="pt-4" />
+      {/* pb-28 leaves room for the floating nav pill. */}
+      <div
+        ref={scrollContainerRef}
+        className="min-h-0 flex-1 overflow-y-auto px-4 pb-28"
+      >
+        {/* In month mode, at least one screen plus the collapse distance
+            tall, so even a short list can scroll far enough to collapse the
+            month fully. */}
+        <div
+          style={
+            viewMode === "month"
+              ? { minHeight: `calc(100% + ${collapseDistance}px)` }
+              : undefined
+          }
+        >
+          {viewMode === "month" && (
+            <div aria-hidden style={{ height: collapseDistance }} />
+          )}
+          <div className="pt-4" />
 
-      {/* Selected day section */}
-      <DaySection
-        label={formatSectionLabel(selected, today)}
-        events={selectedEvents}
-        joinedIds={joinedIds}
-        onSelect={onEventSelect}
-        emptyAction={
-          <>
-            <button
-              type="button"
-              onClick={openDrawer}
-              className="mt-3 flex w-full items-center gap-3 rounded-xl bg-card px-4 py-3 text-left transition-colors hover:bg-secondary"
-            >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
-                <Flame className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">+ make a plan</p>
-                <p className="text-xs text-muted-foreground">
-                  light a flare for any day this week
-                </p>
-              </div>
-            </button>
-            {/* First run: nothing anywhere on the calendar yet. Point new
-                testers at the thing that fills it: friends. */}
-            {!loading && !error && events.length === 0 && (
-              <p className="mt-3 text-center text-xs text-muted-foreground">
-                plans from your friends show up here ·{" "}
-                <Link
-                  href="/circles?tab=people"
-                  className="font-medium text-accent"
-                >
-                  connect with friends
-                </Link>
-              </p>
-            )}
-          </>
-        }
-      />
-
-      {/* Errors / loading */}
-      {loading && events.length === 0 && (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          loading events…
-        </p>
-      )}
-      {error && events.length === 0 && (
-        <div className="my-4 rounded-xl border border-border p-4 text-center">
-          <AlertCircle className="mx-auto mb-2 h-5 w-5 text-destructive" />
-          <p className="mb-3 text-sm text-muted-foreground">{error}</p>
-          <button onClick={refresh} className="text-sm font-medium text-accent">
-            try again
-          </button>
-        </div>
-      )}
-
-      {/* Up-next agenda — events after the selected day */}
-      {agenda.length > 0 && (
-        <div className="mt-6">
-          <div className="mb-3 flex items-center gap-2">
-            <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
-            <h3 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
-              up next
-            </h3>
-          </div>
-          <div className="space-y-5">
-            {agenda.map(({ day, items }) => (
-              <div key={day.toISOString()}>
+          {/* Selected day section */}
+          <DaySection
+            label={formatSectionLabel(selected, today)}
+            events={selectedEvents}
+            joinedIds={joinedIds}
+            onSelect={onEventSelect}
+            emptyAction={
+              <>
                 <button
                   type="button"
-                  onClick={() => {
-                    setAnchor(day)
-                    setSelected(day)
-                  }}
-                  className="mb-2 text-sm font-medium transition-colors hover:text-accent"
+                  onClick={openDrawer}
+                  className="mt-3 flex w-full items-center gap-3 rounded-xl bg-card px-4 py-3 text-left transition-colors hover:bg-secondary"
                 >
-                  {formatSectionLabel(day, today)}
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    {items.length} event{items.length === 1 ? "" : "s"}
-                  </span>
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
+                    <Flame className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      + make a plan
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      light a flare for any day this week
+                    </p>
+                  </div>
                 </button>
-                <div className="space-y-2">
-                  {items.slice(0, 2).map((event) => (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      joined={isJoined(event, joinedIds)}
-                      onSelect={onEventSelect}
-                    />
-                  ))}
-                  {items.length > 2 && (
+                {/* First run: nothing anywhere on the calendar yet. Point new
+                testers at the thing that fills it: friends. */}
+                {!loading && !error && events.length === 0 && (
+                  <p className="mt-3 text-center text-xs text-muted-foreground">
+                    plans from your friends show up here ·{" "}
+                    <Link
+                      href="/circles?tab=people"
+                      className="font-medium text-accent"
+                    >
+                      connect with friends
+                    </Link>
+                  </p>
+                )}
+              </>
+            }
+          />
+
+          {/* Errors / loading */}
+          {loading && events.length === 0 && (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              loading events…
+            </p>
+          )}
+          {error && events.length === 0 && (
+            <div className="my-4 rounded-xl border border-border p-4 text-center">
+              <AlertCircle className="mx-auto mb-2 h-5 w-5 text-destructive" />
+              <p className="mb-3 text-sm text-muted-foreground">{error}</p>
+              <button
+                onClick={refresh}
+                className="text-sm font-medium text-accent"
+              >
+                try again
+              </button>
+            </div>
+          )}
+
+          {/* Up-next agenda — events after the selected day */}
+          {agenda.length > 0 && (
+            <div className="mt-6">
+              <div className="mb-3 flex items-center gap-2">
+                <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                <h3 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
+                  up next
+                </h3>
+              </div>
+              <div className="space-y-5">
+                {agenda.map(({ day, items }) => (
+                  <div key={day.toISOString()}>
                     <button
                       type="button"
-                      onClick={() => {
-                        setAnchor(day)
-                        setSelected(day)
-                      }}
-                      className="text-xs font-medium text-accent"
+                      onClick={() => selectAgendaDay(day)}
+                      className="mb-2 text-sm font-medium transition-colors hover:text-accent"
                     >
-                      + {items.length - 2} more on{" "}
                       {formatSectionLabel(day, today)}
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {items.length} event{items.length === 1 ? "" : "s"}
+                      </span>
                     </button>
-                  )}
-                </div>
+                    <div className="space-y-2">
+                      {items.slice(0, 2).map((event) => (
+                        <EventCard
+                          key={event.id}
+                          event={event}
+                          joined={isJoined(event, joinedIds)}
+                          onSelect={onEventSelect}
+                        />
+                      ))}
+                      {items.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => selectAgendaDay(day)}
+                          className="text-xs font-medium text-accent"
+                        >
+                          + {items.length - 2} more on{" "}
+                          {formatSectionLabel(day, today)}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
