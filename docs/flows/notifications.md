@@ -1,26 +1,26 @@
 # Notifications Flow
 
 The in-app notification feed opens from the shared authenticated bottom nav.
-`AuthenticatedAppShell` owns the feed state, popover, and unread badge wiring so
+`AuthenticatedAppShell` owns the feed state, sheet, and unread badge wiring so
 the behavior is consistent across authenticated app pages.
 
 ## User Flow
 
 - The Feed item in `BottomNav` shows the backend unread count.
-- Tapping Feed opens `NotificationsPopover` from the shared app shell.
-- Opening the popover fetches the latest notification page.
+- Tapping Feed opens `NotificationsSheet` from the shared app shell.
+- Opening the sheet fetches the latest notification page.
 - The feed renders read and unread notifications together, newest first.
 - Displayed unread notifications are marked read through the read-batch flow.
-- Clicking a notification closes the popover and routes to `notification.href`.
+- Clicking a notification closes the sheet and routes to `notification.href`.
 
 ## Implementation Files
 
-- `spa/components/authenticated-app-shell.tsx` owns shared popover state,
+- `spa/components/authenticated-app-shell.tsx` owns shared sheet state,
   `useNotifications()`, and `BottomNav` unread props.
 - `spa/lib/use-notifications.ts` owns the in-memory notification cache,
   pagination state, unread-count refresh, and read-batch updates.
-- `spa/components/notifications-popover.tsx` renders the fixed popover above the
-  shared nav.
+- `spa/components/notifications-sheet.tsx` renders the feed as a vaul bottom sheet
+  docked on the shared nav.
 - `spa/components/bottom-nav.tsx` displays the unread badge passed in by the
   shell.
 - `spa/lib/api/notifications.ts` calls `GET /notifications`,

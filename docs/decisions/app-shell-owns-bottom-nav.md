@@ -4,7 +4,7 @@
 
 Authenticated app chrome is owned by `AuthenticatedAppShell`.
 
-`BottomNav`, the notification unread badge, and `NotificationsPopover` are
+`BottomNav`, the notification unread badge, and `NotificationsSheet` are
 rendered once at the shared shell level instead of being rendered by individual
 pages.
 
