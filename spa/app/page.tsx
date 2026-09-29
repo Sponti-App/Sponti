@@ -70,7 +70,10 @@ export default function Home() {
     void updateMyRsvp(event.id, {
       rsvpStatus: "going",
       memberWillArriveAt: kind === "minutes" ? etaToIso(eta) : null,
-      arrivalStatus: kind === "status" ? (eta as ArrivalStatus | null) : null,
+      // Only sent for a near-term flare: the api rejects unknown body keys, so
+      // an always-present `arrivalStatus: null` broke every join against an
+      // api that hadn't shipped #211 yet.
+      ...(kind === "status" && eta ? { arrivalStatus: eta as ArrivalStatus } : {}),
     })
       .then(() => showActionFeedback("you're in"))
       .catch((err) => {

@@ -245,6 +245,9 @@ describe("EventDetailPage layout (#139)", () => {
 
     const body = mocks.updateMyRsvp.mock.calls[0]?.[1]
     expect(body.rsvpStatus).toBe("going")
+    // An api without #211 rejects unknown keys, so an unused arrivalStatus
+    // must be absent from the body, not null.
+    expect(body).not.toHaveProperty("arrivalStatus")
     const minutes = (new Date(body.memberWillArriveAt).getTime() - Date.now()) / MIN
     expect(minutes).toBeGreaterThan(14)
     expect(minutes).toBeLessThanOrEqual(15)

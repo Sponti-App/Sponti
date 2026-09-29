@@ -230,7 +230,13 @@ function FlareDetail({
     const willArriveAt = kind === "minutes" ? etaToIso(eta) : null
     const arrivalStatus = kind === "status" ? (eta as ArrivalStatus | null) : null
     void saveMembership(
-      { rsvpStatus: "going", memberWillArriveAt: willArriveAt, arrivalStatus },
+      {
+        rsvpStatus: "going",
+        memberWillArriveAt: willArriveAt,
+        // Omitted rather than null when unused: the api rejects unknown keys,
+        // so a null here broke joins against an api without #211.
+        ...(arrivalStatus ? { arrivalStatus } : {}),
+      },
       "you're in",
       (current) => ({
         ...current,
