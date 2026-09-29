@@ -8,3 +8,15 @@ export const searchUsersQuerySchema = z
   .strict();
 
 export type SearchUsersQuery = z.infer<typeof searchUsersQuerySchema>;
+
+// Loose on purpose: usernames are validated when they're set (auth-server);
+// this only keeps the lookup to plausible username characters.
+export const usernameParamSchema = z
+  .object({
+    username: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-zA-Z0-9._-]+$/),
+  })
+  .strict();

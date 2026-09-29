@@ -63,6 +63,20 @@ export const getUsersByIds = async (userIds: string[]) => {
   return result;
 };
 
+/**
+ * Exact, case-sensitive username lookup (usernames are unique as stored).
+ * Projects only the public identity fields: nothing here is ever enough to
+ * leak visibility, email or anything else about the user.
+ */
+export const getUserIdentityByUsername = async (username: string) => {
+  const user = await getUsersCollection().findOne(
+    { username },
+    { projection: { username: 1, displayName: 1, avatarUrl: 1 } }
+  );
+
+  return user ? toUserSummary(user) : null;
+};
+
 const getAcceptedConnectionIds = async (userId: string) => {
   const userObjectId = toObjectId(userId);
   const connections = await Connection.find({
@@ -96,7 +110,9 @@ export const searchUsers = async (requesterId: string, query: SearchUsersQuery) 
           $or: [
             { profileVisibility: { $ne: "private" } },
             { _id: { $in: connectedIds } },
-            ...(isExactUsername ? [{ username: new RegExp(`^${escapeRegex(query.q)}$`, "i") }] : []),
+            ...(isExactUsername
+              ? [{ username: new RegExp(`^${escapeRegex(query.q)}$`, "i") }]
+              : []),
           ],
         },
       ],
