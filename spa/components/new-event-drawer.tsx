@@ -25,6 +25,7 @@ import {
 import { CircleStackIcon } from "@/components/circle-stack-icon"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
+import { featureFlags } from "@/lib/feature-flags"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -2722,18 +2723,25 @@ function InviteToggles({
         <UserPlus className="h-3 w-3 shrink-0" />
         +1 allowed
       </button>
-      <button
-        type="button"
-        onClick={() => onForward(!allowForward)}
-        className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors ${
-          allowForward
-            ? "border-accent bg-accent/10 text-accent"
-            : "border-border text-muted-foreground hover:bg-secondary"
-        }`}
-      >
-        <Share2 className="h-3 w-3 shrink-0" />
-        can re-share
-      </button>
+      {/* #93/#159: re-share (allowForward → allowGuestInvites: "multiple")
+          is hidden in the tester build until its privacy questions are
+          answered. Render-site guard only — the toggle, its state and
+          guestInviteModeFromDraft are untouched, so a hidden host simply
+          never turns it on (same as leaving it off today). */}
+      {featureFlags.reshare && (
+        <button
+          type="button"
+          onClick={() => onForward(!allowForward)}
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors ${
+            allowForward
+              ? "border-accent bg-accent/10 text-accent"
+              : "border-border text-muted-foreground hover:bg-secondary"
+          }`}
+        >
+          <Share2 className="h-3 w-3 shrink-0" />
+          can re-share
+        </button>
+      )}
     </div>
   )
 }
