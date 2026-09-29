@@ -56,6 +56,10 @@ describe("NotificationsSheet presentation", () => {
     expect(dialog.className).toContain("bottom-[var(--sponti-nav-h,64px)]")
     // vaul's ::after would paint the sheet's background over the nav.
     expect(dialog).toHaveClass("after:hidden")
+    // The scrim stops above the nav so the nav stays lit and tappable.
+    const scrim = document.querySelector("[data-vaul-overlay]")
+    expect(scrim?.className).toContain("bottom-[var(--sponti-nav-h,64px)]")
+    expect(scrim).not.toHaveClass("inset-0")
     expect(screen.getByText("maya invited you")).toBeInTheDocument()
   })
 

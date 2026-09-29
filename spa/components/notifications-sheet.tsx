@@ -194,7 +194,9 @@ export function NotificationsSheet({
       repositionInputs={false}
     >
       <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-50 bg-foreground/30" />
+        {/* Stops above the nav: the nav is part of what the sheet is docked on,
+            so it stays lit and tappable instead of looking disabled. */}
+        <Drawer.Overlay className="fixed inset-x-0 top-0 bottom-[var(--sponti-nav-h,64px)] z-50 bg-foreground/30" />
         {/* Docked on the nav rather than over it. The cap is measured against
             the visible viewport (--sponti-vvh, see use-viewport-metrics) so
             the top stays within thumb reach on iOS Safari, where `vh` is the
@@ -203,6 +205,15 @@ export function NotificationsSheet({
             below the sheet, which would paint straight over the nav. */}
         <Drawer.Content
           ref={setSheetEl}
+          // A press on the nav is not "outside": let the nav's own handlers
+          // run. Otherwise the press dismisses the sheet and the feed
+          // button's click then toggles it straight back open.
+          onPointerDownOutside={(event) => {
+            const target = event.target
+            if (target instanceof Element && target.closest("nav")) {
+              event.preventDefault()
+            }
+          }}
           className="fixed inset-x-0 bottom-[var(--sponti-nav-h,64px)] z-50 flex after:hidden max-h-[calc(0.7*var(--sponti-vvh,100vh)-var(--sponti-nav-h,64px))] flex-col rounded-t-3xl bg-background shadow-(--shadow-sheet) outline-none"
         >
           {/* Drag handle — vaul attaches its gesture here automatically */}
