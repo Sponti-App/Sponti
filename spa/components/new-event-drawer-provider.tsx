@@ -9,8 +9,9 @@ import {
 
 type NewEventDrawerContextValue = {
   open: boolean
-  // With a prefill the composer opens with those fields filled in, replacing
-  // any unsent draft. Without one it opens as it was left.
+  // With a prefill the composer opens with those fields filled in, unless the
+  // person has an unsent draft of their own, which is kept as it was. Without
+  // a prefill it opens as it was left.
   openDrawer: (prefill?: ComposerPrefill) => void
   closeDrawer: () => void
 }
