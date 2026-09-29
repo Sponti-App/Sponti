@@ -34,6 +34,14 @@ describe("app", () => {
     expect(response.body.error.code).toBe("ACCESS_TOKEN_MISSING");
   });
 
+  it("requires auth to dismiss a notification (#173)", async () => {
+    const response = await request(app)
+      .patch("/api/v1/notifications/0123456789abcdef01234567/dismiss")
+      .expect(401);
+
+    expect(response.body.error.code).toBe("ACCESS_TOKEN_MISSING");
+  });
+
   it("normalizes CORS origins for browser preflight requests", async () => {
     const response = await request(app)
       .options("/api/v1/events/map/active?lat=1&lng=1&radiusKm=25")

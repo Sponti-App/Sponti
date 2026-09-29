@@ -211,6 +211,8 @@ const createMissingRecipientNotifications = async ({
 export const getNotifications = async (userId: string, query: GetNotificationsQuery) => {
   const filter: Record<string, unknown> = {
     userId: toObjectId(userId),
+    // `null` also matches documents written before the field existed.
+    dismissedAt: null,
   };
 
   if (query.cursor) {
@@ -246,6 +248,7 @@ export const getUnreadCount = async (userId: string) => {
   const count = await Notification.countDocuments({
     userId: toObjectId(userId),
     readAt: null,
+    dismissedAt: null,
   });
 
   return { count };
@@ -301,6 +304,34 @@ export const markAllNotificationsRead = async (userId: string) => {
 
   return {
     markedRead: result.modifiedCount,
+    unreadCount,
+  };
+};
+
+// #173: swiping a feed row away hides it for good. Scoped to the owner — a
+// notification id that isn't the caller's is indistinguishable from one that
+// doesn't exist. Also marks it read so a hidden row can't hold the badge up.
+// Idempotent: dismissing an already-dismissed notification is a no-op success.
+export const dismissNotification = async (userId: string, notificationId: string) => {
+  const notification = await Notification.findOne({
+    _id: toObjectId(notificationId),
+    userId: toObjectId(userId),
+  });
+
+  if (!notification) {
+    throw new AppError("Notification not found", 404, "NOTIFICATION_NOT_FOUND");
+  }
+
+  const now = new Date();
+  if (!notification.dismissedAt) notification.dismissedAt = now;
+  if (!notification.readAt) notification.readAt = now;
+  if (notification.isModified()) await notification.save();
+
+  const { count: unreadCount } = await getUnreadCount(userId);
+
+  return {
+    _id: String(notification._id),
+    dismissedAt: toIso(notification.dismissedAt),
     unreadCount,
   };
 };
