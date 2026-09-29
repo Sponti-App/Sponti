@@ -198,10 +198,12 @@ export function NotificationsSheet({
         {/* Docked on the nav rather than over it. The cap is measured against
             the visible viewport (--sponti-vvh, see use-viewport-metrics) so
             the top stays within thumb reach on iOS Safari, where `vh` is the
-            large viewport. */}
+            large viewport. `after:hidden` turns off the ::after vaul adds to
+            hide the gap under a dragged sheet: it extends the background 200%
+            below the sheet, which would paint straight over the nav. */}
         <Drawer.Content
           ref={setSheetEl}
-          className="fixed inset-x-0 bottom-[var(--sponti-nav-h,64px)] z-50 flex max-h-[calc(0.7*var(--sponti-vvh,100vh)-var(--sponti-nav-h,64px))] flex-col rounded-t-3xl bg-background shadow-(--shadow-sheet) outline-none"
+          className="fixed inset-x-0 bottom-[var(--sponti-nav-h,64px)] z-50 flex after:hidden max-h-[calc(0.7*var(--sponti-vvh,100vh)-var(--sponti-nav-h,64px))] flex-col rounded-t-3xl bg-background shadow-(--shadow-sheet) outline-none"
         >
           {/* Drag handle — vaul attaches its gesture here automatically */}
           <div className="mx-auto mt-3 mb-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30" />

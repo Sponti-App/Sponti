@@ -31,7 +31,7 @@ export function BottomNav({
   onOpenNotifications,
   notificationsUnread = 0,
 }: {
-  // AuthenticatedAppShell owns the feed popover. The fallback keeps isolated
+  // AuthenticatedAppShell owns the notifications sheet. The fallback keeps isolated
   // story/test renders useful if no shell handler is supplied.
   onOpenNotifications?: () => void
   notificationsUnread?: number
