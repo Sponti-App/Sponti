@@ -428,7 +428,7 @@ export function CalendarView({
               <>
                 <button
                   type="button"
-                  onClick={openDrawer}
+                  onClick={() => openDrawer()}
                   className="mt-3 flex w-full items-center gap-3 rounded-xl bg-card px-4 py-3 text-left transition-colors hover:bg-secondary"
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">

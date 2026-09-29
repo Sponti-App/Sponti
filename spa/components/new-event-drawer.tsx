@@ -70,6 +70,7 @@ type PlaceDetailsResponse = {
 }
 
 const STEP_MIN = 15
+const TITLE_MAX_LENGTH = 80
 const MAX_DURATION_MIN = 240
 const MIN_DURATION_MIN = 15
 const SCHEDULED_MAX_DAYS = 14
@@ -380,9 +381,39 @@ type EventDraftStateDefaults = {
   submitError: string | null
 }
 
-function getInitialEventDraftState(): EventDraftStateDefaults {
+// What a caller can hand to `openDrawer(prefill)` to start a flare "for"
+// something: a place, an idea, a category. Everything else stays at defaults
+// so the person only picks time and audience.
+export type ComposerPrefill = {
+  title?: string
+  // Lands as a manual pick, so title inference never overwrites it.
+  category?: EventType
+  // Lands as a picked place, as if it had been searched and selected.
+  place?: DraftEventLocation
+}
+
+// `openDrawer` is also wired straight to onClick handlers, which hand it the
+// click event. Keep only the fields we know, and treat "nothing usable" as no
+// prefill so those callers open the composer exactly as before.
+export function normalizePrefill(input: unknown): ComposerPrefill | null {
+  if (!input || typeof input !== "object") return null
+  const { title, category, place } = input as Record<string, unknown>
+  const prefill: ComposerPrefill = {}
+  if (typeof title === "string" && title.trim()) prefill.title = title
+  if (EVENT_TYPES.some((t) => t.value === category)) {
+    prefill.category = category as EventType
+  }
+  if (place && typeof place === "object") {
+    prefill.place = place as DraftEventLocation
+  }
+  return Object.keys(prefill).length > 0 ? prefill : null
+}
+
+export function getInitialEventDraftState(
+  prefill?: ComposerPrefill | null
+): EventDraftStateDefaults {
   // Keep wall-clock defaults in a factory so reset uses "today" at reset time.
-  return {
+  const defaults: EventDraftStateDefaults = {
     mode: "now",
     eventType: null,
     typeOverrideOpen: false,
@@ -411,14 +442,30 @@ function getInitialEventDraftState(): EventDraftStateDefaults {
     allowPlusOne: false,
     submitError: null,
   }
+  if (!prefill) return defaults
+  const { place } = prefill
+  return {
+    ...defaults,
+    title: prefill.title?.slice(0, TITLE_MAX_LENGTH) ?? defaults.title,
+    eventType: prefill.category ?? defaults.eventType,
+    ...(place && {
+      whereType: "search" as const,
+      searchQuery: place.name,
+      pickedSearchAddress: place.name,
+      selectedLocation: place,
+    }),
+  }
 }
 
 export function NewEventDrawer({
   open,
   onClose,
+  prefill = null,
 }: {
   open: boolean
   onClose: () => void
+  // Applied each time the drawer opens with one; it replaces any unsent draft.
+  prefill?: ComposerPrefill | null
 }) {
   const { user, status } = useAuth()
   const { showActionFeedback } = useActionFeedback()
@@ -663,53 +710,71 @@ export function NewEventDrawer({
   const [audiencePromptDismissed, setAudiencePromptDismissed] = useState(false)
   const audiencePromptRef = useRef<HTMLDivElement>(null)
 
-  const resetEventDraft = useCallback((): void => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
-      debounceRef.current = null
-    }
+  const resetEventDraft = useCallback(
+    (next?: ComposerPrefill): void => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+        debounceRef.current = null
+      }
 
-    const initialState = getInitialEventDraftState()
-    placesSearchRequestRef.current += 1
-    placeDetailsRequestRef.current += 1
-    setExpandedSection(null)
-    setActiveSnap(SNAP_PEEK)
-    setAudiencePromptDismissed(false)
-    setMode(initialState.mode)
-    setEventType(initialState.eventType)
-    setTypeOverrideOpen(initialState.typeOverrideOpen)
-    setTitle(initialState.title)
-    setDetailsExpanded(initialState.detailsExpanded)
-    setDetails(initialState.details)
-    setStartOffsetMin(initialState.startOffsetMin)
-    setEndOffsetMin(initialState.endOffsetMin)
-    setStartDate(initialState.startDate)
-    setStartTimeMin(initialState.startTimeMin)
-    setEndTimeMin(initialState.endTimeMin)
-    setWhereType(initialState.whereType)
-    setSearchQuery(initialState.searchQuery)
-    setPickedSearchAddress(initialState.pickedSearchAddress)
-    setSelectedLocation(initialState.selectedLocation)
-    setPlaceResults(initialState.placeResults)
-    setPlacesLoading(initialState.placesLoading)
-    setPlaceDetailsLoading(initialState.placeDetailsLoading)
-    setPlaceDetailsError(initialState.placeDetailsError)
-    setGuestLimit(initialState.guestLimit)
-    setDirectlyInvitedIds(initialState.directlyInvitedIds)
-    setEditingCircleId(initialState.editingCircleId)
-    setAllowForward(initialState.allowForward)
-    setAllowPlusOne(initialState.allowPlusOne)
-    setSubmitError(initialState.submitError)
-    audienceTouchedRef.current = false
-    if (connections.length === 0) {
-      setIsOpen(true)
-      setAudience(initialState.audience)
-    } else {
-      setIsOpen(false)
-      const allCircle = circles.find((c) => c.type === "all")
-      setAudience(allCircle?.id ?? initialState.audience)
+      const initialState = getInitialEventDraftState(next)
+      placesSearchRequestRef.current += 1
+      placeDetailsRequestRef.current += 1
+      setExpandedSection(null)
+      setActiveSnap(SNAP_PEEK)
+      setAudiencePromptDismissed(false)
+      setMode(initialState.mode)
+      setEventType(initialState.eventType)
+      setTypeOverrideOpen(initialState.typeOverrideOpen)
+      setTitle(initialState.title)
+      setDetailsExpanded(initialState.detailsExpanded)
+      setDetails(initialState.details)
+      setStartOffsetMin(initialState.startOffsetMin)
+      setEndOffsetMin(initialState.endOffsetMin)
+      setStartDate(initialState.startDate)
+      setStartTimeMin(initialState.startTimeMin)
+      setEndTimeMin(initialState.endTimeMin)
+      setWhereType(initialState.whereType)
+      setSearchQuery(initialState.searchQuery)
+      setPickedSearchAddress(initialState.pickedSearchAddress)
+      setSelectedLocation(initialState.selectedLocation)
+      setPlaceResults(initialState.placeResults)
+      setPlacesLoading(initialState.placesLoading)
+      setPlaceDetailsLoading(initialState.placeDetailsLoading)
+      setPlaceDetailsError(initialState.placeDetailsError)
+      setGuestLimit(initialState.guestLimit)
+      setDirectlyInvitedIds(initialState.directlyInvitedIds)
+      setEditingCircleId(initialState.editingCircleId)
+      setAllowForward(initialState.allowForward)
+      setAllowPlusOne(initialState.allowPlusOne)
+      setSubmitError(initialState.submitError)
+      audienceTouchedRef.current = false
+      if (connections.length === 0) {
+        setIsOpen(true)
+        setAudience(initialState.audience)
+      } else {
+        setIsOpen(false)
+        const allCircle = circles.find((c) => c.type === "all")
+        setAudience(allCircle?.id ?? initialState.audience)
+      }
+    },
+    [circles, connections]
+  )
+
+  // The drawer stays mounted, so its state is initialised once; a prefill has
+  // to be applied on every open. It replaces any unsent draft: the person
+  // tapped a shortcut for something specific. The ref makes it once per open
+  // (resetEventDraft changes identity as friends and circles load).
+  const appliedPrefillRef = useRef<ComposerPrefill | null>(null)
+  useEffect(() => {
+    if (!open) {
+      appliedPrefillRef.current = null
+      return
     }
-  }, [circles, connections])
+    if (!prefill || appliedPrefillRef.current === prefill) return
+    appliedPrefillRef.current = prefill
+    resetEventDraft(prefill)
+  }, [open, prefill, resetEventDraft])
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -1350,12 +1415,14 @@ export function NewEventDrawer({
               {/* Title input — hero of the compose card */}
               <Input
                 value={title}
-                onChange={(e) => setTitle(e.target.value.slice(0, 80))}
+                onChange={(e) =>
+                  setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))
+                }
                 placeholder="what's the plan? e.g. drinks after work"
               />
               {title.length > 60 && (
                 <p className="mt-1 text-right text-xs text-muted-foreground">
-                  {80 - title.length} left
+                  {TITLE_MAX_LENGTH - title.length} left
                 </p>
               )}
               <TypeInlineIndicator
