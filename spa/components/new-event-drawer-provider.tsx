@@ -1,11 +1,17 @@
 "use client"
 
 import { createContext, useCallback, useContext, useState } from "react"
-import { NewEventDrawer } from "@/components/new-event-drawer"
+import {
+  NewEventDrawer,
+  normalizePrefill,
+  type ComposerPrefill,
+} from "@/components/new-event-drawer"
 
 type NewEventDrawerContextValue = {
   open: boolean
-  openDrawer: () => void
+  // With a prefill the composer opens with those fields filled in, replacing
+  // any unsent draft. Without one it opens as it was left.
+  openDrawer: (prefill?: ComposerPrefill) => void
   closeDrawer: () => void
 }
 
@@ -19,13 +25,17 @@ export function NewEventDrawerProvider({
   children: React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
-  const openDrawer = useCallback(() => setOpen(true), [])
+  const [prefill, setPrefill] = useState<ComposerPrefill | null>(null)
+  const openDrawer = useCallback((next?: ComposerPrefill) => {
+    setPrefill(normalizePrefill(next))
+    setOpen(true)
+  }, [])
   const closeDrawer = useCallback(() => setOpen(false), [])
 
   return (
     <NewEventDrawerContext.Provider value={{ open, openDrawer, closeDrawer }}>
       {children}
-      <NewEventDrawer open={open} onClose={closeDrawer} />
+      <NewEventDrawer open={open} onClose={closeDrawer} prefill={prefill} />
     </NewEventDrawerContext.Provider>
   )
 }

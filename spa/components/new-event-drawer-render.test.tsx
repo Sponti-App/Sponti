@@ -55,6 +55,10 @@ vi.mock("@/lib/haptics", () => ({
 }))
 
 import { NewEventDrawer } from "./new-event-drawer"
+import {
+  NewEventDrawerProvider,
+  useNewEventDrawer,
+} from "./new-event-drawer-provider"
 
 describe("NewEventDrawer render", () => {
   // #134: the composer stays mounted, so it used to load friends once at
@@ -325,5 +329,115 @@ describe("NewEventDrawer no-friends audience prompt", () => {
     await renderWithEmptyAudience()
     await user.click(screen.getByText(PROMPT))
     expect(screen.getByText(PROMPT)).toBeInTheDocument()
+  })
+})
+
+// #241: the composer stays mounted under the provider and initialises its
+// state once, so a prefill has to land each time the drawer opens.
+describe("NewEventDrawer prefill", () => {
+  const humboldthain = {
+    source: "place" as const,
+    name: "humboldthain",
+    address: "brunnenstrasse, berlin",
+    placeId: "p1",
+    coordinates: [13.38, 52.55] as [number, number],
+  }
+
+  it("opens with title, category and place filled in, then replaces the draft on the next open", async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <NewEventDrawer open={false} onClose={vi.fn()} />
+    )
+
+    rerender(
+      <NewEventDrawer
+        open
+        onClose={vi.fn()}
+        prefill={{
+          title: "roses at humboldthain",
+          category: "hangout",
+          place: humboldthain,
+        }}
+      />
+    )
+    expect(
+      await screen.findByDisplayValue("roses at humboldthain")
+    ).toBeVisible()
+    expect(screen.getByText(/type · hang out/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /humboldthain/i })).toBeVisible()
+    // A manual pick: it can be reset, and the "auto" tag is not shown.
+    expect(screen.queryByText("(auto)")).not.toBeInTheDocument()
+
+    // Type over the prefill, close, and open again with a different one.
+    await user.type(screen.getByDisplayValue(/roses/), " and more")
+    rerender(<NewEventDrawer open={false} onClose={vi.fn()} />)
+    rerender(
+      <NewEventDrawer open onClose={vi.fn()} prefill={{ category: "drinks" }} />
+    )
+    await waitFor(() =>
+      expect(screen.getByText(/type · drinks/i)).toBeInTheDocument()
+    )
+    expect(screen.getByPlaceholderText(/what's the plan/i)).toHaveValue("")
+    expect(screen.getByRole("button", { name: /my location/i })).toBeVisible()
+  })
+
+  it("does not reapply the prefill over edits when friends and circles load", async () => {
+    const user = userEvent.setup()
+    let resolveCircles: (circles: never[]) => void = () => undefined
+    mocks.fetchMyCircles.mockReturnValueOnce(
+      new Promise<never[]>((resolve) => {
+        resolveCircles = resolve
+      })
+    )
+    render(
+      <NewEventDrawer open onClose={vi.fn()} prefill={{ title: "roses" }} />
+    )
+    await user.type(await screen.findByDisplayValue("roses"), "!")
+
+    // The late load changes what resetEventDraft closes over; the effect must
+    // not read that as a fresh open.
+    resolveCircles([])
+    await waitFor(() => expect(mocks.fetchMyCircles).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 0))
+    expect(screen.getByDisplayValue("roses!")).toBeInTheDocument()
+  })
+
+  it("keeps an unsent draft when it opens without a prefill", async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<NewEventDrawer open onClose={vi.fn()} />)
+    await user.type(screen.getByPlaceholderText(/what's the plan/i), "picnic")
+    rerender(<NewEventDrawer open={false} onClose={vi.fn()} />)
+    rerender(<NewEventDrawer open onClose={vi.fn()} />)
+    expect(screen.getByDisplayValue("picnic")).toBeInTheDocument()
+  })
+})
+
+describe("NewEventDrawerProvider openDrawer", () => {
+  function Triggers() {
+    const { openDrawer, closeDrawer } = useNewEventDrawer()
+    return (
+      <>
+        <button onClick={() => openDrawer({ title: "roses" })}>with</button>
+        {/* Wired straight to onClick, as the nav flare button is (there it
+            goes through a `() => void` type, hence the cast). */}
+        <button onClick={openDrawer as () => void}>plain</button>
+        <button onClick={closeDrawer}>close</button>
+      </>
+    )
+  }
+
+  it("prefills on open, and a bare click handler keeps the unsent draft", async () => {
+    const user = userEvent.setup()
+    render(
+      <NewEventDrawerProvider>
+        <Triggers />
+      </NewEventDrawerProvider>
+    )
+    await user.click(screen.getByText("with"))
+    const input = await screen.findByDisplayValue("roses")
+    await user.type(input, "!")
+    await user.click(screen.getByText("close"))
+    await user.click(screen.getByText("plain"))
+    expect(await screen.findByDisplayValue("roses!")).toBeInTheDocument()
   })
 })

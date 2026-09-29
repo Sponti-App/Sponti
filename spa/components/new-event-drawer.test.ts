@@ -7,6 +7,8 @@ import {
   resolveEventType,
   buildTimeRange,
   successToastForStart,
+  getInitialEventDraftState,
+  normalizePrefill,
 } from "./new-event-drawer"
 import { visibleSlotHeight } from "@/lib/use-sheet-visible-height"
 
@@ -281,5 +283,89 @@ describe("successToastForStart", () => {
     expect(successToastForStart(startAt, createdAt)).toBe(
       "on your calendar now, on the map on the day"
     )
+  })
+})
+
+// #241: openDrawer(prefill) starts a flare "for" a place, idea or category.
+describe("getInitialEventDraftState with a prefill", () => {
+  const place = {
+    source: "place" as const,
+    name: "humboldthain",
+    address: "brunnenstrasse, berlin",
+    placeId: "p1",
+    coordinates: [13.38, 52.55] as [number, number],
+  }
+
+  it("matches the empty draft when there is no prefill", () => {
+    const { startDate: a, ...empty } = getInitialEventDraftState()
+    const { startDate: b, ...none } = getInitialEventDraftState(null)
+    expect(none).toEqual(empty)
+    expect(a).toBe(b)
+  })
+
+  it("fills title, category and place and leaves time and audience alone", () => {
+    const empty = getInitialEventDraftState()
+    const draft = getInitialEventDraftState({
+      title: "roses at humboldthain",
+      category: "hangout",
+      place,
+    })
+    expect(draft.title).toBe("roses at humboldthain")
+    expect(draft.eventType).toBe("hangout")
+    expect(draft.whereType).toBe("search")
+    expect(draft.selectedLocation).toEqual(place)
+    expect(draft.searchQuery).toBe("humboldthain")
+    expect(draft.pickedSearchAddress).toBe("humboldthain")
+    expect(draft.mode).toBe(empty.mode)
+    expect(draft.startOffsetMin).toBe(empty.startOffsetMin)
+    expect(draft.endOffsetMin).toBe(empty.endOffsetMin)
+    expect(draft.audience).toBe(empty.audience)
+  })
+
+  it("sets only the category and leaves title and place empty", () => {
+    const draft = getInitialEventDraftState({ category: "drinks" })
+    expect(draft.eventType).toBe("drinks")
+    expect(draft.title).toBe("")
+    expect(draft.whereType).toBe("current")
+    expect(draft.selectedLocation).toBeNull()
+    expect(draft.searchQuery).toBe("")
+  })
+
+  // The prefilled category is a manual pick, so title inference can't win.
+  it("keeps the prefilled category over what the title would infer", () => {
+    const draft = getInitialEventDraftState({
+      title: "beers in the park",
+      category: "sports",
+    })
+    expect(inferEventType(draft.title)).not.toBe("sports")
+    expect(resolveEventType(draft.eventType, inferEventType(draft.title))).toBe(
+      "sports"
+    )
+  })
+
+  it("caps the title at the composer's 80 characters", () => {
+    expect(
+      getInitialEventDraftState({ title: "x".repeat(120) }).title
+    ).toHaveLength(80)
+  })
+})
+
+describe("normalizePrefill", () => {
+  it("passes a valid prefill through", () => {
+    expect(normalizePrefill({ title: "drinks", category: "drinks" })).toEqual({
+      title: "drinks",
+      category: "drinks",
+    })
+  })
+
+  // openDrawer is wired straight to onClick in places, so it can receive a
+  // click event; that must read as "no prefill" and not wipe the draft.
+  it("treats nothing usable as no prefill", () => {
+    expect(normalizePrefill(undefined)).toBeNull()
+    expect(normalizePrefill(null)).toBeNull()
+    expect(normalizePrefill({})).toBeNull()
+    expect(normalizePrefill({ title: "  " })).toBeNull()
+    expect(normalizePrefill({ category: "not-a-category" })).toBeNull()
+    expect(normalizePrefill(new MouseEvent("click"))).toBeNull()
   })
 })
