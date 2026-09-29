@@ -6,6 +6,8 @@ import { usePathname, useRouter } from "next/navigation"
 import { useMyFlares } from "@/lib/use-events"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { haptic } from "@/lib/haptics"
+import { useSuggestedFlareType } from "@/lib/suggested-flare-type"
+import { EVENT_TYPES } from "@/types/utils"
 
 type NavItem =
   | {
@@ -42,6 +44,15 @@ export function BottomNav({
   // Badge counts hosted-by-me + invited so users see a heads-up when there's
   // something waiting in the hub (a new invitation, a flare they're hosting).
   const flaresBadge = activeHosted.length + invited.length
+  // On the home map, the flare button takes the icon of the type the map is
+  // suggesting (one type chip on, nothing live of that type, #223). The map
+  // resets it when it unmounts; the pathname check is a second guard so no
+  // other screen ever shows a type icon.
+  const suggestedType = useSuggestedFlareType()
+  const flareIcon =
+    (pathname === "/" &&
+      EVENT_TYPES.find((t) => t.value === suggestedType)?.icon) ||
+    Flame
 
   const items: NavItem[] = [
     { kind: "route", icon: Home, label: "Home", href: "/" },
@@ -54,9 +65,9 @@ export function BottomNav({
     },
     {
       kind: "action",
-      icon: Flame,
+      icon: flareIcon,
       label: "flare",
-      onClick: openDrawer,
+      onClick: () => openDrawer(),
       center: true,
     },
     { kind: "route", icon: Users, label: "Circles", href: "/circles" },
@@ -82,11 +93,15 @@ export function BottomNav({
     const write = () =>
       document.documentElement.style.setProperty(
         "--sponti-nav-h",
-        `${el.offsetHeight}px`,
+        `${el.offsetHeight}px`
       )
     write()
     const ro = new ResizeObserver(write)
-    ro.observe(el)
+    // Border box, not the default content box: when Safari collapses its
+    // toolbars only env(safe-area-inset-bottom) changes, i.e. the nav's
+    // padding, so a content-box observer never fires and the variable goes
+    // stale by the inset (#223).
+    ro.observe(el, { box: "border-box" })
     return () => ro.disconnect()
   }, [])
 
@@ -97,16 +112,29 @@ export function BottomNav({
       className="flex items-end justify-around border-t border-border bg-background px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
     >
       {items.map((item) => {
+        if (item.center && item.kind === "action") {
+          return (
+            <NavFlareButton
+              key={item.label}
+              icon={item.icon}
+              label={item.label}
+              onClick={() => {
+                haptic("medium")
+                item.onClick()
+              }}
+            />
+          )
+        }
         const Icon = item.icon
         const active = item.kind === "route" && isActive(item.href)
         const handleClick =
           item.kind === "route"
             ? () => {
-                haptic(item.center ? "medium" : "selection")
+                haptic("selection")
                 router.push(item.href)
               }
             : () => {
-                haptic(item.center ? "medium" : "selection")
+                haptic("selection")
                 item.onClick()
               }
 
@@ -116,7 +144,7 @@ export function BottomNav({
             type="button"
             onClick={handleClick}
             aria-label={item.label}
-            className={`relative flex min-h-11 min-w-11 max-w-20 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-xs font-medium active:scale-95 active:opacity-80 ${
+            className={`relative flex min-h-11 max-w-20 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-xs font-medium active:scale-95 active:opacity-80 ${
               active
                 ? "text-accent [&_svg]:fill-current"
                 : "text-muted-foreground hover:text-foreground"
@@ -134,5 +162,38 @@ export function BottomNav({
         )
       })}
     </nav>
+  )
+}
+
+/**
+ * The nav's main "light a flare" button: a peach circle with a ring around
+ * it. Sized to stay inside the bar: the circle (44px) plus its ring fits the
+ * other items' height, so it never pokes above the nav's top border (#223).
+ * `icon` defaults to the flame and can be swapped, e.g. for a flare type's
+ * icon when the home map suggests that type.
+ */
+export function NavFlareButton({
+  icon: Icon = Flame,
+  label = "flare",
+  onClick,
+}: {
+  icon?: typeof Home
+  label?: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="flex min-h-11 max-w-20 min-w-11 flex-1 items-center justify-center self-stretch active:scale-95 active:opacity-80"
+    >
+      <span
+        data-nav-flare-circle
+        className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-foreground ring-2 ring-accent/35 ring-offset-2 ring-offset-background"
+      >
+        <Icon className="h-6 w-6" />
+      </span>
+    </button>
   )
 }
