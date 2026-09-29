@@ -4,7 +4,7 @@
 
 Notifications are Sponti's in-app activity feed for social actions that need a lightweight heads-up: event invitations, event status changes, connection requests, connection acceptances, and RSVP changes on hosted events.
 
-They appear in the frontend notification popover opened from the bottom navigation Feed button. The unread bubble on that button shows the backend unread count. The popover itself is a chronological mixed feed of read and unread notifications, not an unread-only inbox.
+They appear in the frontend notification bottom sheet opened from the bottom navigation Feed button. The unread bubble on that button shows the backend unread count. The sheet itself is a chronological mixed feed of read and unread notifications, not an unread-only inbox.
 
 ## Notification Types
 
@@ -189,7 +189,7 @@ Expected response shape:
 }
 ```
 
-This endpoint returns all notifications, not just unread notifications, because the feed is a chronological history. Read and unread items must remain in order together, and opening the popover only marks fetched and displayed unread items as read.
+This endpoint returns all notifications, not just unread notifications, because the feed is a chronological history. Read and unread items must remain in order together, and opening the sheet only marks fetched and displayed unread items as read.
 
 ### `GET /notifications/unread-count`
 
@@ -236,10 +236,10 @@ Safeguards:
 
 ## Frontend Feed Behavior
 
-The feed should behave like a LinkedIn-style notification popover.
+The feed should behave like a LinkedIn-style notification feed.
 
 - The bottom-nav bubble shows the backend unread count.
-- Opening the popover loads the latest 10 total notifications.
+- Opening the sheet loads the latest 10 total notifications.
 - The feed mixes read and unread notifications chronologically, newest first.
 - Unread items are visually highlighted.
 - Once a fetched batch has been successfully shown, unread notifications from that batch are marked read with `PATCH /notifications/read-batch`.
@@ -250,7 +250,7 @@ The feed should behave like a LinkedIn-style notification popover.
 
 Example:
 
-If the user has 18 unread notifications, but only 8 of the latest 10 fetched notifications are unread, opening the popover marks only those 8 as read. The unread count drops from 18 to 10. The remaining unread notifications are marked read only if and when older chunks are fetched and shown.
+If the user has 18 unread notifications, but only 8 of the latest 10 fetched notifications are unread, opening the sheet marks only those 8 as read. The unread count drops from 18 to 10. The remaining unread notifications are marked read only if and when older chunks are fetched and shown.
 
 ## Frontend State / Cache Strategy
 
@@ -269,7 +269,7 @@ Recommended strategy:
 - When a read-batch succeeds, update local feed items with `readAt` and update the unread count from the response.
 - If the backend does not return a count from read-batch, refetch `GET /notifications/unread-count`.
 - Keep the feed and badge synced through the same hook/cache instead of separate local state.
-- `AuthenticatedAppShell` should be the only app-level owner of `BottomNav`, the notification popover, and the unread-count prop passed into the badge. Individual pages should not mount their own notification feed state.
+- `AuthenticatedAppShell` should be the only app-level owner of `BottomNav`, the notification sheet, and the unread-count prop passed into the badge. Individual pages should not mount their own notification feed state.
 
 ## Navigation Behavior
 
@@ -315,7 +315,7 @@ Backend coverage should include:
 Frontend coverage should include:
 
 - The unread bubble uses backend unread count.
-- Opening the popover fetches only the latest 10 notifications.
+- Opening the sheet fetches only the latest 10 notifications.
 - Read and unread notifications render together newest first.
 - Unread items render with distinct styling before read-batch state updates.
 - Read-batch sends only unread IDs from the fetched and displayed batch.

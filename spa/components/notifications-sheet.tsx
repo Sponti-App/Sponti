@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { Drawer } from "vaul"
 import {
   Bell,
   Check,
@@ -17,6 +18,18 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { formatRelative, type Notification } from "@/lib/notifications"
+import { haptic } from "@/lib/haptics"
+
+// Published on <html> while the sheet is open: the distance from the viewport
+// bottom to the top of the sheet, so the action-feedback toast sits above it
+// instead of on top of it (#112). Same contract the map view writes (see
+// bottomOccupiedCss in map-view.tsx).
+const BOTTOM_OCCUPIED_VAR = "--sponti-bottom-occupied"
+
+export function sheetBottomOccupiedCss(sheetHeightPx: number): string {
+  // The sheet sits directly on the nav, so both are docked at the bottom.
+  return `calc(var(--sponti-nav-h, 64px) + ${sheetHeightPx}px)`
+}
 
 type Visual = {
   icon: LucideIcon
@@ -82,12 +95,23 @@ export function NotificationsSheet({
   onNotificationClick?: (notification: Notification) => void
   onMarkAllRead?: () => void
 }) {
-  const scrollRef = useRef<HTMLUListElement | null>(null)
-  const sentinelRef = useRef<HTMLLIElement | null>(null)
+  // The sheet's content mounts a render after `open` flips (vaul portals it),
+  // so these are state rather than refs: the effects below have to re-run
+  // once the elements actually exist.
+  const [sheetEl, setSheetEl] = useState<HTMLDivElement | null>(null)
+  const [scrollEl, setScrollEl] = useState<HTMLUListElement | null>(null)
+  const [sentinelEl, setSentinelEl] = useState<HTMLLIElement | null>(null)
   // Lets the user peek at the collapsed feed again without waiting for a new
   // notification to arrive. Local and ephemeral: it resets on close so the
   // feed shows caught-up again the next time there's nothing new (#176).
   const [manuallyExpanded, setManuallyExpanded] = useState(false)
+
+  // Haptic on open, like the event detail sheet.
+  const prevOpen = useRef(false)
+  useEffect(() => {
+    if (open && !prevOpen.current) haptic("light")
+    prevOpen.current = open
+  }, [open])
 
   useEffect(() => {
     if (open) return
@@ -98,10 +122,7 @@ export function NotificationsSheet({
   }, [open])
 
   useEffect(() => {
-    if (!open || !hasMore || !onLoadMore) return
-    const root = scrollRef.current
-    const sentinel = sentinelRef.current
-    if (!root || !sentinel) return
+    if (!open || !hasMore || !onLoadMore || !scrollEl || !sentinelEl) return
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -109,12 +130,34 @@ export function NotificationsSheet({
           onLoadMore()
         }
       },
-      { root, rootMargin: "80px 0px", threshold: 0.1 }
+      { root: scrollEl, rootMargin: "80px 0px", threshold: 0.1 }
     )
 
-    observer.observe(sentinel)
+    observer.observe(sentinelEl)
     return () => observer.disconnect()
-  }, [open, hasMore, onLoadMore, notifications.length])
+  }, [open, hasMore, onLoadMore, notifications.length, scrollEl, sentinelEl])
+
+  // Keep the toast above the sheet while it is open (#112). The map view is
+  // the other writer of this variable; put back whatever it had on close.
+  useEffect(() => {
+    if (!open || !sheetEl) return
+    const root = document.documentElement
+    const previous = root.style.getPropertyValue(BOTTOM_OCCUPIED_VAR)
+    const write = () =>
+      root.style.setProperty(
+        BOTTOM_OCCUPIED_VAR,
+        sheetBottomOccupiedCss(sheetEl.offsetHeight)
+      )
+    write()
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(write)
+    observer?.observe(sheetEl)
+    return () => {
+      observer?.disconnect()
+      if (previous) root.style.setProperty(BOTTOM_OCCUPIED_VAR, previous)
+      else root.style.removeProperty(BOTTOM_OCCUPIED_VAR)
+    }
+  }, [open, sheetEl])
 
   // "I'm caught up" collapses the feed once everything loaded is no newer
   // than the moment it was tapped. A notification newer than that reopens it
@@ -136,154 +179,178 @@ export function NotificationsSheet({
   }
 
   return (
-    <>
-      <div
-        className={`fixed inset-0 z-40 transition-opacity duration-200 ${
-          open ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-        onClick={onClose}
-        aria-hidden="true"
-      />
+    <Drawer.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
+          haptic("light")
+          onClose()
+        }
+      }}
+      dismissible
+      // No inputs in the feed, and the sheet is pinned to the nav with CSS.
+      // Leaving vaul's keyboard repositioning on would let it write its own
+      // `bottom` over ours (see new-event-drawer.tsx).
+      repositionInputs={false}
+    >
+      <Drawer.Portal>
+        <Drawer.Overlay className="fixed inset-0 z-50 bg-foreground/30" />
+        {/* Docked on the nav rather than over it. The cap is measured against
+            the visible viewport (--sponti-vvh, see use-viewport-metrics) so
+            the top stays within thumb reach on iOS Safari, where `vh` is the
+            large viewport. */}
+        <Drawer.Content
+          ref={setSheetEl}
+          className="fixed inset-x-0 bottom-[var(--sponti-nav-h,64px)] z-50 flex max-h-[calc(0.7*var(--sponti-vvh,100vh)-var(--sponti-nav-h,64px))] flex-col rounded-t-3xl bg-background shadow-(--shadow-sheet) outline-none"
+        >
+          {/* Drag handle — vaul attaches its gesture here automatically */}
+          <div className="mx-auto mt-3 mb-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30" />
 
-      <div
-        className={`fixed right-3 bottom-[calc(var(--sponti-nav-h,64px)+1.5rem)] left-3 z-50 mx-auto max-w-90 origin-bottom overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-lg transition-all duration-200 ${
-          open
-            ? "scale-100 opacity-100"
-            : "pointer-events-none scale-95 opacity-0"
-        }`}
-        role="dialog"
-        aria-label="Notifications"
-        aria-hidden={!open}
-      >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-medium">notifications</h3>
-            {unreadCount > 0 && (
-              <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">
-                {unreadCount}
-              </span>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close notifications"
-            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-secondary"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-
-        {loading && notifications.length === 0 ? (
-          <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            loading
-          </div>
-        ) : notifications.length === 0 ? (
-          <div className="px-4 py-10 text-center">
-            <p className="text-sm text-muted-foreground">
-              no notifications yet
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              invites and rsvps will land here
-            </p>
-          </div>
-        ) : showCollapsed ? (
-          <div className="px-4 py-10 text-center">
-            <Check className="mx-auto h-5 w-5 text-accent" />
-            <p className="mt-2 text-sm font-medium">you&rsquo;re caught up</p>
+          <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 pt-1 pb-3">
+            <div className="flex items-center gap-2">
+              <Drawer.Title className="text-lg font-semibold">
+                notifications
+              </Drawer.Title>
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
             <button
               type="button"
-              onClick={() => setManuallyExpanded(true)}
-              className="mt-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              onClick={onClose}
+              aria-label="Close notifications"
+              className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted"
             >
-              show {notifications.length} earlier
-              <ChevronDown className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
-        ) : (
-          <ul
-            ref={scrollRef}
-            className="max-h-90 divide-y divide-border overflow-y-auto"
-          >
-            {notifications.map((notification) => {
-              const { icon: Icon, ring } = TYPE_VISUAL[notification.type]
-              return (
-                <li key={notification.id}>
-                  <button
-                    type="button"
-                    onClick={() => onNotificationClick?.(notification)}
-                    className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary active:bg-muted ${
-                      notification.read ? "" : "bg-accent/5"
-                    }`}
-                  >
-                    <div
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-background ${ring}`}
+          <Drawer.Description className="sr-only">
+            invites, rsvps and updates from your flares
+          </Drawer.Description>
+
+          {loading && notifications.length === 0 ? (
+            <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              loading
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="px-4 py-10 text-center">
+              <Bell className="mx-auto h-5 w-5 text-muted-foreground" />
+              <p className="mt-2 text-sm text-muted-foreground">
+                no notifications yet
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                invites and rsvps will land here
+              </p>
+            </div>
+          ) : showCollapsed ? (
+            <div className="px-4 py-10 text-center">
+              <Check className="mx-auto h-5 w-5 text-accent" />
+              <p className="mt-2 text-sm font-medium">you&rsquo;re caught up</p>
+              <button
+                type="button"
+                onClick={() => setManuallyExpanded(true)}
+                className="mt-3 inline-flex min-h-11 items-center gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                show {notifications.length} earlier
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            // The list scrolls on its own; without data-vaul-no-drag a scroll
+            // gesture would drag the whole sheet. Same as the event detail
+            // sheet, and it keeps row gestures (#173) free of vaul's drag.
+            <ul
+              ref={setScrollEl}
+              data-vaul-no-drag
+              className="min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto overscroll-contain"
+            >
+              {notifications.map((notification) => {
+                const { icon: Icon, ring } = TYPE_VISUAL[notification.type]
+                return (
+                  <li key={notification.id}>
+                    <button
+                      type="button"
+                      onClick={() => onNotificationClick?.(notification)}
+                      className={`flex min-h-14 w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted active:bg-muted ${
+                        notification.read ? "" : "bg-accent/5"
+                      }`}
                     >
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {notification.title}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {notification.subtitle}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      <span className="text-xs text-muted-foreground">
-                        {formatRelative(notification.createdAt)}
-                      </span>
-                      {!notification.read && (
-                        <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                      )}
-                    </div>
-                  </button>
-                </li>
-              )
-            })}
+                      <div
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-background ${ring}`}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={`truncate text-sm ${
+                            notification.read
+                              ? "text-muted-foreground"
+                              : "font-medium"
+                          }`}
+                        >
+                          {notification.title}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {notification.subtitle}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="text-xs text-muted-foreground">
+                          {formatRelative(notification.createdAt)}
+                        </span>
+                        {!notification.read && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                        )}
+                      </div>
+                    </button>
+                  </li>
+                )
+              })}
 
-            <li ref={sentinelRef}>
-              <div className="flex min-h-11 items-center justify-center px-4 py-3 text-xs text-muted-foreground">
-                {loadingMore ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    loading older
-                  </span>
-                ) : hasMore ? (
-                  <span>scroll for older</span>
-                ) : (
-                  <span>caught up</span>
-                )}
+              <li ref={setSentinelEl}>
+                <div className="flex min-h-11 items-center justify-center px-4 py-3 text-xs text-muted-foreground">
+                  {loadingMore ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      loading older
+                    </span>
+                  ) : hasMore ? (
+                    <span>scroll for older</span>
+                  ) : (
+                    <span>caught up</span>
+                  )}
+                </div>
+              </li>
+            </ul>
+          )}
+
+          {error && (
+            <div className="shrink-0 border-t border-border/60 px-4 py-3 text-xs text-destructive">
+              {error}
+            </div>
+          )}
+
+          {notifications.length > 0 &&
+            !hasMore &&
+            !loadingMore &&
+            !showCollapsed && (
+              <div className="shrink-0 border-t border-border/60 px-4 py-2">
+                <button
+                  type="button"
+                  onClick={handleMarkAllRead}
+                  aria-label="Mark all as seen"
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-full text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Check className="h-4 w-4" />
+                  mark all as seen
+                </button>
               </div>
-            </li>
-          </ul>
-        )}
-
-        {error && (
-          <div className="border-t border-border px-4 py-3 text-xs text-destructive">
-            {error}
-          </div>
-        )}
-
-        {notifications.length > 0 && !hasMore && !loadingMore && !showCollapsed && (
-          <div className="border-t border-border px-4 py-3 text-center">
-            <button
-              type="button"
-              onClick={handleMarkAllRead}
-              aria-label="Mark all as seen"
-              className="mx-auto flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
-            >
-              <Check className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-
-        {notifications.length === 0 && !loading && (
-          <div className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">
-            <Bell className="mx-auto h-4 w-4" />
-          </div>
-        )}
-      </div>
-    </>
+            )}
+        </Drawer.Content>
+      </Drawer.Portal>
+    </Drawer.Root>
   )
 }
