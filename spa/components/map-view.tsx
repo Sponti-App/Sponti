@@ -30,7 +30,9 @@ import {
   distanceFromUser,
   eventCoords,
   EventType,
+  formatDistance,
   formatRelativeStatus,
+  haversineMeters,
   isJoined,
   isLive,
   type EventItem,
@@ -43,8 +45,10 @@ import {
 import { useMapEvents } from "@/lib/use-events"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 import { setSuggestedFlareType } from "@/lib/suggested-flare-type"
+import { getIdeasNear, type FlareIdea } from "@/lib/flare-ideas"
 import { haptic } from "@/lib/haptics"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
+import type { ComposerPrefill } from "@/components/new-event-drawer"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
 import {
   FitBoundsOnce,
@@ -383,6 +387,35 @@ export function quietFlareType(
   return liveOfType ? null : type
 }
 
+// The idea shown on the quiet card (#243): the nearest idea of the selected
+// type within 2 km of where the map is centred, or null (generic card) when
+// there is none or the position is unknown. Same clock as the rest of the map.
+export function quietIdea(
+  center: GeoCoords | null,
+  type: EventType,
+  now: number
+): FlareIdea | null {
+  if (!center || now <= 0) return null
+  return (
+    getIdeasNear({ center, now: new Date(now), category: type, limit: 1 })[0] ??
+    null
+  )
+}
+
+// What the composer opens with when an idea is lit.
+export function ideaPrefill(idea: FlareIdea): ComposerPrefill {
+  return {
+    title: idea.title,
+    category: idea.category,
+    place: {
+      source: "place",
+      name: idea.place.name,
+      address: idea.place.address,
+      coordinates: [idea.place.lng, idea.place.lat],
+    },
+  }
+}
+
 // One-shot dev warning: AdvancedMarker silently renders nothing when the map
 // has no mapId. Surfacing this early saves a debugging session.
 let warnedNoMapId = false
@@ -556,6 +589,18 @@ export function MapView({
   }, [quietType])
   useEffect(() => () => setSuggestedFlareType(null), [])
 
+  // Keyed on the primitives so the pick only changes when the inputs do,
+  // not on every render (the position object is a fresh one per fix).
+  const centerLat = cameraCenter?.lat
+  const centerLng = cameraCenter?.lng
+  const idea = useMemo(
+    () =>
+      quietType && centerLat != null && centerLng != null
+        ? quietIdea({ lat: centerLat, lng: centerLng }, quietType, nowMs)
+        : null,
+    [quietType, centerLat, centerLng, nowMs]
+  )
+
   const showRail = dock === "mid" && !quietType
   const highlightId = showRail
     ? visibleEvents.some((e) => e.id === railFocusId)
@@ -583,9 +628,9 @@ export function MapView({
     setRailFocusId(null)
     setTimeFilter(next)
   }
-  const lightFlare = () => {
+  const lightFlare = (prefill?: ComposerPrefill) => {
     haptic("medium")
-    openDrawer()
+    openDrawer(prefill)
   }
 
   // ---- Routes API: compute route + ETA when activeRoute changes ----
@@ -843,7 +888,12 @@ export function MapView({
         )}
 
         {quietTypeInfo ? (
-          <QuietTypeCard type={quietTypeInfo} onLight={() => lightFlare()} />
+          <QuietFlareCard
+            type={quietTypeInfo}
+            idea={idea}
+            center={cameraCenter}
+            onLight={(prefill) => lightFlare(prefill)}
+          />
         ) : showRail ? (
           <div
             key={`${timeFilter}:${[...typeFilters].join(",")}`}
@@ -1655,41 +1705,66 @@ function RailPanel({
 }
 
 /**
- * The quiet-state card: one type chip on, nothing of that type live. For now
- * it is the generic type card and opens the composer as today; #243 turns it
- * into a pre-filled idea card.
+ * The quiet-state card: one type chip on, nothing of that type live. With an
+ * idea (#243) it names a real nearby place or moment and opens the composer
+ * filled with it; without one it is the generic type card, which opens the
+ * composer with just the category. Sized like a rail card, and the muted
+ * "idea" tag keeps it from reading as a real flare.
  */
-function QuietTypeCard({
+export function QuietFlareCard({
   type,
+  idea,
+  center,
   onLight,
 }: {
   type: (typeof EVENT_TYPES)[number]
-  onLight: () => void
+  idea: FlareIdea | null
+  center: GeoCoords | null
+  onLight: (prefill: ComposerPrefill) => void
 }) {
   const Icon = type.icon
+  const distance =
+    idea && center ? formatDistance(haversineMeters(center, idea.place)) : null
   return (
     <div
-      data-quiet-card
+      data-quiet-card={idea ? "idea" : "generic"}
       className="pointer-events-auto mx-3 flex flex-col gap-2 rounded-2xl border border-border bg-card p-3 shadow-(--shadow-card)"
     >
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-base font-semibold">up for {type.label}?</p>
-          <p className="text-xs text-muted-foreground">
-            start one and your circles will see it
+          <p
+            className={
+              idea
+                ? "line-clamp-2 font-medium text-foreground"
+                : "text-base font-semibold"
+            }
+          >
+            {idea ? idea.title : `up for ${type.label}?`}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {idea
+              ? [idea.place.name, distance].filter(Boolean).join(" · ")
+              : "start one and your circles will see it"}
           </p>
         </div>
+        {idea && (
+          <span className="shrink-0 self-start rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+            idea
+          </span>
+        )}
       </div>
       <button
         type="button"
-        onClick={onLight}
+        onClick={() =>
+          onLight(idea ? ideaPrefill(idea) : { category: type.value })
+        }
         className="flex h-9 items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground active:scale-[0.98]"
       >
         <Icon className="h-4 w-4" />
-        light a {type.label} flare
+        {idea ? "light a flare" : `light a ${type.label} flare`}
       </button>
     </div>
   )
