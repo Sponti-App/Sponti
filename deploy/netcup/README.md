@@ -26,6 +26,12 @@ sslip.io resolves `<name>.<ip-with-dashes>.sslip.io` to that IP, so there's no D
 
 ## Deploying
 
+**Automatic:** every merge into `dev` that touches `api/`, `auth-server/` or `deploy/netcup/` runs `.github/workflows/deploy-backends.yml`, which runs `deploy.sh` over SSH and then checks both `/health` URLs. You can also trigger it by hand from the Actions tab ("Deploy backends" → Run workflow). The server runs `DEPLOY_BRANCH=dev`.
+
+The workflow's key (`NETCUP_DEPLOY_KEY` repo secret) is restricted on the server: its `authorized_keys` line has `command="/opt/sponti/deploy/netcup/deploy.sh",restrict`, so it can only deploy. To rotate it, generate a new key, replace that line, and update the secret.
+
+**Manual:**
+
 ```sh
 ssh root@152.53.198.143 /opt/sponti/deploy/netcup/deploy.sh
 ```
