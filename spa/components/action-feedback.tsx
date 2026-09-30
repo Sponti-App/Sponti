@@ -15,14 +15,37 @@ import { cn } from "@/lib/utils"
 
 type ActionFeedbackTone = "success" | "error"
 
+export type ActionFeedbackAction = {
+  label: string
+  onAction: () => void
+}
+
 type ActionFeedbackMessage = {
   id: number
   tone: ActionFeedbackTone
   message: string
+  action?: ActionFeedbackAction
+  durationMs: number
 }
 
 type ShowActionFeedbackOptions = {
   tone?: ActionFeedbackTone
+  // An inline button on the toast, e.g. "undo" (#226). Tapping it runs the
+  // action and closes the toast.
+  action?: ActionFeedbackAction
+  // How long the toast stays up. Defaults to DEFAULT_DURATION_MS.
+  durationMs?: number
+}
+
+const DEFAULT_DURATION_MS = 2600
+
+// An open modal sheet (the notifications feed) treats any press outside it
+// as "close", from a pointerdown listener on the document. Pressing the
+// toast's action isn't that. React's own listeners also sit on the document
+// in this app, so a React stopPropagation is too late: stop the native
+// event on the button itself. Click still fires normally.
+function stopOutsidePress(element: HTMLButtonElement | null): void {
+  element?.addEventListener("pointerdown", (event) => event.stopPropagation())
 }
 
 type ActionFeedbackContextValue = {
@@ -48,7 +71,13 @@ export function ActionFeedbackProvider({
     (message: string, options: ShowActionFeedbackOptions = {}) => {
       const tone = options.tone ?? "success"
       nextId.current += 1
-      setCurrent({ id: nextId.current, tone, message })
+      setCurrent({
+        id: nextId.current,
+        tone,
+        message,
+        action: options.action,
+        durationMs: options.durationMs ?? DEFAULT_DURATION_MS,
+      })
       void haptic(tone === "success" ? "success" : "error")
     },
     []
@@ -56,7 +85,10 @@ export function ActionFeedbackProvider({
 
   useEffect(() => {
     if (!current) return
-    const timeout = window.setTimeout(() => setCurrent(null), 2600)
+    const timeout = window.setTimeout(
+      () => setCurrent(null),
+      current.durationMs
+    )
     return () => window.clearTimeout(timeout)
   }, [current])
 
@@ -69,10 +101,10 @@ export function ActionFeedbackProvider({
     <ActionFeedbackContext.Provider value={value}>
       {children}
       {/* Sits just above whatever is docked at the bottom of the screen: the
-          bottom nav everywhere, or the map sheet on the map view. The map
-          view is the only writer of --sponti-bottom-occupied (see
-          map-view.tsx); everywhere else it falls back to --sponti-nav-h,
-          which already includes the safe-area inset (#112). */}
+          bottom nav everywhere, or a sheet docked on it. The map view and the
+          notifications sheet write --sponti-bottom-occupied (see map-view.tsx
+          and notifications-sheet.tsx); everywhere else it falls back to
+          --sponti-nav-h, which already includes the safe-area inset (#112). */}
       <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--sponti-bottom-occupied,var(--sponti-nav-h,64px))+12px)] z-[70] flex justify-center px-4">
         {current && (
           <div
@@ -102,6 +134,22 @@ export function ActionFeedbackProvider({
               )}
             </span>
             <span className="truncate">{current.message}</span>
+            {current.action && (
+              <button
+                type="button"
+                ref={stopOutsidePress}
+                onClick={() => {
+                  const { onAction } = current.action!
+                  setCurrent(null)
+                  onAction()
+                }}
+                // The toast container ignores pointer events so it never
+                // blocks what's under it; the action button opts back in.
+                className="pointer-events-auto -my-1 -mr-2 ml-1 flex h-8 shrink-0 items-center rounded-full px-3 text-sm font-semibold text-foreground underline underline-offset-2 hover:bg-muted"
+              >
+                {current.action.label}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -117,4 +165,17 @@ export function useActionFeedback(): ActionFeedbackContextValue {
     )
   }
   return context
+}
+
+const noopActionFeedback: ActionFeedbackContextValue = {
+  showActionFeedback: () => undefined,
+}
+
+/**
+ * Like useActionFeedback, but a silent no-op outside the provider. For
+ * leaf components that are also rendered on their own (in tests, or before
+ * the app shell mounts).
+ */
+export function useOptionalActionFeedback(): ActionFeedbackContextValue {
+  return useContext(ActionFeedbackContext) ?? noopActionFeedback
 }

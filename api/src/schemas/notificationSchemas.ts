@@ -14,5 +14,12 @@ export const readNotificationsBatchBodySchema = z
   })
   .strict();
 
+export const notificationIdParamSchema = z
+  .object({
+    id: objectIdSchema,
+  })
+  .strict();
+
 export type GetNotificationsQuery = z.infer<typeof getNotificationsQuerySchema>;
 export type ReadNotificationsBatchBody = z.infer<typeof readNotificationsBatchBodySchema>;
+export type NotificationIdParam = z.infer<typeof notificationIdParamSchema>;

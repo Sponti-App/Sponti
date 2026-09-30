@@ -80,6 +80,18 @@ test.describe("notifications sheet (#137)", () => {
       Math.abs(sheetBox.y + sheetBox.height - navBox.y)
     ).toBeLessThanOrEqual(1)
 
+    // The box being flush isn't enough: vaul paints a `::after` that extends
+    // the sheet's background 200% below it, which lands on the nav. What is
+    // hit at the nav's centre must be the nav, not the sheet or the scrim.
+    const hitsNav = await nav.evaluate((el, box) => {
+      const hit = document.elementFromPoint(
+        box.x + box.width / 2,
+        box.y + box.height / 2
+      )
+      return hit ? el.contains(hit) : false
+    }, navBox)
+    expect(hitsNav).toBe(true)
+
     // Same top radius the other sheets get from `rounded-t-3xl`.
     const [radius, referenceRadius] = await Promise.all([
       sheet.evaluate((el) => getComputedStyle(el).borderTopLeftRadius),
@@ -98,6 +110,62 @@ test.describe("notifications sheet (#137)", () => {
       page.getByRole("heading", { name: "notifications" })
     ).toBeVisible()
     await expect(page.getByText("maya invited you 0")).toBeVisible()
+  })
+
+  test("leaves the nav lit and tappable: other items navigate, the feed item closes it", async ({
+    page,
+  }) => {
+    await stubFeed(page, 3)
+    const { nav, sheet } = await openFeed(page)
+
+    // The scrim stops above the nav, so the nav isn't dimmed.
+    const scrim = page.locator("[data-vaul-overlay]")
+    const [scrimBox, navBox] = await Promise.all([
+      scrim.boundingBox(),
+      nav.boundingBox(),
+    ])
+    if (!scrimBox || !navBox) throw new Error("expected boxes")
+    expect(scrimBox.y + scrimBox.height).toBeLessThanOrEqual(navBox.y + 1)
+
+    // The feed button closes it again.
+    await nav.locator("button", { hasText: "feed" }).click()
+    await expect(sheet).toBeHidden()
+
+    // Another nav item goes there in one tap, and the sheet is gone.
+    await nav.locator("button", { hasText: "feed" }).click()
+    await expect(sheet).toBeVisible()
+    await nav.locator("button", { hasText: "circles" }).click()
+    await expect(page).toHaveURL(/\/circles/)
+    await expect(sheet).toBeHidden()
+  })
+
+  test("slides away behind the nav's top edge when it closes, never across the nav", async ({
+    page,
+  }) => {
+    await stubFeed(page, 3)
+    const { nav } = await openFeed(page)
+    const navBox = await nav.boundingBox()
+    if (!navBox) throw new Error("expected nav box")
+
+    // Sample every frame of the close animation: a point just inside the
+    // nav's top edge must never land on the sliding sheet.
+    const sampling = page.evaluate(
+      ({ x, y }) =>
+        new Promise<number>((resolve) => {
+          let sheetFrames = 0
+          const started = performance.now()
+          const tick = () => {
+            const hit = document.elementFromPoint(x, y)
+            if (hit?.closest("[data-vaul-drawer]")) sheetFrames++
+            if (performance.now() - started < 800) requestAnimationFrame(tick)
+            else resolve(sheetFrames)
+          }
+          requestAnimationFrame(tick)
+        }),
+      { x: navBox.x + navBox.width / 2, y: navBox.y + 4 }
+    )
+    await page.getByRole("button", { name: "Close notifications" }).click()
+    expect(await sampling).toBe(0)
   })
 
   test("caps its height so the top stays in thumb reach, and scrolls the list inside", async ({

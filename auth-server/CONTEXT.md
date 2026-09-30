@@ -9,7 +9,7 @@ The identity record: username, displayName, email, credentials, avatar, and iden
 _Avoid_: Account, profile (the profile is the user's public-facing view, not a separate entity).
 
 **Profile visibility**:
-A user's discoverability setting, `public` or `private`. **Private means discovery-only exclusion**: a private user is omitted from user search, but is still viewable by accepted connections or anyone with their direct link/username. It does not make the profile unreachable.
+A user's discoverability setting, `public` or `private`. **Private means discovery-only exclusion**: a private user is omitted from user search, but is still viewable by accepted connections or anyone with their direct link/username. It does not make the profile unreachable: `api`'s `GET /users/by-username/:username` shows anyone signed in the same name, @username and photo for a private user as for a public one (blocked viewers excepted).
 _Avoid_: Hidden, locked, incognito.
 
 **Social battery**:

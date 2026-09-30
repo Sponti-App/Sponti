@@ -7,7 +7,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, Lock, Navigation, Pencil } from "lucide-react"
+import Link from "next/link"
+import { ArrowLeft, ChevronRight, Lock, Navigation, Pencil } from "lucide-react"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { initials } from "@/components/event-avatar-stack"
@@ -411,7 +412,16 @@ function FlareDetail({
             </p>
           )}
 
-          <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-muted p-3">
+          {/* Host: links to their profile (#199), like the sheet's host row.
+              Not for your own flare, or a host the api sent without a
+              username. */}
+          <HostCard
+            href={
+              !isHost && event.hostUsername
+                ? `/profile/${encodeURIComponent(event.hostUsername)}`
+                : null
+            }
+          >
             <Avatar className="size-7">
               {event.hostAvatarUrl && <AvatarImage src={event.hostAvatarUrl} alt="" />}
               <AvatarFallback className="text-xs">
@@ -432,7 +442,7 @@ function FlareDetail({
                 </p>
               )}
             </div>
-          </div>
+          </HostCard>
 
           {viewer === "joined" && etaAvailable(timing) && (
             <div className="mt-4">
@@ -526,6 +536,29 @@ function FlareDetail({
         </div>
       )}
     </div>
+  )
+}
+
+function HostCard({
+  href,
+  children,
+}: {
+  href: string | null
+  children: React.ReactNode
+}) {
+  const className = "mt-4 flex items-start gap-2.5 rounded-xl bg-muted p-3"
+  if (!href) return <div className={className}>{children}</div>
+  return (
+    <Link
+      href={href}
+      className={cn(
+        className,
+        "outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-muted/70"
+      )}
+    >
+      {children}
+      <ChevronRight className="ml-auto h-4 w-4 shrink-0 self-center text-muted-foreground" />
+    </Link>
   )
 }
 

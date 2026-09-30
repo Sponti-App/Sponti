@@ -24,7 +24,7 @@ function hidesAuthenticatedChrome(pathname: string): boolean {
   return (
     AUTH_PATHS.includes(pathname) ||
     pathname === "/event/new" ||
-    pathname.startsWith("/qr/") ||
+    /^\/(qr|invite)\//.test(pathname) ||
     pathname.startsWith("/api/")
   )
 }
@@ -115,7 +115,10 @@ function AuthenticatedChrome({ children }: { children: React.ReactNode }) {
         onNotificationClick={handleNotificationClick}
         onMarkAllRead={() => void markAllRead()}
       />
-      <div className="fixed inset-x-0 bottom-0 z-40">
+      {/* pointer-events-auto: an open modal sheet (vaul) sets pointer-events:none
+          on <body>; the notifications sheet leaves the nav uncovered and it has
+          to stay tappable. */}
+      <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-40">
         <BottomNav
           onOpenNotifications={handleOpenNotifications}
           notificationsUnread={unreadCount}

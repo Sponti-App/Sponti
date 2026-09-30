@@ -167,6 +167,7 @@ export function FlareActions({
   onJoin,
   onDecline,
   onShareUpdate,
+  declineInline = true,
 }: {
   viewer: FlareViewer
   timing: FlareTiming
@@ -178,6 +179,12 @@ export function FlareActions({
   onJoin: () => void
   onDecline: () => void
   onShareUpdate: () => void
+  /**
+   * Whether a joined guest's "can't make it" sits beside "share an update".
+   * The map's sheet turns it off and lists it with its other secondary
+   * actions instead.
+   */
+  declineInline?: boolean
 }) {
   if (timing === "ended" || timing === "cancelled") return null
   const withEta = etaAvailable(timing)
@@ -249,7 +256,7 @@ export function FlareActions({
       >
         <Send className="h-4 w-4" /> share an update
       </Button>
-      {viewer === "joined" && !withEta && (
+      {viewer === "joined" && !withEta && declineInline && (
         <Button
           variant="ghost"
           className="h-11 shrink-0 rounded-full px-3 text-xs text-muted-foreground"

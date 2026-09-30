@@ -320,6 +320,27 @@ Table qr_contact_tokens {
 }
 ```
 
+## invite_links
+
+```text
+Table invite_links {
+  _id ObjectId [pk]
+
+  userId ObjectId [ref: > users._id]
+
+  token string [unique] // stored as-is so the owner can re-share it
+  expiresAt datetime    // createdAt + 7 days
+  revokedAt datetime [null]
+
+  createdAt datetime
+
+  indexes {
+    (token)
+    (userId, revokedAt, expiresAt)
+  }
+}
+```
+
 ## refresh_tokens
 
 Owned by `auth-server`.

@@ -7,6 +7,7 @@ import { requireAuth } from "#middleware/auth";
 import { errorHandler } from "#middleware/errorHandler";
 import { notFound } from "#middleware/notFound";
 import { apiRoutes } from "#routes/index";
+import { publicRoutes } from "#routes/publicRoutes";
 
 const defaultDevelopmentOrigins = [
   "https://sponti-spa.vercel.app",
@@ -57,16 +58,22 @@ export const createApp = () => {
     });
   });
 
-  app.use("/api/v1", requireAuth);
-
-  app.use("/api/v1", async (_req, _res, next) => {
+  const ensureDatabase: express.RequestHandler = async (_req, _res, next) => {
     try {
       await connectDB();
       next();
     } catch (error) {
       next(error);
     }
-  });
+  };
+
+  // #124: the only unauthenticated /api/v1 routes (see routes/publicRoutes.ts).
+  // Must stay ahead of requireAuth; unmatched /public paths fall through to it.
+  app.use("/api/v1/public", ensureDatabase, publicRoutes);
+
+  app.use("/api/v1", requireAuth);
+
+  app.use("/api/v1", ensureDatabase);
 
   app.use("/api/v1", apiRoutes);
 

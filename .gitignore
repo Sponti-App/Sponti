@@ -23,3 +23,8 @@ qr-ui-session.json
 
 # Private local MongoDB used by scripts/dev-local.sh
 .local-mongo/
+
+# Dependencies — no trailing slash on purpose: "node_modules/" only matches
+# directories, so a symlinked node_modules (agent worktrees) slips past it and
+# gets committed (#139, #252). This form matches both, at any depth.
+node_modules

@@ -2,7 +2,7 @@
 
 ## Security
 
-- All `/api/v1/*` routes require a Bearer access token.
+- All `/api/v1/*` routes require a Bearer access token, except `/api/v1/public/*` (see Public Routes).
 - `/health` is public.
 - Access tokens are verified with `ACCESS_JWT_SECRET`.
 - Sensitive ownership fields must come from the JWT, not the request body.
@@ -57,6 +57,7 @@ Error:
 - `GET /events/:id` returns `myWillArriveAt`, the caller's own arrival time (or `null`). Other guests' arrival times are only ever sent to the host, on `attendees[].willArriveAt`.
 - `PATCH /notifications/read-batch` marks up to 10 caller-owned notification ids read at once. `PATCH /notifications/read-all` ("I'm caught up") marks every one of the caller's unread notifications read in one call, not just a loaded page — scoped to `createdAt` at or before the moment the request is handled, so a notification created mid-request isn't swallowed before the caller ever saw it. Both return the caller's resulting `unreadCount`.
 - A going member's arrival answer is either a minute-based time (`memberWillArriveAt`) or, for a flare that hasn't started but starts within the hour, a near-term status (`arrivalStatus`: `"on_time"` or `"running_late"`). The two are mutually exclusive — sending a real value for both on `PATCH /events/:id/me` is `400 VALIDATION_ERROR`, and setting one (to a real value) clears the other, whether or not the request mentions it. `GET /events/:id` returns the caller's own as `myArrivalStatus`; the host also gets `attendees[].arrivalStatus`, on the same host-only terms as `willArriveAt`. Declining nulls out both.
+- `GET /users/by-username/:username` (someone's profile, #199) returns only `profile: { id, username, displayName, avatarUrl }`, the caller's `relationship` to them (`self`, `connected`, `pending_outgoing`, `pending_incoming`, `blocked`, `none`) and the pending request's `connectionId`. Profile visibility is discovery-only, so a public and a private user look the same here. Bio, socials, email and visibility are never returned. If the caller blocked them it's `blocked` (so they can unblock); if they blocked the caller it's the same `404 USER_NOT_FOUND` as an unknown username. A rejected request reads as `none`.
 - Circles can only be managed by their owner.
 - Circles are snapshots: sending a flare to a circle copies its members into the flare at that moment. The flare remembers which circles it was sent to (`invitedCircleIds`) only so the host can be asked whether someone added to the circle later should be invited too; that is always an explicit host action (`POST /events/:id/members`), never automatic. `GET /circles/:id/events` lists the owner's upcoming flares for a circle.
 - Circle members must be accepted directional connections of the owner.
@@ -82,6 +83,32 @@ When A blocks B:
 - Resolving a token returns a confirmation payload. It creates a connection only
   when the caller passes `connect: true`.
 - If either user blocked the other, resolving returns a generic not-found error.
+
+## Instant QR Connect, Invite Links And Public Routes
+
+- Resolving a QR token with `connect: true` connects both users at once (both mirrored
+  `connections` rows `accepted`, no request step). Showing the QR in person is the owner's
+  consent; the 15-minute TTL is what keeps that safe. A pending (or earlier rejected) request
+  in either direction is turned into the connection. Self and already-connected are no-ops.
+  The owner gets a `connection_accepted` notification.
+- Invite links (`/invite-links`) are the group-chat path: one live link per user, valid 7 days,
+  reusable by many people, revocable by the owner (`POST /invite-links/me/reset` revokes every
+  live link and issues a new one). Resolving with `connect: true` only sends a connection
+  request (type `shared_invitation`). Revoked links read as `404 INVITE_LINK_NOT_FOUND`,
+  expired as `410 INVITE_LINK_EXPIRED`, and blocks either way as `404`.
+- Invite tokens are stored as-is (not hashed) so the owner can re-share the same link.
+
+### Public Routes
+
+- `/api/v1/public/*` is mounted ahead of `requireAuth` and is reachable without a token.
+  Keep it minimal and never branch on who is asking.
+- `POST /api/v1/public/contact-preview` `{ kind: "qr" | "invite", token }` returns only
+  `{ data: { displayName } }` for a live token, with `Cache-Control: no-store`. Unknown,
+  expired, revoked, cross-kind or owner-missing tokens all return the same
+  `404 CONTACT_PREVIEW_NOT_FOUND`. It has no viewer, so no block check; the authenticated
+  resolve endpoints enforce blocks before anything else is shown or changed.
+- There is no in-app rate limit yet; tokens are 256-bit random values, so guessing one is
+  not practical.
 
 ## TODO Areas
 

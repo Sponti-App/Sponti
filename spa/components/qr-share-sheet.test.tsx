@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { QrShareSheet } from "./qr-share-sheet"
 
 const mocks = vi.hoisted(() => ({
+  createQrContactToken: vi.fn(),
+  getMyInviteLink: vi.fn(),
+  resetMyInviteLink: vi.fn(),
   showActionFeedback: vi.fn(),
   share: vi.fn(),
   toDataURL: vi.fn(),
@@ -14,6 +17,15 @@ vi.mock("qrcode", () => ({
   default: {
     toDataURL: mocks.toDataURL,
   },
+}))
+
+vi.mock("@/lib/api/qr-contact-tokens", () => ({
+  createQrContactToken: mocks.createQrContactToken,
+}))
+
+vi.mock("@/lib/api/invite-links", () => ({
+  getMyInviteLink: mocks.getMyInviteLink,
+  resetMyInviteLink: mocks.resetMyInviteLink,
 }))
 
 vi.mock("@/components/action-feedback", () => ({
@@ -54,6 +66,16 @@ describe("QrShareSheet action feedback", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.toDataURL.mockResolvedValue("data:image/png;base64,qr")
+    mocks.createQrContactToken.mockResolvedValue({
+      token: "qr-token",
+      expiresAt: "2099-01-01T00:15:00.000Z",
+      expiresInSeconds: 900,
+    })
+    mocks.getMyInviteLink.mockResolvedValue({
+      token: "invite-token",
+      expiresAt: "2099-01-08T00:00:00.000Z",
+      expiresInSeconds: 604800,
+    })
     mocks.share.mockResolvedValue(undefined)
     mocks.writeText.mockResolvedValue(undefined)
     setClipboardWriteText()
@@ -116,5 +138,49 @@ describe("QrShareSheet action feedback", () => {
     await waitFor(() =>
       expect(mocks.showActionFeedback).toHaveBeenCalledWith("link copied")
     )
+  })
+
+  it("shares the 7-day invite link, not the QR token", async () => {
+    setNativeShare(mocks.share)
+
+    await clickShare()
+
+    await waitFor(() => expect(mocks.share).toHaveBeenCalled())
+    const shared = mocks.share.mock.calls[0]?.[0] as { url: string }
+    expect(shared.url).toBe(`${window.location.origin}/invite/invite-token`)
+    expect(mocks.toDataURL).toHaveBeenCalledWith(
+      `${window.location.origin}/qr/qr-token`,
+      expect.anything()
+    )
+  })
+
+  it("reset link revokes the old link and shares the new one", async () => {
+    setNativeShare(mocks.share)
+    mocks.resetMyInviteLink.mockResolvedValue({
+      token: "fresh-token",
+      expiresAt: "2099-01-08T00:00:00.000Z",
+      expiresInSeconds: 604800,
+    })
+    const user = userEvent.setup()
+    render(
+      <QrShareSheet displayName="Martin" handle="martin" onClose={vi.fn()} />
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /share sponti link/i })
+      ).toBeEnabled()
+    )
+    await user.click(screen.getByRole("button", { name: /reset link/i }))
+    await waitFor(() =>
+      expect(mocks.showActionFeedback).toHaveBeenCalledWith(
+        "new link ready. the old one no longer works."
+      )
+    )
+    await user.click(screen.getByRole("button", { name: /share sponti link/i }))
+
+    await waitFor(() => expect(mocks.share).toHaveBeenCalled())
+    const shared = mocks.share.mock.calls[0]?.[0] as { url: string }
+    expect(shared.url).toBe(`${window.location.origin}/invite/fresh-token`)
   })
 })

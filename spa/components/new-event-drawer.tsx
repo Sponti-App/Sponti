@@ -457,6 +457,58 @@ export function getInitialEventDraftState(
   }
 }
 
+type DraftFields = Pick<
+  EventDraftStateDefaults,
+  | "mode"
+  | "eventType"
+  | "title"
+  | "details"
+  | "startOffsetMin"
+  | "endOffsetMin"
+  | "startDate"
+  | "startTimeMin"
+  | "endTimeMin"
+  | "selectedLocation"
+  | "searchQuery"
+  | "guestLimit"
+>
+
+const DRAFT_FIELD_KEYS: Array<keyof DraftFields> = [
+  "mode",
+  "eventType",
+  "title",
+  "details",
+  "startOffsetMin",
+  "endOffsetMin",
+  "startDate",
+  "startTimeMin",
+  "endTimeMin",
+  "selectedLocation",
+  "searchQuery",
+  "guestLimit",
+]
+
+/**
+ * Whether the person has not started a flare of their own: the draft is still
+ * the empty one, or still exactly what a prefill put there. A prefill only
+ * lands on an untouched draft; anything typed, picked or invited is theirs and
+ * is kept as it was. `baselines` are the states that count as untouched.
+ */
+export function isUntouchedDraft(
+  current: DraftFields,
+  baselines: Array<DraftFields | null>,
+  touched: { audience: boolean; invitedCount: number }
+): boolean {
+  if (touched.audience || touched.invitedCount > 0) return false
+  return baselines.some(
+    (baseline) =>
+      baseline !== null &&
+      DRAFT_FIELD_KEYS.every(
+        (key) => JSON.stringify(current[key]) === JSON.stringify(baseline[key])
+      )
+  )
+}
+
 export function NewEventDrawer({
   open,
   onClose,
@@ -464,7 +516,8 @@ export function NewEventDrawer({
 }: {
   open: boolean
   onClose: () => void
-  // Applied each time the drawer opens with one; it replaces any unsent draft.
+  // Applied each time the drawer opens with one, unless the person already has
+  // an unsent draft of their own: that is kept as it was.
   prefill?: ComposerPrefill | null
 }) {
   const { user, status } = useAuth()
@@ -710,6 +763,9 @@ export function NewEventDrawer({
   const [audiencePromptDismissed, setAudiencePromptDismissed] = useState(false)
   const audiencePromptRef = useRef<HTMLDivElement>(null)
 
+  const prefilledDraftRef = useRef<DraftFields | null>(null)
+  const draftUntouchedRef = useRef(true)
+
   const resetEventDraft = useCallback(
     (next?: ComposerPrefill): void => {
       if (debounceRef.current) {
@@ -718,6 +774,8 @@ export function NewEventDrawer({
       }
 
       const initialState = getInitialEventDraftState(next)
+      // What "untouched" looks like from here: the prefill as applied, if any.
+      prefilledDraftRef.current = next ? initialState : null
       placesSearchRequestRef.current += 1
       placeDetailsRequestRef.current += 1
       setExpandedSection(null)
@@ -761,10 +819,38 @@ export function NewEventDrawer({
     [circles, connections]
   )
 
+  // Recomputed after every render, and declared before the prefill effect so
+  // that one reads it for this render's state.
+  useEffect(() => {
+    draftUntouchedRef.current = isUntouchedDraft(
+      {
+        mode,
+        eventType,
+        title,
+        details,
+        startOffsetMin,
+        endOffsetMin,
+        startDate,
+        startTimeMin,
+        endTimeMin,
+        selectedLocation,
+        searchQuery,
+        guestLimit,
+      },
+      [getInitialEventDraftState(), prefilledDraftRef.current],
+      {
+        audience: audienceTouchedRef.current,
+        invitedCount: directlyInvitedIds.length,
+      }
+    )
+  })
+
   // The drawer stays mounted, so its state is initialised once; a prefill has
-  // to be applied on every open. It replaces any unsent draft: the person
-  // tapped a shortcut for something specific. The ref makes it once per open
-  // (resetEventDraft changes identity as friends and circles load).
+  // to be applied on every open. It only lands on an untouched draft (see
+  // isUntouchedDraft): an unsent flare of the person's own stays as it was, and
+  // an earlier prefill they never touched is replaced, so a second idea doesn't
+  // open as the first. The ref makes it once per open (resetEventDraft changes
+  // identity as friends and circles load).
   const appliedPrefillRef = useRef<ComposerPrefill | null>(null)
   useEffect(() => {
     if (!open) {
@@ -773,6 +859,7 @@ export function NewEventDrawer({
     }
     if (!prefill || appliedPrefillRef.current === prefill) return
     appliedPrefillRef.current = prefill
+    if (!draftUntouchedRef.current) return
     resetEventDraft(prefill)
   }, [open, prefill, resetEventDraft])
 

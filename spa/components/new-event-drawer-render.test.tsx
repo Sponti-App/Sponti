@@ -343,8 +343,7 @@ describe("NewEventDrawer prefill", () => {
     coordinates: [13.38, 52.55] as [number, number],
   }
 
-  it("opens with title, category and place filled in, then replaces the draft on the next open", async () => {
-    const user = userEvent.setup()
+  it("opens with title, category and place filled in", async () => {
     const { rerender } = render(
       <NewEventDrawer open={false} onClose={vi.fn()} />
     )
@@ -367,17 +366,54 @@ describe("NewEventDrawer prefill", () => {
     expect(screen.getByRole("button", { name: /humboldthain/i })).toBeVisible()
     // A manual pick: it can be reset, and the "auto" tag is not shown.
     expect(screen.queryByText("(auto)")).not.toBeInTheDocument()
+  })
 
-    // Type over the prefill, close, and open again with a different one.
-    await user.type(screen.getByDisplayValue(/roses/), " and more")
+  it("keeps an unsent draft of the person's own when a prefill arrives", async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<NewEventDrawer open onClose={vi.fn()} />)
+    await user.type(screen.getByPlaceholderText(/what's the plan/i), "picnic")
     rerender(<NewEventDrawer open={false} onClose={vi.fn()} />)
     rerender(
       <NewEventDrawer open onClose={vi.fn()} prefill={{ category: "drinks" }} />
     )
-    await waitFor(() =>
-      expect(screen.getByText(/type · drinks/i)).toBeInTheDocument()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(screen.getByDisplayValue("picnic")).toBeInTheDocument()
+    expect(screen.queryByText(/type · drinks/i)).not.toBeInTheDocument()
+  })
+
+  it("keeps edits made over a prefill when the next prefill arrives", async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <NewEventDrawer open onClose={vi.fn()} prefill={{ title: "roses" }} />
     )
-    expect(screen.getByPlaceholderText(/what's the plan/i)).toHaveValue("")
+    await user.type(await screen.findByDisplayValue("roses"), " and more")
+    rerender(<NewEventDrawer open={false} onClose={vi.fn()} />)
+    rerender(
+      <NewEventDrawer open onClose={vi.fn()} prefill={{ category: "drinks" }} />
+    )
+    await new Promise((r) => setTimeout(r, 0))
+    expect(screen.getByDisplayValue("roses and more")).toBeInTheDocument()
+  })
+
+  it("replaces a prefill the person never touched with the next one", async () => {
+    const { rerender } = render(
+      <NewEventDrawer
+        open
+        onClose={vi.fn()}
+        prefill={{ title: "roses", place: humboldthain }}
+      />
+    )
+    expect(await screen.findByDisplayValue("roses")).toBeVisible()
+    rerender(<NewEventDrawer open={false} onClose={vi.fn()} />)
+    rerender(
+      <NewEventDrawer
+        open
+        onClose={vi.fn()}
+        prefill={{ title: "ice cream", category: "food" }}
+      />
+    )
+    expect(await screen.findByDisplayValue("ice cream")).toBeVisible()
+    expect(screen.queryByDisplayValue("roses")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: /my location/i })).toBeVisible()
   })
 

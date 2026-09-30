@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   fetchOutgoingConnectionRequests: vi.fn(),
   push: vi.fn(),
   removeCircleMember: vi.fn(),
+  respondToConnectionRequest: vi.fn(),
   searchUsers: vi.fn(),
   showActionFeedback: vi.fn(),
   updateCircle: vi.fn(),
@@ -63,6 +64,7 @@ vi.mock("@/lib/api/connections", async (importOriginal) => {
     fetchAcceptedConnections: mocks.fetchAcceptedConnections,
     fetchIncomingConnectionRequests: mocks.fetchIncomingConnectionRequests,
     fetchOutgoingConnectionRequests: mocks.fetchOutgoingConnectionRequests,
+    respondToConnectionRequest: mocks.respondToConnectionRequest,
   }
 })
 
@@ -517,5 +519,108 @@ describe("CirclesPage refetch on focus", () => {
       expect(mocks.fetchAcceptedConnections).toHaveBeenCalledTimes(2)
     )
     expect(mocks.fetchIncomingConnectionRequests).toHaveBeenCalledTimes(2)
+  })
+})
+
+// #226: accepting a request here shows the same circle chips as the feed.
+describe("CirclesPage circle chips after accepting", () => {
+  const grace: Connection = {
+    id: "user-2",
+    displayName: "Grace Hopper",
+    username: "grace",
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.fetchAcceptedConnections
+      .mockResolvedValueOnce([ada])
+      .mockResolvedValue([ada, grace])
+    mocks.fetchIncomingConnectionRequests
+      .mockResolvedValueOnce([
+        { id: "conn-1", user: grace, createdAt: "2026-09-30T10:00:00.000Z" },
+      ])
+      .mockResolvedValue([])
+    mocks.fetchOutgoingConnectionRequests.mockResolvedValue([])
+    mocks.fetchBlockedUsers.mockResolvedValue([])
+    mocks.fetchMyCircles.mockResolvedValue([
+      circle({
+        id: "all",
+        name: "all friends",
+        type: "all",
+        memberIds: ["user-1"],
+      }),
+      circle({ id: "close", name: "close friends", type: "close" }),
+      circle({ id: "inner", name: "inner circle", type: "inner" }),
+      circle({ id: "studio", name: "studio crew", memberIds: ["user-1"] }),
+    ])
+    mocks.respondToConnectionRequest.mockResolvedValue(undefined)
+    mocks.addCircleMember.mockResolvedValue(undefined)
+  })
+
+  async function acceptGrace() {
+    const user = userEvent.setup()
+    renderCirclesPage()
+    await user.click(await screen.findByRole("tab", { name: /connections/ }))
+    await user.click(await screen.findByRole("button", { name: "accept" }))
+    const chips = await screen.findByRole("group", {
+      name: "add Grace Hopper to a circle",
+    })
+    return { user, chips }
+  }
+
+  it("offers the circles most used first, without all friends", async () => {
+    const { chips } = await acceptGrace()
+
+    expect(mocks.respondToConnectionRequest).toHaveBeenCalledWith(
+      "conn-1",
+      "accepted"
+    )
+    const names = within(chips)
+      .getAllByRole("button")
+      .map((button) => button.textContent)
+    expect(names).toEqual([
+      "studio crew",
+      "close friends",
+      "inner circle",
+      "skip",
+    ])
+  })
+
+  it("adds them on one tap and confirms on the row", async () => {
+    const { user, chips } = await acceptGrace()
+
+    await user.click(
+      within(chips).getByRole("button", { name: "close friends" })
+    )
+
+    expect(mocks.addCircleMember).toHaveBeenCalledWith("close", "user-2")
+    expect(
+      await screen.findByText("added to close friends")
+    ).toBeInTheDocument()
+  })
+
+  it("puts the chips back if adding fails", async () => {
+    mocks.addCircleMember.mockRejectedValue(new Error("nope"))
+    const { user, chips } = await acceptGrace()
+
+    await user.click(
+      within(chips).getByRole("button", { name: "inner circle" })
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "inner circle" })
+      ).not.toBeDisabled()
+    )
+    expect(screen.queryByText(/added to/)).not.toBeInTheDocument()
+  })
+
+  it("skip leaves them connected, in no circle", async () => {
+    const { user, chips } = await acceptGrace()
+
+    await user.click(within(chips).getByRole("button", { name: "skip" }))
+
+    expect(mocks.addCircleMember).not.toHaveBeenCalled()
+    expect(screen.getByText("you’re connected")).toBeInTheDocument()
   })
 })
