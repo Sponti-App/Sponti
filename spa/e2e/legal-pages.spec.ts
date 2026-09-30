@@ -12,7 +12,7 @@ test.describe("privacy note and support (#129, #126)", () => {
     await page.goto("/menu/privacy")
 
     await expect(
-      page.getByRole("heading", { name: "sponti is a test build." })
+      page.getByRole("heading", { name: "Sponti is a test build." })
     ).toBeVisible()
     await expect(
       page.getByRole("link", { name: /@sponti\./ }).first()
@@ -29,7 +29,7 @@ test.describe("privacy note and support (#129, #126)", () => {
 
     await expect(page).toHaveURL(/\/menu\/privacy$/)
     await expect(
-      page.getByRole("heading", { name: "delete your data" })
+      page.getByRole("heading", { name: "Delete your data" })
     ).toBeVisible()
   })
 
