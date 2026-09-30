@@ -13,8 +13,8 @@ Three independently deployed services, all built from this one repo (different r
 | Service | Root dir | Runtime | Natural host | Notes |
 | --- | --- | --- | --- | --- |
 | `sponti-spa` | `spa/` | Next.js (SSR) | **Vercel** | Zero-config; Vercel auto-detects Next. No `vercel.json` needed. Also wrapped by Capacitor for iOS/Android. |
-| `sponti-api` | `api/` | Express + Mongoose, `app.listen` | **Render** (Web Service) | Long-running server, ESM, Node subpath imports. `npm start` → `node dist/server.js`. |
-| `sponti-auth` | `auth-server/` | Express + Mongoose, `app.listen` | **Render** (Web Service) | Same shape. `npm start` builds then runs `dist/app.js`. |
+| `sponti-api` | `api/` | Express + Mongoose, `app.listen` | **netcup VPS** (Docker + Caddy) | Long-running server, ESM, Node subpath imports. `npm start` → `node dist/server.js`. |
+| `sponti-auth` | `auth-server/` | Express + Mongoose, `app.listen` | **netcup VPS** (Docker + Caddy) | Same shape. `npm start` builds then runs `dist/app.js`. |
 
 External services (all team-reachable; **not** the departed member's personal accounts):
 
@@ -66,7 +66,11 @@ Optional until Google sign-in is configured: `GOOGLE_CLIENT_ID`.
 
 ---
 
-## Backend hosting — Render (decided)
+## Backend hosting — netcup VPS (2026-09-30)
+
+The backends moved off Render's free tier, whose services spun down after about 15 minutes idle and made testing impossible. They now run on the team's netcup VPS with Docker Compose and Caddy for HTTPS. The runbook is in [`deploy/netcup/README.md`](deploy/netcup/README.md). The Render notes below are kept until the Render services are shut down.
+
+## Backend hosting — Render (previous)
 
 `api` and `auth-server` run as **Render Web Services**, one per package, from this repo. Render runs the existing `npm start` unchanged — no serverless adapter, no code change. (Vercel serverless was rejected: it would require splitting app-from-`listen` and a handler refactor for long-running Express + Mongoose.)
 

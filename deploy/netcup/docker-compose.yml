@@ -1,0 +1,51 @@
+# api + auth-server behind Caddy, which gets HTTPS certificates on its own.
+# Hostnames and secrets come from files next to this one on the server
+# (.env, api.env, auth.env), never from git. See README.md.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      API_HOST: ${API_HOST:?set API_HOST in .env}
+      AUTH_HOST: ${AUTH_HOST:?set AUTH_HOST in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - auth
+
+  api:
+    build: ../../api
+    restart: unless-stopped
+    env_file: api.env
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  auth:
+    build: ../../auth-server
+    restart: unless-stopped
+    env_file: auth.env
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  caddy_data:
+  caddy_config:
