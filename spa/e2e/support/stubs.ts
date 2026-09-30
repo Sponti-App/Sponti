@@ -26,6 +26,8 @@ export const STUB_USER = {
 }
 
 const STUB_COORDS = { lat: 37.7749, lng: -122.4194 } // San Francisco
+// Humboldthain, for the berlin-only idea list (#243).
+export const BERLIN_COORDS = { lat: 52.5474, lng: 13.3873 }
 
 /** Minimal `ApiEvent` shape (see spa/lib/api/events/events.types.ts). */
 export type StubApiEvent = {
@@ -84,6 +86,8 @@ async function fulfillJson(
 type StubBackendOptions = {
   /** Events returned by GET /events/map/active. Empty by default. */
   mapEvents?: StubApiEvent[]
+  /** Seeded last-known position. San Francisco by default. */
+  coords?: { lat: number; lng: number }
 }
 
 /**
@@ -101,6 +105,7 @@ export async function stubBackend(
   options: StubBackendOptions = {}
 ): Promise<void> {
   const mapEvents = options.mapEvents ?? []
+  const coords = options.coords ?? STUB_COORDS
 
   await page.addInitScript(
     ({ accessTokenKey, refreshTokenKey, userKey, coordsKey, user, coords }) => {
@@ -115,7 +120,7 @@ export async function stubBackend(
       userKey: USER_KEY,
       coordsKey: LAST_KNOWN_COORDS_KEY,
       user: STUB_USER,
-      coords: STUB_COORDS,
+      coords,
     }
   )
 

@@ -1,5 +1,10 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
-import { makeStubFlare, stubBackend } from "./support/stubs"
+import {
+  BERLIN_COORDS,
+  makeStubFlare,
+  stubBackend,
+  type StubApiEvent,
+} from "./support/stubs"
 
 // #223: the home map's "flares near you" drawer is a dock (filter bar, plus
 // the FAB at peek or a card rail at mid) and a full-height list page, all
@@ -325,5 +330,135 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
     await page.getByRole("button", { name: "my flares", exact: true }).click()
     await expect(page).toHaveURL(/\/event$/)
     await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
+  })
+})
+
+// #243: with a berlin position the quiet card is a real idea from the curated
+// list (2 km, nearest first), and lighting it opens the composer filled in.
+// "drinks" is used because its idea near humboldthain has no season window, so
+// the test doesn't depend on the date it runs.
+test.describe("quiet state: an idea card near berlin (#243)", () => {
+  const quietCard = (page: Page) => page.locator("[data-quiet-card]")
+  const chip = (page: Page, name: string) =>
+    dock(page).getByRole("button", { name, exact: true })
+  const composerTitle = (page: Page) =>
+    page.getByPlaceholder("what's the plan? e.g. drinks after work")
+
+  // Stub flares default to san francisco; put them near the berlin user.
+  const inBerlin = {
+    type: "Point" as const,
+    coordinates: [BERLIN_COORDS.lng, BERLIN_COORDS.lat] as [number, number],
+  }
+
+  const openBerlinMap = async (page: Page, mapEvents: StubApiEvent[]) => {
+    await stubBackend(page, { mapEvents, coords: BERLIN_COORDS })
+    await page.goto("/")
+    await expect(nav(page)).toBeVisible()
+  }
+
+  test("shows the nearest idea with an idea tag, and its CTA opens the composer with title and place filled", async ({
+    page,
+  }) => {
+    // Nothing of the type is live: the stub flares are sports and culture.
+    await openBerlinMap(page, [
+      makeStubFlare({
+        location: inBerlin,
+        _id: "e-sports",
+        title: "sunset frisbee",
+        type: "sports",
+      }),
+    ])
+    await chip(page, "drinks").click()
+
+    const card = quietCard(page)
+    await expect(card).toHaveAttribute("data-quiet-card", "idea")
+    await expect(card.getByText("beer garden evening at prater")).toBeVisible()
+    await expect(card.getByText(/Prater Biergarten/)).toBeVisible()
+    await expect(card.getByText("idea", { exact: true })).toBeVisible()
+    await expect(card.getByText("up for drinks?")).toBeHidden()
+    await expect(rail(page)).toBeHidden()
+    expect(Math.abs(await gapAboveNav(page, dock(page)))).toBeLessThanOrEqual(1)
+
+    await card.getByRole("button", { name: "light a flare" }).click()
+    await expect(composerTitle(page)).toBeInViewport()
+    await expect(composerTitle(page)).toHaveValue(
+      "beer garden evening at prater"
+    )
+    await expect(page.getByText("type · drinks")).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "Prater Biergarten" })
+    ).toBeVisible()
+  })
+
+  test("no idea of the type in range: the generic card, opening the composer with the category only", async ({
+    page,
+  }) => {
+    await openBerlinMap(page, [])
+    // No curated food spot within 2 km of humboldthain.
+    await chip(page, "food").click()
+
+    const card = quietCard(page)
+    await expect(card).toHaveAttribute("data-quiet-card", "generic")
+    await expect(card.getByText("up for food?")).toBeVisible()
+    await card.getByRole("button", { name: "light a food flare" }).click()
+    await expect(composerTitle(page)).toBeInViewport()
+    await expect(composerTitle(page)).toHaveValue("")
+    await expect(page.getByText("type · food")).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "Prater Biergarten" })
+    ).toHaveCount(0)
+  })
+
+  test("outside berlin the generic card stays", async ({ page }) => {
+    await stubBackend(page, { mapEvents: [] })
+    await page.goto("/")
+    await chip(page, "drinks").click()
+    await expect(quietCard(page)).toHaveAttribute("data-quiet-card", "generic")
+  })
+
+  test("a live flare of the type takes the card away", async ({ page }) => {
+    await openBerlinMap(page, [
+      makeStubFlare({
+        location: inBerlin,
+        _id: "e-drinks",
+        title: "drinks after work",
+        type: "drinks",
+      }),
+    ])
+    await chip(page, "drinks").click()
+    await expect(rail(page).getByText("drinks after work")).toBeVisible()
+    await expect(quietCard(page)).toBeHidden()
+  })
+
+  test("looks like the rail cards: same width, radius and padding", async ({
+    page,
+  }) => {
+    await openBerlinMap(page, [
+      makeStubFlare({
+        location: inBerlin,
+        _id: "e-sports",
+        title: "sunset frisbee",
+        type: "sports",
+      }),
+    ])
+    const railCard = rail(page).locator('[data-rail-id="e-sports"]')
+    const railStyle = await railCard.evaluate((el) => {
+      const cs = getComputedStyle(el)
+      return {
+        radius: cs.borderRadius,
+        pad: cs.padding,
+        bg: cs.backgroundColor,
+      }
+    })
+    await chip(page, "drinks").click()
+    const ideaStyle = await quietCard(page).evaluate((el) => {
+      const cs = getComputedStyle(el)
+      return {
+        radius: cs.borderRadius,
+        pad: cs.padding,
+        bg: cs.backgroundColor,
+      }
+    })
+    expect(ideaStyle).toEqual(railStyle)
   })
 })
