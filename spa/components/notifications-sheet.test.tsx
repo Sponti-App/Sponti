@@ -53,7 +53,19 @@ describe("NotificationsSheet presentation", () => {
 
     const dialog = screen.getByRole("dialog", { name: "notifications" })
     expect(dialog).toHaveClass("rounded-t-3xl", "bg-background")
-    expect(dialog.className).toContain("bottom-[var(--sponti-nav-h,64px)]")
+    // Docked on the nav (#264): the sheet sits at the bottom of a clipping
+    // frame whose bottom edge is the nav's top edge, so it slides in and out
+    // from behind that edge instead of across the nav. jsdom has no layout, so
+    // the wiring is asserted on the classes that produce it.
+    const frame = dialog.parentElement
+    expect(frame).toHaveClass(
+      "fixed",
+      "top-0",
+      "overflow-hidden",
+      "pointer-events-none",
+      "bottom-[var(--sponti-nav-h,64px)]"
+    )
+    expect(dialog).toHaveClass("absolute", "bottom-0", "pointer-events-auto")
     // vaul's ::after would paint the sheet's background over the nav.
     expect(dialog).toHaveClass("after:hidden")
     // The scrim stops above the nav so the nav stays lit and tappable.
