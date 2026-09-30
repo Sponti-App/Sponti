@@ -8,7 +8,7 @@ const qrFindOneMock = vi.hoisted(() => vi.fn());
 const qrUpdateOneMock = vi.hoisted(() => vi.fn());
 const getUsersByIdsMock = vi.hoisted(() => vi.fn());
 const hasAnyBlockBetweenUsersMock = vi.hoisted(() => vi.fn());
-const sendConnectionRequestMock = vi.hoisted(() => vi.fn());
+const connectInPersonMock = vi.hoisted(() => vi.fn());
 
 vi.mock("#models/index", () => ({
   Connection: {
@@ -26,7 +26,7 @@ vi.mock("#services/blockService", () => ({
 }));
 
 vi.mock("#services/connectionService", () => ({
-  sendConnectionRequest: sendConnectionRequestMock,
+  connectInPerson: connectInPersonMock,
 }));
 
 vi.mock("#services/userDirectoryService", () => ({
@@ -127,15 +127,16 @@ describe("qrContactTokenService.resolveQrContactToken", () => {
       canConnect: true,
       connection: null,
     });
-    expect(sendConnectionRequestMock).not.toHaveBeenCalled();
+    expect(connectInPersonMock).not.toHaveBeenCalled();
   });
 
-  it("creates a QR connection only when connect is confirmed", async () => {
+  it("connects instantly (no request step) only when connect is confirmed", async () => {
     mockToken("raw-token");
-    sendConnectionRequestMock.mockResolvedValue({
+    connectInPersonMock.mockResolvedValue({
       processed: true,
       delivered: true,
-      autoAccepted: false,
+      connected: true,
+      created: true,
     });
 
     const result = await resolveQrContactToken(VIEWER_ID, {
@@ -143,15 +144,31 @@ describe("qrContactTokenService.resolveQrContactToken", () => {
       connect: true,
     });
 
-    expect(sendConnectionRequestMock).toHaveBeenCalledWith(VIEWER_ID, {
-      receiverId: OWNER_ID,
-      type: "qr",
-    });
+    expect(connectInPersonMock).toHaveBeenCalledWith(VIEWER_ID, OWNER_ID);
     expect(result.connection).toEqual({
       processed: true,
       delivered: true,
-      autoAccepted: false,
+      autoAccepted: true,
     });
+  });
+
+  it("lets a scan resolve the viewer's own pending request too", async () => {
+    mockToken("raw-token");
+    mockConnections([
+      {
+        requesterId: new Types.ObjectId(VIEWER_ID),
+        receiverId: new Types.ObjectId(OWNER_ID),
+        status: "pending",
+      },
+    ]);
+
+    const result = await resolveQrContactToken(VIEWER_ID, {
+      token: "raw-token",
+      connect: false,
+    });
+
+    expect(result.relationship).toBe("pending_outgoing");
+    expect(result.canConnect).toBe(true);
   });
 
   it("does not mutate on self-scan", async () => {
@@ -164,7 +181,7 @@ describe("qrContactTokenService.resolveQrContactToken", () => {
 
     expect(result.relationship).toBe("self");
     expect(result.canConnect).toBe(false);
-    expect(sendConnectionRequestMock).not.toHaveBeenCalled();
+    expect(connectInPersonMock).not.toHaveBeenCalled();
     expect(hasAnyBlockBetweenUsersMock).not.toHaveBeenCalled();
   });
 
@@ -183,7 +200,7 @@ describe("qrContactTokenService.resolveQrContactToken", () => {
     });
 
     expect(getUsersByIdsMock).not.toHaveBeenCalled();
-    expect(sendConnectionRequestMock).not.toHaveBeenCalled();
+    expect(connectInPersonMock).not.toHaveBeenCalled();
   });
 
   it("deactivates expired tokens and returns a gone error", async () => {

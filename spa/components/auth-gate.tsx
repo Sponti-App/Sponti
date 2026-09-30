@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
+import { isContactPath } from "@/lib/contact-links"
 import {
   AUTH_PATHS,
   buildLoginPath,
@@ -12,7 +13,6 @@ import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 
 const LEGAL_PATHS = ["/menu/terms", "/menu/privacy"]
 const PUBLIC_PATHS = [...AUTH_PATHS, ...LEGAL_PATHS]
-const QR_PATH_PREFIX = "/qr/"
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { status } = useAuth()
@@ -23,8 +23,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   // elsewhere once it's run long enough to plausibly be paying that cost.
   const wakingUp = useSlowRequestHint(status === "loading")
 
-  const isPublic =
-    PUBLIC_PATHS.includes(pathname) || pathname.startsWith(QR_PATH_PREFIX)
+  // #124: QR and invite links open for signed-out visitors, who are sent
+  // on to sign-up from there.
+  const isPublic = PUBLIC_PATHS.includes(pathname) || isContactPath(pathname)
   const isAuthPage = AUTH_PATHS.includes(pathname)
 
   useEffect(() => {

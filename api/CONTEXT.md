@@ -16,6 +16,14 @@ _Avoid_: List, friend list, group.
 An accepted, mutual friend relationship between two users. A pending request is not yet a connection.
 _Avoid_: Friend (as a stored entity), follower, contact.
 
+**QR code (in-person connect)**:
+A short-lived (15 min) code a user shows on their phone. Scanning it connects both people at once — showing it is the consent, so there is no request to accept.
+_Avoid_: QR link (when you mean the invite link).
+
+**Invite link**:
+A long-lived (7 day), reusable, revocable link a user shares in group chats. Opening it sends the owner a connection request; it never connects instantly. Resetting it revokes the old link and issues a new one.
+_Avoid_: Share link, referral link, QR link.
+
 **RSVP**:
 A user's participation response to a flare (the join action). Carries an arrival-time intent (ETA) for imminent flares.
 _Avoid_: Join status, attendance (as the stored field name).

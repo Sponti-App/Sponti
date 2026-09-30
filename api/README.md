@@ -64,6 +64,10 @@ Authenticated `/api/v1`:
 - `PATCH /notification-settings/me`
 - `POST /qr-contact-tokens`
 - `POST /qr-contact-tokens/resolve`
+- `GET /invite-links/me`
+- `POST /invite-links/me/reset`
+- `POST /invite-links/resolve`
+- `POST /public/contact-preview` (no auth)
 - `GET /inbox/me`
 - `GET /users/search?q=<username-or-display-name>`
 - `GET /users/by-username/:username`
@@ -71,7 +75,11 @@ Authenticated `/api/v1`:
 QR contact tokens are hashed at rest, expire after 15 minutes, and resolve to a
 confirmation payload. Multiple unexpired tokens can remain valid so a refreshed
 QR does not break an in-flight scan. Passing `connect: true` to
-`/qr-contact-tokens/resolve` sends or accepts a QR connection request.
+`/qr-contact-tokens/resolve` connects both people immediately (#124).
+
+Invite links are the long-lived alternative for group chats: valid 7 days,
+reusable, revocable, and opening one only sends a connection request. See
+API_RULES.md.
 
 ## Notes
 

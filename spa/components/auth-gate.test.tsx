@@ -156,7 +156,12 @@ describe("AuthGate on a cold load or refresh (#219)", () => {
   })
 
   it("leaves public pages alone for a signed-out user", async () => {
-    for (const path of ["/menu/terms", "/qr/abc123", "/login"]) {
+    for (const path of [
+      "/menu/terms",
+      "/qr/abc123",
+      "/invite/abc123",
+      "/login",
+    ]) {
       setUrl(path)
       const view = await hydrateApp(<p>public page</p>)
       expect(await screen.findByText("public page")).toBeInTheDocument()

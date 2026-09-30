@@ -70,6 +70,10 @@ Base path: `/api/v1`
 | `PATCH`  | `/notification-settings/me`    | Yes  | settings patch                                                                      | `{ data: NotificationSettings }`                                         | future settings screen                     |
 | `POST`   | `/qr-contact-tokens`           | Yes  | `{}`                                                                                | `{ data: { token, expiresAt, expiresInSeconds } }`                       | QR share sheet                             |
 | `POST`   | `/qr-contact-tokens/resolve`   | Yes  | `{ token, connect? }`                                                               | `{ data: { profile, relationship, canConnect, expiresAt, connection } }` | QR scan confirmation / connect             |
+| `GET`    | `/invite-links/me`             | Yes  | none                                                                                | `{ data: { token, expiresAt, expiresInSeconds } }`                       | QR sheet "share sponti link"               |
+| `POST`   | `/invite-links/me/reset`       | Yes  | `{}`                                                                                | `{ data: { token, expiresAt, expiresInSeconds } }`                       | QR sheet "reset link"                      |
+| `POST`   | `/invite-links/resolve`        | Yes  | `{ token, connect? }`                                                               | `{ data: { profile, relationship, canConnect, expiresAt, connection } }` | invite link open / send request            |
+| `POST`   | `/public/contact-preview`      | No   | `{ kind: "qr" \| "invite", token }`                                                  | `{ data: { displayName } }`                                              | sign-up screen "join {name} on sponti"     |
 
 Common API errors:
 
@@ -83,3 +87,4 @@ Common API errors:
 - `409 DUPLICATE_RESOURCE` or domain conflict
 - `500 INTERNAL_SERVER_ERROR`
 - `410 QR_CONTACT_TOKEN_EXPIRED`
+- `410 INVITE_LINK_EXPIRED`

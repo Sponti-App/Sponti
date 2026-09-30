@@ -342,11 +342,15 @@ export const createConnectionAcceptedNotification = async ({
   accepterId,
   connectionId,
   session,
+  via,
 }: {
   requesterId: string;
   accepterId: string;
   connectionId: string;
   session?: ClientSession;
+  // "qr": the accepter scanned the recipient's QR code in person, so there
+  // was no request to accept (#124) — same notification type, honest copy.
+  via?: "qr";
 }) => {
   const users = await getUsersByIds([accepterId]);
   const accepter = users.get(accepterId);
@@ -363,8 +367,11 @@ export const createConnectionAcceptedNotification = async ({
     targetId: connectionId,
     session,
     build: () => ({
-      title: `${accepterName} accepted your request`,
-      message: circleHint,
+      title:
+        via === "qr"
+          ? `${accepterName} scanned your QR code`
+          : `${accepterName} accepted your request`,
+      message: via === "qr" ? `You're connected now. ${circleHint}` : circleHint,
       metadata: {
         actorUsername: accepter?.username,
       },
