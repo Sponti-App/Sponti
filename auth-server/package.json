@@ -8,7 +8,8 @@
     "prebuild": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
     "build": "tsc",
     "prestart": "npm run build",
-    "start": "node dist/app.js"
+    "start": "node dist/app.js",
+    "test": "node --test --conditions=development --import ./test/setup.ts \"test/**/*.test.ts\""
   },
   "imports": {
     "#controllers": {

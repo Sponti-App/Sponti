@@ -4,10 +4,8 @@ name: CI
 # PR means something broke — no one has to remember to run them locally.
 #   spa: typecheck, lint, unit tests, and the Playwright browser smoke tests
 #   api: typecheck, lint, tests (in-memory Mongo, no shared database)
-#   auth-server: build (tsc) — it has no lint or tests yet, but a broken build
-#     here means nobody can sign in
-#   auth-server: build (tsc) — it has no lint or tests yet, but a broken build
-#     here means nobody can sign in
+#   auth-server: build (tsc) and tests (node:test, every model call mocked, no
+#     database); it has no lint yet. A broken build here means nobody can sign in
 # Nothing here touches a real backend: the browser tests stub every request,
 # and the api tests use mongodb-memory-server.
 on:
@@ -110,3 +108,4 @@ jobs:
       # tsc is the type check; a successful build also proves the
       # `imports` map resolves against dist/.
       - run: npm run build
+      - run: npm test

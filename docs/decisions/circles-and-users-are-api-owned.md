@@ -4,7 +4,7 @@
 
 The `users` and `circles` MongoDB collections are **business-domain data owned by `api/`**, not by `auth-server/`.
 
-`auth-server/` owns only identity: credentials, JWT issuing, password reset, and the identity fields on the user record (username, displayName, email, avatar, `profileVisibility`, `socialBattery`). It must not own or seed business-domain collections.
+`auth-server/` owns only identity: credentials, JWT issuing, password reset, and the identity fields on the user record (username, displayName, email, avatar, `profileVisibility`, `socialBattery`, and the self-authored `bio`, `instagram` and `telegram`). It must not own or seed business-domain collections.
 
 Default circles ("close friends", "inner circle", "all friends") are created by `api`: `ensureDefaultCircles` seeds any missing system circle idempotently on `GET /circles`, backed by a unique partial index on `{ ownerId, type }` for system types (#102). `auth-server` no longer has a `Circle` model.
 
