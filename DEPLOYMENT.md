@@ -12,7 +12,7 @@ Three independently deployed services, all built from this one repo (different r
 
 | Service | Root dir | Runtime | Natural host | Notes |
 | --- | --- | --- | --- | --- |
-| `sponti-spa` | `spa/` | Next.js (SSR) | **Vercel** | Zero-config; Vercel auto-detects Next. No `vercel.json` needed. Also wrapped by Capacitor for iOS/Android. |
+| `sponti-spa` | `spa/` | Next.js (SSR) | **Vercel** | Vercel auto-detects Next. `spa/vercel.json` only sets an ignored build step: Git pushes build `dev` and `main` only (other branches get no preview), to stay under the daily deployment limit. Also wrapped by Capacitor for iOS/Android. |
 | `sponti-api` | `api/` | Express + Mongoose, `app.listen` | **netcup VPS** (Docker + Caddy) | Long-running server, ESM, Node subpath imports. `npm start` → `node dist/server.js`. |
 | `sponti-auth` | `auth-server/` | Express + Mongoose, `app.listen` | **netcup VPS** (Docker + Caddy) | Same shape. `npm start` builds then runs `dist/app.js`. |
 
