@@ -147,137 +147,143 @@ export function NotificationsSheet({
         {/* Stops above the nav: the nav is part of what the sheet is docked on,
             so it stays lit and tappable instead of looking disabled. */}
         <Drawer.Overlay className="fixed inset-x-0 top-0 bottom-[var(--sponti-nav-h,64px)] z-50 bg-foreground/30" />
-        {/* Docked on the nav rather than over it. The cap is measured against
+        {/* Docked on the nav rather than over it. The frame ends at the nav's
+            top edge and clips, so the sheet slides in and out from behind
+            that edge instead of across the nav. The cap is measured against
             the visible viewport (--sponti-vvh, see use-viewport-metrics) so
             the top stays within thumb reach on iOS Safari, where `vh` is the
             large viewport. `after:hidden` turns off the ::after vaul adds to
             hide the gap under a dragged sheet: it extends the background 200%
             below the sheet, which would paint straight over the nav. */}
-        <Drawer.Content
-          ref={setSheetEl}
-          // A press on the nav is not "outside": let the nav's own handlers
-          // run. Otherwise the press dismisses the sheet and the feed
-          // button's click then toggles it straight back open.
-          onPointerDownOutside={(event) => {
-            const target = event.target
-            if (target instanceof Element && target.closest("nav")) {
-              event.preventDefault()
-            }
-          }}
-          className="fixed inset-x-0 bottom-[var(--sponti-nav-h,64px)] z-50 flex after:hidden max-h-[calc(0.7*var(--sponti-vvh,100vh)-var(--sponti-nav-h,64px))] flex-col rounded-t-3xl bg-background shadow-(--shadow-sheet) outline-none"
-        >
-          {/* Drag handle — vaul attaches its gesture here automatically */}
-          <div className="mx-auto mt-3 mb-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30" />
+        <div className="pointer-events-none fixed inset-x-0 top-0 bottom-[var(--sponti-nav-h,64px)] z-50 overflow-hidden">
+          <Drawer.Content
+            ref={setSheetEl}
+            // A press on the nav is not "outside": let the nav's own handlers
+            // run. Otherwise the press dismisses the sheet and the feed
+            // button's click then toggles it straight back open.
+            onPointerDownOutside={(event) => {
+              const target = event.target
+              if (target instanceof Element && target.closest("nav")) {
+                event.preventDefault()
+              }
+            }}
+            className="pointer-events-auto absolute inset-x-0 bottom-0 flex max-h-[calc(0.7*var(--sponti-vvh,100vh)-var(--sponti-nav-h,64px))] flex-col rounded-t-3xl bg-background shadow-(--shadow-sheet) outline-none after:hidden"
+          >
+            {/* Drag handle — vaul attaches its gesture here automatically */}
+            <div className="mx-auto mt-3 mb-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30" />
 
-          <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 pt-1 pb-3">
-            <div className="flex items-center gap-2">
-              <Drawer.Title className="text-lg font-semibold">
-                notifications
-              </Drawer.Title>
-              {unreadCount > 0 && (
-                <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">
-                  {unreadCount}
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close notifications"
-              className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <Drawer.Description className="sr-only">
-            invites, rsvps and updates from your flares
-          </Drawer.Description>
-
-          {loading && notifications.length === 0 ? (
-            <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              loading
-            </div>
-          ) : notifications.length === 0 ? (
-            <div className="px-4 py-10 text-center">
-              <Bell className="mx-auto h-5 w-5 text-muted-foreground" />
-              <p className="mt-2 text-sm text-muted-foreground">
-                no notifications yet
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                invites and rsvps will land here
-              </p>
-            </div>
-          ) : showCollapsed ? (
-            <div className="px-4 py-10 text-center">
-              <Check className="mx-auto h-5 w-5 text-accent" />
-              <p className="mt-2 text-sm font-medium">you&rsquo;re caught up</p>
+            <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 pt-1 pb-3">
+              <div className="flex items-center gap-2">
+                <Drawer.Title className="text-lg font-semibold">
+                  notifications
+                </Drawer.Title>
+                {unreadCount > 0 && (
+                  <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">
+                    {unreadCount}
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
-                onClick={() => setManuallyExpanded(true)}
-                className="mt-3 inline-flex min-h-11 items-center gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                onClick={onClose}
+                aria-label="Close notifications"
+                className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted"
               >
-                show {notifications.length} earlier
-                <ChevronDown className="h-3.5 w-3.5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
-          ) : (
-            // The list scrolls on its own; without data-vaul-no-drag a scroll
-            // gesture would drag the whole sheet. Same as the event detail
-            // sheet, and it keeps row gestures (#173) free of vaul's drag.
-            <ul
-              ref={setScrollEl}
-              data-vaul-no-drag
-              className="min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto overscroll-contain"
-            >
-              {notifications.map((notification) => (
-                <NotificationRow
-                  key={notification.id}
-                  notification={notification}
-                  onOpen={onNotificationClick}
-                />
-              ))}
+            <Drawer.Description className="sr-only">
+              invites, rsvps and updates from your flares
+            </Drawer.Description>
 
-              <li ref={setSentinelEl}>
-                <div className="flex min-h-11 items-center justify-center px-4 py-3 text-xs text-muted-foreground">
-                  {loadingMore ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      loading older
-                    </span>
-                  ) : hasMore ? (
-                    <span>scroll for older</span>
-                  ) : (
-                    <span>caught up</span>
-                  )}
-                </div>
-              </li>
-            </ul>
-          )}
-
-          {error && (
-            <div className="shrink-0 border-t border-border/60 px-4 py-3 text-xs text-destructive">
-              {error}
-            </div>
-          )}
-
-          {notifications.length > 0 &&
-            !hasMore &&
-            !loadingMore &&
-            !showCollapsed && (
-              <div className="shrink-0 border-t border-border/60 px-4 py-2">
+            {loading && notifications.length === 0 ? (
+              <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                loading
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="px-4 py-10 text-center">
+                <Bell className="mx-auto h-5 w-5 text-muted-foreground" />
+                <p className="mt-2 text-sm text-muted-foreground">
+                  no notifications yet
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  invites and rsvps will land here
+                </p>
+              </div>
+            ) : showCollapsed ? (
+              <div className="px-4 py-10 text-center">
+                <Check className="mx-auto h-5 w-5 text-accent" />
+                <p className="mt-2 text-sm font-medium">
+                  you&rsquo;re caught up
+                </p>
                 <button
                   type="button"
-                  onClick={handleMarkAllRead}
-                  aria-label="Mark all as seen"
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-full text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={() => setManuallyExpanded(true)}
+                  className="mt-3 inline-flex min-h-11 items-center gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
                 >
-                  <Check className="h-4 w-4" />
-                  mark all as seen
+                  show {notifications.length} earlier
+                  <ChevronDown className="h-3.5 w-3.5" />
                 </button>
               </div>
+            ) : (
+              // The list scrolls on its own; without data-vaul-no-drag a scroll
+              // gesture would drag the whole sheet. Same as the event detail
+              // sheet, and it keeps row gestures (#173) free of vaul's drag.
+              <ul
+                ref={setScrollEl}
+                data-vaul-no-drag
+                className="min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto overscroll-contain"
+              >
+                {notifications.map((notification) => (
+                  <NotificationRow
+                    key={notification.id}
+                    notification={notification}
+                    onOpen={onNotificationClick}
+                  />
+                ))}
+
+                <li ref={setSentinelEl}>
+                  <div className="flex min-h-11 items-center justify-center px-4 py-3 text-xs text-muted-foreground">
+                    {loadingMore ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        loading older
+                      </span>
+                    ) : hasMore ? (
+                      <span>scroll for older</span>
+                    ) : (
+                      <span>caught up</span>
+                    )}
+                  </div>
+                </li>
+              </ul>
             )}
-        </Drawer.Content>
+
+            {error && (
+              <div className="shrink-0 border-t border-border/60 px-4 py-3 text-xs text-destructive">
+                {error}
+              </div>
+            )}
+
+            {notifications.length > 0 &&
+              !hasMore &&
+              !loadingMore &&
+              !showCollapsed && (
+                <div className="shrink-0 border-t border-border/60 px-4 py-2">
+                  <button
+                    type="button"
+                    onClick={handleMarkAllRead}
+                    aria-label="Mark all as seen"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-full text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <Check className="h-4 w-4" />
+                    mark all as seen
+                  </button>
+                </div>
+              )}
+          </Drawer.Content>
+        </div>
       </Drawer.Portal>
     </Drawer.Root>
   )
