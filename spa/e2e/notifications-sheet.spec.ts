@@ -139,6 +139,35 @@ test.describe("notifications sheet (#137)", () => {
     await expect(sheet).toBeHidden()
   })
 
+  test("slides away behind the nav's top edge when it closes, never across the nav", async ({
+    page,
+  }) => {
+    await stubFeed(page, 3)
+    const { nav } = await openFeed(page)
+    const navBox = await nav.boundingBox()
+    if (!navBox) throw new Error("expected nav box")
+
+    // Sample every frame of the close animation: a point just inside the
+    // nav's top edge must never land on the sliding sheet.
+    const sampling = page.evaluate(
+      ({ x, y }) =>
+        new Promise<number>((resolve) => {
+          let sheetFrames = 0
+          const started = performance.now()
+          const tick = () => {
+            const hit = document.elementFromPoint(x, y)
+            if (hit?.closest("[data-vaul-drawer]")) sheetFrames++
+            if (performance.now() - started < 800) requestAnimationFrame(tick)
+            else resolve(sheetFrames)
+          }
+          requestAnimationFrame(tick)
+        }),
+      { x: navBox.x + navBox.width / 2, y: navBox.y + 4 }
+    )
+    await page.getByRole("button", { name: "Close notifications" }).click()
+    expect(await sampling).toBe(0)
+  })
+
   test("caps its height so the top stays in thumb reach, and scrolls the list inside", async ({
     page,
   }) => {
