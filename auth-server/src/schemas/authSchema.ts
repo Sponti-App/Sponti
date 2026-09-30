@@ -1,4 +1,20 @@
 import { z } from "zod";
+import { normalizeBio, normalizeInstagram, normalizeTelegram, type ProfileFieldResult } from "#lib/profileFields";
+
+type Normalizer = (raw: string | null) => ProfileFieldResult;
+
+// A self-authored profile field: a string (normalised) or null / "" to clear it.
+const profileField = (normalize: Normalizer) =>
+    z.union([z.string(), z.null()]).transform((raw, ctx) => {
+        const result = normalize(raw);
+
+        if (!result.ok) {
+            ctx.addIssue({ code: "custom", message: result.message });
+            return z.NEVER;
+        }
+
+        return result.value;
+    });
 
 export const registerSchema = z.object({
     username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, underscores and hyphens"),
@@ -30,6 +46,9 @@ export const updateProfileSchema = z.object({
     username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, underscores and hyphens").optional(),
     email: z.string().email().optional(),
     profileVisibility: z.enum(["public", "private"]).optional(),
+    bio: profileField(normalizeBio).optional(),
+    instagram: profileField(normalizeInstagram).optional(),
+    telegram: profileField(normalizeTelegram).optional(),
 });
 
 export const refreshTokenSchema = z.object({

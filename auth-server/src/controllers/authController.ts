@@ -17,23 +17,11 @@ import {
   verifyRefreshToken,
 } from "#lib/tokens";
 import cloudinary from "#lib/cloudinary";
+import { toOwnProfileResponse, toUserResponse } from "#lib/userResponse";
 import { env } from "#config/env";
 import streamfier from "streamifier";
 
 const googleClient = new OAuth2Client();
-
-const toUserResponse = (user: InstanceType<typeof User>) => ({
-  id: user._id.toString(),
-  username: user.username,
-  displayName: user.displayName,
-  email: user.email,
-  avatarUrl: user.avatarUrl,
-  avatarPublicId: user.avatarPublicId,
-  profileVisibility: user.profileVisibility,
-  socialBattery: user.socialBattery,
-  createdAt: user.createdAt,
-  updatedAt: user.updatedAt,
-});
 
 const deleteExpiredRefreshTokens = (userId: string) =>
   RefreshToken.deleteMany({
@@ -318,7 +306,7 @@ export const me = async (req: Request, res: Response) => {
   }
 
   res.json({
-    user: toUserResponse(user),
+    user: toOwnProfileResponse(user),
   });
 };
 
@@ -425,7 +413,7 @@ export const updateAvatar = async (req: Request, res: Response) => {
 };
 
 export const updateProfile = async (req: Request, res: Response) => {
-  const { displayName, username, email, profileVisibility } = req.body;
+  const { displayName, username, email, profileVisibility, bio, instagram, telegram } = req.body;
   const user = await User.findById(req.userId);
 
   if (!user) {
@@ -452,8 +440,12 @@ export const updateProfile = async (req: Request, res: Response) => {
 
   if (displayName) user.displayName = displayName;
   if (profileVisibility) user.profileVisibility = profileVisibility;
+  // Already normalised by updateProfileSchema; null clears, undefined leaves as is.
+  if (bio !== undefined) user.bio = bio;
+  if (instagram !== undefined) user.instagram = instagram;
+  if (telegram !== undefined) user.telegram = telegram;
 
   await user.save();
 
-  res.json({ user: toUserResponse(user) });
+  res.json({ user: toOwnProfileResponse(user) });
 }; 
