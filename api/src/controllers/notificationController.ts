@@ -1,5 +1,6 @@
 import type {
   GetNotificationsQuery,
+  NotificationIdParam,
   ReadNotificationsBatchBody,
 } from "#schemas/notificationSchemas";
 import * as notificationService from "#services/notificationService";
@@ -32,6 +33,15 @@ export const markNotificationsReadBatch = asyncHandler(async (req, res) => {
 
 export const markAllNotificationsRead = asyncHandler(async (req, res) => {
   const data = await notificationService.markAllNotificationsRead(getAuthenticatedUserId(req));
+
+  res.json({ data });
+});
+
+export const dismissNotification = asyncHandler(async (req, res) => {
+  const data = await notificationService.dismissNotification(
+    getAuthenticatedUserId(req),
+    (req.params as unknown as NotificationIdParam).id
+  );
 
   res.json({ data });
 });

@@ -2,22 +2,9 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Drawer } from "vaul"
-import {
-  Bell,
-  Check,
-  ChevronDown,
-  Flame,
-  Loader2,
-  MessageSquare,
-  RotateCcw,
-  Sparkles,
-  UserCheck,
-  UserMinus,
-  UserPlus,
-  X,
-  type LucideIcon,
-} from "lucide-react"
-import { formatRelative, type Notification } from "@/lib/notifications"
+import { Bell, Check, ChevronDown, Loader2, X } from "lucide-react"
+import { NotificationRow } from "@/components/notification-row"
+import type { Notification } from "@/lib/notifications"
 import { haptic } from "@/lib/haptics"
 
 // Published on <html> while the sheet is open: the distance from the viewport
@@ -29,43 +16,6 @@ const BOTTOM_OCCUPIED_VAR = "--sponti-bottom-occupied"
 export function sheetBottomOccupiedCss(sheetHeightPx: number): string {
   // The sheet sits directly on the nav, so both are docked at the bottom.
   return `calc(var(--sponti-nav-h, 64px) + ${sheetHeightPx}px)`
-}
-
-type Visual = {
-  icon: LucideIcon
-  ring: string
-}
-
-const TYPE_VISUAL: Record<Notification["type"], Visual> = {
-  event_invitation: { icon: Flame, ring: "border-accent/30 text-accent" },
-  event_cancelled: {
-    icon: X,
-    ring: "border-destructive/40 text-destructive",
-  },
-  event_reactivated: {
-    icon: RotateCcw,
-    ring: "border-accent/30 text-accent",
-  },
-  event_rsvp_change: {
-    icon: Sparkles,
-    ring: "border-foreground/15 text-foreground",
-  },
-  event_guest_removed: {
-    icon: UserMinus,
-    ring: "border-foreground/15 text-muted-foreground",
-  },
-  event_update: {
-    icon: MessageSquare,
-    ring: "border-accent/30 text-accent",
-  },
-  connection_request: {
-    icon: UserPlus,
-    ring: "border-accent/30 text-accent",
-  },
-  connection_accepted: {
-    icon: UserCheck,
-    ring: "border-accent/30 text-accent",
-  },
 }
 
 export function NotificationsSheet({
@@ -280,48 +230,13 @@ export function NotificationsSheet({
               data-vaul-no-drag
               className="min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto overscroll-contain"
             >
-              {notifications.map((notification) => {
-                const { icon: Icon, ring } = TYPE_VISUAL[notification.type]
-                return (
-                  <li key={notification.id}>
-                    <button
-                      type="button"
-                      onClick={() => onNotificationClick?.(notification)}
-                      className={`flex min-h-14 w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted active:bg-muted ${
-                        notification.read ? "" : "bg-accent/5"
-                      }`}
-                    >
-                      <div
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-background ${ring}`}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={`truncate text-sm ${
-                            notification.read
-                              ? "text-muted-foreground"
-                              : "font-medium"
-                          }`}
-                        >
-                          {notification.title}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {notification.subtitle}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
-                        <span className="text-xs text-muted-foreground">
-                          {formatRelative(notification.createdAt)}
-                        </span>
-                        {!notification.read && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                        )}
-                      </div>
-                    </button>
-                  </li>
-                )
-              })}
+              {notifications.map((notification) => (
+                <NotificationRow
+                  key={notification.id}
+                  notification={notification}
+                  onOpen={onNotificationClick}
+                />
+              ))}
 
               <li ref={setSentinelEl}>
                 <div className="flex min-h-11 items-center justify-center px-4 py-3 text-xs text-muted-foreground">

@@ -55,6 +55,13 @@ const notificationSchema = new Schema(
       type: Date,
       default: null,
     },
+    // Set when the recipient swipes the row away (#173). Hidden rows drop out
+    // of the feed and the unread count; nothing else about them changes, and
+    // in particular dismissing a connection_request never declines it.
+    dismissedAt: {
+      type: Date,
+      default: null,
+    },
     metadata: {
       type: Schema.Types.Mixed,
       default: {},

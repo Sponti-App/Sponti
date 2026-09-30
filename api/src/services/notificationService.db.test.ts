@@ -2,7 +2,13 @@ import mongoose, { Types } from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { Notification } from "#models/index";
-import { markAllNotificationsRead, markNotificationsReadBatch } from "#services/notificationService";
+import {
+  dismissNotification,
+  getNotifications,
+  getUnreadCount,
+  markAllNotificationsRead,
+  markNotificationsReadBatch,
+} from "#services/notificationService";
 
 const USER_ID = new Types.ObjectId().toString();
 const OTHER_USER_ID = new Types.ObjectId().toString();
@@ -143,5 +149,63 @@ describe("notificationService.markAllNotificationsRead alongside markNotificatio
     expect(
       await Notification.countDocuments({ userId: new Types.ObjectId(USER_ID), readAt: null })
     ).toBe(0);
+  });
+});
+
+describe("notificationService.dismissNotification (#173)", () => {
+  it("hides the notification from the caller's feed and unread count", async () => {
+    const kept = await seedNotification({ createdAt: new Date(Date.now() - 2_000) });
+    const hidden = await seedNotification({ createdAt: new Date(Date.now() - 1_000) });
+
+    const result = await dismissNotification(USER_ID, String(hidden._id));
+
+    expect(result._id).toBe(String(hidden._id));
+    expect(result.unreadCount).toBe(1);
+    const feed = await getNotifications(USER_ID, { limit: 10 });
+    expect(feed.data.map((notification) => notification._id)).toEqual([String(kept._id)]);
+    expect(await getUnreadCount(USER_ID)).toEqual({ count: 1 });
+  });
+
+  it("only hides it: the notification row is kept, with its type and target", async () => {
+    const hidden = await seedNotification({ createdAt: new Date() });
+
+    await dismissNotification(USER_ID, String(hidden._id));
+
+    const stored = await Notification.findById(hidden._id).lean();
+    expect(stored?.dismissedAt).toBeInstanceOf(Date);
+    expect(stored?.readAt).toBeInstanceOf(Date);
+    expect(stored?.type).toBe("connection_request");
+    expect(String(stored?.targetId)).toBe(String(hidden.targetId));
+  });
+
+  it("refuses to touch another user's notification, as if it didn't exist", async () => {
+    const theirs = await seedNotification({ userId: OTHER_USER_ID, createdAt: new Date() });
+
+    await expect(dismissNotification(USER_ID, String(theirs._id))).rejects.toMatchObject({
+      statusCode: 404,
+      code: "NOTIFICATION_NOT_FOUND",
+    });
+
+    const stored = await Notification.findById(theirs._id).lean();
+    expect(stored?.dismissedAt ?? null).toBeNull();
+    expect(stored?.readAt ?? null).toBeNull();
+  });
+
+  it("404s for an id that doesn't exist", async () => {
+    await expect(
+      dismissNotification(USER_ID, new Types.ObjectId().toString())
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("is idempotent and keeps the first dismissal time and an earlier readAt", async () => {
+    const readAt = new Date(Date.now() - 60_000);
+    const notification = await seedNotification({ createdAt: new Date(), readAt });
+
+    const first = await dismissNotification(USER_ID, String(notification._id));
+    const second = await dismissNotification(USER_ID, String(notification._id));
+
+    expect(second.dismissedAt).toBe(first.dismissedAt);
+    const stored = await Notification.findById(notification._id).lean();
+    expect(stored?.readAt?.toISOString()).toBe(readAt.toISOString());
   });
 });

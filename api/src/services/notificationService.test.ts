@@ -143,8 +143,10 @@ describe("notificationService.getNotifications", () => {
 
     const result = await getNotifications(USER_ID, { limit: 2 });
 
+    // Dismissed rows (#173) never come back in the feed.
     expect(notificationFindMock).toHaveBeenCalledWith({
       userId: expect.anything(),
+      dismissedAt: null,
     });
     expect(sortMock).toHaveBeenCalledWith({ createdAt: -1, _id: -1 });
     expect(limitMock).toHaveBeenCalledWith(3);
@@ -196,6 +198,7 @@ describe("notificationService.markNotificationsReadBatch", () => {
     expect(notificationCountDocumentsMock).toHaveBeenCalledWith({
       userId: expect.anything(),
       readAt: null,
+      dismissedAt: null,
     });
     expect(result).toEqual({ markedRead: 2, unreadCount: 4 });
   });
@@ -219,6 +222,7 @@ describe("notificationService.markAllNotificationsRead", () => {
     expect(notificationCountDocumentsMock).toHaveBeenCalledWith({
       userId: expect.anything(),
       readAt: null,
+      dismissedAt: null,
     });
     expect(result).toEqual({ markedRead: 7, unreadCount: 0 });
   });
