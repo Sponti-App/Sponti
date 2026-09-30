@@ -91,7 +91,14 @@ export const blockUser = async (blockerId: string, blockedId: string) => {
       {
         $or: [
           { requesterId: blockerObjectId, receiverId: blockedObjectId },
-          { requesterId: blockedObjectId, receiverId: blockerObjectId, status: "pending" },
+          // Both accepted rows go (#260), so after an unblock neither person
+          // is connected and they have to reconnect. Pending requests go too.
+          // A rejected B -> A row is kept: it is the blocker's own refusal.
+          {
+            requesterId: blockedObjectId,
+            receiverId: blockerObjectId,
+            status: { $in: ["pending", "accepted"] },
+          },
         ],
       },
       { session }

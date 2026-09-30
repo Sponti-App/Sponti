@@ -1,17 +1,11 @@
-import { Block, Connection } from "#models/index";
+import { getRelationship, type Relationship } from "#services/relationshipService";
 import { getUserIdentityByUsername } from "#services/userDirectoryService";
 import { AppError } from "#utils/AppError";
-import { toObjectId } from "#utils/objectId";
 
-// How the viewer stands with the person whose profile they opened. Same
-// vocabulary as the QR contact flow, plus "blocked" (the viewer blocked them).
-export type ProfileRelationship =
-  | "self"
-  | "connected"
-  | "pending_outgoing"
-  | "pending_incoming"
-  | "blocked"
-  | "none";
+// How the viewer stands with the person whose profile they opened, from the
+// shared relationship function (#267). "blocked" here only ever means the
+// viewer blocked them: being blocked by them is a 404.
+export type ProfileRelationship = Relationship;
 
 export type PublicProfile = {
   id: string;
@@ -30,40 +24,6 @@ type ProfileView = {
   // The pending request, so the viewer can cancel (outgoing) or accept
   // (incoming) it. Null for every other relationship.
   connectionId: string | null;
-};
-
-const getConnectionRelationship = async (
-  viewerId: string,
-  otherId: string
-): Promise<Omit<ProfileView, "profile">> => {
-  const viewerObjectId = toObjectId(viewerId);
-  const otherObjectId = toObjectId(otherId);
-  const connections = await Connection.find({
-    $or: [
-      { requesterId: viewerObjectId, receiverId: otherObjectId },
-      { requesterId: otherObjectId, receiverId: viewerObjectId },
-    ],
-  })
-    .select("requesterId status")
-    .lean();
-
-  if (connections.some((c) => c.status === "accepted")) {
-    return { relationship: "connected", connectionId: null };
-  }
-
-  const pending = connections.filter((c) => c.status === "pending");
-  const outgoing = pending.find((c) => c.requesterId.toString() === viewerId);
-  if (outgoing) {
-    return { relationship: "pending_outgoing", connectionId: String(outgoing._id) };
-  }
-  const incoming = pending.find((c) => c.requesterId.toString() === otherId);
-  if (incoming) {
-    return { relationship: "pending_incoming", connectionId: String(incoming._id) };
-  }
-
-  // A rejected request reads as no relationship: the requester is never told
-  // they were turned down (retrying still fails with CONNECTION_REJECTED).
-  return { relationship: "none", connectionId: null };
 };
 
 /**
@@ -91,25 +51,9 @@ export const getProfileByUsername = async (
     avatarUrl: user.avatarUrl ?? null,
   };
 
-  if (user._id === viewerId) {
-    return { profile, relationship: "self", connectionId: null };
-  }
+  const { relationship, blockedBy, connectionId } = await getRelationship(viewerId, user._id);
 
-  const viewerObjectId = toObjectId(viewerId);
-  const otherObjectId = toObjectId(user._id);
-  const blocks = await Block.find({
-    $or: [
-      { blockerId: viewerObjectId, blockedId: otherObjectId },
-      { blockerId: otherObjectId, blockedId: viewerObjectId },
-    ],
-  })
-    .select("blockerId")
-    .lean();
+  if (relationship === "blocked" && blockedBy === "other") throw notFound();
 
-  if (blocks.some((b) => b.blockerId.toString() === viewerId)) {
-    return { profile, relationship: "blocked", connectionId: null };
-  }
-  if (blocks.length > 0) throw notFound();
-
-  return { profile, ...(await getConnectionRelationship(viewerId, user._id)) };
+  return { profile, relationship, connectionId };
 };

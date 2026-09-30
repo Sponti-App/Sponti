@@ -10,7 +10,7 @@ const circleFindOneAndUpdateMock = vi.hoisted(() => vi.fn());
 const circleUpdateOneMock = vi.hoisted(() => vi.fn());
 const circleMemberCreateMock = vi.hoisted(() => vi.fn());
 const circleMemberDeleteManyMock = vi.hoisted(() => vi.fn());
-const connectionFindMock = vi.hoisted(() => vi.fn());
+const getConnectedUserIdsMock = vi.hoisted(() => vi.fn());
 const getUsersByIdsMock = vi.hoisted(() => vi.fn());
 const transactionSessionMock = vi.hoisted(() => ({ id: "transaction-session" }));
 
@@ -30,7 +30,10 @@ vi.mock("#models/index", () => ({
     deleteOne: vi.fn(),
     find: vi.fn(),
   },
-  Connection: { find: connectionFindMock },
+}));
+
+vi.mock("#services/relationshipService", () => ({
+  getConnectedUserIds: getConnectedUserIdsMock,
 }));
 
 vi.mock("#services/userDirectoryService", () => ({
@@ -65,11 +68,12 @@ const mockUniqueCircleName = (circle: unknown = null) => {
   return { collationMock, leanMock, selectMock };
 };
 
-const mockAcceptedConnections = (connections: Array<Record<string, unknown>>) => {
-  const leanMock = vi.fn().mockResolvedValue(connections);
-  const selectMock = vi.fn().mockReturnValue({ lean: leanMock });
-  connectionFindMock.mockReturnValue({ select: selectMock });
-  return { leanMock, selectMock };
+// Who the owner is connected to, as the shared relationship function
+// (relationshipService.getConnectedUserIds) would answer.
+const mockConnectedUsers = (userIds: string[]) => {
+  getConnectedUserIdsMock.mockImplementation(async (_userId: string, among?: string[]) =>
+    new Set(among ? userIds.filter((id) => among.includes(id)) : userIds)
+  );
 };
 
 // ensureDefaultCircles reads via Circle.find().sort().lean(); each call to
@@ -109,10 +113,7 @@ const memberDocument = (userId: string) => ({
 describe("circleService.createCircle", () => {
   it("uses ordered batch create when adding initial members in a transaction", async () => {
     mockUniqueCircleName();
-    mockAcceptedConnections([
-      { requesterId: OWNER_ID, receiverId: MEMBER_ONE_ID },
-      { requesterId: OWNER_ID, receiverId: MEMBER_TWO_ID },
-    ]);
+    mockConnectedUsers([MEMBER_ONE_ID, MEMBER_TWO_ID]);
     circleCreateMock.mockResolvedValue([
       {
         _id: CIRCLE_ID,

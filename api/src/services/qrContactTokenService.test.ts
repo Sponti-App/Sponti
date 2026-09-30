@@ -7,10 +7,13 @@ const qrCreateMock = vi.hoisted(() => vi.fn());
 const qrFindOneMock = vi.hoisted(() => vi.fn());
 const qrUpdateOneMock = vi.hoisted(() => vi.fn());
 const getUsersByIdsMock = vi.hoisted(() => vi.fn());
-const hasAnyBlockBetweenUsersMock = vi.hoisted(() => vi.fn());
+const blockFindMock = vi.hoisted(() => vi.fn());
 const connectInPersonMock = vi.hoisted(() => vi.fn());
 
 vi.mock("#models/index", () => ({
+  Block: {
+    find: blockFindMock,
+  },
   Connection: {
     find: connectionFindMock,
   },
@@ -19,10 +22,6 @@ vi.mock("#models/index", () => ({
     findOne: qrFindOneMock,
     updateOne: qrUpdateOneMock,
   },
-}));
-
-vi.mock("#services/blockService", () => ({
-  hasAnyBlockBetweenUsers: hasAnyBlockBetweenUsersMock,
 }));
 
 vi.mock("#services/connectionService", () => ({
@@ -56,9 +55,17 @@ function mockToken(rawToken: string, expiresAt = new Date("2026-05-18T12:10:00.0
   });
 }
 
+// The shared relationship function reads Connection.find().select().lean()
+// and Block.find().select().lean().
 function mockConnections(connections: Array<Record<string, unknown>> = []) {
   connectionFindMock.mockReturnValue({
-    lean: vi.fn().mockResolvedValue(connections),
+    select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(connections) }),
+  });
+}
+
+function mockBlocks(blocks: Array<Record<string, unknown>> = []) {
+  blockFindMock.mockReturnValue({
+    select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(blocks) }),
   });
 }
 
@@ -67,7 +74,6 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   qrCreateMock.mockResolvedValue({});
   qrUpdateOneMock.mockResolvedValue({});
-  hasAnyBlockBetweenUsersMock.mockResolvedValue(false);
   getUsersByIdsMock.mockResolvedValue(
     new Map([
       [
@@ -82,6 +88,7 @@ beforeEach(() => {
     ])
   );
   mockConnections();
+  mockBlocks();
 });
 
 afterEach(() => {
@@ -182,12 +189,12 @@ describe("qrContactTokenService.resolveQrContactToken", () => {
     expect(result.relationship).toBe("self");
     expect(result.canConnect).toBe(false);
     expect(connectInPersonMock).not.toHaveBeenCalled();
-    expect(hasAnyBlockBetweenUsersMock).not.toHaveBeenCalled();
+    expect(blockFindMock).not.toHaveBeenCalled();
   });
 
   it("uses a generic not-found error when either user has blocked the other", async () => {
     mockToken("raw-token");
-    hasAnyBlockBetweenUsersMock.mockResolvedValue(true);
+    mockBlocks([{ blockerId: new Types.ObjectId(OWNER_ID) }]);
 
     await expect(
       resolveQrContactToken(VIEWER_ID, {

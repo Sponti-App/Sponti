@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
-import { Connection } from "#models/index";
 import { AppError } from "#utils/AppError";
 import { toObjectId } from "#utils/objectId";
 import { getBlockedRelationshipUserIds } from "#services/blockService";
+import { getConnectedUserIds } from "#services/relationshipService";
 import type { SearchUsersQuery } from "#schemas/userSearchSchemas";
 
 export type UserSummary = {
@@ -77,25 +77,10 @@ export const getUserIdentityByUsername = async (username: string) => {
   return user ? toUserSummary(user) : null;
 };
 
-const getAcceptedConnectionIds = async (userId: string) => {
-  const userObjectId = toObjectId(userId);
-  const connections = await Connection.find({
-    $or: [{ requesterId: userObjectId }, { receiverId: userObjectId }],
-    status: "accepted",
-  })
-    .select("requesterId receiverId")
-    .lean();
-
-  return connections.map((c) => {
-    const rid = c.requesterId.toString();
-    return rid === userId ? c.receiverId : c.requesterId;
-  });
-};
-
 export const searchUsers = async (requesterId: string, query: SearchUsersQuery) => {
   const [blockedIds, connectedIds] = await Promise.all([
     getBlockedRelationshipUserIds(requesterId),
-    getAcceptedConnectionIds(requesterId),
+    getConnectedUserIds(requesterId),
   ]);
   const excludedIds = [requesterId, ...blockedIds].map(toObjectId);
   const regex = new RegExp(escapeRegex(query.q), "i");
@@ -109,7 +94,7 @@ export const searchUsers = async (requesterId: string, query: SearchUsersQuery) 
         {
           $or: [
             { profileVisibility: { $ne: "private" } },
-            { _id: { $in: connectedIds } },
+            { _id: { $in: Array.from(connectedIds, toObjectId) } },
             ...(isExactUsername ? [{ username: new RegExp(`^${escapeRegex(query.q)}$`, "i") }] : []),
           ],
         },

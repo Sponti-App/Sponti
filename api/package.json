@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "cleanup:connections": "tsx --conditions=development --env-file=.env src/scripts/cleanupConnections.ts"
   },
   "imports": {
     "#app": {
