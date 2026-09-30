@@ -34,6 +34,7 @@ import {
   type NotificationSettings as NotificationSettingsSchema,
 } from "@/lib/api/notification-settings"
 import { HttpError } from "@/lib/http"
+import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
 import {
   getRefreshToken,
   getToken,
@@ -124,6 +125,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
   const { resolvedTheme, setTheme } = useTheme()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const extras = readProfileExtras(user.id)
+  const ideasHidden = useIdeasHidden()
   const isDark = resolvedTheme === "dark"
 
   // Account draft — seeded from the auth session (already fresh: AuthProvider
@@ -439,6 +441,17 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                   </Label>
                 ))}
               </RadioGroup>
+            </Section>
+
+            {/* Map — device-only, applies at once (no save button): the idea
+                pins and cards on the home map (#245). Kept in localStorage. */}
+            <Section icon={MapPin} label="Map">
+              <ToggleRow
+                label="show ideas on the map"
+                sublabel="suggested spots near you · kept on this device"
+                checked={!ideasHidden}
+                onCheckedChange={(v) => setIdeasHidden(!v)}
+              />
             </Section>
 
             {/* Social links — client-only extras stored in localStorage */}

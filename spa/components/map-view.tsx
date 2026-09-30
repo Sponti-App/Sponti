@@ -23,6 +23,7 @@ import {
   AlertCircle,
   Calendar as CalendarIcon,
   Expand,
+  EyeOff,
   Users,
   X,
 } from "lucide-react"
@@ -48,6 +49,8 @@ import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 import { setSuggestedFlareType } from "@/lib/suggested-flare-type"
 import { getIdeaPins, getIdeasNear, type FlareIdea } from "@/lib/flare-ideas"
 import { haptic } from "@/lib/haptics"
+import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
+import { useOptionalActionFeedback } from "@/components/action-feedback"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import type { ComposerPrefill } from "@/components/new-event-drawer"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
@@ -680,12 +683,16 @@ export function MapView({
   // not on every render (the position object is a fresh one per fix).
   const centerLat = cameraCenter?.lat
   const centerLng = cameraCenter?.lng
+  // "hide ideas" (#245) is a device setting: with it on there are no idea
+  // pins and no idea card, and the quiet state is the generic card.
+  const ideasHidden = useIdeasHidden()
+  const { showActionFeedback } = useOptionalActionFeedback()
   const idea = useMemo(
     () =>
-      quietType && centerLat != null && centerLng != null
+      !ideasHidden && quietType && centerLat != null && centerLng != null
         ? quietIdea({ lat: centerLat, lng: centerLng }, quietType, nowMs)
         : null,
-    [quietType, centerLat, centerLng, nowMs]
+    [ideasHidden, quietType, centerLat, centerLng, nowMs]
   )
 
   // Idea pins (#244): the curated ideas around the camera, for the chips that
@@ -702,7 +709,11 @@ export function MapView({
   )
   const ideaPins = useMemo(
     () =>
-      centerLat != null && centerLng != null && nowMs > 0 && !map.loading
+      !ideasHidden &&
+      centerLat != null &&
+      centerLng != null &&
+      nowMs > 0 &&
+      !map.loading
         ? getIdeaPins({
             center: { lat: centerLat, lng: centerLng },
             now: new Date(nowMs),
@@ -710,7 +721,15 @@ export function MapView({
             flarePositions,
           })
         : [],
-    [centerLat, centerLng, nowMs, map.loading, typeFilters, flarePositions]
+    [
+      ideasHidden,
+      centerLat,
+      centerLng,
+      nowMs,
+      map.loading,
+      typeFilters,
+      flarePositions,
+    ]
   )
   // The idea the person tapped on the map. Looked up in the current pins, so
   // it closes by itself if a chip or the clock takes its pin away.
@@ -723,6 +742,14 @@ export function MapView({
     haptic("selection")
     setPreviewEvent(null)
     setTappedIdeaId((prev) => (prev === pin.id ? null : pin.id))
+  }
+  const hideIdeas = () => {
+    haptic("light")
+    setTappedIdeaId(null)
+    setIdeasHidden(true)
+    showActionFeedback("ideas hidden · see settings", {
+      action: { label: "undo", onAction: () => setIdeasHidden(false) },
+    })
   }
   // The pin of the idea on screen grows: the tapped one, else the quiet card's.
   const selectedIdeaId = tappedIdea?.id ?? idea?.id ?? null
@@ -1028,6 +1055,7 @@ export function MapView({
             center={cameraCenter}
             onLight={(prefill) => lightFlare(prefill)}
             onDismiss={() => setTappedIdeaId(null)}
+            onHideIdeas={hideIdeas}
           />
         ) : quietTypeInfo ? (
           <QuietFlareCard
@@ -1035,6 +1063,7 @@ export function MapView({
             idea={idea}
             center={cameraCenter}
             onLight={(prefill) => lightFlare(prefill)}
+            onHideIdeas={hideIdeas}
           />
         ) : showRail ? (
           <div
@@ -1859,6 +1888,7 @@ export function QuietFlareCard({
   center,
   onLight,
   onDismiss,
+  onHideIdeas,
 }: {
   type: (typeof EVENT_TYPES)[number]
   idea: FlareIdea | null
@@ -1867,6 +1897,8 @@ export function QuietFlareCard({
   /** Only for a card opened from an idea pin: closes it back to the rail. The
    * quiet-state card is state, not a choice, so it has no close. */
   onDismiss?: () => void
+  /** One tap to switch idea spots off (#245). Only offered on an idea card. */
+  onHideIdeas?: () => void
 }) {
   const Icon = type.icon
   const distance =
@@ -1912,16 +1944,30 @@ export function QuietFlareCard({
           </button>
         )}
       </div>
-      <button
-        type="button"
-        onClick={() =>
-          onLight(idea ? ideaPrefill(idea) : { category: type.value })
-        }
-        className="flex h-9 items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground active:scale-[0.98]"
-      >
-        <Icon className="h-4 w-4" />
-        {idea ? "light a flare" : `light a ${type.label} flare`}
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            onLight(idea ? ideaPrefill(idea) : { category: type.value })
+          }
+          className="flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground active:scale-[0.98]"
+        >
+          <Icon className="h-4 w-4 shrink-0" />
+          <span className="truncate">
+            {idea ? "light a flare" : `light a ${type.label} flare`}
+          </span>
+        </button>
+        {idea && onHideIdeas && (
+          <button
+            type="button"
+            onClick={onHideIdeas}
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-muted px-3 text-sm font-medium text-muted-foreground active:scale-[0.98]"
+          >
+            <EyeOff className="h-4 w-4" />
+            hide ideas
+          </button>
+        )}
+      </div>
     </div>
   )
 }

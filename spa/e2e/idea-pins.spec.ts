@@ -152,3 +152,100 @@ test.describe("idea pins on the map (#244)", () => {
     await expect(pins(page)).toHaveCount(3)
   })
 })
+
+// #245: one tap hides ideas on this device, and settings brings them back.
+test.describe("hide ideas (#245)", () => {
+  const hideButton = (page: Page) =>
+    quietCard(page).getByRole("button", { name: "hide ideas" })
+  const settingsSwitch = (page: Page) =>
+    page.getByRole("switch", { name: "show ideas on the map" })
+
+  test("hide ideas on a pin's card removes every pin and the card", async ({
+    page,
+  }) => {
+    await openBerlinMap(page)
+    await expect(pins(page)).toHaveCount(4)
+
+    await pin(page, BEER).click()
+    await hideButton(page).click()
+
+    await expect(pins(page)).toHaveCount(0)
+    await expect(quietCard(page)).toBeHidden()
+    await expect(page.getByText(/ideas hidden/)).toBeVisible()
+    // Back to the rail, and a chip with an idea nearby now gets the generic
+    // card instead of the idea card.
+    await expect(
+      page.getByRole("region", { name: "flares near you" })
+    ).toBeVisible()
+    await chip(page, "drinks").click()
+    await expect(quietCard(page)).toHaveAttribute("data-quiet-card", "generic")
+    await expect(quietCard(page).getByText("up for drinks?")).toBeVisible()
+    await expect(hideButton(page)).toHaveCount(0)
+  })
+
+  test("hide ideas on the quiet idea card, and undo from the toast", async ({
+    page,
+  }) => {
+    await openBerlinMap(page)
+    await chip(page, "drinks").click()
+    await expect(quietCard(page)).toHaveAttribute("data-quiet-card", "idea")
+
+    await hideButton(page).click()
+    await expect(quietCard(page)).toHaveAttribute("data-quiet-card", "generic")
+    await expect(pins(page)).toHaveCount(0)
+
+    await page.getByRole("button", { name: "undo" }).click()
+    await expect(quietCard(page)).toHaveAttribute("data-quiet-card", "idea")
+    await expect(pin(page, BEER)).toBeVisible()
+  })
+
+  test("the choice is kept across a reload, and the setting brings ideas back", async ({
+    page,
+  }) => {
+    await openBerlinMap(page)
+    await pin(page, BEER).click()
+    await hideButton(page).click()
+    await expect(pins(page)).toHaveCount(0)
+
+    await page.reload()
+    await expect(nav(page)).toBeVisible()
+    // Same map, same position, same day: only the choice differs.
+    await expect(
+      page.getByRole("region", { name: "flares near you" })
+    ).toBeVisible()
+    await expect(pins(page)).toHaveCount(0)
+    expect(
+      await page.evaluate(() =>
+        window.localStorage.getItem("sponti.ideas.hidden.v1")
+      )
+    ).toBe("1")
+
+    // The setting shows it off, and flipping it back on restores the pins.
+    await page.goto("/settings")
+    await expect(settingsSwitch(page)).toHaveAttribute("aria-checked", "false")
+    await settingsSwitch(page).click()
+    await expect(settingsSwitch(page)).toHaveAttribute("aria-checked", "true")
+
+    await page.getByRole("button", { name: "Back", exact: true }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(nav(page)).toBeVisible()
+    await expect(pins(page)).toHaveCount(4)
+  })
+
+  test("the setting can also hide them", async ({ page }) => {
+    await openBerlinMap(page)
+    await expect(pins(page)).toHaveCount(4)
+
+    await page.goto("/settings")
+    await expect(settingsSwitch(page)).toHaveAttribute("aria-checked", "true")
+    await settingsSwitch(page).click()
+
+    await page.getByRole("button", { name: "Back", exact: true }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(nav(page)).toBeVisible()
+    await expect(
+      page.getByRole("region", { name: "flares near you" })
+    ).toBeVisible()
+    await expect(pins(page)).toHaveCount(0)
+  })
+})
