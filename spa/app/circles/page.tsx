@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { useActionFeedback } from "@/components/action-feedback"
 import { AddToFlaresDialog } from "@/components/add-to-flares-dialog"
+import { CircleChips, type CircleChipsState } from "@/components/circle-chips"
 import { CircleStackIcon } from "@/components/circle-stack-icon"
 import { QrShareSheet } from "@/components/qr-share-sheet"
 import { useAuth } from "@/components/auth-provider"
@@ -196,8 +197,12 @@ export default function CirclesPage() {
   // Block confirmation
   const [pendingBlock, setPendingBlock] = useState<Connection | null>(null)
 
-  // After accepting a request, briefly surface an inline circle-picker on that row
+  // After accepting a request, surface the shared circle chips on that
+  // person's row (#226) — the same line the notification feed shows.
   const [justAcceptedId, setJustAcceptedId] = useState<string | null>(null)
+  const [justAcceptedChips, setJustAcceptedChips] = useState<CircleChipsState>({
+    status: "choosing",
+  })
   const [acceptingRequestIds, setAcceptingRequestIds] = useState<Set<string>>(
     () => new Set()
   )
@@ -245,6 +250,7 @@ export default function CirclesPage() {
       // "all friends" is resolved live from accepted connections at invite
       // time (#154) — no membership row to write here.
       setJustAcceptedId(req.user.id)
+      setJustAcceptedChips({ status: "choosing" })
       showActionFeedback("friend added")
       refreshBackendData()
     })()
@@ -399,7 +405,8 @@ export default function CirclesPage() {
   const addMemberToCircle = (
     circleId: string,
     userId: string,
-    onSuccess?: () => void
+    onSuccess?: () => void,
+    onError?: () => void
   ): void => {
     if (!apiEnabled) {
       setCirclesError("Backend API is not configured.")
@@ -424,6 +431,7 @@ export default function CirclesPage() {
       .catch((err) => {
         setCirclesError(getErrorMessage(err, "Could not add circle member"))
         showActionFeedback("couldn't add to circle", { tone: "error" })
+        onError?.()
       })
   }
 
@@ -1271,43 +1279,35 @@ export default function CirclesPage() {
                           </DropdownMenu>
                         </div>
 
-                        {/* Post-accept circle picker */}
+                        {/* Post-accept circle chips (#226) */}
                         {isJustAccepted && (
-                          <div className="flex flex-wrap items-center gap-2 px-1 pb-2.5 pl-12">
-                            <span className="text-xs text-muted-foreground">
-                              add to circle:
-                            </span>
-                            {circles
-                              .filter((ci) => ci.type !== "all")
-                              .map((ci) => {
-                                const inCircle = ci.memberIds.includes(c.id)
-                                return (
-                                  <button
-                                    key={ci.id}
-                                    type="button"
-                                    disabled={inCircle}
-                                    onClick={() =>
-                                      addMemberToCircle(ci.id, c.id)
-                                    }
-                                    className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                                      inCircle
-                                        ? "bg-accent/15 text-accent"
-                                        : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
-                                    }`}
-                                  >
-                                    {inCircle && <Check className="h-3 w-3" />}
-                                    {ci.name}
-                                  </button>
-                                )
-                              })}
-                            <button
-                              type="button"
-                              onClick={() => setJustAcceptedId(null)}
-                              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                            >
-                              done
-                            </button>
-                          </div>
+                          <CircleChips
+                            circles={circles}
+                            personId={c.id}
+                            personName={c.displayName}
+                            state={justAcceptedChips}
+                            onPick={(circle) => {
+                              setJustAcceptedChips({
+                                status: "adding",
+                                circle,
+                              })
+                              addMemberToCircle(
+                                circle.id,
+                                c.id,
+                                () =>
+                                  setJustAcceptedChips({
+                                    status: "added",
+                                    circle,
+                                  }),
+                                () =>
+                                  setJustAcceptedChips({ status: "choosing" })
+                              )
+                            }}
+                            onSkip={() =>
+                              setJustAcceptedChips({ status: "skipped" })
+                            }
+                            className="px-1 pb-2.5 pl-12"
+                          />
                         )}
                       </li>
                     )
