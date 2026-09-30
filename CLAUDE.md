@@ -11,23 +11,7 @@ Key differentiators: low-notification noise, granular privacy controls (per-list
 
 ## Project status
 
-**Timeline:** 16-day bootcamp sprint. Team of 4 (UX/UI, frontend dev, tech lead, PM).
-
-**Completed:**
-
-- Home screen — map view with flares + calendar view toggle
-- Design system bootstrapped — Tailwind v4 + shadcn Nova preset + Figtree font (see [Brand & Design System](#brand--design-system))
-- Capacitor set up for iOS/Android WebView wrapper
-
-**Next to build (in priority order):**
-
-1. Auth — email/password register + login (backend scaffolded, frontend needed)
-2. Event creation flow — title, time, location, visibility picker, post
-3. Event joining flow - click on map, details, route to event with ETA, add to calendar
-4. Friend lists — add friends, organise into lists, use lists as invite targets
-5. Profile — view/edit, public/private toggle
-6. Notification settings — per-type preferences, quiet hours
-7. QR code — generate card, scan to add friend
+Started as a 16-day bootcamp sprint by a team of 4 (UX/UI, frontend dev, tech lead, PM). The original build list is done: auth, flare creation, joining (route + ETA), friend lists (circles), profile, notification settings and QR connect. The prototype is deployed, and the work now is getting it ready for real testers (see the roadmap below).
 
 **Deferred to v2:**
 
@@ -36,46 +20,43 @@ Key differentiators: low-notification noise, granular privacy controls (per-list
 
 ## Post-demo roadmap (tester build → app stores)
 
-The 7-item list above is built; the prototype is deployed. The operative plan now is to take it from "working demo" to a build we can hand to 5–10 friends who use it as a real app, then on to the stores.
+The goal is a build we can hand to 5–10 friends who use it as a real app, then the stores. **Testing happens on the web app first** (sponti-flame.vercel.app on phone browsers). Native builds and the stores (Milestone 2) come after that round, so web-tester blockers rank above native-only problems.
 
 **Guiding principles:**
 
 - **Understand before you change.** No sweeping refactors against code the team doesn't yet share an understanding of. Fixes are read-the-slice-first, small, and individually reviewable. Tracked as GitHub issues so each change is scoped and reviewed, not bundled.
-- **Hide, never delete.** Unfinished or unwired surfaces are eventually gated behind `spa/lib/feature-flags.ts` — one typed, compile-time profile that flips between "tester build" and "full app". Nothing is removed from the tree. **This is a Phase 1 step (see below), not an upfront refactor** — the internal team round needs no flags.
-- **Real data, not fake.** Empty-states-first. Any demo seed lives behind an off-by-default `seedDemoData` flag and is decoupled from `NEXT_PUBLIC_API_BASE_URL` (today, mock data is wrongly tied to "no backend configured").
-- **The core loop must be real:** sign in → light a flare → a friend sees it → joins (RSVP). Verified wired end-to-end; everything else can be thin.
+- **Hide, never delete.** Unfinished or unwired surfaces are gated behind `spa/lib/feature-flags.ts`, one typed, compile-time profile that flips between "tester build" and "full app". Nothing is removed from the tree.
+- **Real data, not fake.** Empty-states-first. Demo data lives behind the off-by-default `seedDemoData` flag.
+- **The core loop must be real:** sign in → light a flare → a friend sees it → joins (RSVP). Everything else can be thin.
 
-**Milestone 1 — Tester build (the shareable cut).** Sequenced in two phases so understanding precedes change:
+**Milestone 1 — Tester build (the shareable cut):**
 
-_Phase 0 — Understand & fix (do first; supports the internal team round, no flags needed):_
+_Phase 0 — Understand & fix: done._ Codebase walkthrough (#87), discovery-only profile privacy in search (#88), circles/users owned by `api/` with aligned DBs (#89, #102), attendee ETAs surfaced to the host (#90, #211), settings wired to their backends (#91), demo data decoupled + real empty states (#92).
 
-- **Shared codebase understanding pass** — the team walks the components, the core loop, and the `lib/api` → backend wiring before changing them (the `/teach` lessons seed this).
-- **Enforce profile privacy (discovery-only contract):** `userDirectoryService` must exclude `private` users from search — it is stored-but-ignored today. Private users stay viewable by connections or via direct link.
-- Resolve the circles/users cross-service coupling per `docs/decisions/circles-and-users-are-api-owned.md`. Minimum bar: align `MONGO_URI` + `DB_NAME` across `api/` and `auth-server/` so registration-seeded default circles don't vanish.
-- **🚩 Surface attendee ETAs to the host.** The "let host know" arrival time (`memberWillArriveAt`) is collected at join and stored on `EventMember`, but is **write-only** — the host never sees it. To fix: (1) show each going attendee's ETA in the host's event view (`event-detail-sheet` "who's going" + `/event/[id]`); (2) include the ETA in the RSVP-change notification (`createEventRsvpChangeNotification` isn't passed `memberWillArriveAt` today); (3) fire a notification (or update) when a _going_ member changes only their ETA — currently silent because it keys off `rsvpStatusChanged`; (4) null out `memberWillArriveAt` on `declined` so a stale arrival time doesn't linger. Signature differentiator, currently half-wired.
-- Wire stubbed settings to the backends that already exist: `profileVisibility` toggle and notification preferences (`GET/PATCH /notification-settings/me`); verify/hide change-password.
-- Decouple demo data from `API_BASE`; add `seedDemoData` (off). Add real empty states for map, calendar, circles.
+_Phase 1 — Gate for external testers (in progress, #93):_ small, one-flag-per-PR render-site guards in `spa/lib/feature-flags.ts`. Re-share is gated (#231). +1 / guest invites wait on the decision in #159. `socialBattery` stays unrendered. **Keep custom circles**, which are fully wired. Social handles are no longer gated: they are being built for real in the profile work (#166).
 
-_Phase 1 — Gate for external testers (just before the external handoff):_
+_Current work (tracked as GitHub issues):_
 
-- Introduce `spa/lib/feature-flags.ts` and gate the half-wired/fluff surfaces: +1 / guest invites (backend done, no redemption UX), re-share / `allowForward` (frontend-only, unpersisted), social handles (localStorage-only), `socialBattery` (unrendered). **Keep custom circles** — fully wired. Done as **small, one-flag-per-PR changes** (a render-site guard, not code extraction), once Phase 0 understanding is in hand.
+- **First-friend onboarding (#124):** instant QR connect, 7-day invite link, and signed-out visitors land on sign-up and come back to the link. Still needs a real-phone check.
+- **Profile rebuild (#166):** photo, one-line bio, and Instagram/Telegram handles. Bio and handles are visible to connections only. Strangers see name, @username and photo, and a user who blocked you gets "not found". New fields live in `auth-server/`, and `api/` reads them. The host's profile opens from a flare for connected and unconnected viewers (#199). Settle #260, #267 and #268 before bio and handles ship.
+- **Ideas on a quiet map (#240):** curated Berlin idea spots (`spa/lib/flare-ideas.data.ts`, owned by the team) offered as one-tap flares.
 
-**Milestone 2 — Native distribution (store-prep):**
+**Milestone 2 — Native distribution (store-prep, after the web round):**
 
-- TestFlight (Apple Developer Program, $99/yr; internal testing = up to 100 testers, no review) + Google Play internal testing ($25 one-time). These are pre-listing beta channels — no public store listing required to share.
-- `npm run build:mobile` → archive/upload → invite testers.
+- TestFlight (Apple Developer Program, $99/yr; internal testing = up to 100 testers, no review) + Google Play internal testing ($25 one-time). These are pre-listing beta channels, so no public store listing is needed to share.
+- First decide how the Capacitor app loads the SPA (#205): static export was removed, so `build:mobile` no longer produces `out/`.
 
 **Milestone 3 — Push notifications (its own milestone, native-only):**
 
-- The **in-app notification feed already exists** and is sufficient for tester round 1. **Device push is not built**: no `@capacitor/push-notifications`, no APNs/FCM, no device-token registration. This milestone adds that infrastructure and wires notification preferences to gate delivery.
+- The **in-app notification feed exists** (a bottom sheet with swipe actions) and is enough for tester round 1. **Device push is not built**: no `@capacitor/push-notifications`, no APNs/FCM, no device-token registration. This milestone adds that infrastructure and wires notification preferences to gate delivery.
 
-**Deferred past the tester round:** +1 redemption UX, social-handles backend, `socialBattery` surfacing, richer profile (bio/avatar image/visibility indicator), QR polish.
+**Deferred past the tester round:** +1 redemption UX, `socialBattery` surfacing, QR polish.
 
 > Domain language and the rationale behind these decisions are captured in `CONTEXT-MAP.md`, the per-context `CONTEXT.md` files, and `docs/decisions/`.
 
 ## Platform strategy
 
-v1 is a **Next.js web app wrapped in Capacitor** for iOS/Android. The SPA is served as a web application and can be exported for mobile usage.
+v1 is a **Next.js web app wrapped in Capacitor** for iOS/Android. The SPA is served as a web application; how the native shell loads it is still open (#205).
 
 v2 plan: migrate to Expo/React Native if there is traction.
 
@@ -96,14 +77,18 @@ Run these commands from the `spa/` directory.
 ```bash
 cd spa
 npm run dev           # Next.js dev server with Turbopack (localhost:3000)
-npm run build         # Production static export → out/
-npm run build:mobile  # next build + cap sync (deploy to native)
+npm run build         # Production build (no static export; see #205)
+npm run build:mobile  # next build + cap sync (native builds need #205 settled)
 npm run open:ios      # Open Xcode
 npm run open:android  # Open Android Studio
 npm run lint          # ESLint
 npm run format        # Prettier (ts/tsx)
 npm run typecheck     # tsc --noEmit
+npm test              # Vitest unit tests
+npm run test:e2e      # Playwright e2e against stubbed backends (e2e/support/stubs.ts)
 ```
+
+Playwright starts its own dev server on port 4415. Set `PLAYWRIGHT_WEB_SERVER_PORT` to run several copies side by side (e.g. one per git worktree). UI checks use the stubbed e2e setup, not real data: the local `.env` points at the shared database.
 
 ### Capacitor dev workflow
 
@@ -114,6 +99,15 @@ npx cap run ios            # run in iOS Simulator with live reload
 npx cap run android        # run in Android emulator with live reload
 ```
 
+### api
+
+```bash
+cd api
+npm run dev          # tsx watch
+npm test             # Vitest (unit + mongodb-memory-server db tests)
+npm run typecheck && npm run lint
+```
+
 ### auth-server
 
 ```bash
@@ -122,6 +116,14 @@ npm run dev          # node --watch (no compile step)
 npm run build        # tsc → dist/
 npm start            # build then run dist/app.js
 ```
+
+## Branches, PRs and deploys
+
+- Branch from `dev` and open PRs against `dev`, never `main`. CI runs the spa, api and auth-server checks on every PR.
+- `dev` is merged into `main` to release. `main` deploys to production (Vercel project `sponti`, https://sponti-flame.vercel.app). `dev` deploys to https://sponti-git-dev-spontis-projects.vercel.app, so check new work there before it reaches `main`.
+- Backends run on Render's free tier (`sponti.onrender.com` for auth, `sponti-api.onrender.com` for the api) and cold-start. Their `CORS_ORIGINS` must list any new SPA origin.
+- GitHub only auto-closes issues on merges into the default branch (`main`), so close an issue by hand, linking the PR, once that PR is merged to `dev`.
+- Stage explicit paths (`git add <file>`), never a symlinked `node_modules`.
 
 ## Architecture
 
