@@ -10,8 +10,8 @@ import { toObjectId } from "#utils/objectId";
 //
 // Two kinds of row are removed:
 // - blocked_pair: any row a block would remove today (blockService.blockUser):
-//   for a block X -> Y, X's row to Y whatever its status, and Y's row to X
-//   if it is pending or accepted. Y's rejected row (X's own refusal) stays.
+//   a pending or accepted row either way between two people where a block
+//   exists. Rejected rows are never deleted, by either rule.
 // - one_sided_accepted: an accepted row whose mirror is missing or not
 //   accepted.
 //
@@ -59,12 +59,10 @@ export const planConnectionCleanup = async (): Promise<CleanupPlan> => {
     const requesterId = row.requesterId.toString();
     const receiverId = row.receiverId.toString();
 
-    // Requester blocked receiver: all of the blocker's own rows go. Receiver
-    // blocked requester: the blocked person's pending/accepted rows go.
     const blockedPair =
-      blockPairs.has(pairKey(requesterId, receiverId)) ||
-      (blockPairs.has(pairKey(receiverId, requesterId)) &&
-        (row.status === "pending" || row.status === "accepted"));
+      (row.status === "pending" || row.status === "accepted") &&
+      (blockPairs.has(pairKey(requesterId, receiverId)) ||
+        blockPairs.has(pairKey(receiverId, requesterId)));
 
     const oneSided =
       row.status === "accepted" && !acceptedPairs.has(pairKey(receiverId, requesterId));

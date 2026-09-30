@@ -3,7 +3,7 @@ import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { Block, Connection, type ConnectionStatus } from "#models/index";
 import { blockUser, unblockUser } from "#services/blockService";
-import { deleteConnection } from "#services/connectionService";
+import { deleteConnection, sendConnectionRequest } from "#services/connectionService";
 import { getConnectedUserIds, getRelationship } from "#services/relationshipService";
 import { searchUsers } from "#services/userDirectoryService";
 
@@ -202,6 +202,22 @@ describe("blocking deletes both connection rows (#260)", () => {
     await blockUser(A, B);
 
     expect(await Connection.countDocuments({})).toBe(0);
+  });
+
+  it("keeps the blocked person's earlier refusal of the blocker, and retrying still fails", async () => {
+    // B rejected A, then A blocks B and unblocks: B's "no" survives.
+    const refusal = await row(A, B, "rejected");
+
+    await blockUser(A, B);
+    await unblockUser(A, B);
+
+    const remaining = await Connection.find({}).lean();
+    expect(remaining.map((r) => r._id.toString())).toEqual([refusal._id.toString()]);
+    expect(await relationshipOf(A, B)).toBe("none");
+    // Current retry-after-rejection rule still applies to A.
+    await expect(
+      sendConnectionRequest(A, { receiverId: B, type: "shared_invitation" })
+    ).rejects.toMatchObject({ statusCode: 409, code: "CONNECTION_REJECTED" });
   });
 
   it("keeps the blocker's own refusal of the blocked person", async () => {

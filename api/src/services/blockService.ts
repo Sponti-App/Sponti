@@ -89,16 +89,14 @@ export const blockUser = async (blockerId: string, blockedId: string) => {
 
     await Connection.deleteMany(
       {
+        // Both accepted rows go (#260), so after an unblock neither person
+        // is connected and they have to reconnect. Pending requests go too.
+        // Rejected rows from either side stay: a block and unblock never
+        // wipes anyone's earlier "no".
+        status: { $in: ["pending", "accepted"] },
         $or: [
           { requesterId: blockerObjectId, receiverId: blockedObjectId },
-          // Both accepted rows go (#260), so after an unblock neither person
-          // is connected and they have to reconnect. Pending requests go too.
-          // A rejected B -> A row is kept: it is the blocker's own refusal.
-          {
-            requesterId: blockedObjectId,
-            receiverId: blockerObjectId,
-            status: { $in: ["pending", "accepted"] },
-          },
+          { requesterId: blockedObjectId, receiverId: blockerObjectId },
         ],
       },
       { session }

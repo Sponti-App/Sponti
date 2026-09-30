@@ -38,7 +38,8 @@ const ids = (docs: Array<{ _id: Types.ObjectId }>) => docs.map((doc) => doc._id.
 
 // A realistic pre-#260 database. Returns which rows must go and which stay.
 const seed = async () => {
-  const [me, friend, ghost, halfway, blockedMe, refuser, blockerOwn, asker] = [
+  const [me, friend, ghost, halfway, blockedMe, refuser, blockerOwn, refusedBlocker, asker] = [
+    id(),
     id(),
     id(),
     id(),
@@ -78,9 +79,12 @@ const seed = async () => {
   // `refuser` turned down my request, then blocked me: their refusal stays.
   await block(refuser, me);
   keep.push(await row(me, refuser, "rejected"));
-  // The blocker's own rows always go, whatever their status.
+  // The blocker's own pending request goes.
   await block(blockerOwn, me);
-  blockedPair.push(await row(blockerOwn, me, "rejected"));
+  blockedPair.push(await row(blockerOwn, me, "pending"));
+  // I turned down `refusedBlocker`, who then blocked me: my refusal stays too.
+  await block(refusedBlocker, me);
+  keep.push(await row(refusedBlocker, me, "rejected"));
 
   return { me, ghost, keep, oneSided, blockedPair };
 };
@@ -128,7 +132,8 @@ describe("planConnectionCleanup", () => {
     const planned = new Set(plan.rows.map((r) => r.connectionId));
     expect(ids(keep).filter((keptId) => planned.has(keptId))).toEqual([]);
     expect(plan.scannedConnections).toBe(keep.length + oneSided.length + blockedPair.length);
-    expect(plan.scannedBlocks).toBe(3);
+    expect(plan.rows.filter((r) => r.status === "rejected")).toEqual([]);
+    expect(plan.scannedBlocks).toBe(4);
   });
 
   it("finds nothing in clean data", async () => {
