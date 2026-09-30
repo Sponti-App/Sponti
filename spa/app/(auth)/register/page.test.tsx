@@ -115,5 +115,9 @@ describe("RegisterPage legal links (#129)", () => {
       "href",
       "/menu/privacy"
     )
+    expect(screen.getByRole("link", { name: "impressum" })).toHaveAttribute(
+      "href",
+      "/menu/impressum"
+    )
   })
 })

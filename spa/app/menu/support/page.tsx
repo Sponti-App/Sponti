@@ -12,6 +12,7 @@ import {
   HelpCircle,
   Mail,
   MessageSquare,
+  Scale,
   ShieldAlert,
   UserCircle,
 } from "lucide-react"
@@ -87,6 +88,12 @@ const relatedLinks = [
     label: "privacy note",
     description: "what we keep and who can see it",
     icon: ShieldAlert,
+  },
+  {
+    href: "/menu/impressum",
+    label: "impressum",
+    description: "who runs sponti",
+    icon: Scale,
   },
 ] as const
 

@@ -277,6 +277,13 @@ export default function RegisterPage() {
                 className="text-foreground underline underline-offset-2"
               >
                 privacy note
+              </Link>{" "}
+              ·{" "}
+              <Link
+                href="/menu/impressum"
+                className="text-foreground underline underline-offset-2"
+              >
+                impressum
               </Link>
             </p>
 

@@ -3,6 +3,7 @@ import {
   HelpCircle,
   Info,
   LifeBuoy,
+  Scale,
   ShieldCheck,
 } from "lucide-react"
 
@@ -30,6 +31,12 @@ export const menuItems = [
     label: "terms of service",
     description: "terms and community basics",
     icon: FileText,
+  },
+  {
+    href: "/menu/impressum",
+    label: "impressum",
+    description: "who runs sponti",
+    icon: Scale,
   },
   {
     href: "/menu/support",

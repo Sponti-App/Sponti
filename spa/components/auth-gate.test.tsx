@@ -158,6 +158,7 @@ describe("AuthGate on a cold load or refresh (#219)", () => {
   it("leaves public pages alone for a signed-out user", async () => {
     for (const path of [
       "/menu/terms",
+      "/menu/impressum",
       "/qr/abc123",
       "/invite/abc123",
       "/login",

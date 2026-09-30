@@ -74,84 +74,109 @@ function GithubIcon({ className, ...props }: SVGProps<SVGSVGElement>) {
 
 export default function AboutSpontiPage() {
   return (
-    <MenuPageShell title="About Sponti">
+    <MenuPageShell title="about sponti">
       <article className="flex flex-col gap-6 pt-4 pb-8">
         <section className="flex flex-col gap-3">
           <p className="text-sm font-medium text-accent">
-            The shortest path to IRL.
+            the shortest path to irl.
           </p>
           <h2 className="text-3xl leading-tight font-bold">
-            We measure success by how quickly you put your phone down.
+            we measure success by how quickly you put your phone down.
           </h2>
           <p className="text-base leading-7 text-muted-foreground">
-            Sponti exists for the moment between thinking about seeing someone
-            and actually making it happen. It is not another feed to check. It
+            sponti exists for the moment between thinking about seeing someone
+            and actually making it happen. it is not another feed to check. it
             is a small bridge from digital intention to real presence.
           </p>
           <p className="text-sm leading-6 text-muted-foreground">
-            The project began close to home. Some of us are often too busy to be
-            spontaneous with friends. Some of us know the quieter side of social
+            it comes from close to home. some of us are often too busy to be
+            spontaneous with friends. some of us know the quieter side of social
             life, where reaching out can take more energy than people see.
-            Sponti starts from that honest place.
+            sponti starts from that honest place.
           </p>
         </section>
 
         <div className="h-px bg-border" />
 
         <section className="flex flex-col gap-3">
-          <h3 className="text-xl font-semibold">The problem</h3>
+          <h3 className="text-xl font-semibold">how it started</h3>
           <p className="text-sm leading-6 text-muted-foreground">
-            We are more connected than ever, but it has not made friendship feel
-            easier. Group chats get noisy. Social apps turn connection into
-            performance. Proximity apps can feel empty before they have a chance
+            it began on a holiday with friends, years ago. we noticed how we
+            kept drifting towards chilling together, at all sorts of times,
+            without anyone having planned it. that easy, unplanned togetherness
+            is what i wanted more of.
+          </p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            the idea stayed with our group for a few years and kept growing.
+            then facebook events faded out after covid, and the gap was easy to
+            see. people bounce between instagram, whatsapp and telegram, through
+            long threads and groups. everything is scattered, and it is
+            frustrating: there is no easy way to get people together on a whim,
+            or to keep up with what is happening in your circle.
+          </p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            that is how the idea grew into sponti.
+          </p>
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <h3 className="text-xl font-semibold">the problem</h3>
+          <p className="text-sm leading-6 text-muted-foreground">
+            we are more connected than ever, but it has not made friendship feel
+            easier. group chats get noisy. social apps turn connection into
+            performance. proximity apps can feel empty before they have a chance
             to become useful.
           </p>
           <p className="text-sm leading-6 text-muted-foreground">
-            Sponti starts from a different question: what would a social app
+            sponti starts from a different question: what would a social app
             look like if the goal was not time spent in app, but time spent
             together?
           </p>
         </section>
 
         <section className="flex flex-col gap-3">
-          <h3 className="text-xl font-semibold">The idea</h3>
+          <h3 className="text-xl font-semibold">the idea</h3>
           <p className="text-sm leading-6 text-muted-foreground">
-            A flare is a simple signal: I am free now or soon. Coffee for an
-            hour. A walk after class. Pizza nearby. It is lightweight by design,
+            a flare is a simple signal: i am free now or soon. coffee for an
+            hour. a walk after class. pizza nearby. it is lightweight by design,
             shared with people you trust, and easy to join without turning every
             plan into a negotiation.
           </p>
           <p className="text-sm leading-6 text-muted-foreground">
-            The app is built around small circles, clear timing, and low
-            notification noise. You do not need a crowd. You need the right few
+            the app is built around small circles, clear timing, and low
+            notification noise. you do not need a crowd. you need the right few
             people to see the right invitation at the right time.
           </p>
         </section>
 
         <section className="flex flex-col gap-3">
-          <h3 className="text-xl font-semibold">What we believe</h3>
+          <h3 className="text-xl font-semibold">what we believe</h3>
           <ul className="flex flex-col gap-2 text-sm leading-6 text-muted-foreground">
-            <li>Trust is the only real currency.</li>
+            <li>trust is the only real currency.</li>
             <li>
-              No infinite scroll. No engagement tricks. No contact scraping.
+              no infinite scroll. no engagement tricks. no contact scraping.
             </li>
-            <li>Utility should feel quiet, human, and almost invisible.</li>
+            <li>utility should feel quiet, human, and almost invisible.</li>
             <li>
-              The best outcome is not another tap. It is a phone face down.
+              the best outcome is not another tap. it is a phone face down.
             </li>
           </ul>
         </section>
 
         <section className="flex flex-col gap-3">
-          <h3 className="text-xl font-semibold">Where it is going</h3>
+          <h3 className="text-xl font-semibold">where it is going</h3>
           <p className="text-sm leading-6 text-muted-foreground">
-            Sponti is a tool for right now: the gap between a messy group-chat
-            ping and a real plan. The first version keeps that promise focused:
+            sponti is a tool for right now: the gap between a messy group-chat
+            ping and a real plan. the first version keeps that promise focused:
             light a flare, see what is happening, and help friends get back
             together in real life.
           </p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            i am leading sponti from here, through testing with real friends and
+            towards the full app.
+          </p>
           <p className="text-lg leading-7 font-medium">
-            Sponti does not want your attention. It wants your presence.
+            sponti does not want your attention. it wants your presence.
           </p>
         </section>
 
@@ -159,20 +184,21 @@ export default function AboutSpontiPage() {
 
         <section className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <h3 className="text-xl font-semibold">Built by us</h3>
+            <h3 className="text-xl font-semibold">built by us</h3>
             <p className="text-sm leading-6 text-muted-foreground">
-              This build is part of the AI Software Development program at{" "}
+              i pitched sponti to the team on the ai software development
+              program at{" "}
               <a
                 href={wbsHref}
                 target="_blank"
                 rel="noreferrer"
                 className="font-medium text-accent underline underline-offset-4"
               >
-                WBS Coding School
+                wbs coding school
               </a>
-              . It is our final-project attempt to turn a shared social problem
-              into a working product: small enough to use, useful enough to make
-              plans real.
+              . they saw the potential straight away. they helped me pull my
+              earlier work and research together, and built the mvp with me.
+              sponti would not be here without them.
             </p>
           </div>
 
@@ -201,7 +227,7 @@ export default function AboutSpontiPage() {
             className="inline-flex items-center gap-2 text-sm font-medium text-foreground"
           >
             <GithubIcon className="size-4 text-accent" aria-hidden="true" />
-            <span>View the Sponti repository</span>
+            <span>view the sponti repository</span>
           </a>
         </section>
       </article>
