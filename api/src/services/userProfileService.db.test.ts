@@ -121,19 +121,48 @@ describe("GET /users/by-username/:username", () => {
     }
   });
 
-  it("marks an accepted connection in either direction as connected", async () => {
+  it("marks an accepted connection (a row each way) as connected", async () => {
     await insertHost({ profileVisibility: "private" });
-    await Connection.create({
-      requesterId: HOST_ID,
-      receiverId: VIEWER_ID,
-      status: "accepted",
-      type: "shared_invitation",
-    });
+    await Connection.create([
+      {
+        requesterId: HOST_ID,
+        receiverId: VIEWER_ID,
+        status: "accepted",
+        type: "shared_invitation",
+      },
+      {
+        requesterId: VIEWER_ID,
+        receiverId: HOST_ID,
+        status: "accepted",
+        type: "shared_invitation",
+      },
+    ]);
 
     const res = await getProfile("sarah").expect(200);
 
     expect(res.body.data).toMatchObject({ relationship: "connected", connectionId: null });
     expect(Object.keys(res.body.data.profile).sort()).toEqual(PUBLIC_IDENTITY_KEYS);
+  });
+
+  it("does not count a one-sided accepted row as connected, in either direction (#260)", async () => {
+    await insertHost();
+
+    for (const [requesterId, receiverId] of [
+      [HOST_ID, VIEWER_ID],
+      [VIEWER_ID, HOST_ID],
+    ]) {
+      await Connection.deleteMany({});
+      await Connection.create({
+        requesterId,
+        receiverId,
+        status: "accepted",
+        type: "shared_invitation",
+      });
+
+      const res = await getProfile("sarah").expect(200);
+
+      expect(res.body.data).toMatchObject({ relationship: "none", connectionId: null });
+    }
   });
 
   it("returns the pending request id for a request the viewer sent, so they can cancel it", async () => {

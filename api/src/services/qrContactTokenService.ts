@@ -1,13 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
 import { QrContactToken } from "#models/index";
 import type { ResolveQrContactTokenBody } from "#schemas/qrContactTokenSchemas";
-import { hasAnyBlockBetweenUsers } from "#services/blockService";
 import { connectInPerson } from "#services/connectionService";
 import {
-  getContactRelationship,
+  getRelationship,
   publicContactProfile,
-  type ContactRelationship,
-} from "#services/contactRelationshipService";
+  type Relationship,
+} from "#services/relationshipService";
 import { getUsersByIds } from "#services/userDirectoryService";
 import { AppError } from "#utils/AppError";
 import { toObjectId } from "#utils/objectId";
@@ -27,7 +26,7 @@ const notFound = () =>
   new AppError("QR contact token not found", 404, "QR_CONTACT_TOKEN_NOT_FOUND");
 
 // Scanning in person resolves any pending request, in either direction.
-const canConnect = (relationship: ContactRelationship) =>
+const canConnect = (relationship: Relationship) =>
   relationship === "none" ||
   relationship === "pending_incoming" ||
   relationship === "pending_outgoing";
@@ -72,7 +71,10 @@ export const resolveQrContactToken = async (
     throw new AppError("QR contact token expired", 410, "QR_CONTACT_TOKEN_EXPIRED");
   }
 
-  if (viewerId !== ownerId && (await hasAnyBlockBetweenUsers(viewerId, ownerId))) {
+  // Blocks either way read exactly like a token that never existed.
+  let { relationship } = await getRelationship(viewerId, ownerId);
+
+  if (relationship === "blocked") {
     throw notFound();
   }
 
@@ -83,12 +85,11 @@ export const resolveQrContactToken = async (
     throw notFound();
   }
 
-  let relationship = await getContactRelationship(viewerId, ownerId);
   let connectionResult: Awaited<ReturnType<typeof connectInPerson>> | null = null;
 
   if (input.connect && canConnect(relationship)) {
     connectionResult = await connectInPerson(viewerId, ownerId);
-    relationship = await getContactRelationship(viewerId, ownerId);
+    ({ relationship } = await getRelationship(viewerId, ownerId));
   }
 
   return {
