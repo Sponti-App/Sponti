@@ -86,3 +86,50 @@ export function getIdeasNear({
 
   return limit === undefined ? ranked : ranked.slice(0, Math.max(0, limit))
 }
+
+/** Most idea pins the map shows at once. The map opens at street level (about
+ * a kilometre across on a phone), so more than this turns a quiet map into a
+ * field of dots and makes ideas outnumber the real flares they sit beside. */
+export const MAX_IDEA_PINS = 5
+
+/** An idea whose place is closer than this to a flare's pin is dropped: at the
+ * map's opening zoom that is where the two markers would touch. */
+export const IDEA_PIN_CLEARANCE_METERS = 75
+
+export type GetIdeaPinsOptions = {
+  center: GeoCoords
+  now: Date
+  /** Categories to show; empty (no chip on) means every category. */
+  categories: ReadonlySet<EventType>
+  /** Where the map already draws a flare pin. A real flare always wins. */
+  flarePositions: readonly GeoCoords[]
+  cap?: number
+  ideas?: readonly FlareIdea[]
+}
+
+/**
+ * The ideas the map draws as pins (#244): the same curated, nearby and in
+ * season pick as the quiet card, narrowed to the chips that are on, without
+ * any that would sit on a real flare's pin, and at most `cap` of them, in
+ * season first and then nearest. Overlapping ideas are dropped before the cap
+ * is applied, so a hidden one gives its slot to the next idea.
+ */
+export function getIdeaPins({
+  center,
+  now,
+  categories,
+  flarePositions,
+  cap = MAX_IDEA_PINS,
+  ideas,
+}: GetIdeaPinsOptions): FlareIdea[] {
+  return getIdeasNear({ center, now, ideas })
+    .filter((idea) => categories.size === 0 || categories.has(idea.category))
+    .filter(
+      (idea) =>
+        !flarePositions.some(
+          (flare) =>
+            haversineMeters(flare, idea.place) < IDEA_PIN_CLEARANCE_METERS
+        )
+    )
+    .slice(0, Math.max(0, cap))
+}

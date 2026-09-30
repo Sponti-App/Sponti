@@ -115,6 +115,26 @@ describe("SettingsPage account tab", () => {
     expect(mocks.showActionFeedback).toHaveBeenCalledWith("profile saved")
   })
 
+  it("switches ideas on the map off and on, on this device only (#245)", async () => {
+    const user = userEvent.setup()
+    window.localStorage.removeItem("sponti.ideas.hidden.v1")
+    render(<SettingsPage />)
+
+    const toggle = screen.getByRole("switch", { name: "show ideas on the map" })
+    expect(toggle).toHaveAttribute("aria-checked", "true")
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-checked", "false")
+    expect(window.localStorage.getItem("sponti.ideas.hidden.v1")).toBe("1")
+    // Nothing goes to the backend.
+    expect(mocks.updateProfile).not.toHaveBeenCalled()
+    expect(mocks.updateNotificationSettings).not.toHaveBeenCalled()
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-checked", "true")
+    expect(window.localStorage.getItem("sponti.ideas.hidden.v1")).toBeNull()
+  })
+
   it("disables the connections-only option — not a real backend value yet", () => {
     render(<SettingsPage />)
 
