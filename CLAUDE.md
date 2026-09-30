@@ -37,9 +37,9 @@ _Phase 1 — Gate for external testers (in progress, #93):_ small, one-flag-per-
 
 _Current work (tracked as GitHub issues):_
 
-- **First-friend onboarding (#124):** instant QR connect, 7-day invite link, and signed-out visitors land on sign-up and come back to the link. Still needs a real-phone check.
-- **Profile rebuild (#166):** photo, one-line bio, and Instagram/Telegram handles. Bio and handles are visible to connections only. Strangers see name, @username and photo, and a user who blocked you gets "not found". New fields live in `auth-server/`, and `api/` reads them. The host's profile opens from a flare for connected and unconnected viewers (#199). Settle #260, #267 and #268 before bio and handles ship.
-- **Ideas on a quiet map (#240):** curated Berlin idea spots (`spa/lib/flare-ideas.data.ts`, owned by the team) offered as one-tap flares.
+- **First-friend onboarding (#124):** instant QR connect, 7-day invite link, and signed-out visitors land on sign-up and come back to the link. Parked until real testers have tried the QR code and the link.
+- **Profile rebuild (#166):** photo, one-line bio, Instagram/Telegram handles, and mutual friends. Bio and handles are visible to connections only. Mutual friends are computed server-side and show on public profiles, and on private ones only to connections. Strangers see name, @username and photo, and a user who blocked you gets "not found". New fields live in `auth-server/`, and `api/` reads them. The host's profile opens from a flare for connected and unconnected viewers (#199). Settle #260, #267 and #268 before bio and handles ship.
+- **Ideas on the map (#240):** curated Berlin idea spots offered as one-tap flares, shown as map pins with or without a category filter, and easy to hide (#244, #245). **Ideas come only from the manually curated list in `spa/lib/flare-ideas.data.ts`:** no api endpoint, no Google or Places fetch, no nearby search.
 
 **Milestone 2 — Native distribution (store-prep, after the web round):**
 
