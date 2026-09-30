@@ -23,6 +23,9 @@ export type Notification = {
   href: string
   intent: NotificationIntent
   actorName: string | null
+  // The user who caused it. For a connection_request that's the requester,
+  // who the feed's circle chips add to a circle after accepting (#226).
+  actorId?: string | null
 }
 
 const EVENT_NOTIFICATION_TYPES: ApiNotificationType[] = [
@@ -92,6 +95,7 @@ export function adaptApiNotification(
     href: hrefFor(notification),
     intent: intentFor(notification.type),
     actorName: actorName(notification),
+    actorId: notification.actorId,
   }
 }
 

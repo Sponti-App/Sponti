@@ -15,15 +15,29 @@ import { cn } from "@/lib/utils"
 
 type ActionFeedbackTone = "success" | "error"
 
+export type ActionFeedbackAction = {
+  label: string
+  onAction: () => void
+}
+
 type ActionFeedbackMessage = {
   id: number
   tone: ActionFeedbackTone
   message: string
+  action?: ActionFeedbackAction
+  durationMs: number
 }
 
 type ShowActionFeedbackOptions = {
   tone?: ActionFeedbackTone
+  // An inline button on the toast, e.g. "undo" (#226). Tapping it runs the
+  // action and closes the toast.
+  action?: ActionFeedbackAction
+  // How long the toast stays up. Defaults to DEFAULT_DURATION_MS.
+  durationMs?: number
 }
+
+const DEFAULT_DURATION_MS = 2600
 
 type ActionFeedbackContextValue = {
   showActionFeedback: (
@@ -48,7 +62,13 @@ export function ActionFeedbackProvider({
     (message: string, options: ShowActionFeedbackOptions = {}) => {
       const tone = options.tone ?? "success"
       nextId.current += 1
-      setCurrent({ id: nextId.current, tone, message })
+      setCurrent({
+        id: nextId.current,
+        tone,
+        message,
+        action: options.action,
+        durationMs: options.durationMs ?? DEFAULT_DURATION_MS,
+      })
       void haptic(tone === "success" ? "success" : "error")
     },
     []
@@ -56,7 +76,10 @@ export function ActionFeedbackProvider({
 
   useEffect(() => {
     if (!current) return
-    const timeout = window.setTimeout(() => setCurrent(null), 2600)
+    const timeout = window.setTimeout(
+      () => setCurrent(null),
+      current.durationMs
+    )
     return () => window.clearTimeout(timeout)
   }, [current])
 
@@ -102,6 +125,21 @@ export function ActionFeedbackProvider({
               )}
             </span>
             <span className="truncate">{current.message}</span>
+            {current.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  const { onAction } = current.action!
+                  setCurrent(null)
+                  onAction()
+                }}
+                // The toast container ignores pointer events so it never
+                // blocks what's under it; the action button opts back in.
+                className="pointer-events-auto -my-1 -mr-2 ml-1 flex h-8 shrink-0 items-center rounded-full px-3 text-sm font-semibold text-foreground underline underline-offset-2 hover:bg-muted"
+              >
+                {current.action.label}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -117,4 +155,17 @@ export function useActionFeedback(): ActionFeedbackContextValue {
     )
   }
   return context
+}
+
+const noopActionFeedback: ActionFeedbackContextValue = {
+  showActionFeedback: () => undefined,
+}
+
+/**
+ * Like useActionFeedback, but a silent no-op outside the provider. For
+ * leaf components that are also rendered on their own (in tests, or before
+ * the app shell mounts).
+ */
+export function useOptionalActionFeedback(): ActionFeedbackContextValue {
+  return useContext(ActionFeedbackContext) ?? noopActionFeedback
 }
