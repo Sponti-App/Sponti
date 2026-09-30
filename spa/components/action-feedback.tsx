@@ -39,6 +39,15 @@ type ShowActionFeedbackOptions = {
 
 const DEFAULT_DURATION_MS = 2600
 
+// An open modal sheet (the notifications feed) treats any press outside it
+// as "close", from a pointerdown listener on the document. Pressing the
+// toast's action isn't that. React's own listeners also sit on the document
+// in this app, so a React stopPropagation is too late: stop the native
+// event on the button itself. Click still fires normally.
+function stopOutsidePress(element: HTMLButtonElement | null): void {
+  element?.addEventListener("pointerdown", (event) => event.stopPropagation())
+}
+
 type ActionFeedbackContextValue = {
   showActionFeedback: (
     message: string,
@@ -128,6 +137,7 @@ export function ActionFeedbackProvider({
             {current.action && (
               <button
                 type="button"
+                ref={stopOutsidePress}
                 onClick={() => {
                   const { onAction } = current.action!
                   setCurrent(null)
