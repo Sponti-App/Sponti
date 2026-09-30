@@ -8,7 +8,7 @@
 // the server only owns transport — formatters belong with the UI.
 
 import type { GeoCoords } from "./geolocation"
-import { apiFetch } from "./http"
+import { apiFetch, HttpError } from "./http"
 
 export type TravelMode = "DRIVE" | "WALK" | "BICYCLE" | "TRANSIT"
 
@@ -25,7 +25,8 @@ export type RouteResult = {
 
 type ComputeRouteResponse = {
   data: {
-    encodedPolyline: string
+    // Optional on the wire: a response with no route can omit it.
+    encodedPolyline?: string
     durationSeconds: number
     distanceMeters: number
   }
@@ -44,6 +45,11 @@ export async function computeRoute(
   })
 
   const { encodedPolyline, durationSeconds, distanceMeters } = res.data
+  // Same shape the backend throws for "no route" (404 ROUTE_NOT_FOUND), so
+  // callers handle both paths through their existing catch.
+  if (!encodedPolyline) {
+    throw new HttpError(404, "No route found", "ROUTE_NOT_FOUND")
+  }
   const path = decodePolyline(encodedPolyline)
 
   return {
