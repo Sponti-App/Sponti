@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react"
 import {
+  dismissNotification,
   fetchNotifications,
   fetchUnreadNotificationCount,
   markAllNotificationsRead,
@@ -30,6 +31,7 @@ type NotificationsSnapshot = NotificationsState & {
   loadMore: () => Promise<void>
   refreshUnreadCount: () => Promise<void>
   markAllRead: () => Promise<void>
+  dismiss: (notificationId: string) => Promise<void>
 }
 
 type Listener = () => void
@@ -42,6 +44,16 @@ const UNREAD_POLL_MS = 30_000
 
 const listeners = new Set<Listener>()
 const pendingReadIds = new Set<string>()
+// Rows swiped away this session (#173). The server persists the dismissal,
+// but this keeps them hidden even if that call fails or a feed fetch that
+// started before it lands afterwards.
+const dismissedIds = new Set<string>()
+
+function withoutDismissed(notifications: Notification[]): Notification[] {
+  return notifications.filter(
+    (notification) => !dismissedIds.has(notification.id)
+  )
+}
 
 let state: NotificationsState = {
   notifications: [],
@@ -90,6 +102,7 @@ function snapshot(): NotificationsSnapshot {
     loadMore,
     refreshUnreadCount,
     markAllRead,
+    dismiss,
   }
 
   return cachedSnapshot
@@ -110,6 +123,7 @@ function serverSnapshot(): NotificationsSnapshot {
     loadMore,
     refreshUnreadCount,
     markAllRead,
+    dismiss,
   }
 }
 
@@ -203,14 +217,15 @@ export async function loadLatest(): Promise<void> {
 
   try {
     const result = await fetchNotifications({ limit: PAGE_SIZE })
+    const notifications = withoutDismissed(result.notifications)
     setState((current) => ({
       ...current,
-      notifications: result.notifications,
+      notifications,
       nextCursor: result.pagination.nextCursor,
       loading: false,
       error: null,
     }))
-    scheduleReadBatch(result.notifications)
+    scheduleReadBatch(notifications)
   } catch (err) {
     setState((current) => ({
       ...current,
@@ -232,17 +247,18 @@ export async function loadMore(): Promise<void> {
 
   try {
     const result = await fetchNotifications({ limit: PAGE_SIZE, cursor })
+    const notifications = withoutDismissed(result.notifications)
     setState((current) => ({
       ...current,
       notifications: mergeAppendedNotifications(
         current.notifications,
-        result.notifications
+        notifications
       ),
       nextCursor: result.pagination.nextCursor,
       loadingMore: false,
       error: null,
     }))
-    scheduleReadBatch(result.notifications)
+    scheduleReadBatch(notifications)
   } catch (err) {
     setState((current) => ({
       ...current,
@@ -274,6 +290,38 @@ export async function markAllRead(): Promise<void> {
     console.warn("[Sponti] failed to mark all notifications read", err)
     // Surface it: the check mark otherwise looks dead when the call fails.
     setState((current) => ({ ...current, error: "couldn't mark as read, try again" }))
+  }
+}
+
+// Swipe-left on a feed row (#173): hides it, optimistically, and persists
+// that. Never declines anything — a connection request stays pending.
+export async function dismiss(notificationId: string): Promise<void> {
+  dismissedIds.add(notificationId)
+  setState((current) => {
+    const target = current.notifications.find(
+      (notification) => notification.id === notificationId
+    )
+    return {
+      ...current,
+      notifications: current.notifications.filter(
+        (notification) => notification.id !== notificationId
+      ),
+      unreadCount:
+        target && !target.read
+          ? Math.max(0, current.unreadCount - 1)
+          : current.unreadCount,
+    }
+  })
+
+  if (!apiEnabled()) return
+
+  try {
+    const { unreadCount } = await dismissNotification(notificationId)
+    setState((current) => ({ ...current, unreadCount }))
+  } catch (err) {
+    // Still hidden for this session (dismissedIds); it may come back on a
+    // later launch, which beats un-hiding it under the user's thumb now.
+    console.warn("[Sponti] failed to dismiss notification", err)
   }
 }
 

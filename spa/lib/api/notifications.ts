@@ -103,3 +103,15 @@ export function markAllNotificationsRead(): Promise<{
     { method: "PATCH" }
   ).then((response) => response.data)
 }
+
+// #173: swiping a row away hides it for good. Only ever hides — a dismissed
+// connection request is still pending, and still answerable from circles.
+export function dismissNotification(
+  notificationId: string
+): Promise<{ unreadCount: number }> {
+  return apiFetch<{
+    data: { _id: string; dismissedAt: string; unreadCount: number }
+  }>(`/notifications/${notificationId}/dismiss`, { method: "PATCH" }).then(
+    (response) => ({ unreadCount: response.data.unreadCount })
+  )
+}
