@@ -9,6 +9,11 @@ REPO_URL=https://github.com/Sponti-App/Sponti.git
 BRANCH=${BRANCH:-main}
 DIR=/opt/sponti
 
+if command -v apt-get >/dev/null 2>&1; then
+  apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git curl ufw >/dev/null
+fi
+
 if ! command -v docker >/dev/null 2>&1; then
   curl -fsSL https://get.docker.com | sh
 fi
