@@ -1,4 +1,5 @@
-import { dirname } from "node:path"
+import { readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const appDir = dirname(fileURLToPath(import.meta.url))
@@ -20,8 +21,26 @@ function getAllowedDevOrigins() {
   return [...hostnames]
 }
 
+function getAppVersion() {
+  try {
+    return JSON.parse(readFileSync(join(appDir, "package.json"), "utf8")).version
+  } catch {
+    return ""
+  }
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Build info for the support email (#126, spa/lib/support-mail.ts). Vercel
+  // exposes the commit as VERCEL_GIT_COMMIT_SHA while building; mapping it
+  // here means nothing has to be added in the Vercel project settings.
+  env: {
+    NEXT_PUBLIC_APP_VERSION: getAppVersion(),
+    NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA:
+      process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ??
+      process.env.VERCEL_GIT_COMMIT_SHA ??
+      "",
+  },
   images: {
     unoptimized: true, // required for static export
   },

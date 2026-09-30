@@ -1,3 +1,6 @@
+"use client"
+
+import { useSyncExternalStore } from "react"
 import Link from "next/link"
 import {
   AlertTriangle,
@@ -14,103 +17,99 @@ import {
 } from "lucide-react"
 import { MenuPageShell } from "@/components/menu-page-shell"
 import { Card } from "@/components/ui/card"
-
-const supportEmail = "sponti.support@example.com"
-const reportsEmail = "sponti.reports@example.com"
+import { CONTACT_EMAIL } from "@/lib/contact"
+import { describeDevice, supportMailto } from "@/lib/support-mail"
 
 const supportPaths = [
   {
-    title: "Safety or harmful content",
+    title: "safety or harmful content",
     description:
-      "Report unsafe events, harassment, impersonation, harmful images, or anything that could put people at risk.",
-    email: reportsEmail,
-    subject: "Safety or content report",
-    detail: "Prioritized review",
+      "report unsafe flares, harassment, impersonation, harmful images, or anything that could put people at risk.",
+    subject: "safety or content report",
+    detail: "read first",
     icon: ShieldAlert,
   },
   {
-    title: "Bug or broken feature",
+    title: "bug or broken feature",
     description:
-      "Tell us which screen broke, what you expected, and what happened instead.",
-    email: supportEmail,
-    subject: "Bug report",
-    detail: "App support",
+      "tell us which screen broke, what you expected, and what happened instead.",
+    subject: "bug report",
+    detail: "mention the screen",
     icon: Bug,
   },
   {
-    title: "Account help",
+    title: "account help",
     description:
-      "Get help with login, profile details, account deletion, or suspicious account activity.",
-    email: supportEmail,
-    subject: "Account help",
-    detail: "Account support",
+      "help with login, your profile, deleting your account, or suspicious activity on it.",
+    subject: "account help",
+    detail: "we reply by email",
     icon: UserCircle,
   },
   {
-    title: "Event or RSVP problem",
+    title: "flare or rsvp problem",
     description:
-      "Ask about joining, leaving, host updates, location details, or event visibility.",
-    email: supportEmail,
-    subject: "Event or RSVP problem",
-    detail: "Event support",
+      "joining, leaving, host updates, location details, or who can see a flare.",
+    subject: "flare or rsvp problem",
+    detail: "mention the flare",
     icon: Flag,
   },
   {
-    title: "Product feedback",
+    title: "feedback",
     description:
-      "Share confusing flows, missing information, or ideas that would make real-world planning easier.",
-    email: supportEmail,
-    subject: "Product feedback",
-    detail: "Product review",
+      "confusing flows, missing info, or ideas that would make meeting up easier.",
+    subject: "feedback",
+    detail: "short is fine",
     icon: MessageSquare,
   },
 ] as const
 
 const reportChecklist = [
-  "Your account email, if the issue is account-related",
-  "The event name, screen, or action where the issue happened",
-  "What happened and what you expected instead",
-  "Your device, browser, and app version if you know them",
-  "A screenshot or screen recording if it is safe to share",
+  "the flare, screen, or action where it happened",
+  "what happened and what you expected instead",
+  "a screenshot or screen recording, if it's safe to share",
 ]
 
 const relatedLinks = [
   {
     href: "/menu/faq-feedback",
-    label: "FAQ & Feedback",
-    description: "Common questions and product notes",
+    label: "faq & feedback",
+    description: "common questions and product notes",
     icon: HelpCircle,
   },
   {
     href: "/menu/terms",
-    label: "Terms of Service",
-    description: "Rules for accounts, events, and content",
+    label: "terms of service",
+    description: "rules for accounts, flares, and content",
     icon: FileText,
   },
   {
     href: "/menu/privacy",
-    label: "Privacy Policy",
-    description: "Personal data and visibility basics",
+    label: "privacy note",
+    description: "what we keep and who can see it",
     icon: ShieldAlert,
   },
 ] as const
 
-function mailtoHref(email: string, subject: string) {
-  return `mailto:${email}?subject=${encodeURIComponent(subject)}`
-}
+const subscribeNever = () => () => {}
 
 export default function SupportPage() {
+  // Read from the browser after hydration (the server snapshot is empty), so
+  // the mail body carries this device's details without a hydration mismatch.
+  const device = useSyncExternalStore(subscribeNever, describeDevice, () => "")
+  const mailtoHref = (subject: string) => supportMailto(subject, device)
+
   return (
-    <MenuPageShell title="Support">
+    <MenuPageShell title="support">
       <article className="flex flex-col gap-6 pt-4 pb-8">
         <section className="flex flex-col gap-3">
-          <p className="text-sm font-medium text-accent">Sponti support</p>
+          <p className="text-sm font-medium text-accent">sponti support</p>
           <h2 className="text-3xl leading-tight font-bold">
-            Get help with your account, events, and safety reports.
+            get help, report a problem, or send feedback.
           </h2>
           <p className="text-base leading-7 text-muted-foreground">
-            Choose the closest support path so the right context reaches the
-            team. Safety and harmful-content reports are reviewed first.
+            sponti is a test build. every option below opens an email to one
+            inbox, with your build and device details filled in. safety reports
+            get read first.
           </p>
         </section>
 
@@ -121,10 +120,10 @@ export default function SupportPage() {
               aria-hidden="true"
             />
             <div className="flex flex-col gap-2">
-              <h3 className="font-semibold">Immediate danger</h3>
+              <h3 className="font-semibold">immediate danger</h3>
               <p className="text-sm leading-6 text-muted-foreground">
-                If someone is at immediate risk, contact local emergency
-                services first. Sponti support is not an emergency service.
+                if someone is at immediate risk, contact local emergency
+                services first. sponti support is not an emergency service.
               </p>
             </div>
           </div>
@@ -133,7 +132,7 @@ export default function SupportPage() {
         <div className="h-px bg-border" />
 
         <section className="flex flex-col gap-3">
-          <h3 className="text-xl font-semibold">What do you need help with?</h3>
+          <h3 className="text-xl font-semibold">what do you need help with?</h3>
           <div className="flex flex-col gap-2">
             {supportPaths.map((item) => {
               const Icon = item.icon
@@ -141,7 +140,7 @@ export default function SupportPage() {
               return (
                 <a
                   key={item.title}
-                  href={mailtoHref(item.email, item.subject)}
+                  href={mailtoHref(item.subject)}
                   className="block rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 >
                   <Card className="border border-border bg-card p-4 transition-colors hover:bg-secondary">
@@ -174,10 +173,10 @@ export default function SupportPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h3 className="text-xl font-semibold">Help us understand it faster</h3>
+          <h3 className="text-xl font-semibold">help us understand it faster</h3>
           <p className="text-sm leading-6 text-muted-foreground">
-            The more specific the report is, the faster support can understand
-            what happened and decide the next step.
+            the more specific you are, the faster we can work out what happened.
+            your build and device details are added to the email for you.
           </p>
           <ul className="flex flex-col gap-2 text-sm leading-6 text-muted-foreground">
             {reportChecklist.map((item) => (
@@ -190,7 +189,7 @@ export default function SupportPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h3 className="text-xl font-semibold">What happens next?</h3>
+          <h3 className="text-xl font-semibold">what happens next?</h3>
           <div className="flex flex-col gap-3 text-sm leading-6 text-muted-foreground">
             <div className="flex gap-3">
               <Clock3
@@ -198,8 +197,7 @@ export default function SupportPage() {
                 aria-hidden="true"
               />
               <p>
-                Safety and content reports are prioritized before general
-                product feedback.
+                safety and content reports are read before general feedback.
               </p>
             </div>
             <div className="flex gap-3">
@@ -208,8 +206,8 @@ export default function SupportPage() {
                 aria-hidden="true"
               />
               <p>
-                We may reply by email if we need more details or can confirm a
-                fix, account action, or moderation decision.
+                we may reply by email if we need more details or can confirm a
+                fix or an account action.
               </p>
             </div>
           </div>
@@ -218,31 +216,21 @@ export default function SupportPage() {
         <div className="h-px bg-border" />
 
         <section className="flex flex-col gap-3">
-          <h3 className="text-xl font-semibold">Support contacts</h3>
-          <div className="flex flex-col gap-2 text-sm leading-6">
-            <p className="text-muted-foreground">
-              General support:{" "}
-              <a
-                href={mailtoHref(supportEmail, "Sponti support request")}
-                className="font-medium text-foreground underline underline-offset-4"
-              >
-                {supportEmail}
-              </a>
-            </p>
-            <p className="text-muted-foreground">
-              Safety and content reports:{" "}
-              <a
-                href={mailtoHref(reportsEmail, "Safety or content report")}
-                className="font-medium text-foreground underline underline-offset-4"
-              >
-                {reportsEmail}
-              </a>
-            </p>
-          </div>
+          <h3 className="text-xl font-semibold">contact</h3>
+          <p className="text-sm leading-6 text-muted-foreground">
+            support, feedback, privacy requests and safety reports all go to{" "}
+            <a
+              href={mailtoHref("sponti support request")}
+              className="font-medium text-foreground underline underline-offset-4"
+            >
+              {CONTACT_EMAIL}
+            </a>
+            .
+          </p>
         </section>
 
         <section className="flex flex-col gap-3">
-          <h3 className="text-xl font-semibold">Related pages</h3>
+          <h3 className="text-xl font-semibold">related pages</h3>
           <div className="flex flex-col gap-2">
             {relatedLinks.map((item) => {
               const Icon = item.icon

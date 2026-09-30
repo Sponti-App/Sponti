@@ -264,21 +264,20 @@ export default function RegisterPage() {
             />
 
             <p className="mt-4 text-center text-[11.5px] leading-5 text-muted-foreground">
-              By continuing, you agree to Sponti&apos;s{" "}
+              by signing up you agree to the{" "}
               <Link
                 href="/menu/terms"
                 className="text-foreground underline underline-offset-2"
               >
-                Terms
+                terms
               </Link>{" "}
-              and{" "}
+              · read the{" "}
               <Link
                 href="/menu/privacy"
                 className="text-foreground underline underline-offset-2"
               >
-                Privacy
+                privacy note
               </Link>
-              .
             </p>
 
             <p className="mt-5 text-center text-sm text-muted-foreground">

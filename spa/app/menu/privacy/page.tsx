@@ -1,9 +1,7 @@
 import type { ReactNode } from "react"
 import { MenuPageShell } from "@/components/menu-page-shell"
+import { CONTACT_EMAIL } from "@/lib/contact"
 
-const supportEmail = "sponti.support@example.com"
-const privacyEmail = "sponti.privacy@example.com"
-const reportsEmail = "sponti.reports@example.com"
 
 function Section({
   title,
@@ -55,120 +53,77 @@ function TextLink({
 
 export default function PrivacyPage() {
   return (
-    <MenuPageShell title="Privacy Policy">
+    <MenuPageShell title="privacy note">
       <article className="flex flex-col gap-6 pt-4 pb-8">
         <section className="flex flex-col gap-3">
           <p className="text-sm font-medium text-accent">
-            Last updated: 7 May 2026
+            updated 30 sep 2026
           </p>
           <h2 className="text-3xl leading-tight font-bold">
-            Privacy for a trust-first social app.
+            sponti is a test build.
           </h2>
           <p className="text-base leading-7 text-muted-foreground">
-            This Privacy Policy explains what personal data Sponti expects to
-            handle, why it is needed, and how users can contact the team about
-            privacy requests.
-          </p>
-          <p className="text-sm leading-6 text-muted-foreground">
-            Sponti is currently an educational prototype. Some account, support,
-            and deletion flows may be simulated until production systems are
-            connected.
+            you&apos;re using an early version with a small group of testers.
+            things can break, and test data can be reset. here&apos;s what we
+            keep, who can see it, and how to get it deleted.
           </p>
         </section>
 
         <div className="h-px bg-border" />
 
-        <Section title="What Sponti may collect">
-          <Paragraph>
-            Sponti should only collect information that helps the app create,
-            show, join, and manage meetups.
-          </Paragraph>
+        <Section title="what we collect">
           <BulletList
             items={[
-              "account details such as name, email, password credentials, profile text, and profile image",
-              "event details such as title, time, location, visibility, host, attendees, and RSVP status",
-              "trust and visibility settings such as friend lists or selected audience",
-              "support and feedback messages sent by users",
-              "technical data such as device, browser, diagnostics, and basic usage events",
+              "your email, name and @username, and a password (stored scrambled, never as plain text)",
+              "your profile photo, if you add one. sign in with google and we get your name, email and photo from google",
+              "your connections and circles",
+              "the flares you light: what, where and when",
+              "arrival times (etas) you choose to share with a host",
+              "a bio, instagram and telegram handle, if you add them",
+              "what you write in an email to us, plus the build and device details we fill in for you",
+            ]}
+          />
+          <Paragraph>we don&apos;t sell your data.</Paragraph>
+        </Section>
+
+        <Section title="who can see what">
+          <BulletList
+            items={[
+              "flares: the people and circles you invite. a public flare can be seen by anyone using sponti",
+              "flares at your current location show guests a neighbourhood, not a street address",
+              "your profile: anyone signed in can see your name, @username and photo. connections can see more, like your bio and handles",
+              "a private profile is hidden from search, so strangers only find you by typing your exact @username, and they see just your name, @username and photo",
             ]}
           />
         </Section>
 
-        <Section title="Why it is used">
-          <Paragraph>Personal data is used to operate the core app experience.</Paragraph>
+        <Section title="where it's stored">
           <BulletList
             items={[
-              "create and secure user accounts",
-              "show events to the intended audience",
-              "let users join, leave, edit, or cancel meetups",
-              "support safety reports, moderation, and account requests",
-              "debug errors and improve confusing product flows",
+              "our servers, hosted by netcup in the eu",
+              "our database, on mongodb atlas",
+              "the web app, on vercel",
+              "google, for sign-in, maps, places and routes",
+              "cloudinary, for profile photos",
+              "resend, to send emails like password resets",
             ]}
           />
         </Section>
 
-        <Section title="Location and visibility">
+        <Section title="how long we keep it">
           <Paragraph>
-            Event locations can be sensitive because Sponti is about meeting in
-            real life. The product should make visibility clear before an event
-            is published, especially when a precise location is included.
-          </Paragraph>
-          <Paragraph>
-            If precise device location is used later, Sponti should ask for
-            permission first and continue working when location access is
-            disabled.
+            we keep your data while your account exists. during the test we may
+            reset the database, which wipes test data.
           </Paragraph>
         </Section>
 
-        <Section title="What Sponti does not want">
-          <BulletList
-            items={[
-              "no contact scraping for the MVP",
-              "no selling personal data",
-              "no infinite-scroll engagement profiling as a product goal",
-              "no public exposure of private event details beyond the selected audience",
-            ]}
-          />
-        </Section>
-
-        <Section title="Sharing and service providers">
+        <Section title="delete your data">
           <Paragraph>
-            Sponti may use service providers for hosting, databases,
-            authentication, maps, email, analytics, and diagnostics. These
-            providers should only receive the data needed to provide their
-            service.
-          </Paragraph>
-          <Paragraph>
-            Event hosts and attendees may see event information, profile
-            context, RSVP status, and other details needed for the meetup.
-          </Paragraph>
-        </Section>
-
-        <Section title="Retention and deletion">
-          <Paragraph>
-            Prototype data may be reset, changed, or deleted during development.
-            In a production version, Sponti should keep personal data only as
-            long as needed for account, event, safety, legal, backup, or
-            operational reasons.
-          </Paragraph>
-          <Paragraph>
-            To request account deletion or privacy help, contact{" "}
-            <TextLink href={`mailto:${privacyEmail}`}>{privacyEmail}</TextLink>.
-          </Paragraph>
-        </Section>
-
-        <Section title="User rights">
-          <Paragraph>
-            Depending on where a user lives, they may have rights to access,
-            correct, delete, restrict, or object to processing of personal data.
-          </Paragraph>
-          <Paragraph>
-            Privacy requests can be sent to{" "}
-            <TextLink href={`mailto:${privacyEmail}`}>{privacyEmail}</TextLink>.
-            General support questions can be sent to{" "}
-            <TextLink href={`mailto:${supportEmail}`}>{supportEmail}</TextLink>.
-            Safety and content reports can be sent to{" "}
-            <TextLink href={`mailto:${reportsEmail}`}>{reportsEmail}</TextLink>.
+            email{" "}
+            <TextLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</TextLink>{" "}
+            from the address on your account and ask us to delete it. we&apos;ll
+            delete your account and its data. the same address is for any other
+            privacy question.
           </Paragraph>
         </Section>
       </article>
