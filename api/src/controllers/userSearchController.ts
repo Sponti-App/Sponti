@@ -1,4 +1,4 @@
-import type { SearchUsersQuery } from "#schemas/userSearchSchemas";
+import type { MutualFriendsQuery, SearchUsersQuery } from "#schemas/userSearchSchemas";
 import * as userDirectoryService from "#services/userDirectoryService";
 import * as userProfileService from "#services/userProfileService";
 import { asyncHandler } from "#utils/asyncHandler";
@@ -20,4 +20,14 @@ export const getProfileByUsername = asyncHandler(async (req, res) => {
   );
 
   res.json({ data });
+});
+
+export const getMutualFriendsByUsername = asyncHandler(async (req, res) => {
+  const result = await userProfileService.getMutualFriendsByUsername(
+    getAuthenticatedUserId(req),
+    getRouteParam(req, "username"),
+    req.query as unknown as MutualFriendsQuery
+  );
+
+  res.json(result);
 });
