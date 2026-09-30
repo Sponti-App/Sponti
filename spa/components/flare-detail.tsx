@@ -110,7 +110,7 @@ export function FlareFacts({
   when: string
   until: string
   placeName: string
-  /** "1.2 mi · 47 chandos pl" */
+  /** "1.2 km · 47 chandos pl" */
   placeDetail?: string | null
   mapsUrl: string
 }) {
