@@ -151,18 +151,20 @@ export default function PrivacyPage() {
 
         <Section title="How long we keep it">
           <Paragraph>
-            We keep your data while your account exists. Technical logs are kept
-            only as long as we need them to fix errors and keep things secure.
-            During the test we may reset the database, which wipes test data.
+            We keep your data while your account exists. Technical logs are
+            deleted automatically after 14 days at the latest. During the test
+            we may reset the database, which wipes test data.
           </Paragraph>
         </Section>
 
         <Section title="Delete your data">
           <Paragraph>
             Email {email} from the address on your account and ask us to delete
-            it. We&apos;ll delete your account and its data within 30 days.
-            Backups roll off within about 30 days after that. The same address
-            is for any other privacy question.
+            it. Within 30 days we&apos;ll delete your account and everything
+            linked to it: your profile and photo, the flares you hosted, your
+            replies to other people&apos;s flares, your connections, circles,
+            blocks and notifications. Backups roll off within about 30 days
+            after that. The same address is for any other privacy question.
           </Paragraph>
         </Section>
 

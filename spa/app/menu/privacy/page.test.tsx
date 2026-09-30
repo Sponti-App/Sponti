@@ -70,7 +70,8 @@ describe("privacy note (#129, #293)", () => {
     render(<PrivacyPage />)
 
     const text = document.body.textContent ?? ""
-    expect(text).toContain("within 30 days")
+    expect(text).toContain("Within 30 days we'll delete your account")
+    expect(text).toContain("after 14 days at the latest")
     expect(text).toContain("at least 16")
     expect(text).toContain("Berliner Beauftragte für Datenschutz")
     expect(text).toContain("exact @username")

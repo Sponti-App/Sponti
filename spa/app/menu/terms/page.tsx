@@ -238,9 +238,9 @@ export default function TermsPage() {
         <Section title="11. Changes to these terms">
           <Paragraph>
             We may update these terms, for example when Sponti changes. The date
-            at the top shows the latest version. If you keep using Sponti after
-            a change, you accept the new terms. If you don&apos;t agree, you can
-            delete your account.
+            at the top shows the latest version. Before an important change
+            takes effect, we&apos;ll tell you in the app or by email. If you
+            don&apos;t agree, you can delete your account at any time.
           </Paragraph>
         </Section>
 
