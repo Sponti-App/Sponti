@@ -1,0 +1,51 @@
+# Deploys api + auth-server to the netcup server when a merge into dev touches
+# them. The NETCUP_DEPLOY_KEY secret is an SSH key the server only accepts for
+# running deploy/netcup/deploy.sh (a forced command in authorized_keys), so
+# it can't open a shell. See deploy/netcup/README.md.
+name: Deploy backends
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "api/**"
+      - "auth-server/**"
+      - "deploy/netcup/**"
+      - ".github/workflows/deploy-backends.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backends
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Deploy over SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.NETCUP_DEPLOY_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # The server's host key, pinned (SHA256:y+c6cQS/XVLhMEXx2r4nYwaUJKqEs5F+psmf+o4nPwc).
+          echo "152.53.198.143 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPf20w0mfJYz9w+i6xRk006Q48LBLpsg1MAAdjr06rBo" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes root@152.53.198.143
+
+      - name: Check health
+        run: |
+          for host in api auth; do
+            for attempt in 1 2 3 4 5 6; do
+              if curl -fsS -m 10 "https://$host.152-53-198-143.sslip.io/health"; then
+                echo " ($host ok)"
+                break
+              fi
+              if [ "$attempt" = 6 ]; then
+                echo "$host is not healthy" >&2
+                exit 1
+              fi
+              sleep 10
+            done
+          done
