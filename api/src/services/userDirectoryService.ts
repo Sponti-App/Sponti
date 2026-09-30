@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
-import { Connection } from "#models/index";
 import { AppError } from "#utils/AppError";
 import { toObjectId } from "#utils/objectId";
 import { getBlockedRelationshipUserIds } from "#services/blockService";
+import { getConnectedUserIds } from "#services/relationshipService";
 import type { SearchUsersQuery } from "#schemas/userSearchSchemas";
 
 export type UserSummary = {
@@ -14,7 +14,7 @@ export type UserSummary = {
   socialBattery?: number;
 };
 
-const getUsersCollection = () => {
+export const getUsersCollection = () => {
   const db = mongoose.connection.db;
 
   if (!db) {
@@ -24,7 +24,12 @@ const getUsersCollection = () => {
   return db.collection("users");
 };
 
-const userProjection = {
+// The user fields every other api path (search, events, connections, blocks,
+// notifications, circles, QR and invite links) gets about another user. Never
+// add bio or social handles here: this feeds strangers too (every flare
+// payload). Those are read only by userProfileService, behind its visibility
+// gate (#288); a regression test checks every consumer.
+export const userProjection = {
   username: 1,
   displayName: 1,
   avatarUrl: 1,
@@ -63,39 +68,10 @@ export const getUsersByIds = async (userIds: string[]) => {
   return result;
 };
 
-/**
- * Exact, case-sensitive username lookup (usernames are unique as stored).
- * Projects only the public identity fields: nothing here is ever enough to
- * leak visibility, email or anything else about the user.
- */
-export const getUserIdentityByUsername = async (username: string) => {
-  const user = await getUsersCollection().findOne(
-    { username },
-    { projection: { username: 1, displayName: 1, avatarUrl: 1 } }
-  );
-
-  return user ? toUserSummary(user) : null;
-};
-
-const getAcceptedConnectionIds = async (userId: string) => {
-  const userObjectId = toObjectId(userId);
-  const connections = await Connection.find({
-    $or: [{ requesterId: userObjectId }, { receiverId: userObjectId }],
-    status: "accepted",
-  })
-    .select("requesterId receiverId")
-    .lean();
-
-  return connections.map((c) => {
-    const rid = c.requesterId.toString();
-    return rid === userId ? c.receiverId : c.requesterId;
-  });
-};
-
 export const searchUsers = async (requesterId: string, query: SearchUsersQuery) => {
   const [blockedIds, connectedIds] = await Promise.all([
     getBlockedRelationshipUserIds(requesterId),
-    getAcceptedConnectionIds(requesterId),
+    getConnectedUserIds(requesterId),
   ]);
   const excludedIds = [requesterId, ...blockedIds].map(toObjectId);
   const regex = new RegExp(escapeRegex(query.q), "i");
@@ -109,7 +85,7 @@ export const searchUsers = async (requesterId: string, query: SearchUsersQuery) 
         {
           $or: [
             { profileVisibility: { $ne: "private" } },
-            { _id: { $in: connectedIds } },
+            { _id: { $in: Array.from(connectedIds, toObjectId) } },
             ...(isExactUsername ? [{ username: new RegExp(`^${escapeRegex(query.q)}$`, "i") }] : []),
           ],
         },

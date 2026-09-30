@@ -34,7 +34,7 @@ export type FlareDirections = {
   distanceMeters: number | null
   /** Set only when the route is drawn (within 2 km, not the host). */
   route: RouteResult | null
-  /** "14 min walk" when routed, "8.4 mi away" otherwise, null if unknown. */
+  /** "14 min walk" when routed, "8.4 km away" otherwise, null if unknown. */
   travelLabel: string | null
 }
 

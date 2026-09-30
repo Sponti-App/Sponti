@@ -30,8 +30,18 @@ export const featureFlags = {
    * private flare (`allowGuestInvites: "multiple"`, the drawer's "can
    * re-share" toggle). Hidden in the tester build per #159 — the privacy
    * questions (one hop or chains, host visibility, per-guest revocation,
-   * the host↔candidate block check) aren't answered yet. +1
-   * (`allowGuestInvites: "single"`) ships regardless and is not gated here.
+   * the host↔candidate block check) aren't answered yet.
    */
   reshare: FEATURE_PROFILE === "full",
+
+  /**
+   * +1: letting a guest bring someone (`allowGuestInvites: "single"`, the
+   * drawer's "+1 allowed" toggle). Hidden in the tester build per #159 —
+   * nothing redeems a +1 yet: `canInviteGuests` is written to every invitee's
+   * member row but never checked, and no `plusOne` field exists on
+   * `EventMember`, so the toggle would promise guests something they never
+   * see. Built after launch; with this and `reshare` both off,
+   * `guestInviteModeFromDraft` always yields `"none"`.
+   */
+  plusOne: FEATURE_PROFILE === "full",
 } as const

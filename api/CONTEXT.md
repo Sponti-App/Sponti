@@ -13,7 +13,7 @@ A user-owned grouping of connections used as an audience target when lighting a 
 _Avoid_: List, friend list, group.
 
 **Connection**:
-An accepted, mutual friend relationship between two users. A pending request is not yet a connection.
+An accepted, mutual friend relationship between two users, stored as an accepted row in each direction. Both rows are needed: a one-sided row is not a connection. A pending request is not yet a connection. See "Connections" in `API_RULES.md`.
 _Avoid_: Friend (as a stored entity), follower, contact.
 
 **QR code (in-person connect)**:

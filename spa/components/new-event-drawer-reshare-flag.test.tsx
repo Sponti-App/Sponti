@@ -2,12 +2,12 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-// #93/#159: re-share ("can re-share" / allowForward) is hidden behind the
-// tester feature profile until its privacy questions are answered; +1
-// ("+1 allowed" / allowPlusOne) ships regardless and must stay visible in
-// both profiles. new-event-drawer.tsx reads featureFlags.reshare, which
-// reads NEXT_PUBLIC_FEATURE_PROFILE at module load, so each case needs a
-// fresh module graph (matches the pattern in auth-provider.test.tsx).
+// #93/#159: re-share ("can re-share" / allowForward) and +1 ("+1 allowed" /
+// allowPlusOne) are both hidden behind the tester feature profile — re-share
+// until its privacy questions are answered, +1 until something redeems it.
+// new-event-drawer.tsx reads featureFlags.reshare / featureFlags.plusOne,
+// which read NEXT_PUBLIC_FEATURE_PROFILE at module load, so each case needs
+// a fresh module graph (matches the pattern in auth-provider.test.tsx).
 
 const mocks = vi.hoisted(() => ({
   showActionFeedback: vi.fn(),
@@ -95,8 +95,8 @@ async function openWhoSection(user: ReturnType<typeof userEvent.setup>) {
   )
 }
 
-describe("NewEventDrawer re-share toggle (#93, #159)", () => {
-  it("hides the re-share toggle in the tester profile (default)", async () => {
+describe("NewEventDrawer invite toggles (#93, #159)", () => {
+  it("hides both the +1 and re-share toggles in the tester profile (default)", async () => {
     vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", undefined)
     stubOneFriend()
     const NewEventDrawer = await loadDrawer()
@@ -105,15 +105,23 @@ describe("NewEventDrawer re-share toggle (#93, #159)", () => {
     render(<NewEventDrawer open onClose={vi.fn()} />)
     await openWhoSection(user)
 
+    // The who section is open (its direct-invite row, which sits right above
+    // the toggles, is rendered) before we assert the toggles are absent, so
+    // this can't pass on a not-yet-rendered UI.
     expect(
-      await screen.findByRole("button", { name: /\+1 allowed/i })
+      await screen.findByRole("button", {
+        name: /also invite specific friends/i,
+      })
     ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /\+1 allowed/i })
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole("button", { name: /can re-share/i })
     ).not.toBeInTheDocument()
   })
 
-  it("shows the re-share toggle in the full profile", async () => {
+  it("shows both toggles in the full profile", async () => {
     vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "full")
     stubOneFriend()
     const NewEventDrawer = await loadDrawer()

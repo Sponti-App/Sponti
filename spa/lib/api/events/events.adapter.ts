@@ -1,4 +1,5 @@
 import { displayLocationName } from "@/lib/current-location"
+import { formatDistance } from "@/lib/format-distance"
 import type {
   ApiEvent,
   ArrivalStatus,
@@ -136,12 +137,7 @@ export function distanceFromUser(
   return { meters, label: formatDistance(meters) }
 }
 
-export function formatDistance(meters: number): string {
-  const miles = meters / 1609.344
-  if (miles < 0.1) return `${Math.round(meters)} m`
-  if (miles < 10) return `${miles.toFixed(1)} mi`
-  return `${Math.round(miles)} mi`
-}
+export { formatDistance }
 
 export function walkTimeLabel(meters: number): string {
   const minutes = Math.max(1, Math.round(meters / 80))
@@ -235,6 +231,7 @@ export function adaptApiEvent(api: ApiEvent): EventItem {
       return {
         id: a._id,
         name,
+        username: a.username,
         avatar: name.charAt(0).toUpperCase(),
         color: "bg-stone-300",
         // The api only sends these fields at all when the caller is this

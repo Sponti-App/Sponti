@@ -5,6 +5,7 @@ import {
   APIProvider,
   Map,
   AdvancedMarker,
+  AdvancedMarkerAnchorPoint,
   APILoadingStatus,
   useApiLoadingStatus,
   useMap,
@@ -22,6 +23,7 @@ import {
   AlertCircle,
   Calendar as CalendarIcon,
   Expand,
+  EyeOff,
   Users,
   X,
 } from "lucide-react"
@@ -45,8 +47,10 @@ import {
 import { useMapEvents } from "@/lib/use-events"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 import { setSuggestedFlareType } from "@/lib/suggested-flare-type"
-import { getIdeasNear, type FlareIdea } from "@/lib/flare-ideas"
+import { getIdeaPins, getIdeasNear, type FlareIdea } from "@/lib/flare-ideas"
 import { haptic } from "@/lib/haptics"
+import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
+import { useOptionalActionFeedback } from "@/components/action-feedback"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import type { ComposerPrefill } from "@/components/new-event-drawer"
 import { computeRoute, type RouteResult } from "@/lib/routes-api"
@@ -71,12 +75,55 @@ function eventIcon(type: EventType, avatar: string) {
   return <Icon className="h-5 w-5 shrink-0 text-accent" />
 }
 
+// What the map draws for an idea (#244). Deliberately the opposite of a flare
+// pin: smaller, filled with the muted chip colour, a dashed outline and a grey
+// icon, and no peach anywhere (peach is the CTA colour and means "a real
+// flare"). The dashed outline reads as "a suggestion, nothing planned here" in
+// both light and dark. The padding is only a bigger touch target.
+function IdeaPinMark({
+  idea,
+  selected,
+}: {
+  idea: FlareIdea
+  selected: boolean
+}) {
+  const match = EVENT_TYPES.find((t) => t.value === idea.category)
+  const Icon = match?.icon ?? MapPin
+  return (
+    <div className="flex cursor-pointer items-center justify-center p-2">
+      <div
+        className={`flex h-7 w-7 items-center justify-center rounded-full border border-dashed bg-muted text-muted-foreground shadow-md transition-transform duration-200 ${
+          selected
+            ? "scale-125 border-foreground/70 text-foreground"
+            : "border-muted-foreground/70"
+        }`}
+      >
+        <Icon className="h-3.5 w-3.5" />
+      </div>
+    </div>
+  )
+}
+
+// Where idea pins sit on the static fallback, which has no real projection
+// (its flare pins are pseudo-positioned too): percent from the top-left, chosen
+// to stay clear of the flare slots, the header chips and the dock.
+const IDEA_PIN_SLOTS = [
+  { top: "24%", left: "46%" },
+  { top: "40%", left: "9%" },
+  { top: "40%", left: "62%" },
+  { top: "22%", left: "8%" },
+  { top: "47%", left: "36%" },
+]
+
 function StaticMapFallback({
   events,
   onEventSelect,
   joinedIds,
   user,
   highlightId = null,
+  ideas = [],
+  selectedIdeaId = null,
+  onIdeaSelect,
 }: {
   events: EventItem[]
   onEventSelect: (event: EventItem) => void
@@ -84,6 +131,9 @@ function StaticMapFallback({
   user: GeoCoords
   /** The flare whose rail card is centred; its pin grows. */
   highlightId?: string | null
+  ideas?: FlareIdea[]
+  selectedIdeaId?: string | null
+  onIdeaSelect?: (idea: FlareIdea) => void
 }) {
   return (
     <div className="relative h-full w-full bg-muted">
@@ -100,6 +150,19 @@ function StaticMapFallback({
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
         <div className="h-4 w-4 rounded-full border-2 border-background bg-accent shadow-lg" />
       </div>
+      {ideas.map((idea, i) => (
+        <button
+          key={idea.id}
+          type="button"
+          data-idea-pin={idea.id}
+          aria-label={`idea: ${idea.title}`}
+          onClick={() => onIdeaSelect?.(idea)}
+          style={IDEA_PIN_SLOTS[i % IDEA_PIN_SLOTS.length]}
+          className="absolute z-[1]"
+        >
+          <IdeaPinMark idea={idea} selected={selectedIdeaId === idea.id} />
+        </button>
+      ))}
       {events.slice(0, 4).map((event, i) => {
         // Pseudo positions around the center so the static fallback is readable
         const positions = [
@@ -156,6 +219,9 @@ function GoogleMapContent({
   currentLocation,
   recenterTick,
   highlightId,
+  ideas,
+  selectedIdeaId,
+  onIdeaSelect,
 }: {
   events: EventItem[]
   onEventSelect: (event: EventItem) => void
@@ -169,6 +235,9 @@ function GoogleMapContent({
   recenterTick: number
   /** The flare whose rail card is centred; its pin grows. */
   highlightId: string | null
+  ideas: FlareIdea[]
+  selectedIdeaId: string | null
+  onIdeaSelect: (idea: FlareIdea) => void
 }) {
   const status = useApiLoadingStatus()
   const map = useMap()
@@ -208,6 +277,9 @@ function GoogleMapContent({
         joinedIds={joinedIds}
         user={cameraCenter}
         highlightId={highlightId}
+        ideas={ideas}
+        selectedIdeaId={selectedIdeaId}
+        onIdeaSelect={onIdeaSelect}
       />
     )
   }
@@ -237,6 +309,24 @@ function GoogleMapContent({
           </div>
         </AdvancedMarker>
       )}
+      {ideas.map((idea) => (
+        <AdvancedMarker
+          key={`idea:${idea.id}`}
+          position={idea.place}
+          anchorPoint={AdvancedMarkerAnchorPoint.CENTER}
+          title={idea.title}
+          zIndex={selectedIdeaId === idea.id ? 400 : 0}
+          onClick={() => onIdeaSelect(idea)}
+        >
+          <div
+            data-idea-pin={idea.id}
+            role="button"
+            aria-label={`idea: ${idea.title}`}
+          >
+            <IdeaPinMark idea={idea} selected={selectedIdeaId === idea.id} />
+          </div>
+        </AdvancedMarker>
+      ))}
       {events.map((event) => {
         const coords = eventCoords(event)
         if (!coords) return null
@@ -593,15 +683,78 @@ export function MapView({
   // not on every render (the position object is a fresh one per fix).
   const centerLat = cameraCenter?.lat
   const centerLng = cameraCenter?.lng
+  // "hide ideas" (#245) is a device setting: with it on there are no idea
+  // pins and no idea card, and the quiet state is the generic card.
+  const ideasHidden = useIdeasHidden()
+  const { showActionFeedback } = useOptionalActionFeedback()
   const idea = useMemo(
     () =>
-      quietType && centerLat != null && centerLng != null
+      !ideasHidden && quietType && centerLat != null && centerLng != null
         ? quietIdea({ lat: centerLat, lng: centerLng }, quietType, nowMs)
         : null,
-    [quietType, centerLat, centerLng, nowMs]
+    [ideasHidden, quietType, centerLat, centerLng, nowMs]
   )
 
-  const showRail = dock === "mid" && !quietType
+  // Idea pins (#244): the curated ideas around the camera, for the chips that
+  // are on (all of them with none on), minus any that would sit on a flare's
+  // pin. Held back while the flares load so a pin never flashes and then
+  // vanishes under a flare that arrives a moment later.
+  const flarePositions = useMemo(
+    () =>
+      mapEvents.flatMap((e) => {
+        const coords = eventCoords(e)
+        return coords ? [coords] : []
+      }),
+    [mapEvents]
+  )
+  const ideaPins = useMemo(
+    () =>
+      !ideasHidden &&
+      centerLat != null &&
+      centerLng != null &&
+      nowMs > 0 &&
+      !map.loading
+        ? getIdeaPins({
+            center: { lat: centerLat, lng: centerLng },
+            now: new Date(nowMs),
+            categories: typeFilters,
+            flarePositions,
+          })
+        : [],
+    [
+      ideasHidden,
+      centerLat,
+      centerLng,
+      nowMs,
+      map.loading,
+      typeFilters,
+      flarePositions,
+    ]
+  )
+  // The idea the person tapped on the map. Looked up in the current pins, so
+  // it closes by itself if a chip or the clock takes its pin away.
+  const [tappedIdeaId, setTappedIdeaId] = useState<string | null>(null)
+  const tappedIdea = ideaPins.find((i) => i.id === tappedIdeaId) ?? null
+  const tappedIdeaType = tappedIdea
+    ? EVENT_TYPES.find((t) => t.value === tappedIdea.category)
+    : undefined
+  const selectIdeaPin = (pin: FlareIdea) => {
+    haptic("selection")
+    setPreviewEvent(null)
+    setTappedIdeaId((prev) => (prev === pin.id ? null : pin.id))
+  }
+  const hideIdeas = () => {
+    haptic("light")
+    setTappedIdeaId(null)
+    setIdeasHidden(true)
+    showActionFeedback("ideas hidden · see settings", {
+      action: { label: "undo", onAction: () => setIdeasHidden(false) },
+    })
+  }
+  // The pin of the idea on screen grows: the tapped one, else the quiet card's.
+  const selectedIdeaId = tappedIdea?.id ?? idea?.id ?? null
+
+  const showRail = dock === "mid" && !quietType && !tappedIdea
   const highlightId = showRail
     ? visibleEvents.some((e) => e.id === railFocusId)
       ? railFocusId
@@ -611,6 +764,7 @@ export function MapView({
   const toggleType = (type: EventType) => {
     haptic("selection")
     setRailFocusId(null)
+    setTappedIdeaId(null)
     setTypeFilters((prev) => {
       const next = new Set(prev)
       if (next.has(type)) next.delete(type)
@@ -621,6 +775,7 @@ export function MapView({
   const clearTypes = () => {
     haptic("selection")
     setRailFocusId(null)
+    setTappedIdeaId(null)
     setTypeFilters(new Set())
   }
   const changeTimeFilter = (next: TimeFilter) => {
@@ -811,6 +966,9 @@ export function MapView({
             currentLocation={geo.coords}
             recenterTick={recenterTick}
             highlightId={highlightId}
+            ideas={ideaPins}
+            selectedIdeaId={selectedIdeaId}
+            onIdeaSelect={selectIdeaPin}
           />
         </APIProvider>
       ) : (
@@ -820,6 +978,9 @@ export function MapView({
           joinedIds={joinedIds}
           user={cameraCenter}
           highlightId={highlightId}
+          ideas={ideaPins}
+          selectedIdeaId={selectedIdeaId}
+          onIdeaSelect={selectIdeaPin}
         />
       )}
 
@@ -887,12 +1048,22 @@ export function MapView({
           </div>
         )}
 
-        {quietTypeInfo ? (
+        {tappedIdea && tappedIdeaType ? (
+          <QuietFlareCard
+            type={tappedIdeaType}
+            idea={tappedIdea}
+            center={cameraCenter}
+            onLight={(prefill) => lightFlare(prefill)}
+            onDismiss={() => setTappedIdeaId(null)}
+            onHideIdeas={hideIdeas}
+          />
+        ) : quietTypeInfo ? (
           <QuietFlareCard
             type={quietTypeInfo}
             idea={idea}
             center={cameraCenter}
             onLight={(prefill) => lightFlare(prefill)}
+            onHideIdeas={hideIdeas}
           />
         ) : showRail ? (
           <div
@@ -1716,11 +1887,18 @@ export function QuietFlareCard({
   idea,
   center,
   onLight,
+  onDismiss,
+  onHideIdeas,
 }: {
   type: (typeof EVENT_TYPES)[number]
   idea: FlareIdea | null
   center: GeoCoords | null
   onLight: (prefill: ComposerPrefill) => void
+  /** Only for a card opened from an idea pin: closes it back to the rail. The
+   * quiet-state card is state, not a choice, so it has no close. */
+  onDismiss?: () => void
+  /** One tap to switch idea spots off (#245). Only offered on an idea card. */
+  onHideIdeas?: () => void
 }) {
   const Icon = type.icon
   const distance =
@@ -1755,17 +1933,41 @@ export function QuietFlareCard({
             idea
           </span>
         )}
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="close idea"
+            className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center self-start rounded-full text-muted-foreground hover:bg-muted"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
-      <button
-        type="button"
-        onClick={() =>
-          onLight(idea ? ideaPrefill(idea) : { category: type.value })
-        }
-        className="flex h-9 items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground active:scale-[0.98]"
-      >
-        <Icon className="h-4 w-4" />
-        {idea ? "light a flare" : `light a ${type.label} flare`}
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            onLight(idea ? ideaPrefill(idea) : { category: type.value })
+          }
+          className="flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground active:scale-[0.98]"
+        >
+          <Icon className="h-4 w-4 shrink-0" />
+          <span className="truncate">
+            {idea ? "light a flare" : `light a ${type.label} flare`}
+          </span>
+        </button>
+        {idea && onHideIdeas && (
+          <button
+            type="button"
+            onClick={onHideIdeas}
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-muted px-3 text-sm font-medium text-muted-foreground active:scale-[0.98]"
+          >
+            <EyeOff className="h-4 w-4" />
+            hide ideas
+          </button>
+        )}
+      </div>
     </div>
   )
 }

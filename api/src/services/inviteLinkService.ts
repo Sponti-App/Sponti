@@ -1,13 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { InviteLink } from "#models/index";
 import type { ResolveInviteLinkBody } from "#schemas/inviteLinkSchemas";
-import { hasAnyBlockBetweenUsers } from "#services/blockService";
 import { sendConnectionRequest } from "#services/connectionService";
 import {
-  getContactRelationship,
+  getRelationship,
   publicContactProfile,
-  type ContactRelationship,
-} from "#services/contactRelationshipService";
+  type Relationship,
+} from "#services/relationshipService";
 import { getUsersByIds } from "#services/userDirectoryService";
 import { AppError } from "#utils/AppError";
 import { toObjectId } from "#utils/objectId";
@@ -23,7 +22,7 @@ const notFound = () => new AppError("Invite link not found", 404, "INVITE_LINK_N
 
 // A request the viewer already sent stays pending; an incoming one is
 // accepted by sending one back (sendConnectionRequest's reverse-pending path).
-const canConnect = (relationship: ContactRelationship) =>
+const canConnect = (relationship: Relationship) =>
   relationship === "none" || relationship === "pending_incoming";
 
 const toInviteLinkDto = (link: { token: string; expiresAt: Date }) => ({
@@ -80,7 +79,10 @@ export const resolveInviteLink = async (viewerId: string, input: ResolveInviteLi
 
   const ownerId = link.userId.toString();
 
-  if (viewerId !== ownerId && (await hasAnyBlockBetweenUsers(viewerId, ownerId))) {
+  // Blocks either way read exactly like a token that never existed.
+  let { relationship } = await getRelationship(viewerId, ownerId);
+
+  if (relationship === "blocked") {
     throw notFound();
   }
 
@@ -90,7 +92,6 @@ export const resolveInviteLink = async (viewerId: string, input: ResolveInviteLi
     throw notFound();
   }
 
-  let relationship = await getContactRelationship(viewerId, ownerId);
   let connectionResult: Awaited<ReturnType<typeof sendConnectionRequest>> | null = null;
 
   if (input.connect && canConnect(relationship)) {
@@ -98,7 +99,7 @@ export const resolveInviteLink = async (viewerId: string, input: ResolveInviteLi
       receiverId: ownerId,
       type: "shared_invitation",
     });
-    relationship = await getContactRelationship(viewerId, ownerId);
+    ({ relationship } = await getRelationship(viewerId, ownerId));
   }
 
   return {

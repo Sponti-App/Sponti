@@ -34,6 +34,7 @@ import {
   type NotificationSettings as NotificationSettingsSchema,
 } from "@/lib/api/notification-settings"
 import { HttpError } from "@/lib/http"
+import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
 import {
   getRefreshToken,
   getToken,
@@ -74,7 +75,7 @@ type AccountDraft = {
 // API: GET  /notification-settings/me → { data: NotificationSettings }
 //      PATCH /notification-settings/me  { ...partial NotificationSettings }
 //
-// `notifyWhen` and `maxDistanceMiles` below are NOT in that schema
+// `notifyWhen` and `maxDistanceKm` below are NOT in that schema
 // (api/src/schemas/notificationSettingsSchemas.ts is `.strict()` and would
 // reject them) — their controls are shown disabled with "coming soon"
 // rather than wired or deleted.
@@ -89,7 +90,7 @@ type NotificationDraft = {
   invitationNotifications: boolean  // notification_settings.invitationNotifications
   // ── no backend field — local only, controls disabled ("coming soon") ───
   notifyWhen: NotifyWhen
-  maxDistanceMiles: number
+  maxDistanceKm: number
 }
 
 // #91 investigation: auth-server has no change-password endpoint — only the
@@ -124,6 +125,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
   const { resolvedTheme, setTheme } = useTheme()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const extras = readProfileExtras(user.id)
+  const ideasHidden = useIdeasHidden()
   const isDark = resolvedTheme === "dark"
 
   // Account draft — seeded from the auth session (already fresh: AuthProvider
@@ -160,7 +162,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
     }
   }
 
-  // Notification draft. `notifyWhen`/`maxDistanceMiles` have no backend
+  // Notification draft. `notifyWhen`/`maxDistanceKm` have no backend
   // field (see NotificationDraft above) so they start at a fixed local
   // default and are never sent — their controls render disabled.
   const [notif, setNotif] = useState<NotificationDraft>({
@@ -170,7 +172,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
     eventReminders: true,
     invitationNotifications: true,
     notifyWhen: "any_friend",
-    maxDistanceMiles: 5,
+    maxDistanceKm: 5,
   })
   // Last value confirmed by the server for each real field — what a failed
   // save reverts a control back to. Null until the initial GET resolves.
@@ -441,6 +443,17 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
               </RadioGroup>
             </Section>
 
+            {/* Map — device-only, applies at once (no save button): the idea
+                pins and cards on the home map (#245). Kept in localStorage. */}
+            <Section icon={MapPin} label="Map">
+              <ToggleRow
+                label="show ideas on the map"
+                sublabel="suggested spots near you · kept on this device"
+                checked={!ideasHidden}
+                onCheckedChange={(v) => setIdeasHidden(!v)}
+              />
+            </Section>
+
             {/* Social links — client-only extras stored in localStorage */}
             <Section icon={Link2} label="Social links">
               <div className="space-y-3">
@@ -599,24 +612,24 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             </Section>
 
             {/* Max distance — no backend field (notification_settings has no
-                `maxDistanceMiles` column). Shown disabled, "coming soon". */}
+                `maxDistanceKm` column). Shown disabled, "coming soon". */}
             <Section
               icon={MapPin}
-              label={`max distance: ${notif.maxDistanceMiles} ${notif.maxDistanceMiles === 1 ? "mile" : "miles"} (coming soon)`}
+              label={`max distance: ${notif.maxDistanceKm} km (coming soon)`}
             >
               <input
                 type="range"
                 min={1}
                 max={20}
                 step={1}
-                value={notif.maxDistanceMiles}
+                value={notif.maxDistanceKm}
                 disabled
                 onChange={() => undefined}
                 className="w-full h-1.5 rounded-full appearance-none bg-border opacity-50 cursor-not-allowed [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-md"
               />
               <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                <span>1 mi</span>
-                <span>20 mi</span>
+                <span>1 km</span>
+                <span>20 km</span>
               </div>
             </Section>
           </TabsContent>

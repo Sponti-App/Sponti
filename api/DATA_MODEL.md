@@ -23,13 +23,16 @@ Table users {
   avatarPublicId string
   profileVisibility profile_visibility_status
   socialBattery number // optional
+  bio string // optional, max 80 chars (#287). Profile-only: read in api by userProfileService alone
+  instagram string // optional bare handle (#287). Profile-only, as bio
+  telegram string // optional bare handle (#287). Profile-only, as bio
   createdAt datetime
   updatedAt datetime
 }
 
 Enum profile_visibility_status {
-  public
-  private // default
+  public // default
+  private
 }
 ```
 

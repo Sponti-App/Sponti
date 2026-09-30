@@ -335,8 +335,13 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
 
 // #243: with a berlin position the quiet card is a real idea from the curated
 // list (2 km, nearest first), and lighting it opens the composer filled in.
-// "drinks" is used because its idea near humboldthain has no season window, so
-// the test doesn't depend on the date it runs.
+// The idea list has date-dependent seasons (the drinks idea near humboldthain,
+// prater-beer-garden, runs 15 Apr to 30 Sep), so the browser clock is fixed to
+// a day inside them. Stub flares are stamped from Date.now() in node, which
+// would then be a different day from the page's, so they are stamped from the
+// same fixed day instead (see flareAt).
+const JUNE = "2026-06-15T12:00:00.000Z"
+
 test.describe("quiet state: an idea card near berlin (#243)", () => {
   const quietCard = (page: Page) => page.locator("[data-quiet-card]")
   const chip = (page: Page, name: string) =>
@@ -350,7 +355,18 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
     coordinates: [BERLIN_COORDS.lng, BERLIN_COORDS.lat] as [number, number],
   }
 
+  // A live flare on the fixed day, like makeStubFlare's default on the real one.
+  const flareAt = (overrides: Partial<StubApiEvent>) => {
+    const now = new Date(JUNE).getTime()
+    return makeStubFlare({
+      startAt: new Date(now - 10 * MIN).toISOString(),
+      endAt: new Date(now + 90 * MIN).toISOString(),
+      ...overrides,
+    })
+  }
+
   const openBerlinMap = async (page: Page, mapEvents: StubApiEvent[]) => {
+    await page.clock.setFixedTime(JUNE)
     await stubBackend(page, { mapEvents, coords: BERLIN_COORDS })
     await page.goto("/")
     await expect(nav(page)).toBeVisible()
@@ -361,7 +377,7 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
   }) => {
     // Nothing of the type is live: the stub flares are sports and culture.
     await openBerlinMap(page, [
-      makeStubFlare({
+      flareAt({
         location: inBerlin,
         _id: "e-sports",
         title: "sunset frisbee",
@@ -418,7 +434,7 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
 
   test("a live flare of the type takes the card away", async ({ page }) => {
     await openBerlinMap(page, [
-      makeStubFlare({
+      flareAt({
         location: inBerlin,
         _id: "e-drinks",
         title: "drinks after work",
@@ -434,7 +450,7 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
     page,
   }) => {
     await openBerlinMap(page, [
-      makeStubFlare({
+      flareAt({
         location: inBerlin,
         _id: "e-sports",
         title: "sunset frisbee",

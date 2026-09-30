@@ -1,10 +1,7 @@
 import type { ReactNode } from "react"
 import { MenuPageShell } from "@/components/menu-page-shell"
+import { CONTACT_EMAIL } from "@/lib/contact"
 
-const supportEmail = "sponti.support@example.com"
-const reportsEmail = "sponti.reports@example.com"
-const appealsEmail = "sponti.appeals@example.com"
-const privacyEmail = "sponti.privacy@example.com"
 const privacyHref = "/menu/privacy"
 
 const termsQuickLinks = [
@@ -115,7 +112,7 @@ export default function TermsPage() {
             <dd className="font-medium">WBS Coding School Student Project Team</dd>
             <dt className="text-muted-foreground">Contact</dt>
             <dd>
-              <TextLink href={`mailto:${supportEmail}`}>{supportEmail}</TextLink>
+              <TextLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</TextLink>
             </dd>
             <dt className="text-muted-foreground">Status</dt>
             <dd className="font-medium">Educational prototype</dd>
@@ -348,7 +345,7 @@ export default function TermsPage() {
           <Paragraph>
             Users may report illegal, harmful, or rule-breaking content by
             contacting{" "}
-            <TextLink href={`mailto:${reportsEmail}`}>{reportsEmail}</TextLink>.
+            <TextLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</TextLink>.
           </Paragraph>
           <Paragraph>A report should include:</Paragraph>
           <BulletList
@@ -379,7 +376,7 @@ export default function TermsPage() {
           <Paragraph>
             If your content or account is restricted, removed, suspended, or
             terminated, you may contact us at{" "}
-            <TextLink href={`mailto:${appealsEmail}`}>{appealsEmail}</TextLink>.
+            <TextLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</TextLink>.
           </Paragraph>
           <Paragraph>Your complaint should include:</Paragraph>
           <BulletList
@@ -482,7 +479,7 @@ export default function TermsPage() {
           </Paragraph>
           <Paragraph>
             For privacy requests, contact{" "}
-            <TextLink href={`mailto:${privacyEmail}`}>{privacyEmail}</TextLink>.
+            <TextLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</TextLink>.
           </Paragraph>
           <Paragraph>
             The Terms of Service and Privacy Policy are separate documents.
@@ -603,7 +600,7 @@ export default function TermsPage() {
           <Paragraph>You may stop using Sponti at any time.</Paragraph>
           <Paragraph>
             You may request account deletion by contacting{" "}
-            <TextLink href={`mailto:${supportEmail}`}>{supportEmail}</TextLink>.
+            <TextLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</TextLink>.
           </Paragraph>
           <Paragraph>We may suspend or terminate your access if:</Paragraph>
           <BulletList
@@ -702,19 +699,19 @@ export default function TermsPage() {
         <Section id="contact" title="25. Contact">
           <Paragraph>
             For general questions:{" "}
-            <TextLink href={`mailto:${supportEmail}`}>{supportEmail}</TextLink>
+            <TextLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</TextLink>
           </Paragraph>
           <Paragraph>
             For privacy requests:{" "}
-            <TextLink href={`mailto:${privacyEmail}`}>{privacyEmail}</TextLink>
+            <TextLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</TextLink>
           </Paragraph>
           <Paragraph>
             For content reports:{" "}
-            <TextLink href={`mailto:${reportsEmail}`}>{reportsEmail}</TextLink>
+            <TextLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</TextLink>
           </Paragraph>
           <Paragraph>
             For moderation appeals:{" "}
-            <TextLink href={`mailto:${appealsEmail}`}>{appealsEmail}</TextLink>
+            <TextLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</TextLink>
           </Paragraph>
         </Section>
       </article>

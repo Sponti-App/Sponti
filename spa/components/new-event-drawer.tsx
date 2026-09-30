@@ -2863,20 +2863,29 @@ function InviteToggles({
   allowForward: boolean
   onForward: (v: boolean) => void
 }) {
+  // Both toggles are gated (#93/#159). When neither is on in this profile,
+  // render nothing at all so no empty row (or its parent's gap) is left.
+  if (!featureFlags.plusOne && !featureFlags.reshare) return null
   return (
     <div className="flex gap-2">
-      <button
-        type="button"
-        onClick={() => onPlusOne(!allowPlusOne)}
-        className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors ${
-          allowPlusOne
-            ? "border-accent bg-accent/10 text-accent"
-            : "border-border text-muted-foreground hover:bg-secondary"
-        }`}
-      >
-        <UserPlus className="h-3 w-3 shrink-0" />
-        +1 allowed
-      </button>
+      {/* #93/#159: +1 (allowPlusOne → allowGuestInvites: "single") is hidden
+          in the tester build — nothing redeems a +1 yet. Render-site guard
+          only; the state stays false (nothing persists or restores it), so
+          guestInviteModeFromDraft yields "none" while it is hidden. */}
+      {featureFlags.plusOne && (
+        <button
+          type="button"
+          onClick={() => onPlusOne(!allowPlusOne)}
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors ${
+            allowPlusOne
+              ? "border-accent bg-accent/10 text-accent"
+              : "border-border text-muted-foreground hover:bg-secondary"
+          }`}
+        >
+          <UserPlus className="h-3 w-3 shrink-0" />
+          +1 allowed
+        </button>
+      )}
       {/* #93/#159: re-share (allowForward → allowGuestInvites: "multiple")
           is hidden in the tester build until its privacy questions are
           answered. Render-site guard only — the toggle, its state and

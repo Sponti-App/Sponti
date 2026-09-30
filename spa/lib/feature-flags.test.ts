@@ -15,26 +15,30 @@ afterEach(() => {
 })
 
 describe("featureFlags profile", () => {
-  it("defaults to the tester profile (reshare off) when unset", async () => {
+  it("defaults to the tester profile (reshare and plusOne off) when unset", async () => {
     vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", undefined)
     const { featureFlags } = await loadFlags()
     expect(featureFlags.reshare).toBe(false)
+    expect(featureFlags.plusOne).toBe(false)
   })
 
   it("stays on the tester profile for any value other than 'full'", async () => {
     vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "tester")
     const { featureFlags: tester } = await loadFlags()
     expect(tester.reshare).toBe(false)
+    expect(tester.plusOne).toBe(false)
 
     vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "not-a-real-profile")
     const { featureFlags: garbage } = await loadFlags()
     expect(garbage.reshare).toBe(false)
+    expect(garbage.plusOne).toBe(false)
   })
 
   it("turns on full-app flags when set to 'full'", async () => {
     vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "full")
     const { featureFlags } = await loadFlags()
     expect(featureFlags.reshare).toBe(true)
+    expect(featureFlags.plusOne).toBe(true)
   })
 
   it("keeps seedDemoData reading its own env var, independent of the profile", async () => {

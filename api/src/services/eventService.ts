@@ -3,7 +3,6 @@ import {
   Block,
   Circle,
   CircleMember,
-  Connection,
   Event,
   EventMember,
   EventUpdate,
@@ -20,7 +19,7 @@ import type {
   UpdateMyEventMembershipBody,
 } from "#schemas/eventSchemas";
 import { getBlockedInviteeIds, getBlockedRelationshipUserIds } from "#services/blockService";
-import { getAcceptedConnectionUserIds } from "#services/connectionService";
+import { getConnectedUserIds } from "#services/relationshipService";
 import { getUsersByIds, type UserSummary } from "#services/userDirectoryService";
 import {
   createEventGuestRemovedNotification,
@@ -272,24 +271,7 @@ const assertAcceptedConnectionInvitees = async (hostId: string, inviteeIds: stri
     return;
   }
 
-  const hostObjectId = toObjectId(hostId);
-  const inviteeObjectIds = uniqueInviteeIds.map(toObjectId);
-  const connections = await Connection.find({
-    status: "accepted",
-    $or: [
-      { requesterId: hostObjectId, receiverId: { $in: inviteeObjectIds } },
-      { receiverId: hostObjectId, requesterId: { $in: inviteeObjectIds } },
-    ],
-  })
-    .select("requesterId receiverId")
-    .lean();
-  const acceptedUserIds = new Set<string>();
-
-  for (const connection of connections) {
-    const requesterId = connection.requesterId.toString();
-    const receiverId = connection.receiverId.toString();
-    acceptedUserIds.add(requesterId === hostId ? receiverId : requesterId);
-  }
+  const acceptedUserIds = await getConnectedUserIds(hostId, uniqueInviteeIds);
 
   const missingInvitee = uniqueInviteeIds.find((inviteeId) => !acceptedUserIds.has(inviteeId));
 
@@ -345,7 +327,7 @@ const resolveInviteCandidates = async (hostId: string, input: InviteSelection) =
       .map((circle) => circle._id);
 
     if (allCircleIds.length > 0) {
-      const connectionUserIds = await getAcceptedConnectionUserIds(hostId);
+      const connectionUserIds = await getConnectedUserIds(hostId);
 
       for (const allCircleId of allCircleIds) {
         const circleInput = circleInputById.get(allCircleId);
