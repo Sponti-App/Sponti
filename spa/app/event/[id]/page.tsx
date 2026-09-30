@@ -489,7 +489,7 @@ function FlareDetail({
                   no one&apos;s said they&apos;re going yet.
                 </p>
               ) : isHost ? (
-                <ArrivalBoard guests={guests} timing={timing} />
+                <ArrivalBoard guests={guests} timing={timing} viewerId={viewerId} />
               ) : (
                 <GuestGrid guests={guests} viewerId={viewerId} />
               )}
@@ -566,9 +566,11 @@ function HostCard({
 function ArrivalBoard({
   guests,
   timing,
+  viewerId,
 }: {
   guests: NonNullable<HostedEvent["attendees"]>
   timing: FlareTiming
+  viewerId?: string
 }) {
   // Ticks so "arriving in 5 min" stays true while the host keeps it open.
   const [now, setNow] = useState(0)
@@ -597,10 +599,17 @@ function ArrivalBoard({
               isNext && "-ml-3 border-l-[3px] border-l-accent pl-2.25"
             )}
           >
-            <GuestAvatar guest={guest} className="size-7" />
-            <span className="min-w-0 flex-1 truncate text-sm">
-              {guest.displayName.toLowerCase()}
-            </span>
+            {/* Avatar + name are the profile link; the ETA stays outside it. */}
+            <GuestLink
+              guest={guest}
+              viewerId={viewerId}
+              className="flex min-h-9 min-w-0 flex-1 items-center gap-2.5"
+            >
+              <GuestAvatar guest={guest} className="size-7" />
+              <span className="min-w-0 flex-1 truncate text-sm">
+                {guest.displayName.toLowerCase()}
+              </span>
+            </GuestLink>
             <span
               className={cn(
                 "shrink-0 text-xs",
@@ -633,14 +642,52 @@ function GuestGrid({
   return (
     <div className="grid grid-cols-4 gap-y-3">
       {guests.map((guest) => (
-        <div key={guest.id} className="flex min-w-0 flex-col items-center gap-1">
+        <GuestLink
+          key={guest.id}
+          guest={guest}
+          viewerId={viewerId}
+          className="flex min-w-0 flex-col items-center gap-1"
+        >
           <GuestAvatar guest={guest} className="size-11" />
           <span className="max-w-full truncate text-xs">
             {guest.id === viewerId ? "you" : guest.displayName.split(" ")[0].toLowerCase()}
           </span>
-        </div>
+        </GuestLink>
       ))}
     </div>
+  )
+}
+
+/**
+ * A guest's avatar and name as a link to their profile (#265), like the host
+ * card. Your own row and a guest the api sent without a username stay plain,
+ * non-interactive markup.
+ */
+function GuestLink({
+  guest,
+  viewerId,
+  className,
+  children,
+}: {
+  guest: NonNullable<HostedEvent["attendees"]>[number]
+  viewerId?: string
+  className?: string
+  children: React.ReactNode
+}) {
+  if (!guest.username || guest.id === viewerId) {
+    return <div className={className}>{children}</div>
+  }
+  return (
+    <Link
+      href={`/profile/${encodeURIComponent(guest.username)}`}
+      aria-label={`${guest.displayName.toLowerCase()}, open profile`}
+      className={cn(
+        className,
+        "rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-muted"
+      )}
+    >
+      {children}
+    </Link>
   )
 }
 
