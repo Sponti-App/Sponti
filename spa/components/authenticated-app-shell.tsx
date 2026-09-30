@@ -24,7 +24,7 @@ function hidesAuthenticatedChrome(pathname: string): boolean {
   return (
     AUTH_PATHS.includes(pathname) ||
     pathname === "/event/new" ||
-    pathname.startsWith("/qr/") ||
+    /^\/(qr|invite)\//.test(pathname) ||
     pathname.startsWith("/api/")
   )
 }

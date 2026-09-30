@@ -7,13 +7,19 @@ import type { QrContactResolveResult } from "@/lib/api/qr-contact-tokens"
 const mocks = vi.hoisted(() => ({
   back: vi.fn(),
   push: vi.fn(),
+  replace: vi.fn(),
   resolveQrContactToken: vi.fn(),
   showActionFeedback: vi.fn(),
+  status: "authenticated" as "authenticated" | "unauthenticated",
 }))
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ token: "qr-token" }),
-  useRouter: () => ({ back: mocks.back, push: mocks.push }),
+  useRouter: () => ({
+    back: mocks.back,
+    push: mocks.push,
+    replace: mocks.replace,
+  }),
 }))
 
 vi.mock("@/components/action-feedback", () => ({
@@ -23,7 +29,7 @@ vi.mock("@/components/action-feedback", () => ({
 }))
 
 vi.mock("@/components/auth-provider", () => ({
-  useAuth: () => ({ status: "authenticated" }),
+  useAuth: () => ({ status: mocks.status }),
 }))
 
 vi.mock("@/lib/api/qr-contact-tokens", async (importOriginal) => {
@@ -55,6 +61,7 @@ function qrResult(
 describe("QrContactPage action feedback", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.status = "authenticated"
     mocks.resolveQrContactToken
       .mockResolvedValueOnce(qrResult())
       .mockResolvedValueOnce(
@@ -74,7 +81,7 @@ describe("QrContactPage action feedback", () => {
     const user = userEvent.setup()
     render(<QrContactPage />)
 
-    await user.click(await screen.findByRole("button", { name: "add friend" }))
+    await user.click(await screen.findByRole("button", { name: "connect" }))
 
     await waitFor(() =>
       expect(mocks.showActionFeedback).toHaveBeenCalledWith("friend added")
@@ -90,16 +97,41 @@ describe("QrContactPage action feedback", () => {
 
     render(<QrContactPage />)
 
-    await user.click(await screen.findByRole("button", { name: "add friend" }))
+    await user.click(await screen.findByRole("button", { name: "connect" }))
 
     expect(
-      await screen.findByText(
-        "could not send the friend request. try scanning again."
-      )
+      await screen.findByText("could not connect. try scanning again.")
     ).toBeInTheDocument()
     expect(mocks.showActionFeedback).toHaveBeenCalledWith(
       "couldn't add friend",
       { tone: "error" }
     )
+  })
+
+  it("sends a signed-out visitor straight to sign-up, returning here", async () => {
+    mocks.status = "unauthenticated"
+    render(<QrContactPage />)
+
+    await waitFor(() =>
+      expect(mocks.replace).toHaveBeenCalledWith(
+        "/register?redirectTo=%2Fqr%2Fqr-token"
+      )
+    )
+    expect(mocks.resolveQrContactToken).not.toHaveBeenCalled()
+  })
+
+  it("offers to connect even when the viewer's own request is pending", async () => {
+    mocks.resolveQrContactToken
+      .mockReset()
+      .mockResolvedValueOnce(qrResult({ relationship: "pending_outgoing" }))
+
+    render(<QrContactPage />)
+
+    expect(
+      await screen.findByText(
+        "your request to Nil is pending. connect now instead."
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "connect" })).toBeEnabled()
   })
 })

@@ -9,6 +9,8 @@ import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { fetchContactPreviewName } from "@/lib/api/contact-preview"
+import { parseContactPath } from "@/lib/contact-links"
 import { HttpError, warmBackends } from "@/lib/http"
 import { getRedirectTarget, useRedirectQuery } from "@/lib/redirect-path"
 
@@ -27,6 +29,21 @@ export default function RegisterPage() {
   // #212: start waking both Render services while the user fills in the form.
   useEffect(() => {
     warmBackends()
+  }, [])
+
+  // #124: arriving from someone's QR code or invite link — name them at the
+  // top. Only a live link resolves; anything else keeps the generic copy.
+  const [inviterName, setInviterName] = useState<string | null>(null)
+  useEffect(() => {
+    const contact = parseContactPath(getRedirectTarget())
+    if (!contact) return
+    const controller = new AbortController()
+    fetchContactPreviewName(contact.kind, contact.token, controller.signal)
+      .then((name) => {
+        if (!controller.signal.aborted) setInviterName(name)
+      })
+      .catch(() => {})
+    return () => controller.abort()
   }, [])
 
   const usernameValid = /^[a-zA-Z0-9_-]{3,30}$/.test(username)
@@ -120,6 +137,14 @@ export default function RegisterPage() {
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pt-8 pb-6">
         <header className="mb-6">
+          {inviterName && (
+            <p
+              className="mb-5 text-lg font-semibold text-foreground"
+              role="status"
+            >
+              join {inviterName} on sponti
+            </p>
+          )}
           <div className="mb-5 flex items-center gap-2.5">
             <span className="sponti-register-mark relative flex size-7 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm">
               <Flame className="size-3.5" />
