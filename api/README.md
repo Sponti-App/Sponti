@@ -66,6 +66,7 @@ Authenticated `/api/v1`:
 - `POST /qr-contact-tokens/resolve`
 - `GET /inbox/me`
 - `GET /users/search?q=<username-or-display-name>`
+- `GET /users/by-username/:username`
 
 QR contact tokens are hashed at rest, expire after 15 minutes, and resolve to a
 confirmation payload. Multiple unexpired tokens can remain valid so a refreshed

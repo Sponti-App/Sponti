@@ -506,3 +506,29 @@ describe("EventDetailPage thread (#140)", () => {
     expect(screen.queryByRole("textbox", { name: "update" })).not.toBeInTheDocument()
   })
 })
+
+describe("EventDetailPage host row (#199)", () => {
+  it("links a guest to the host's profile", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ hostUsername: "sarah" }))
+
+    render(<EventDetailPage />)
+
+    const link = await screen.findByRole("link", { name: /hosted by sarah kim/ })
+    expect(link).toHaveAttribute("href", "/profile/sarah")
+  })
+
+  it("leaves the row plain for the host, and for a host sent without a username", async () => {
+    mocks.userId = "host-1"
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ hostUsername: "sarah" }))
+    const { unmount } = render(<EventDetailPage />)
+    expect(await screen.findByText("hosted by you")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /hosted by/ })).not.toBeInTheDocument()
+    unmount()
+
+    mocks.userId = "guest-1"
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent())
+    render(<EventDetailPage />)
+    expect(await screen.findByText("hosted by sarah kim")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /hosted by/ })).not.toBeInTheDocument()
+  })
+})

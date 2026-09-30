@@ -32,7 +32,16 @@ export const BERLIN_COORDS = { lat: 52.5474, lng: 13.3873 }
 /** Minimal `ApiEvent` shape (see spa/lib/api/events/events.types.ts). */
 export type StubApiEvent = {
   _id: string
-  hostId: string
+  // A bare id, or the populated host identity the api attaches (#199 links
+  // the host by username).
+  hostId:
+    | string
+    | {
+        _id: string
+        username?: string
+        displayName?: string
+        avatarUrl?: string | null
+      }
   title: string
   type: string
   startAt: string
@@ -83,9 +92,34 @@ async function fulfillJson(
   })
 }
 
+/** `GET /users/by-username/:username` body (see spa/lib/api/users.ts). */
+export type StubUserProfile = {
+  profile: {
+    id: string
+    username: string
+    displayName: string
+    avatarUrl: string | null
+  }
+  relationship:
+    | "self"
+    | "connected"
+    | "pending_outgoing"
+    | "pending_incoming"
+    | "blocked"
+    | "none"
+  connectionId: string | null
+}
+
 type StubBackendOptions = {
   /** Events returned by GET /events/map/active. Empty by default. */
   mapEvents?: StubApiEvent[]
+  /**
+   * GET /events/:id answers with the map event of that id. Pass more here
+   * for flares that aren't on the map.
+   */
+  events?: StubApiEvent[]
+  /** Profiles by username; any other username answers 404 USER_NOT_FOUND. */
+  profiles?: Record<string, StubUserProfile>
   /** Seeded last-known position. San Francisco by default. */
   coords?: { lat: number; lng: number }
 }
@@ -105,6 +139,10 @@ export async function stubBackend(
   options: StubBackendOptions = {}
 ): Promise<void> {
   const mapEvents = options.mapEvents ?? []
+  const eventsById = new Map(
+    [...mapEvents, ...(options.events ?? [])].map((e) => [e._id, e])
+  )
+  const profiles = options.profiles ?? {}
   const coords = options.coords ?? STUB_COORDS
 
   await page.addInitScript(
@@ -183,6 +221,40 @@ export async function stubBackend(
     if (path === "/health") {
       await fulfillJson(route, { status: "ok" })
       return
+    }
+    if (path === "/maps/route") {
+      // What the api answers with no Google key: the SPA falls back to a
+      // straight line instead of decoding a polyline that isn't there.
+      await fulfillJson(
+        route,
+        {
+          error: { message: "Routes unavailable", code: "ROUTES_UNAVAILABLE" },
+        },
+        503
+      )
+      return
+    }
+    const profileMatch = path.match(/^\/users\/by-username\/([^/]+)$/)
+    if (profileMatch) {
+      const profile = profiles[decodeURIComponent(profileMatch[1])]
+      if (profile) {
+        await fulfillJson(route, { data: profile })
+      } else {
+        await fulfillJson(
+          route,
+          { error: { message: "User not found", code: "USER_NOT_FOUND" } },
+          404
+        )
+      }
+      return
+    }
+    const eventMatch = path.match(/^\/events\/([^/]+)$/)
+    if (route.request().method() === "GET" && eventMatch) {
+      const event = eventsById.get(eventMatch[1])
+      if (event) {
+        await fulfillJson(route, { data: event })
+        return
+      }
     }
     if (route.request().method() === "POST" && path === "/events") {
       await fulfillJson(
