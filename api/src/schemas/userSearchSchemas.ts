@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { paginationQuerySchema } from "#utils/pagination";
 
 export const searchUsersQuerySchema = z
   .object({
@@ -20,3 +21,12 @@ export const usernameParamSchema = z
       .regex(/^[a-zA-Z0-9._-]+$/),
   })
   .strict();
+
+// "tap to list" mutual friends on someone's profile (#288).
+export const mutualFriendsQuerySchema = paginationQuerySchema
+  .extend({
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+  })
+  .strict();
+
+export type MutualFriendsQuery = z.infer<typeof mutualFriendsQuerySchema>;

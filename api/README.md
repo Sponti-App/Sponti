@@ -70,7 +70,8 @@ Authenticated `/api/v1`:
 - `POST /public/contact-preview` (no auth)
 - `GET /inbox/me`
 - `GET /users/search?q=<username-or-display-name>`
-- `GET /users/by-username/:username`
+- `GET /users/by-username/:username` (profile: what it holds depends on the viewer, see `API_RULES.md` Profile)
+- `GET /users/by-username/:username/mutual-friends`
 
 QR contact tokens are hashed at rest, expire after 15 minutes, and resolve to a
 confirmation payload. Multiple unexpired tokens can remain valid so a refreshed

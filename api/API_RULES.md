@@ -57,7 +57,7 @@ Error:
 - `GET /events/:id` returns `myWillArriveAt`, the caller's own arrival time (or `null`). Other guests' arrival times are only ever sent to the host, on `attendees[].willArriveAt`.
 - `PATCH /notifications/read-batch` marks up to 10 caller-owned notification ids read at once. `PATCH /notifications/read-all` ("I'm caught up") marks every one of the caller's unread notifications read in one call, not just a loaded page — scoped to `createdAt` at or before the moment the request is handled, so a notification created mid-request isn't swallowed before the caller ever saw it. Both return the caller's resulting `unreadCount`.
 - A going member's arrival answer is either a minute-based time (`memberWillArriveAt`) or, for a flare that hasn't started but starts within the hour, a near-term status (`arrivalStatus`: `"on_time"` or `"running_late"`). The two are mutually exclusive — sending a real value for both on `PATCH /events/:id/me` is `400 VALIDATION_ERROR`, and setting one (to a real value) clears the other, whether or not the request mentions it. `GET /events/:id` returns the caller's own as `myArrivalStatus`; the host also gets `attendees[].arrivalStatus`, on the same host-only terms as `willArriveAt`. Declining nulls out both.
-- `GET /users/by-username/:username` (someone's profile, #199) returns only `profile: { id, username, displayName, avatarUrl }`, the caller's `relationship` to them (`self`, `connected`, `pending_outgoing`, `pending_incoming`, `blocked`, `none`) and the pending request's `connectionId`. Profile visibility is discovery-only, so a public and a private user look the same here. Bio, socials, email and visibility are never returned. If the caller blocked them it's `blocked` (so they can unblock); if they blocked the caller it's the same `404 USER_NOT_FOUND` as an unknown username. A rejected request reads as `none`. `connected` follows the definition under Connections.
+- `GET /users/by-username/:username` (someone's profile, #199, #288) and its mutual friends list: see Profile below.
 - Circles can only be managed by their owner.
 - Circles are snapshots: sending a flare to a circle copies its members into the flare at that moment. The flare remembers which circles it was sent to (`invitedCircleIds`) only so the host can be asked whether someone added to the circle later should be invited too; that is always an explicit host action (`POST /events/:id/members`), never automatic. `GET /circles/:id/events` lists the owner's upcoming flares for a circle.
 - Circle members must be connections of the owner (see Connections).
@@ -120,12 +120,33 @@ When A blocks B:
 - There is no in-app rate limit yet; tokens are 256-bit random values, so guessing one is
   not practical.
 
+## Profile
+
+`GET /users/by-username/:username` is someone's profile (#199, #288). What it holds depends on who is looking (#166, decided 2026-09-30):
+
+| Viewer                          | Public profile                                        | Private profile             |
+| ------------------------------- | ----------------------------------------------------- | --------------------------- |
+| self                            | everything                                            | everything                  |
+| connection                      | photo, name, @username, bio, socials, mutual friends  | the same                    |
+| signed-in stranger, not blocked | photo, name, @username, bio, socials, mutual friends  | photo, name, @username only |
+| you blocked them                | identity (so you can unblock), nothing else           | the same                    |
+| they blocked you                | `404 USER_NOT_FOUND`, the same as an unknown username | the same                    |
+
+- "Connection" is the definition under Connections. A pending request either way, a rejected one and a one-sided accepted row are all "stranger". A block both ways reads as your own block.
+- Response: `{ data: { profile: { id, username, displayName, avatarUrl, bio, socials: { instagram, telegram } }, relationship, connectionId, mutualFriends: { count, preview } } }`. `relationship` is `self`, `connected`, `pending_outgoing`, `pending_incoming`, `blocked` or `none`; `connectionId` is the pending request's id, else `null`. `preview` is the first 3 mutual friends as `{ id, username, displayName, avatarUrl }`, in name order.
+- **Every 200 has that one shape. It never says a profile is private.** Whatever the viewer may not see comes back exactly as a public profile whose owner left it empty: `bio: null`, both handles `null`, `mutualFriends: { count: 0, preview: [] }`. The mutual friends list gives the same empty page. Visibility, email and every other stored field are never returned.
+- Your own profile has no mutual friends (`count: 0`); everyone you know would be "mutual" with yourself.
+- `GET /users/by-username/:username/mutual-friends?page&limit` (limit 1–50, default 20) is the "tap to list" view: `{ data: [{ id, username, displayName, avatarUrl }], pagination }`, in name order. Same gate: `404` wherever the profile is `404`, an empty page wherever the profile shows zero mutual friends because of the table.
+- **Mutual friends** are the people connected (by the definition under Connections) to both the viewer and the profile owner. Each side's connections already leave out anyone in a block with that side, so a friend who blocked the viewer, or whom the viewer blocked, is never listed, and neither is one in a block with the owner. Only the intersection is ever returned, never the owner's connections.
+- **Cost:** a profile view is a bounded number of queries whatever the size of either network: the username lookup, `getRelationship` (2), the viewer's connections (3), the owner's connections among those (3), and one page plus a count of identities. The owner's side is filtered to the viewer's connections (`$in`), so it never loads the owner's whole network. Index assumptions: `users.username` (unique, auth-server), `connections` `{ requesterId, status }` and `{ receiverId, status }`, `blocks` `{ blockerId }`. The `blockedId` side of the block lookup in `getConnectedUserIds` has no index of its own yet (see TODO Areas).
+- **Bio and handles never leave the profile endpoint.** `bio`, `instagram` and `telegram` are written by auth-server (#287). In api they are read only in `userProfileService`, which selects them explicitly. They must never be added to `userProjection` / `getUsersByIds` or any other projection: those feed search, flares (`attachEventPeople`), connections, the inbox, blocks, notifications, circles, QR codes and invite links, which reach strangers. `profileFieldsNeverLeak.db.test.ts` walks all of them and fails if one does.
+
 ## Profile Decisions (#268)
 
 Decided 2026-09-30. These record what `GET /users/by-username/:username` and the profile page already do; none of them changed behaviour.
 
 - **Block from a stranger's profile stays.** Anyone except yourself and people you've already blocked can be blocked, whether or not you're connected.
-- **A private profile opened by link shows name, @username and photo.** That is the bare minimum strangers get, matching the discovery-only contract: private users are left out of search but can be viewed by anyone signed in who has the username or link.
+- **A private profile opened by link shows name, @username and photo.** That is the bare minimum strangers get: private users are left out of search but can be viewed by anyone signed in who has the username or link. Since #288, a private profile also hides bio, socials and mutual friends from strangers (see Profile).
 - **Username probing is accepted for now.** Usernames are public handles, and exact-username search already reveals whether one exists. Rate limiting comes later, once `trust proxy` is set up behind Caddy on the netcup server, so the api sees real client IPs.
 
 ## TODO Areas
@@ -133,3 +154,4 @@ Decided 2026-09-30. These record what `GET /users/by-username/:username` and the
 - Connection retry behavior after rejection.
 - Future pagination for inbox.
 - Future custom index/migration strategy.
+- `blocks` has no index on `blockedId` alone, so the "blocked by" half of `getConnectedUserIds` / `getBlockedRelationshipUserIds` scans. `{ blockerId: 1 }` is also redundant with the unique `{ blockerId, blockedId }`. Fine at tester scale.

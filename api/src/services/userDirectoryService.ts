@@ -14,7 +14,7 @@ export type UserSummary = {
   socialBattery?: number;
 };
 
-const getUsersCollection = () => {
+export const getUsersCollection = () => {
   const db = mongoose.connection.db;
 
   if (!db) {
@@ -24,7 +24,12 @@ const getUsersCollection = () => {
   return db.collection("users");
 };
 
-const userProjection = {
+// The user fields every other api path (search, events, connections, blocks,
+// notifications, circles, QR and invite links) gets about another user. Never
+// add bio or social handles here: this feeds strangers too (every flare
+// payload). Those are read only by userProfileService, behind its visibility
+// gate (#288); a regression test checks every consumer.
+export const userProjection = {
   username: 1,
   displayName: 1,
   avatarUrl: 1,
@@ -61,20 +66,6 @@ export const getUsersByIds = async (userIds: string[]) => {
   }
 
   return result;
-};
-
-/**
- * Exact, case-sensitive username lookup (usernames are unique as stored).
- * Projects only the public identity fields: nothing here is ever enough to
- * leak visibility, email or anything else about the user.
- */
-export const getUserIdentityByUsername = async (username: string) => {
-  const user = await getUsersCollection().findOne(
-    { username },
-    { projection: { username: 1, displayName: 1, avatarUrl: 1 } }
-  );
-
-  return user ? toUserSummary(user) : null;
 };
 
 export const searchUsers = async (requesterId: string, query: SearchUsersQuery) => {
