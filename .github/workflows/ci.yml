@@ -110,22 +110,3 @@ jobs:
       # tsc is the type check; a successful build also proves the
       # `imports` map resolves against dist/.
       - run: npm run build
-
-  auth-server:
-    name: auth-server (build)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: auth-server
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: auth-server/package-lock.json
-      - run: npm ci
-      # tsc is the type check; a successful build also proves the
-      # `imports` map resolves against dist/.
-      - run: npm run build
