@@ -2,7 +2,7 @@
 
 ## Security
 
-- All `/api/v1/*` routes require a Bearer access token.
+- All `/api/v1/*` routes require a Bearer access token, except `/api/v1/public/*` (see Public Routes).
 - `/health` is public.
 - Access tokens are verified with `ACCESS_JWT_SECRET`.
 - Sensitive ownership fields must come from the JWT, not the request body.
@@ -82,6 +82,32 @@ When A blocks B:
 - Resolving a token returns a confirmation payload. It creates a connection only
   when the caller passes `connect: true`.
 - If either user blocked the other, resolving returns a generic not-found error.
+
+## Instant QR Connect, Invite Links And Public Routes
+
+- Resolving a QR token with `connect: true` connects both users at once (both mirrored
+  `connections` rows `accepted`, no request step). Showing the QR in person is the owner's
+  consent; the 15-minute TTL is what keeps that safe. A pending (or earlier rejected) request
+  in either direction is turned into the connection. Self and already-connected are no-ops.
+  The owner gets a `connection_accepted` notification.
+- Invite links (`/invite-links`) are the group-chat path: one live link per user, valid 7 days,
+  reusable by many people, revocable by the owner (`POST /invite-links/me/reset` revokes every
+  live link and issues a new one). Resolving with `connect: true` only sends a connection
+  request (type `shared_invitation`). Revoked links read as `404 INVITE_LINK_NOT_FOUND`,
+  expired as `410 INVITE_LINK_EXPIRED`, and blocks either way as `404`.
+- Invite tokens are stored as-is (not hashed) so the owner can re-share the same link.
+
+### Public Routes
+
+- `/api/v1/public/*` is mounted ahead of `requireAuth` and is reachable without a token.
+  Keep it minimal and never branch on who is asking.
+- `POST /api/v1/public/contact-preview` `{ kind: "qr" | "invite", token }` returns only
+  `{ data: { displayName } }` for a live token, with `Cache-Control: no-store`. Unknown,
+  expired, revoked, cross-kind or owner-missing tokens all return the same
+  `404 CONTACT_PREVIEW_NOT_FOUND`. It has no viewer, so no block check; the authenticated
+  resolve endpoints enforce blocks before anything else is shown or changed.
+- There is no in-app rate limit yet; tokens are 256-bit random values, so guessing one is
+  not practical.
 
 ## TODO Areas
 
