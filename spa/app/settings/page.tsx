@@ -1,11 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   ArrowLeft,
   Bell,
   Camera,
+  ChevronRight,
   Clock,
   Link2,
   Lock,
@@ -45,8 +47,6 @@ import {
   initialsFromName,
   normalizeUsername,
   readFileAsDataUrl,
-  readProfileExtras,
-  saveProfileExtras,
 } from "@/lib/profile"
 
 // ─── Types mirroring the DB schemas exactly ────────────────────────────────
@@ -54,6 +54,7 @@ import {
 // Account fields come from the `users` collection (auth-server).
 // API: GET /auth/me → { user }
 //      PATCH /auth/me/profile  { displayName, username, email, profileVisibility }
+//      (bio, instagram and telegram are edited on /settings/profile, #289)
 //
 // #91 investigation: the users.profileVisibility enum (auth-server/src/models/User.ts)
 // is only "public" | "private" — there is no "connections_only" value in the
@@ -67,8 +68,6 @@ type AccountDraft = {
   username: string           // users.username
   email: string              // users.email
   profileVisibility: ProfileVisibility  // users.profileVisibility
-  instagram: string          // client-only extras (localStorage) — out of scope, #93/#166
-  telegram: string           // client-only extras (localStorage) — out of scope, #93/#166
 }
 
 // Notification fields come from the `notification_settings` collection (api/).
@@ -124,7 +123,6 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
   const { showActionFeedback } = useActionFeedback()
   const { resolvedTheme, setTheme } = useTheme()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const extras = readProfileExtras(user.id)
   const ideasHidden = useIdeasHidden()
   const isDark = resolvedTheme === "dark"
 
@@ -135,8 +133,6 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
     username: user.username ?? "",
     email: user.email ?? "",
     profileVisibility: user.profileVisibility,
-    instagram: extras.instagram,
-    telegram: extras.telegram,
   })
 
   const [avatarPreview, setAvatarPreview] = useState<string>(user.avatarUrl ?? "")
@@ -272,11 +268,6 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
       const refreshToken = getRefreshToken()
       if (token && refreshToken) setSession(token, refreshToken, mergedUser)
 
-      saveProfileExtras(user.id, {
-        instagram: account.instagram.trim(),
-        telegram: account.telegram.trim(),
-      })
-
       showActionFeedback("profile saved")
     } catch (err) {
       const message =
@@ -331,6 +322,23 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
 
           {/* ────────────────── Account tab ────────────────── */}
           <TabsContent value="account" className="px-4 pt-5 space-y-6">
+
+            {/* Bio and social handles are account fields with their own page
+                (#289): PATCH /auth/me/profile, validated on the server. */}
+            <Section icon={Link2} label="bio and social links">
+              <Link
+                href="/settings/profile"
+                className="flex items-center justify-between rounded-xl border border-border p-3 transition-colors hover:bg-muted/40"
+              >
+                <div className="min-w-0 pr-4">
+                  <p className="text-sm font-medium">edit profile</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    your bio, instagram and telegram
+                  </p>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </Link>
+            </Section>
 
             {/* Avatar — users.avatarUrl, uploaded via POST /auth/me/avatar */}
             <Section icon={Camera} label="Profile picture">
@@ -452,34 +460,6 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 checked={!ideasHidden}
                 onCheckedChange={(v) => setIdeasHidden(!v)}
               />
-            </Section>
-
-            {/* Social links — client-only extras stored in localStorage */}
-            <Section icon={Link2} label="Social links">
-              <div className="space-y-3">
-                <Field label="Instagram">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm select-none">@</span>
-                    <Input
-                      value={account.instagram}
-                      onChange={(e) => patchAccount({ instagram: e.target.value })}
-                      placeholder="yourhandle"
-                      className="pl-7"
-                    />
-                  </div>
-                </Field>
-                <Field label="Telegram">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm select-none">@</span>
-                    <Input
-                      value={account.telegram}
-                      onChange={(e) => patchAccount({ telegram: e.target.value })}
-                      placeholder="yourhandle"
-                      className="pl-7"
-                    />
-                  </div>
-                </Field>
-              </div>
             </Section>
 
             <Button

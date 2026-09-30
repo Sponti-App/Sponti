@@ -132,6 +132,41 @@ type StubBackendOptions = {
   profiles?: Record<string, StubUserProfile>
   /** Seeded last-known position. San Francisco by default. */
   coords?: { lat: number; lng: number }
+  /**
+   * The signed-in user's own bio and handles, as GET /auth/me returns them
+   * (#289). All unset by default.
+   */
+  ownProfile?: Partial<StubOwnProfile>
+}
+
+/** The self-authored fields GET /auth/me and PATCH /auth/me/profile carry. */
+export type StubOwnProfile = {
+  bio: string | null
+  instagram: string | null
+  telegram: string | null
+}
+
+/** What `stubBackend` hands back for the test to assert on. */
+export type StubBackendHandle = {
+  /** Body of every PATCH /auth/me/profile the app sent, in order. */
+  profilePatches: Array<Record<string, unknown>>
+}
+
+// A light stand-in for auth-server's profile field rules (profileFields.ts):
+// enough to accept "@x" and pasted links, and to refuse a handle with
+// characters no network allows, with the validator's message shape.
+function stubNormalizeHandle(raw: string, network: string): string | null {
+  const trimmed = raw.trim()
+  if (trimmed === "") return null
+  const handle = trimmed
+    .replace(/^(?:https?:\/\/)?(?:www\.)?(?:instagram\.com|t\.me)\//i, "")
+    .replace(/[/?#].*$/, "")
+    .replace(/^@/, "")
+    .toLowerCase()
+  if (!/^[a-z0-9._]{1,32}$/.test(handle)) {
+    throw new Error(`${network} handle is not valid`)
+  }
+  return handle
 }
 
 /**
@@ -147,7 +182,14 @@ type StubBackendOptions = {
 export async function stubBackend(
   page: Page,
   options: StubBackendOptions = {}
-): Promise<void> {
+): Promise<StubBackendHandle> {
+  const profilePatches: Array<Record<string, unknown>> = []
+  const ownProfile: StubOwnProfile = {
+    bio: null,
+    instagram: null,
+    telegram: null,
+    ...options.ownProfile,
+  }
   const mapEvents = options.mapEvents ?? []
   const eventsById = new Map(
     [...mapEvents, ...(options.events ?? [])].map((e) => [e._id, e])
@@ -176,7 +218,37 @@ export async function stubBackend(
     const url = new URL(route.request().url())
 
     if (url.pathname === "/auth/me") {
-      await fulfillJson(route, { user: STUB_USER })
+      await fulfillJson(route, { user: { ...STUB_USER, ...ownProfile } })
+      return
+    }
+    if (
+      url.pathname === "/auth/me/profile" &&
+      route.request().method() === "PATCH"
+    ) {
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      profilePatches.push(body)
+      try {
+        for (const name of ["bio", "instagram", "telegram"] as const) {
+          const raw = body[name]
+          if (raw === undefined) continue
+          if (raw !== null && typeof raw !== "string")
+            throw new Error(`${name} is not valid`)
+          ownProfile[name] =
+            name === "bio"
+              ? (raw ?? "").replace(/\s*[\r\n]+\s*/g, " ").trim() || null
+              : stubNormalizeHandle(raw ?? "", name)
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "invalid"
+        const field = message.split(" ")[0]
+        await fulfillJson(
+          route,
+          { message: `✖ ${message}\n  → at ${field}` },
+          400
+        )
+        return
+      }
+      await fulfillJson(route, { user: { ...STUB_USER, ...ownProfile } })
       return
     }
     if (url.pathname === "/health") {
@@ -280,4 +352,6 @@ export async function stubBackend(
     // a safe default for the list-shaped endpoints this app mostly has.
     await fulfillJson(route, { data: [] })
   })
+
+  return { profilePatches }
 }

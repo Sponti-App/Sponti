@@ -1,59 +1,103 @@
-import type { AuthUser } from "@/lib/auth-store"
+// Instagram and Telegram handles used to live only in this browser, under this
+// key, as { [userId]: { instagram, telegram } }. They are real account fields
+// now (#289), saved through PATCH /auth/me/profile. The key is only read so
+// the edit page can offer to import what a device still holds, once.
+const LEGACY_HANDLES_KEY = "sponti.profile.extras.v1"
 
-const PROFILE_EXTRAS_KEY = "sponti.profile.extras.v1"
-
-export type ProfileExtras = {
+export type LegacyHandles = {
   instagram: string
   telegram: string
 }
 
-export type ProfileDraft = {
-  avatarUrl: string
-  displayName: string
-  username: string
-  email: string
-  instagram: string
-  telegram: string
-}
+type LegacyStore = Record<string, Partial<LegacyHandles> | undefined>
 
-export const EMPTY_PROFILE_EXTRAS: ProfileExtras = {
-  instagram: "",
-  telegram: "",
-}
-
-export function readProfileExtras(userId: string): ProfileExtras {
-  if (typeof window === "undefined") return EMPTY_PROFILE_EXTRAS
+function readLegacyStore(): LegacyStore | null {
   try {
-    const raw = window.localStorage.getItem(PROFILE_EXTRAS_KEY)
-    if (!raw) return EMPTY_PROFILE_EXTRAS
-    const store = JSON.parse(raw) as Record<string, ProfileExtras>
-    return store[userId] ?? EMPTY_PROFILE_EXTRAS
+    const raw = window.localStorage.getItem(LEGACY_HANDLES_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as LegacyStore)
+      : null
   } catch {
-    return EMPTY_PROFILE_EXTRAS
+    return null
   }
 }
 
-export function saveProfileExtras(userId: string, extras: ProfileExtras): void {
+/** The handles an older version saved on this device for `userId`, if any. */
+export function readLegacyHandles(userId: string): LegacyHandles | null {
+  if (typeof window === "undefined") return null
+  const entry = readLegacyStore()?.[userId]
+  const instagram =
+    typeof entry?.instagram === "string" ? entry.instagram.trim() : ""
+  const telegram =
+    typeof entry?.telegram === "string" ? entry.telegram.trim() : ""
+  return instagram || telegram ? { instagram, telegram } : null
+}
+
+/**
+ * Forgets what this device held for `userId`. Other accounts' entries on a
+ * shared device are left alone; the key itself goes once it is empty.
+ */
+export function clearLegacyHandles(userId: string): void {
   if (typeof window === "undefined") return
   try {
-    const raw = window.localStorage.getItem(PROFILE_EXTRAS_KEY)
-    const store = raw ? (JSON.parse(raw) as Record<string, ProfileExtras>) : {}
-    store[userId] = extras
-    window.localStorage.setItem(PROFILE_EXTRAS_KEY, JSON.stringify(store))
+    const store = readLegacyStore()
+    if (store) delete store[userId]
+    if (!store || Object.keys(store).length === 0) {
+      window.localStorage.removeItem(LEGACY_HANDLES_KEY)
+    } else {
+      window.localStorage.setItem(LEGACY_HANDLES_KEY, JSON.stringify(store))
+    }
   } catch {
-    window.localStorage.setItem(PROFILE_EXTRAS_KEY, JSON.stringify({ [userId]: extras }))
+    // Storage blocked: nothing was readable either, so there is nothing to offer.
   }
 }
 
-export function buildProfileDraft(user: Pick<AuthUser, "avatarUrl" | "displayName" | "username" | "email">, extras: ProfileExtras): ProfileDraft {
-  return {
-    avatarUrl: user.avatarUrl ?? "",
-    displayName: user.displayName ?? "",
-    username: user.username ?? "",
-    email: user.email ?? "",
-    instagram: extras.instagram,
-    telegram: extras.telegram,
+export type ProfileFieldErrors = {
+  bio?: string
+  instagram?: string
+  telegram?: string
+  /** Anything that is not about one of the three fields. */
+  general?: string
+}
+
+/**
+ * Splits an auth-server error into per-field messages. A 400 from the zod
+ * validator reads "✖ <message>\n  → at <field>" (one block per issue); other
+ * errors ("username already taken") are a single line and land in `general`.
+ * Lowercased, since product copy is.
+ */
+export function parseProfileErrors(message: string): ProfileFieldErrors {
+  const errors: ProfileFieldErrors = {}
+  const lines = message.split("\n")
+  const fields = ["bio", "instagram", "telegram"] as const
+  let pending: string[] = []
+  let matched = false
+
+  for (const line of lines) {
+    const at = /^\s*→ at (\w+)/.exec(line)
+    if (at) {
+      const field = fields.find((f) => f === at[1])
+      const text = pending.join(" ").toLowerCase()
+      if (field && text) {
+        errors[field] = text
+        matched = true
+      } else if (text) {
+        errors.general = text
+        matched = true
+      }
+      pending = []
+    } else if (line.trim()) {
+      pending.push(line.replace(/^\s*✖\s*/, "").trim())
+    }
   }
+
+  if (!matched) {
+    const text = message.replace(/✖\s*/g, "").trim().toLowerCase()
+    if (text) errors.general = text
+  }
+  return errors
 }
 
 export function normalizeUsername(value: string): string {
