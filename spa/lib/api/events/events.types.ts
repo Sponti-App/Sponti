@@ -46,6 +46,8 @@ export interface EventItem {
   attendees: Array<{
     id?: string
     name: string
+    // Links the guest to /profile/[username]; absent when the api sent none.
+    username?: string
     avatar: string
     color: string
     // Only ever populated for the host — see api's `attachEventPeople`.

@@ -53,6 +53,16 @@ export type StubApiEvent = {
   guestInviteLimit: number
   status: "active" | "cancelled" | "completed"
   goingCount?: number
+  // Going guests, as the api's `attachEventPeople` sends them (#265 links
+  // each by username). ETA fields only ever reach the host.
+  attendees?: Array<{
+    _id: string
+    displayName?: string
+    username?: string
+    avatarUrl?: string | null
+    willArriveAt?: string | null
+    arrivalStatus?: "on_time" | "running_late" | null
+  }>
 }
 
 export function makeStubFlare(

@@ -235,6 +235,7 @@ export function adaptApiEvent(api: ApiEvent): EventItem {
       return {
         id: a._id,
         name,
+        username: a.username,
         avatar: name.charAt(0).toUpperCase(),
         color: "bg-stone-300",
         // The api only sends these fields at all when the caller is this

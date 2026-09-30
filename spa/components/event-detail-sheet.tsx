@@ -103,6 +103,13 @@ export function EventDetailSheet({
       ? `/profile/${encodeURIComponent(displayEvent.host.username)}`
       : null
 
+  // A guest links to their profile like the host row does (#265). Your own
+  // row and a guest without a username stay plain.
+  const guestProfileHref = (a: { id?: string; username?: string }) =>
+    a.username && !(user && a.id === user.id)
+      ? `/profile/${encodeURIComponent(a.username)}`
+      : null
+
   // The api only sends willArriveAt/arrivalStatus on attendee rows to the
   // flare's host, so this is naturally empty for anyone else — no separate
   // client-side check needed beyond the isHost render guard below.
@@ -191,21 +198,41 @@ export function EventDetailSheet({
                       {displayEvent.attendees.length > 0 && (
                         <div className="flex -space-x-2">
                           {displayEvent.attendees.map((a, i) => (
-                            <div
-                              key={i}
+                            <GuestFace
+                              key={a.id ?? i}
+                              href={guestProfileHref(a)}
+                              onNavigate={() => onClose()}
                               className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-xs ${a.color} ${avatarText(a.color)}`}
                             >
                               {a.avatar || a.name?.charAt(0).toUpperCase() || "U"}
-                            </div>
+                            </GuestFace>
                           ))}
                         </div>
                       )}
                       <div>
                         {displayEvent.attendees.length > 0 && (
                           <p className="font-medium">
-                            {displayEvent.attendees
-                              .map((a) => a.name.toLowerCase())
-                              .join(", ")}
+                            {displayEvent.attendees.map((a, i) => {
+                              const href = guestProfileHref(a)
+                              const name = a.name.toLowerCase()
+                              return (
+                                <span key={a.id ?? i}>
+                                  {i > 0 && ", "}
+                                  {href ? (
+                                    <Link
+                                      href={href}
+                                      onClick={() => onClose()}
+                                      aria-label={`${name}, open profile`}
+                                      className="rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:text-muted-foreground"
+                                    >
+                                      {name}
+                                    </Link>
+                                  ) : (
+                                    name
+                                  )}
+                                </span>
+                              )
+                            })}
                           </p>
                         )}
                         <p className="text-sm text-muted-foreground">
@@ -329,6 +356,37 @@ function SecondaryAction({
     >
       {children}
     </Button>
+  )
+}
+
+/**
+ * One avatar in the who's-going stack: a profile link, or plain when there's
+ * nowhere to go. The guest's name beside the stack is the same link for
+ * keyboard and screen-reader users, so the avatar is a tap shortcut only and
+ * stays out of the tab order and accessibility tree.
+ */
+function GuestFace({
+  href,
+  onNavigate,
+  className,
+  children,
+}: {
+  href: string | null
+  onNavigate: () => void
+  className: string
+  children: React.ReactNode
+}) {
+  if (!href) return <div className={className}>{children}</div>
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      aria-hidden
+      tabIndex={-1}
+      className={`${className} outline-none`}
+    >
+      {children}
+    </Link>
   )
 }
 
