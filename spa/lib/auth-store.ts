@@ -16,6 +16,12 @@ export type AuthUser = {
   avatarPublicId?: string | null
   profileVisibility: "public" | "private"
   socialBattery: number
+  // The user's own profile fields (#289). GET /auth/me and PATCH
+  // /auth/me/profile send them; login, register and Google sign-in do not, so
+  // they are undefined until the session is next revalidated. null = not set.
+  bio?: string | null
+  instagram?: string | null
+  telegram?: string | null
   createdAt: string
   updatedAt: string
 }

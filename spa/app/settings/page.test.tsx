@@ -135,6 +135,37 @@ describe("SettingsPage account tab", () => {
     expect(window.localStorage.getItem("sponti.ideas.hidden.v1")).toBeNull()
   })
 
+  it("links to the edit profile page and no longer holds handles itself (#289)", () => {
+    render(<SettingsPage />)
+
+    expect(screen.getByRole("link", { name: /edit profile/ })).toHaveAttribute(
+      "href",
+      "/settings/profile"
+    )
+    expect(screen.queryByLabelText(/instagram/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/telegram/i)).not.toBeInTheDocument()
+  })
+
+  it("does not send handles or bio when saving the account", async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(
+      "sponti.profile.extras.v1",
+      JSON.stringify({ "user-1": { instagram: "old", telegram: "older" } })
+    )
+    render(<SettingsPage />)
+
+    await user.click(screen.getByRole("button", { name: "save changes" }))
+
+    await waitFor(() => expect(mocks.updateProfile).toHaveBeenCalled())
+    const payload = mocks.updateProfile.mock.calls[0][0]
+    expect(payload).not.toHaveProperty("instagram")
+    expect(payload).not.toHaveProperty("telegram")
+    expect(payload).not.toHaveProperty("bio")
+    // The settings page leaves the old device copy for the edit page's offer.
+    expect(window.localStorage.getItem("sponti.profile.extras.v1")).not.toBeNull()
+    window.localStorage.removeItem("sponti.profile.extras.v1")
+  })
+
   it("disables the connections-only option — not a real backend value yet", () => {
     render(<SettingsPage />)
 
