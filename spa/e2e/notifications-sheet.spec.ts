@@ -82,15 +82,15 @@ test.describe("notifications sheet (#137)", () => {
 
     // The box being flush isn't enough: vaul paints a `::after` that extends
     // the sheet's background 200% below it, which lands on the nav. What is
-    // hit at the nav's centre must not belong to the sheet.
-    const coversNav = await sheet.evaluate((el, box) => {
+    // hit at the nav's centre must be the nav, not the sheet or the scrim.
+    const hitsNav = await nav.evaluate((el, box) => {
       const hit = document.elementFromPoint(
         box.x + box.width / 2,
         box.y + box.height / 2
       )
       return hit ? el.contains(hit) : false
     }, navBox)
-    expect(coversNav).toBe(false)
+    expect(hitsNav).toBe(true)
 
     // Same top radius the other sheets get from `rounded-t-3xl`.
     const [radius, referenceRadius] = await Promise.all([
@@ -110,6 +110,33 @@ test.describe("notifications sheet (#137)", () => {
       page.getByRole("heading", { name: "notifications" })
     ).toBeVisible()
     await expect(page.getByText("maya invited you 0")).toBeVisible()
+  })
+
+  test("leaves the nav lit and tappable: other items navigate, the feed item closes it", async ({
+    page,
+  }) => {
+    await stubFeed(page, 3)
+    const { nav, sheet } = await openFeed(page)
+
+    // The scrim stops above the nav, so the nav isn't dimmed.
+    const scrim = page.locator("[data-vaul-overlay]")
+    const [scrimBox, navBox] = await Promise.all([
+      scrim.boundingBox(),
+      nav.boundingBox(),
+    ])
+    if (!scrimBox || !navBox) throw new Error("expected boxes")
+    expect(scrimBox.y + scrimBox.height).toBeLessThanOrEqual(navBox.y + 1)
+
+    // The feed button closes it again.
+    await nav.locator("button", { hasText: "feed" }).click()
+    await expect(sheet).toBeHidden()
+
+    // Another nav item goes there in one tap, and the sheet is gone.
+    await nav.locator("button", { hasText: "feed" }).click()
+    await expect(sheet).toBeVisible()
+    await nav.locator("button", { hasText: "circles" }).click()
+    await expect(page).toHaveURL(/\/circles/)
+    await expect(sheet).toBeHidden()
   })
 
   test("caps its height so the top stays in thumb reach, and scrolls the list inside", async ({
