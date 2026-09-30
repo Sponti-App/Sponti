@@ -165,6 +165,81 @@ export const sendConnectionRequest = async (
   };
 };
 
+/**
+ * Scanning someone's QR code in person connects both people at once (#124):
+ * showing your code is the consent, so there is no request for the owner to
+ * accept. Any pending (or earlier rejected) request in either direction is
+ * resolved into the connection. Blocks either way are a silent no-op, like
+ * `sendConnectionRequest`. The owner gets a `connection_accepted`
+ * notification so they know who scanned them.
+ *
+ * Only call this from a path that has already proven in-person presence —
+ * today that is a live, short-lived (15 min) QR contact token.
+ */
+export const connectInPerson = async (scannerId: string, ownerId: string) => {
+  if (scannerId === ownerId) {
+    throw new AppError("You cannot connect with yourself", 400, "CANNOT_CONNECT_SELF");
+  }
+
+  if (await hasAnyBlockBetweenUsers(scannerId, ownerId)) {
+    return { processed: true, delivered: false, connected: false, created: false };
+  }
+
+  const scannerObjectId = toObjectId(scannerId);
+  const ownerObjectId = toObjectId(ownerId);
+
+  const result = await withTransactionFallback(async (session?: ClientSession) => {
+    const rows = await Connection.find({
+      $or: [
+        { requesterId: scannerObjectId, receiverId: ownerObjectId },
+        { requesterId: ownerObjectId, receiverId: scannerObjectId },
+      ],
+    }).session(session ?? null);
+
+    if (rows.length === 2 && rows.every((row) => row.status === "accepted")) {
+      return { connected: true, created: false };
+    }
+
+    // Accepted connections are stored as a mirrored pair of rows (see
+    // respondToConnectionRequest); upsert both so either direction reads as
+    // connected. An existing row keeps its original `type`.
+    for (const [requesterId, receiverId] of [
+      [scannerObjectId, ownerObjectId],
+      [ownerObjectId, scannerObjectId],
+    ] as const) {
+      await Connection.updateOne(
+        { requesterId, receiverId },
+        {
+          $set: { status: "accepted" },
+          $setOnInsert: { requesterId, receiverId, type: "qr" },
+        },
+        { upsert: true, session }
+      );
+    }
+
+    const scannerRow = await Connection.findOne({
+      requesterId: scannerObjectId,
+      receiverId: ownerObjectId,
+    }).session(session ?? null);
+
+    if (!scannerRow) {
+      throw new AppError("Connection could not be created", 500, "CONNECTION_CREATE_FAILED");
+    }
+
+    await createConnectionAcceptedNotification({
+      requesterId: ownerId,
+      accepterId: scannerId,
+      connectionId: String(scannerRow._id),
+      session,
+      via: "qr",
+    });
+
+    return { connected: true, created: true };
+  });
+
+  return { processed: true, delivered: true, ...result };
+};
+
 export const getConnections = async (userId: string, query: GetConnectionsQuery) => {
   const userObjectId = toObjectId(userId);
   const { page, limit, skip } = getPagination(query);
