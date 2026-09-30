@@ -103,13 +103,21 @@ async function fulfillJson(
 }
 
 /** `GET /users/by-username/:username` body (see spa/lib/api/users.ts). */
+export type StubProfileIdentity = {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+}
+
 export type StubUserProfile = {
-  profile: {
-    id: string
-    username: string
-    displayName: string
-    avatarUrl: string | null
+  // bio, socials and mutualFriends are optional here and filled in as the api
+  // does for a viewer who may not see them: null, null and zero (#288).
+  profile: StubProfileIdentity & {
+    bio?: string | null
+    socials?: { instagram: string | null; telegram: string | null }
   }
+  mutualFriends?: { count: number; preview: StubProfileIdentity[] }
   relationship:
     | "self"
     | "connected"
@@ -130,6 +138,13 @@ type StubBackendOptions = {
   events?: StubApiEvent[]
   /** Profiles by username; any other username answers 404 USER_NOT_FOUND. */
   profiles?: Record<string, StubUserProfile>
+  /**
+   * The full mutual friends list per profile username, served in pages of
+   * `limit` from GET /users/by-username/:username/mutual-friends.
+   */
+  mutualFriends?: Record<string, StubProfileIdentity[]>
+  /** The signed-in user's own profile visibility. Public by default. */
+  profileVisibility?: "public" | "private"
   /** Seeded last-known position. San Francisco by default. */
   coords?: { lat: number; lng: number }
 }
@@ -153,6 +168,11 @@ export async function stubBackend(
     [...mapEvents, ...(options.events ?? [])].map((e) => [e._id, e])
   )
   const profiles = options.profiles ?? {}
+  const mutualFriendLists = options.mutualFriends ?? {}
+  const user = {
+    ...STUB_USER,
+    profileVisibility: options.profileVisibility ?? STUB_USER.profileVisibility,
+  }
   const coords = options.coords ?? STUB_COORDS
 
   await page.addInitScript(
@@ -167,7 +187,7 @@ export async function stubBackend(
       refreshTokenKey: REFRESH_TOKEN_KEY,
       userKey: USER_KEY,
       coordsKey: LAST_KNOWN_COORDS_KEY,
-      user: STUB_USER,
+      user,
       coords,
     }
   )
@@ -176,7 +196,7 @@ export async function stubBackend(
     const url = new URL(route.request().url())
 
     if (url.pathname === "/auth/me") {
-      await fulfillJson(route, { user: STUB_USER })
+      await fulfillJson(route, { user })
       return
     }
     if (url.pathname === "/health") {
@@ -244,11 +264,39 @@ export async function stubBackend(
       )
       return
     }
+    const mutualMatch = path.match(
+      /^\/users\/by-username\/([^/]+)\/mutual-friends$/
+    )
+    if (mutualMatch) {
+      const all = mutualFriendLists[decodeURIComponent(mutualMatch[1])] ?? []
+      const page = Number(url.searchParams.get("page") ?? 1)
+      const limit = Number(url.searchParams.get("limit") ?? 20)
+      await fulfillJson(route, {
+        data: all.slice((page - 1) * limit, page * limit),
+        pagination: {
+          page,
+          limit,
+          total: all.length,
+          totalPages: Math.ceil(all.length / limit),
+        },
+      })
+      return
+    }
     const profileMatch = path.match(/^\/users\/by-username\/([^/]+)$/)
     if (profileMatch) {
       const profile = profiles[decodeURIComponent(profileMatch[1])]
       if (profile) {
-        await fulfillJson(route, { data: profile })
+        await fulfillJson(route, {
+          data: {
+            ...profile,
+            profile: {
+              bio: null,
+              socials: { instagram: null, telegram: null },
+              ...profile.profile,
+            },
+            mutualFriends: profile.mutualFriends ?? { count: 0, preview: [] },
+          },
+        })
       } else {
         await fulfillJson(
           route,

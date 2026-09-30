@@ -1,9 +1,14 @@
 "use client"
 
 import { use, useEffect, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Loader2, MoreHorizontal, UserPlus } from "lucide-react"
 import { useActionFeedback } from "@/components/action-feedback"
+import { useAuth } from "@/components/auth-provider"
+import { MutualFriendsSummary } from "@/components/profile/mutual-friends"
+import { ProfileSocialPills } from "@/components/profile/profile-socials"
+import { VisibilityPill } from "@/components/profile/visibility-pill"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -29,7 +34,10 @@ import { HttpError } from "@/lib/http"
 // circles, or a shared link. The api decides what the viewer may see and how
 // they stand with this person; a stranger gets the same display name,
 // @username and photo whether the profile is public or private, and someone
-// who blocked the viewer reads as not found.
+// who blocked the viewer reads as not found. Bio, socials and mutual friends
+// (#289) come back empty wherever the viewer may not see them, and are simply
+// not rendered then: no heading, no hint that the profile is private. Your own
+// profile adds a visibility pill and "edit profile".
 
 type LoadState =
   | { status: "loading" }
@@ -52,7 +60,14 @@ export default function PublicProfilePage({
   params: Promise<{ username: string }>
 }) {
   const { username } = use(params)
+  // Keyed so opening another profile (from a mutual friends row) starts from
+  // a clean loading state instead of showing the previous person.
+  return <ProfileScreen key={username} username={username} />
+}
+
+function ProfileScreen({ username }: { username: string }) {
   const router = useRouter()
+  const { user: me } = useAuth()
   const { showActionFeedback } = useActionFeedback()
   const apiEnabled = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").length > 0
   const [load, setLoad] = useState<LoadState>(
@@ -88,6 +103,7 @@ export default function PublicProfilePage({
   const data = load.status === "ready" ? load.data : null
   const person = data?.profile
   const relationship = data?.relationship
+  const isSelf = relationship === "self"
   const canBlock =
     relationship !== undefined &&
     relationship !== "self" &&
@@ -232,7 +248,24 @@ export default function PublicProfilePage({
                   {RELATIONSHIP_NOTE[relationship]}
                 </p>
               )}
+              {isSelf && me?.profileVisibility && (
+                <VisibilityPill visibility={me.profileVisibility} />
+              )}
             </div>
+            {person.bio ? (
+              <p className="max-w-xs text-center text-sm break-words">
+                {person.bio}
+              </p>
+            ) : isSelf ? (
+              <p className="text-sm text-muted-foreground">no bio yet</p>
+            ) : null}
+            <ProfileSocialPills socials={person.socials} />
+            {!isSelf && data && (
+              <MutualFriendsSummary
+                username={person.username}
+                mutualFriends={data.mutualFriends}
+              />
+            )}
           </>
         ) : (
           <>
@@ -264,6 +297,11 @@ export default function PublicProfilePage({
 
         {data && (
           <div className="mt-2 flex flex-col items-center gap-2">
+            {isSelf && (
+              <Button asChild variant="outline" className="rounded-full px-6">
+                <Link href="/settings/profile">edit profile</Link>
+              </Button>
+            )}
             {relationship === "none" && (
               <Button
                 onClick={connect}
