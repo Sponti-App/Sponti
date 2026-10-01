@@ -5,6 +5,7 @@ import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
 import { MenuDrawer } from "@/components/menu-drawer"
+import { FirstRunIntro } from "@/components/first-run-intro"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { Menu, Settings, Map, Calendar, Navigation, X } from "lucide-react"
@@ -275,6 +276,9 @@ export default function Home() {
       />
 
       <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
+
+      {/* #313: once, after a new account is made on this device. */}
+      <FirstRunIntro />
     </div>
   )
 }

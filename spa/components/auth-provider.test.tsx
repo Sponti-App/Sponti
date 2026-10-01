@@ -9,11 +9,19 @@ import type { AuthUser } from "@/lib/auth-store"
 // identical to "the cold Render backend hasn't woken up yet" (#171) and
 // used to clear the session just the same.
 
-const me = vi.hoisted(() => vi.fn())
+const { me, register, login, googleLogin } = vi.hoisted(() => ({
+  me: vi.fn(),
+  register: vi.fn(),
+  login: vi.fn(),
+  googleLogin: vi.fn(),
+}))
 
 vi.mock("@/lib/api/auth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/auth")>()),
   me,
+  register,
+  login,
+  googleLogin,
 }))
 
 const USER: AuthUser = {
@@ -223,5 +231,70 @@ describe("AuthProvider during hydration (#219)", () => {
     expect(seen[0]).toBe("loading")
     expect(me).not.toHaveBeenCalled()
     view.unmount()
+  })
+})
+
+describe("AuthProvider and the first-run intro (#313)", () => {
+  const ONBOARDING_KEY = "sponti.onboarding.v1"
+  const tokens = {
+    accessToken: "new-access",
+    refreshToken: "new-refresh",
+    user: USER,
+  }
+
+  async function signedOutAuth() {
+    const { AuthProvider, useAuth } = await loadProvider()
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
+    await waitFor(() => expect(result.current.status).toBe("unauthenticated"))
+    return result
+  }
+
+  it("an email registration queues the intro", async () => {
+    register.mockResolvedValue(tokens)
+    me.mockResolvedValue({ user: USER })
+    const result = await signedOutAuth()
+
+    await act(() =>
+      result.current.register({
+        displayName: "Sam",
+        username: "sam",
+        email: "sam@example.com",
+        password: "password123",
+      })
+    )
+
+    expect(window.localStorage.getItem(ONBOARDING_KEY)).toBe("pending")
+  })
+
+  it("a Google sign-in that makes the account queues the intro", async () => {
+    googleLogin.mockResolvedValue({ ...tokens, isNewUser: true })
+    me.mockResolvedValue({ user: USER })
+    const result = await signedOutAuth()
+
+    await act(() => result.current.loginWithGoogle("credential"))
+
+    expect(window.localStorage.getItem(ONBOARDING_KEY)).toBe("pending")
+  })
+
+  it("a Google sign-in to an existing account doesn't, and drops a leftover one", async () => {
+    window.localStorage.setItem(ONBOARDING_KEY, "pending")
+    googleLogin.mockResolvedValue({ ...tokens, isNewUser: false })
+    me.mockResolvedValue({ user: USER })
+    const result = await signedOutAuth()
+
+    await act(() => result.current.loginWithGoogle("credential"))
+
+    expect(window.localStorage.getItem(ONBOARDING_KEY)).toBeNull()
+  })
+
+  it("an email sign-in never queues it", async () => {
+    window.localStorage.setItem(ONBOARDING_KEY, "pending")
+    login.mockResolvedValue(tokens)
+    me.mockResolvedValue({ user: USER })
+    const result = await signedOutAuth()
+
+    await act(() => result.current.login("sam@example.com", "password123"))
+
+    expect(window.localStorage.getItem(ONBOARDING_KEY)).toBeNull()
   })
 })
