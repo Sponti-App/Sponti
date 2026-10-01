@@ -177,6 +177,49 @@ const guest = (
   joinedWithoutInvite,
 })
 
+// #312: a "right now" flare can start 15 to 60 minutes out. Its start has
+// seconds, and the form shows minutes, so an untouched time must not move it.
+describe("EventEditPage delayed flare", () => {
+  const delayed = hostedEvent({
+    createdAt: "2099-06-01T17:30:37.123Z",
+    startAt: "2099-06-01T18:00:37.123Z",
+    endAt: "2099-06-01T19:00:37.123Z",
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.fetchHostedEventById.mockResolvedValue(delayed)
+    mocks.updateEvent.mockResolvedValue(delayed)
+  })
+
+  it("isn't marked changed just by opening it", async () => {
+    render(<EventEditPage />)
+    await screen.findByDisplayValue("coffee at annex")
+    expect(
+      screen.getByRole("button", { name: "no changes yet" })
+    ).toBeDisabled()
+  })
+
+  it("keeps the start when only the title changes", async () => {
+    const user = userEvent.setup()
+    render(<EventEditPage />)
+
+    const title = await screen.findByDisplayValue("coffee at annex")
+    await user.clear(title)
+    await user.type(title, "coffee nearby")
+    await user.click(screen.getByRole("button", { name: "save changes" }))
+
+    await waitFor(() => expect(mocks.updateEvent).toHaveBeenCalled())
+    expect(mocks.updateEvent).toHaveBeenCalledWith(
+      "event-1",
+      expect.objectContaining({
+        startAt: delayed.startAt,
+        endAt: delayed.endAt,
+      })
+    )
+  })
+})
+
 describe("EventEditPage details", () => {
   beforeEach(() => {
     vi.clearAllMocks()

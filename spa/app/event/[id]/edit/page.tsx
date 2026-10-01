@@ -23,6 +23,7 @@ import {
   deriveStatus,
   fetchEventGuests,
   fetchHostedEventById,
+  editedStartAt,
   inferEventStartShape,
   reactivateEvent,
   updateEvent,
@@ -267,10 +268,7 @@ export default function EventEditPage() {
     status === "past" ||
     deriveStatus({ ...event, apiStatus: "active" }) === "past"
 
-  const nextStartAt =
-    initialShape.mode === "scheduled" && startDate && startTime
-      ? new Date(`${startDate}T${startTime}`).toISOString()
-      : original.startAt
+  const nextStartAt = editedStartAt(original, startDate, startTime)
   const nextEndAt = new Date(
     new Date(nextStartAt).getTime() + durationMinutes * MIN
   ).toISOString()

@@ -65,4 +65,42 @@ test.describe("flare composer", () => {
     await page.getByRole("button", { name: "my flares", exact: true }).click()
     await expect(page).toHaveURL(/\/event$/)
   })
+
+  // #312: "right now" can start a little later.
+  test("lights a flare that starts in 30 minutes", async ({
+    page,
+    context,
+  }) => {
+    // "my location" needs a granted position before the flare can light.
+    await context.grantPermissions(["geolocation"])
+    await context.setGeolocation({ latitude: 37.7749, longitude: -122.4194 })
+    await page.getByRole("button", { name: "flare", exact: true }).click()
+    await page.getByPlaceholder(TITLE_PLACEHOLDER).fill("park in a bit")
+
+    await page.getByRole("button", { name: "now · 1h" }).click()
+    const starts = page.getByRole("group", { name: "starts" })
+    await starts.getByRole("button", { name: "30m" }).click()
+    await expect(
+      page.getByRole("button", { name: "in 30m · 1h" })
+    ).toBeVisible()
+
+    const posted = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        new URL(req.url()).pathname.endsWith("/events")
+    )
+    const before = Date.now()
+    await page
+      .getByRole("button", { name: "light a flare", exact: true })
+      .click()
+    const body = (await posted).postDataJSON() as {
+      startAt: string
+      endAt: string
+    }
+    const start = Date.parse(body.startAt)
+    const MIN = 60_000
+    expect(start - before).toBeGreaterThanOrEqual(30 * MIN - 1_000)
+    expect(start - Date.now()).toBeLessThanOrEqual(30 * MIN)
+    expect(Date.parse(body.endAt) - start).toBe(60 * MIN)
+  })
 })
