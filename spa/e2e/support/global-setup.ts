@@ -8,7 +8,12 @@ import type { FullConfig } from "@playwright/test"
 // route at once, which can blow past a test's 30s timeout under CPU
 // contention (see playwright.config.ts's `retries` comment, and the
 // intermittent beforeEach timeouts this was added to fix).
-const ROUTES = ["/", "/event"]
+//
+// Dynamic routes compile once per route, not per param, so any id works. They
+// matter for tests that tap a link and expect the URL to change: a client-side
+// navigation to a cold route doesn't update the URL until the dev server has
+// compiled it, which can outlast the 10s expect timeout under load (#307).
+const ROUTES = ["/", "/event", "/event/warm-up", "/profile/warm-up"]
 
 export default async function globalSetup(config: FullConfig) {
   const baseURL = config.projects[0]?.use?.baseURL
