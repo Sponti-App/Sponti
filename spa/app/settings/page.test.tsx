@@ -115,6 +115,57 @@ describe("SettingsPage account tab", () => {
     expect(mocks.showActionFeedback).toHaveBeenCalledWith("profile saved")
   })
 
+  it("switches ideas on the map off and on, on this device only (#245)", async () => {
+    const user = userEvent.setup()
+    window.localStorage.removeItem("sponti.ideas.hidden.v1")
+    render(<SettingsPage />)
+
+    const toggle = screen.getByRole("switch", { name: "show ideas on the map" })
+    expect(toggle).toHaveAttribute("aria-checked", "true")
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-checked", "false")
+    expect(window.localStorage.getItem("sponti.ideas.hidden.v1")).toBe("1")
+    // Nothing goes to the backend.
+    expect(mocks.updateProfile).not.toHaveBeenCalled()
+    expect(mocks.updateNotificationSettings).not.toHaveBeenCalled()
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-checked", "true")
+    expect(window.localStorage.getItem("sponti.ideas.hidden.v1")).toBeNull()
+  })
+
+  it("links to the edit profile page and no longer holds handles itself (#289)", () => {
+    render(<SettingsPage />)
+
+    expect(screen.getByRole("link", { name: /edit profile/ })).toHaveAttribute(
+      "href",
+      "/settings/profile"
+    )
+    expect(screen.queryByLabelText(/instagram/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/telegram/i)).not.toBeInTheDocument()
+  })
+
+  it("does not send handles or bio when saving the account", async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(
+      "sponti.profile.extras.v1",
+      JSON.stringify({ "user-1": { instagram: "old", telegram: "older" } })
+    )
+    render(<SettingsPage />)
+
+    await user.click(screen.getByRole("button", { name: "save changes" }))
+
+    await waitFor(() => expect(mocks.updateProfile).toHaveBeenCalled())
+    const payload = mocks.updateProfile.mock.calls[0][0]
+    expect(payload).not.toHaveProperty("instagram")
+    expect(payload).not.toHaveProperty("telegram")
+    expect(payload).not.toHaveProperty("bio")
+    // The settings page leaves the old device copy for the edit page's offer.
+    expect(window.localStorage.getItem("sponti.profile.extras.v1")).not.toBeNull()
+    window.localStorage.removeItem("sponti.profile.extras.v1")
+  })
+
   it("disables the connections-only option — not a real backend value yet", () => {
     render(<SettingsPage />)
 

@@ -1,5 +1,5 @@
 import { type ClientSession } from "mongoose";
-import { Circle, CircleMember, Connection, type SystemCircleType } from "#models/index";
+import { Circle, CircleMember, type SystemCircleType } from "#models/index";
 import type {
   AddCircleMemberBody,
   CreateCircleBody,
@@ -7,7 +7,7 @@ import type {
 } from "#schemas/circleSchemas";
 import { AppError } from "#utils/AppError";
 import { toObjectId, uniqueObjectIdStrings } from "#utils/objectId";
-import { getAcceptedConnectionUserIds } from "#services/connectionService";
+import { getConnectedUserIds } from "#services/relationshipService";
 import { getUsersByIds } from "#services/userDirectoryService";
 import { withTransactionFallback } from "#utils/transactions";
 
@@ -64,24 +64,7 @@ const assertAcceptedConnectionMembers = async (ownerId: string, memberIds: strin
     throw new AppError("You cannot add yourself to your own circle", 400, "CANNOT_ADD_SELF");
   }
 
-  const ownerObjectId = toObjectId(ownerId);
-  const memberObjectIds = uniqueMemberIds.map(toObjectId);
-  const connections = await Connection.find({
-    status: "accepted",
-    $or: [
-      { requesterId: ownerObjectId, receiverId: { $in: memberObjectIds } },
-      { receiverId: ownerObjectId, requesterId: { $in: memberObjectIds } },
-    ],
-  })
-    .select("requesterId receiverId")
-    .lean();
-  const acceptedUserIds = new Set<string>();
-
-  for (const connection of connections) {
-    const requesterId = connection.requesterId.toString();
-    const receiverId = connection.receiverId.toString();
-    acceptedUserIds.add(requesterId === ownerId ? receiverId : requesterId);
-  }
+  const acceptedUserIds = await getConnectedUserIds(ownerId, uniqueMemberIds);
 
   const missingMember = uniqueMemberIds.find((memberId) => !acceptedUserIds.has(memberId));
 
@@ -110,7 +93,9 @@ export const getMyCircles = async (ownerId: string) => {
     })
       .sort({ createdAt: 1 })
       .lean(),
-    allCircle ? getAcceptedConnectionUserIds(ownerId) : Promise.resolve<string[]>([]),
+    allCircle
+      ? getConnectedUserIds(ownerId).then((ids) => Array.from(ids))
+      : Promise.resolve<string[]>([]),
   ]);
   const users = await getUsersByIds([
     ...members.map((member) => member.userId.toString()),

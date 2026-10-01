@@ -80,13 +80,22 @@ afterAll(async () => {
 
 const seedFlareWithGoingGuest = async (visibility: "private" | "public" = "private") => {
   const hostObjectId = new Types.ObjectId(HOST_ID);
+  // Accepted connections are a mirrored pair of rows, one per direction.
   await Connection.create(
-    [GOING_GUEST_ID, NEW_GUEST_ID].map((guestId) => ({
-      requesterId: hostObjectId,
-      receiverId: new Types.ObjectId(guestId),
-      status: "accepted" as const,
-      type: "qr" as const,
-    }))
+    [GOING_GUEST_ID, NEW_GUEST_ID].flatMap((guestId) => [
+      {
+        requesterId: hostObjectId,
+        receiverId: new Types.ObjectId(guestId),
+        status: "accepted" as const,
+        type: "qr" as const,
+      },
+      {
+        requesterId: new Types.ObjectId(guestId),
+        receiverId: hostObjectId,
+        status: "accepted" as const,
+        type: "qr" as const,
+      },
+    ])
   );
   const event = await Event.create({
     hostId: hostObjectId,
@@ -160,12 +169,20 @@ describe("eventService invitation-notification opt-out database behavior (#91)",
   const seedConnections = async (guestIds: string[]) => {
     const hostObjectId = new Types.ObjectId(HOST_ID);
     await Connection.create(
-      guestIds.map((guestId) => ({
-        requesterId: hostObjectId,
-        receiverId: new Types.ObjectId(guestId),
-        status: "accepted" as const,
-        type: "qr" as const,
-      }))
+      guestIds.flatMap((guestId) => [
+        {
+          requesterId: hostObjectId,
+          receiverId: new Types.ObjectId(guestId),
+          status: "accepted" as const,
+          type: "qr" as const,
+        },
+        {
+          requesterId: new Types.ObjectId(guestId),
+          receiverId: hostObjectId,
+          status: "accepted" as const,
+          type: "qr" as const,
+        },
+      ])
     );
   };
 
@@ -1163,12 +1180,20 @@ describe("eventService custom circle audience database behavior (#172)", () => {
   };
 
   it("invites a custom circle's members when it's picked as the flare's sole audience", async () => {
-    await Connection.create({
-      requesterId: new Types.ObjectId(HOST_ID),
-      receiverId: new Types.ObjectId(NEW_GUEST_ID),
-      status: "accepted",
-      type: "qr",
-    });
+    await Connection.create([
+      {
+        requesterId: new Types.ObjectId(HOST_ID),
+        receiverId: new Types.ObjectId(NEW_GUEST_ID),
+        status: "accepted",
+        type: "qr",
+      },
+      {
+        requesterId: new Types.ObjectId(NEW_GUEST_ID),
+        receiverId: new Types.ObjectId(HOST_ID),
+        status: "accepted",
+        type: "qr",
+      },
+    ]);
     const circle = await makeCustomCircle(HOST_ID, [NEW_GUEST_ID]);
 
     const { event } = await createEvent(

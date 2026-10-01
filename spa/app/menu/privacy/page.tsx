@@ -1,17 +1,8 @@
 import type { ReactNode } from "react"
 import { MenuPageShell } from "@/components/menu-page-shell"
+import { CONTACT_EMAIL, PROVIDER, PROVIDER_ADDRESS_LINE } from "@/lib/contact"
 
-const supportEmail = "sponti.support@example.com"
-const privacyEmail = "sponti.privacy@example.com"
-const reportsEmail = "sponti.reports@example.com"
-
-function Section({
-  title,
-  children,
-}: {
-  title: string
-  children: ReactNode
-}) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-3">
       <h3 className="text-xl font-semibold">{title}</h3>
@@ -21,9 +12,7 @@ function Section({
 }
 
 function Paragraph({ children }: { children: ReactNode }) {
-  return (
-    <p className="text-sm leading-6 text-muted-foreground">{children}</p>
-  )
+  return <p className="text-sm leading-6 text-muted-foreground">{children}</p>
 }
 
 function BulletList({ items }: { items: string[] }) {
@@ -36,16 +25,12 @@ function BulletList({ items }: { items: string[] }) {
   )
 }
 
-function TextLink({
-  href,
-  children,
-}: {
-  href: string
-  children: ReactNode
-}) {
+function TextLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <a
       href={href}
+      target={href.startsWith("http") ? "_blank" : undefined}
+      rel={href.startsWith("http") ? "noreferrer" : undefined}
       className="font-medium text-foreground underline underline-offset-4"
     >
       {children}
@@ -54,121 +39,171 @@ function TextLink({
 }
 
 export default function PrivacyPage() {
+  const email = (
+    <TextLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</TextLink>
+  )
+
   return (
-    <MenuPageShell title="Privacy Policy">
+    <MenuPageShell title="Privacy note">
       <article className="flex flex-col gap-6 pt-4 pb-8">
         <section className="flex flex-col gap-3">
           <p className="text-sm font-medium text-accent">
-            Last updated: 7 May 2026
+            Last updated: 30 Sep 2026
           </p>
           <h2 className="text-3xl leading-tight font-bold">
-            Privacy for a trust-first social app.
+            Sponti is a test build.
           </h2>
           <p className="text-base leading-7 text-muted-foreground">
-            This Privacy Policy explains what personal data Sponti expects to
-            handle, why it is needed, and how users can contact the team about
-            privacy requests.
-          </p>
-          <p className="text-sm leading-6 text-muted-foreground">
-            Sponti is currently an educational prototype. Some account, support,
-            and deletion flows may be simulated until production systems are
-            connected.
+            You&apos;re using an early version with a small group of testers.
+            Things can break, and test data can be reset. Here&apos;s who is
+            responsible for your data, what we keep, who can see it, and how to
+            get it deleted.
           </p>
         </section>
 
         <div className="h-px bg-border" />
 
-        <Section title="What Sponti may collect">
+        <Section title="Who is responsible">
           <Paragraph>
-            Sponti should only collect information that helps the app create,
-            show, join, and manage meetups.
+            {PROVIDER.name}, {PROVIDER_ADDRESS_LINE}, runs Sponti and is the
+            controller of your data under the GDPR. You can reach us at {email}{" "}
+            for anything about your data. See the{" "}
+            <TextLink href="/menu/impressum">Impressum</TextLink> for the legal
+            notice.
           </Paragraph>
+        </Section>
+
+        <Section title="What we collect">
           <BulletList
             items={[
-              "account details such as name, email, password credentials, profile text, and profile image",
-              "event details such as title, time, location, visibility, host, attendees, and RSVP status",
-              "trust and visibility settings such as friend lists or selected audience",
-              "support and feedback messages sent by users",
-              "technical data such as device, browser, diagnostics, and basic usage events",
+              "Your email, name and @username, and a password (stored scrambled, never as plain text)",
+              "Your profile photo, if you add one. If you sign in with Google, we get your name, email and photo from Google",
+              "Your connections and circles",
+              "The flares you light: what, where and when, and your replies (RSVPs)",
+              "Arrival times (ETAs) you choose to share with a host",
+              "A bio, Instagram and Telegram handle, if you add them",
+              "Your device location, only if you allow it in your browser or phone. It is used to place a flare at your current location and to work out a route and arrival time to a flare. For routes it is sent to our server, which asks Google for the route",
+              "What you write in an email to us, plus the build and device details we fill in for you",
+              "Technical logs on our servers and hosting, like your IP address, the time and the address requested",
+            ]}
+          />
+          <Paragraph>
+            We keep your sign-in session in your browser&apos;s storage so you
+            stay signed in. That is needed for the app to work. We don&apos;t
+            use analytics or advertising tools, and we don&apos;t track you
+            across other sites or apps. We don&apos;t sell your data.
+          </Paragraph>
+          <Paragraph>
+            You don&apos;t have to give us any of this by law. But without an
+            email, name and @username we can&apos;t give you an account.
+          </Paragraph>
+        </Section>
+
+        <Section title="Why we use it">
+          <BulletList
+            items={[
+              "To run Sponti for you: your account, profile, connections, circles, flares, RSVPs, in-app notifications, password resets and replies to your emails. Legal basis: Art. 6(1)(b) GDPR, performing the service you signed up for",
+              "To keep the service secure, find and fix errors, and deal with abuse and reports. Legal basis: Art. 6(1)(f) GDPR, our legitimate interest in a safe, working service",
+              "To use your device location, when you allow it. Legal basis: Art. 6(1)(a) GDPR, your consent, which you can withdraw any time by turning location off in your browser or phone",
+            ]}
+          />
+          <Paragraph>
+            We don&apos;t make automated decisions about you or build
+            advertising profiles.
+          </Paragraph>
+        </Section>
+
+        <Section title="Who can see what">
+          <BulletList
+            items={[
+              "Flares: the people and circles you invite. A public flare can be seen by anyone using Sponti",
+              "Flares at your current location show guests a neighbourhood, not a street address",
+              "Your profile: anyone signed in can see your name, @username and photo. Connections can see more, like your bio and handles",
+              "A private profile is hidden from search. It can still be found by typing your exact @username, and then others see just your name, @username and photo",
+              "If you block someone, they can no longer find your profile",
             ]}
           />
         </Section>
 
-        <Section title="Why it is used">
-          <Paragraph>Personal data is used to operate the core app experience.</Paragraph>
+        <Section title="Who else handles your data">
+          <Paragraph>
+            We use these services to run Sponti. They process data on our behalf
+            under data processing agreements:
+          </Paragraph>
           <BulletList
             items={[
-              "create and secure user accounts",
-              "show events to the intended audience",
-              "let users join, leave, edit, or cancel meetups",
-              "support safety reports, moderation, and account requests",
-              "debug errors and improve confusing product flows",
+              "netcup: our servers, in Nuremberg, Germany",
+              "MongoDB Atlas: our database, in Frankfurt, Germany (eu-central-1)",
+              "Vercel: hosts the web app",
+              "Google: sign-in, and maps, places and routes. Your browser talks to Google directly to load the map, so Google sees your IP address",
+              "Cloudinary: stores profile photos",
+              "Resend: sends emails like password resets",
             ]}
           />
-        </Section>
-
-        <Section title="Location and visibility">
           <Paragraph>
-            Event locations can be sensitive because Sponti is about meeting in
-            real life. The product should make visibility clear before an event
-            is published, especially when a precise location is included.
-          </Paragraph>
-          <Paragraph>
-            If precise device location is used later, Sponti should ask for
-            permission first and continue working when location access is
-            disabled.
+            Vercel, MongoDB, Google, Cloudinary and Resend are US companies, or
+            may process data in the US. When data goes there, we rely on the
+            EU-US Data Privacy Framework where the provider is certified, and on
+            the EU standard contractual clauses. We don&apos;t share your data
+            with anyone else, unless the law requires it.
           </Paragraph>
         </Section>
 
-        <Section title="What Sponti does not want">
+        <Section title="How long we keep it">
+          <Paragraph>
+            We keep your data while your account exists. Technical logs are
+            deleted automatically after 14 days at the latest. During the test
+            we may reset the database, which wipes test data.
+          </Paragraph>
+        </Section>
+
+        <Section title="Delete your data">
+          <Paragraph>
+            Email {email} from the address on your account and ask us to delete
+            it. Within 30 days we&apos;ll delete your account and everything
+            linked to it: your profile and photo, the flares you hosted, your
+            replies to other people&apos;s flares, your connections, circles,
+            blocks and notifications. Backups roll off within about 30 days
+            after that. The same address is for any other privacy question.
+          </Paragraph>
+        </Section>
+
+        <Section title="Your rights">
+          <Paragraph>Under the GDPR you have the right to:</Paragraph>
           <BulletList
             items={[
-              "no contact scraping for the MVP",
-              "no selling personal data",
-              "no infinite-scroll engagement profiling as a product goal",
-              "no public exposure of private event details beyond the selected audience",
+              "Get a copy of your data and information about how we use it (Art. 15)",
+              "Have wrong data corrected (Art. 16)",
+              "Have your data deleted (Art. 17)",
+              "Have its use restricted (Art. 18)",
+              "Get your data in a portable format (Art. 20)",
+              "Object to uses based on our legitimate interest (Art. 21)",
+              "Withdraw a consent you gave, at any time (Art. 7(3))",
             ]}
           />
-        </Section>
-
-        <Section title="Sharing and service providers">
           <Paragraph>
-            Sponti may use service providers for hosting, databases,
-            authentication, maps, email, analytics, and diagnostics. These
-            providers should only receive the data needed to provide their
-            service.
-          </Paragraph>
-          <Paragraph>
-            Event hosts and attendees may see event information, profile
-            context, RSVP status, and other details needed for the meetup.
+            To use any of these, email {email}. You can also complain to a data
+            protection authority. Ours is the Berliner Beauftragte für
+            Datenschutz und Informationsfreiheit, Alt-Moabit 59-61, 10555 Berlin
+            (
+            <TextLink href="https://www.datenschutz-berlin.de">
+              datenschutz-berlin.de
+            </TextLink>
+            ). You can also go to the authority where you live.
           </Paragraph>
         </Section>
 
-        <Section title="Retention and deletion">
+        <Section title="Who can use Sponti">
           <Paragraph>
-            Prototype data may be reset, changed, or deleted during development.
-            In a production version, Sponti should keep personal data only as
-            long as needed for account, event, safety, legal, backup, or
-            operational reasons.
-          </Paragraph>
-          <Paragraph>
-            To request account deletion or privacy help, contact{" "}
-            <TextLink href={`mailto:${privacyEmail}`}>{privacyEmail}</TextLink>.
+            You need to be at least 16. If we learn that someone younger has
+            signed up, we&apos;ll delete the account.
           </Paragraph>
         </Section>
 
-        <Section title="User rights">
+        <Section title="Changes to this note">
           <Paragraph>
-            Depending on where a user lives, they may have rights to access,
-            correct, delete, restrict, or object to processing of personal data.
-          </Paragraph>
-          <Paragraph>
-            Privacy requests can be sent to{" "}
-            <TextLink href={`mailto:${privacyEmail}`}>{privacyEmail}</TextLink>.
-            General support questions can be sent to{" "}
-            <TextLink href={`mailto:${supportEmail}`}>{supportEmail}</TextLink>.
-            Safety and content reports can be sent to{" "}
-            <TextLink href={`mailto:${reportsEmail}`}>{reportsEmail}</TextLink>.
+            If we change how we use your data, we&apos;ll update this note and
+            its date.
           </Paragraph>
         </Section>
       </article>

@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest"
 
 import { EVENT_TYPES } from "@/types/utils"
 
-import { getIdeasNear, isInSeason, type FlareIdea } from "./flare-ideas"
+import {
+  IDEA_PIN_CLEARANCE_METERS,
+  MAX_IDEA_PINS,
+  getIdeaPins,
+  getIdeasNear,
+  isInSeason,
+  type FlareIdea,
+} from "./flare-ideas"
 import { FLARE_IDEAS } from "./flare-ideas.data"
 
 const CENTER = { lat: 52.52, lng: 13.4 }
@@ -242,5 +249,88 @@ describe("FLARE_IDEAS data", () => {
       }
     }
     expect(seasonal.some((i) => i.season!.from > i.season!.to)).toBe(true)
+  })
+})
+
+describe("getIdeaPins", () => {
+  const NOW = on("2026-03-10")
+  const none = new Set<never>()
+  const pins = (
+    ideas: FlareIdea[],
+    extra: Partial<Parameters<typeof getIdeaPins>[0]> = {}
+  ) =>
+    ids(
+      getIdeaPins({
+        center: CENTER,
+        now: NOW,
+        categories: none,
+        flarePositions: [],
+        ideas,
+        ...extra,
+      })
+    )
+
+  it("with no chip on, pins ideas of every category, nearest first", () => {
+    const list = [
+      idea("far", 1.5, { category: "food" }),
+      idea("near", 0.5, { category: "drinks" }),
+    ]
+    expect(pins(list)).toEqual(["near", "far"])
+  })
+
+  it("with chips on, pins only ideas of those categories", () => {
+    const list = [
+      idea("a", 0.2, { category: "food" }),
+      idea("b", 0.3, { category: "drinks" }),
+      idea("c", 0.4, { category: "party" }),
+    ]
+    expect(pins(list, { categories: new Set(["food"]) })).toEqual(["a"])
+    expect(pins(list, { categories: new Set(["food", "party"]) })).toEqual([
+      "a",
+      "c",
+    ])
+  })
+
+  it("keeps the selector's range and season rules", () => {
+    const list = [
+      idea("in-range", 1),
+      idea("too-far", 3),
+      idea("off-season", 0.1, { season: { from: "06-01", to: "06-30" } }),
+    ]
+    expect(pins(list)).toEqual(["in-range"])
+  })
+
+  it("drops an idea sitting on a flare's pin, and lets the next one in", () => {
+    const list = [idea("on-flare", 0.5), idea("clear", 1)]
+    // 0.001 degrees of latitude is about 111 m: beyond the clearance.
+    const flare = (hundredths: number) => at(hundredths)
+    expect(pins(list, { flarePositions: [flare(0.5)] })).toEqual(["clear"])
+    expect(pins(list, { flarePositions: [flare(0.5 + 0.1)] })).toEqual([
+      "on-flare",
+      "clear",
+    ])
+  })
+
+  it("clears ideas closer than the clearance, keeps those just outside", () => {
+    // ~0.00045 degrees of latitude is about 50 m, ~0.001 about 111 m.
+    const flare = { lat: CENTER.lat + 0.005, lng: CENTER.lng }
+    const list = [idea("close", 0.5 + 0.045), idea("outside", 0.5 + 0.1)]
+    expect(IDEA_PIN_CLEARANCE_METERS).toBeGreaterThan(50)
+    expect(IDEA_PIN_CLEARANCE_METERS).toBeLessThan(111)
+    expect(pins(list, { flarePositions: [flare] })).toEqual(["outside"])
+  })
+
+  it("caps the pins, nearest and in-season first", () => {
+    const list = Array.from({ length: 9 }, (_, i) =>
+      idea(`i${i}`, 0.1 * (i + 1))
+    )
+    expect(pins(list)).toHaveLength(MAX_IDEA_PINS)
+    expect(pins(list)).toEqual(["i0", "i1", "i2", "i3", "i4"])
+    expect(pins(list, { cap: 2 })).toEqual(["i0", "i1"])
+    expect(pins(list, { cap: 0 })).toEqual([])
+  })
+
+  it("is empty for an empty list", () => {
+    expect(pins([])).toEqual([])
   })
 })

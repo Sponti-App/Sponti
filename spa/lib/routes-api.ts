@@ -7,8 +7,9 @@
 // format the human-readable labels (etaLabel / distanceLabel) client-side so
 // the server only owns transport — formatters belong with the UI.
 
+import { formatDistance } from "./format-distance"
 import type { GeoCoords } from "./geolocation"
-import { apiFetch } from "./http"
+import { apiFetch, HttpError } from "./http"
 
 export type TravelMode = "DRIVE" | "WALK" | "BICYCLE" | "TRANSIT"
 
@@ -19,13 +20,14 @@ export type RouteResult = {
   distanceMeters: number
   // Human-friendly ETA label, e.g. "12 min"
   etaLabel: string
-  // Human-friendly distance, e.g. "1.2 mi"
+  // Human-friendly distance, e.g. "1.2 km"
   distanceLabel: string
 }
 
 type ComputeRouteResponse = {
   data: {
-    encodedPolyline: string
+    // Optional on the wire: a response with no route can omit it.
+    encodedPolyline?: string
     durationSeconds: number
     distanceMeters: number
   }
@@ -44,6 +46,11 @@ export async function computeRoute(
   })
 
   const { encodedPolyline, durationSeconds, distanceMeters } = res.data
+  // Same shape the backend throws for "no route" (404 ROUTE_NOT_FOUND), so
+  // callers handle both paths through their existing catch.
+  if (!encodedPolyline) {
+    throw new HttpError(404, "No route found", "ROUTE_NOT_FOUND")
+  }
   const path = decodePolyline(encodedPolyline)
 
   return {
@@ -51,7 +58,7 @@ export async function computeRoute(
     durationSeconds,
     distanceMeters,
     etaLabel: formatDurationLabel(durationSeconds),
-    distanceLabel: formatDistanceLabel(distanceMeters),
+    distanceLabel: formatDistance(distanceMeters),
   }
 }
 
@@ -62,13 +69,6 @@ export function formatDurationLabel(seconds: number): string {
   const hours = Math.floor(minutes / 60)
   const rem = minutes % 60
   return rem === 0 ? `${hours} hr` : `${hours}h ${rem}m`
-}
-
-export function formatDistanceLabel(meters: number): string {
-  const miles = meters / 1609.344
-  if (miles < 0.1) return `${Math.round(meters)} m`
-  if (miles < 10) return `${miles.toFixed(1)} mi`
-  return `${Math.round(miles)} mi`
 }
 
 // Standard Google polyline algorithm — adapted from the published spec.

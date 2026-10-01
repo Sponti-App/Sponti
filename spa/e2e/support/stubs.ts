@@ -53,6 +53,16 @@ export type StubApiEvent = {
   guestInviteLimit: number
   status: "active" | "cancelled" | "completed"
   goingCount?: number
+  // Going guests, as the api's `attachEventPeople` sends them (#265 links
+  // each by username). ETA fields only ever reach the host.
+  attendees?: Array<{
+    _id: string
+    displayName?: string
+    username?: string
+    avatarUrl?: string | null
+    willArriveAt?: string | null
+    arrivalStatus?: "on_time" | "running_late" | null
+  }>
 }
 
 export function makeStubFlare(
@@ -93,13 +103,21 @@ async function fulfillJson(
 }
 
 /** `GET /users/by-username/:username` body (see spa/lib/api/users.ts). */
+export type StubProfileIdentity = {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+}
+
 export type StubUserProfile = {
-  profile: {
-    id: string
-    username: string
-    displayName: string
-    avatarUrl: string | null
+  // bio, socials and mutualFriends are optional here and filled in as the api
+  // does for a viewer who may not see them: null, null and zero (#288).
+  profile: StubProfileIdentity & {
+    bio?: string | null
+    socials?: { instagram: string | null; telegram: string | null }
   }
+  mutualFriends?: { count: number; preview: StubProfileIdentity[] }
   relationship:
     | "self"
     | "connected"
@@ -120,8 +138,50 @@ type StubBackendOptions = {
   events?: StubApiEvent[]
   /** Profiles by username; any other username answers 404 USER_NOT_FOUND. */
   profiles?: Record<string, StubUserProfile>
+  /**
+   * The full mutual friends list per profile username, served in pages of
+   * `limit` from GET /users/by-username/:username/mutual-friends.
+   */
+  mutualFriends?: Record<string, StubProfileIdentity[]>
+  /** The signed-in user's own profile visibility. Public by default. */
+  profileVisibility?: "public" | "private"
   /** Seeded last-known position. San Francisco by default. */
   coords?: { lat: number; lng: number }
+  /**
+   * The signed-in user's own bio and handles, as GET /auth/me returns them
+   * (#289). All unset by default.
+   */
+  ownProfile?: Partial<StubOwnProfile>
+}
+
+/** The self-authored fields GET /auth/me and PATCH /auth/me/profile carry. */
+export type StubOwnProfile = {
+  bio: string | null
+  instagram: string | null
+  telegram: string | null
+}
+
+/** What `stubBackend` hands back for the test to assert on. */
+export type StubBackendHandle = {
+  /** Body of every PATCH /auth/me/profile the app sent, in order. */
+  profilePatches: Array<Record<string, unknown>>
+}
+
+// A light stand-in for auth-server's profile field rules (profileFields.ts):
+// enough to accept "@x" and pasted links, and to refuse a handle with
+// characters no network allows, with the validator's message shape.
+function stubNormalizeHandle(raw: string, network: string): string | null {
+  const trimmed = raw.trim()
+  if (trimmed === "") return null
+  const handle = trimmed
+    .replace(/^(?:https?:\/\/)?(?:www\.)?(?:instagram\.com|t\.me)\//i, "")
+    .replace(/[/?#].*$/, "")
+    .replace(/^@/, "")
+    .toLowerCase()
+  if (!/^[a-z0-9._]{1,32}$/.test(handle)) {
+    throw new Error(`${network} handle is not valid`)
+  }
+  return handle
 }
 
 /**
@@ -137,12 +197,24 @@ type StubBackendOptions = {
 export async function stubBackend(
   page: Page,
   options: StubBackendOptions = {}
-): Promise<void> {
+): Promise<StubBackendHandle> {
+  const profilePatches: Array<Record<string, unknown>> = []
+  const ownProfile: StubOwnProfile = {
+    bio: null,
+    instagram: null,
+    telegram: null,
+    ...options.ownProfile,
+  }
   const mapEvents = options.mapEvents ?? []
   const eventsById = new Map(
     [...mapEvents, ...(options.events ?? [])].map((e) => [e._id, e])
   )
   const profiles = options.profiles ?? {}
+  const mutualFriendLists = options.mutualFriends ?? {}
+  const user = {
+    ...STUB_USER,
+    profileVisibility: options.profileVisibility ?? STUB_USER.profileVisibility,
+  }
   const coords = options.coords ?? STUB_COORDS
 
   await page.addInitScript(
@@ -157,7 +229,7 @@ export async function stubBackend(
       refreshTokenKey: REFRESH_TOKEN_KEY,
       userKey: USER_KEY,
       coordsKey: LAST_KNOWN_COORDS_KEY,
-      user: STUB_USER,
+      user,
       coords,
     }
   )
@@ -166,7 +238,37 @@ export async function stubBackend(
     const url = new URL(route.request().url())
 
     if (url.pathname === "/auth/me") {
-      await fulfillJson(route, { user: STUB_USER })
+      await fulfillJson(route, { user: { ...user, ...ownProfile } })
+      return
+    }
+    if (
+      url.pathname === "/auth/me/profile" &&
+      route.request().method() === "PATCH"
+    ) {
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      profilePatches.push(body)
+      try {
+        for (const name of ["bio", "instagram", "telegram"] as const) {
+          const raw = body[name]
+          if (raw === undefined) continue
+          if (raw !== null && typeof raw !== "string")
+            throw new Error(`${name} is not valid`)
+          ownProfile[name] =
+            name === "bio"
+              ? (raw ?? "").replace(/\s*[\r\n]+\s*/g, " ").trim() || null
+              : stubNormalizeHandle(raw ?? "", name)
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "invalid"
+        const field = message.split(" ")[0]
+        await fulfillJson(
+          route,
+          { message: `✖ ${message}\n  → at ${field}` },
+          400
+        )
+        return
+      }
+      await fulfillJson(route, { user: { ...user, ...ownProfile } })
       return
     }
     if (url.pathname === "/health") {
@@ -234,11 +336,39 @@ export async function stubBackend(
       )
       return
     }
+    const mutualMatch = path.match(
+      /^\/users\/by-username\/([^/]+)\/mutual-friends$/
+    )
+    if (mutualMatch) {
+      const all = mutualFriendLists[decodeURIComponent(mutualMatch[1])] ?? []
+      const page = Number(url.searchParams.get("page") ?? 1)
+      const limit = Number(url.searchParams.get("limit") ?? 20)
+      await fulfillJson(route, {
+        data: all.slice((page - 1) * limit, page * limit),
+        pagination: {
+          page,
+          limit,
+          total: all.length,
+          totalPages: Math.ceil(all.length / limit),
+        },
+      })
+      return
+    }
     const profileMatch = path.match(/^\/users\/by-username\/([^/]+)$/)
     if (profileMatch) {
       const profile = profiles[decodeURIComponent(profileMatch[1])]
       if (profile) {
-        await fulfillJson(route, { data: profile })
+        await fulfillJson(route, {
+          data: {
+            ...profile,
+            profile: {
+              bio: null,
+              socials: { instagram: null, telegram: null },
+              ...profile.profile,
+            },
+            mutualFriends: profile.mutualFriends ?? { count: 0, preview: [] },
+          },
+        })
       } else {
         await fulfillJson(
           route,
@@ -270,4 +400,6 @@ export async function stubBackend(
     // a safe default for the list-shaped endpoints this app mostly has.
     await fulfillJson(route, { data: [] })
   })
+
+  return { profilePatches }
 }

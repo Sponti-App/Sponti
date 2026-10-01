@@ -1,7 +1,7 @@
 import { apiFetch } from "@/lib/http"
 
 // Mirrors api/src/models/NotificationSettings.ts exactly. `notifyWhen` and
-// `maxDistanceMiles` shown in the settings UI are NOT part of this schema —
+// `maxDistanceKm` shown in the settings UI are NOT part of this schema —
 // don't add them here without a backend change first (the PATCH schema is
 // `.strict()` and will reject unknown fields).
 export type NotificationSettings = {

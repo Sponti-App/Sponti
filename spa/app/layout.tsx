@@ -6,6 +6,7 @@ import { AuthGate } from '@/components/auth-gate'
 import { ActionFeedbackProvider } from '@/components/action-feedback'
 import { NewEventDrawerProvider } from '@/components/new-event-drawer-provider'
 import { ThemeProvider } from '@/components/theme-provider'
+import { InAppHistoryTracker } from '@/components/in-app-history-tracker'
 import { AuthenticatedAppShell } from '@/components/authenticated-app-shell'
 import { resolveSiteUrl } from '@/lib/site-url'
 
@@ -90,6 +91,7 @@ export default function RootLayout({
     >
       <body className="font-sans antialiased" suppressHydrationWarning>
         <ThemeProvider>
+          <InAppHistoryTracker />
           <AuthProvider>
             <AuthGate>
               <ActionFeedbackProvider>

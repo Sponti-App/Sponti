@@ -45,6 +45,22 @@ const userSchema = new Schema({
         type: Number,
         default: 100,
     },
+    // Self-authored profile fields, validated and normalised by
+    // updateProfileSchema (see lib/profileFields.ts). Returned only to the
+    // user themselves (GET /auth/me, PATCH /auth/me/profile); `api` decides
+    // who else may see them (#288).
+    bio: {
+        type: String,
+        default: null,
+    },
+    instagram: {
+        type: String,
+        default: null,
+    },
+    telegram: {
+        type: String,
+        default: null,
+    },
 },
     {
         timestamps: true,

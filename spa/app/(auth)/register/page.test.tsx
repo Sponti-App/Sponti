@@ -99,3 +99,25 @@ describe("RegisterPage from a contact link (#124)", () => {
     expect(mocks.fetchContactPreviewName).not.toHaveBeenCalled()
   })
 })
+
+describe("RegisterPage legal links (#129)", () => {
+  it("links the terms and the privacy note", () => {
+    visit("")
+
+    render(<RegisterPage />)
+
+    expect(screen.getByText(/by signing up you agree to the/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "terms" })).toHaveAttribute(
+      "href",
+      "/menu/terms"
+    )
+    expect(screen.getByRole("link", { name: "privacy note" })).toHaveAttribute(
+      "href",
+      "/menu/privacy"
+    )
+    expect(screen.getByRole("link", { name: "impressum" })).toHaveAttribute(
+      "href",
+      "/menu/impressum"
+    )
+  })
+})

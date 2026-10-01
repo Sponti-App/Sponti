@@ -16,35 +16,6 @@ import { toObjectId } from "#utils/objectId";
 import { getPagination, toPagination } from "#utils/pagination";
 import { withTransactionFallback } from "#utils/transactions";
 
-/**
- * Every user that `userId` has an accepted, mutual connection with. Used to
- * resolve the "all friends" system circle live at invite time (#154) instead
- * of from stored circle-membership rows, which are never kept in sync.
- */
-export const getAcceptedConnectionUserIds = async (userId: string): Promise<string[]> => {
-  const userObjectId = toObjectId(userId);
-  const connections = await Connection.find({
-    status: "accepted",
-    $or: [{ requesterId: userObjectId }, { receiverId: userObjectId }],
-  })
-    .select("requesterId receiverId")
-    .lean();
-
-  // Accepting a request stores a mirror row (receiver as requester) alongside
-  // the original, so the same friend can appear via both directions — dedupe
-  // so counts (e.g. the "all friends" chip) aren't doubled.
-  const otherUserIds = new Set(
-    connections.map((connection) => {
-      const requesterId = connection.requesterId.toString();
-      const receiverId = connection.receiverId.toString();
-
-      return requesterId === userId ? receiverId : requesterId;
-    })
-  );
-
-  return Array.from(otherUserIds);
-};
-
 export const sendConnectionRequest = async (
   requesterId: string,
   input: SendConnectionRequestBody
@@ -343,13 +314,32 @@ export const respondToConnectionRequest = async (
   });
 };
 
+/**
+ * Deletes one of the caller's own rows. The spa only uses this to cancel a
+ * request it sent, but it also accepts an accepted row; then the mirrored row
+ * goes too, so the pair never ends up one-sided (#260). "Connected" needs
+ * both rows, so dropping either already ends the connection for both people.
+ */
 export const deleteConnection = async (userId: string, connectionId: string) => {
-  const result = await Connection.deleteOne({
-    _id: toObjectId(connectionId),
-    requesterId: toObjectId(userId),
-  });
+  await withTransactionFallback(async (session?: ClientSession) => {
+    const connection = await Connection.findOneAndDelete(
+      { _id: toObjectId(connectionId), requesterId: toObjectId(userId) },
+      { session }
+    );
 
-  if (result.deletedCount === 0) {
-    throw new AppError("Connection not found", 404, "CONNECTION_NOT_FOUND");
-  }
+    if (!connection) {
+      throw new AppError("Connection not found", 404, "CONNECTION_NOT_FOUND");
+    }
+
+    if (connection.status === "accepted") {
+      await Connection.deleteOne(
+        {
+          requesterId: connection.receiverId,
+          receiverId: connection.requesterId,
+          status: "accepted",
+        },
+        { session }
+      );
+    }
+  });
 };

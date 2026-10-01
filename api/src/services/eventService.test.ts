@@ -16,7 +16,7 @@ const eventMemberFindOneAndUpdateMock = vi.hoisted(() => vi.fn());
 const eventMemberUpdateManyMock = vi.hoisted(() => vi.fn());
 const circleFindMock = vi.hoisted(() => vi.fn());
 const circleMemberFindMock = vi.hoisted(() => vi.fn());
-const connectionFindMock = vi.hoisted(() => vi.fn());
+const getConnectedUserIdsMock = vi.hoisted(() => vi.fn());
 const getBlockedInviteeIdsMock = vi.hoisted(() => vi.fn());
 const getBlockedRelationshipUserIdsMock = vi.hoisted(() => vi.fn());
 const getUsersByIdsMock = vi.hoisted(() => vi.fn());
@@ -28,7 +28,6 @@ vi.mock("#models/index", () => ({
   Block: { exists: vi.fn() },
   Circle: { find: circleFindMock },
   CircleMember: { find: circleMemberFindMock },
-  Connection: { find: connectionFindMock },
   Event: {
     countDocuments: eventCountDocumentsMock,
     create: eventCreateMock,
@@ -66,6 +65,10 @@ vi.mock("#models/index", () => ({
 vi.mock("#services/blockService", () => ({
   getBlockedInviteeIds: getBlockedInviteeIdsMock,
   getBlockedRelationshipUserIds: getBlockedRelationshipUserIdsMock,
+}));
+
+vi.mock("#services/relationshipService", () => ({
+  getConnectedUserIds: getConnectedUserIdsMock,
 }));
 
 vi.mock("#services/userDirectoryService", () => ({
@@ -158,11 +161,12 @@ const mockCircleMemberFindLean = (members: Array<Record<string, unknown>>) => {
   return { leanMock, selectMock };
 };
 
-const mockAcceptedConnections = (connections: Array<Record<string, unknown>>) => {
-  const leanMock = vi.fn().mockResolvedValue(connections);
-  const selectMock = vi.fn().mockReturnValue({ lean: leanMock });
-  connectionFindMock.mockReturnValue({ select: selectMock });
-  return { leanMock, selectMock };
+// Who the owner is connected to, as the shared relationship function
+// (relationshipService.getConnectedUserIds) would answer.
+const mockConnectedUsers = (userIds: string[]) => {
+  getConnectedUserIdsMock.mockImplementation(async (_userId: string, among?: string[]) =>
+    new Set(among ? userIds.filter((id) => among.includes(id)) : userIds)
+  );
 };
 
 const mockExistingNotifications = (notifications: Array<Record<string, unknown>>) => {
@@ -274,10 +278,7 @@ describe("eventService.createEvent", () => {
       { circleId: CIRCLE_ID, userId: GUEST_ID },
       { circleId: CIRCLE_ID, userId: ADMIN_ID },
     ]);
-    mockAcceptedConnections([
-      { requesterId: USER_ID, receiverId: GUEST_ID },
-      { requesterId: USER_ID, receiverId: ADMIN_ID },
-    ]);
+    mockConnectedUsers([GUEST_ID, ADMIN_ID]);
     mockExistingNotifications([]);
 
     await createEvent(USER_ID, {
@@ -362,11 +363,7 @@ describe("eventService.inviteEventMembers", () => {
       { circleId: CIRCLE_ID, userId: GUEST_ID },
       { circleId: CIRCLE_ID, userId: OTHER_GUEST_ID },
     ]);
-    mockAcceptedConnections([
-      { requesterId: USER_ID, receiverId: GUEST_ID },
-      { requesterId: USER_ID, receiverId: OTHER_GUEST_ID },
-      { requesterId: USER_ID, receiverId: ADMIN_ID },
-    ]);
+    mockConnectedUsers([GUEST_ID, OTHER_GUEST_ID, ADMIN_ID]);
     mockExistingNotifications([]);
     notificationCreateMock.mockResolvedValue([{}, {}]);
     // ADMIN_ID (index 0) and OTHER_GUEST_ID (index 2) are new; GUEST_ID was
@@ -412,7 +409,7 @@ describe("eventService.inviteEventMembers", () => {
   it("sends no notifications when everyone picked is already on the flare", async () => {
     mockInvitableEvent();
     mockRemovedMembers();
-    mockAcceptedConnections([{ requesterId: USER_ID, receiverId: GUEST_ID }]);
+    mockConnectedUsers([GUEST_ID]);
     eventMemberBulkWriteMock.mockResolvedValue({ upsertedIds: {} });
 
     const result = await inviteEventMembers(USER_ID, EVENT_ID, {
@@ -453,7 +450,7 @@ describe("eventService.inviteEventMembers", () => {
 
   it("rejects people who aren't accepted connections, as on create", async () => {
     mockInvitableEvent();
-    mockAcceptedConnections([]);
+    mockConnectedUsers([]);
 
     await expect(
       inviteEventMembers(USER_ID, EVENT_ID, {
@@ -492,7 +489,7 @@ describe("eventService.inviteEventMembers restoring removed guests", () => {
       allowGuestInvites: "none",
     });
     mockEventMembersForNotifications([{ userId: GUEST_ID }]);
-    mockAcceptedConnections([{ requesterId: USER_ID, receiverId: GUEST_ID }]);
+    mockConnectedUsers([GUEST_ID]);
     mockExistingNotifications([]);
     notificationCreateMock.mockResolvedValue([{}]);
     eventMemberUpdateManyMock.mockResolvedValue({ modifiedCount: 1 });
@@ -530,7 +527,7 @@ describe("eventService circles remembered on flares (#150)", () => {
     eventMemberCreateMock.mockResolvedValue([]);
     mockCircleFindLean([{ _id: CIRCLE_ID }]);
     mockCircleMemberFindLean([]);
-    mockAcceptedConnections([]);
+    mockConnectedUsers([]);
 
     await createEvent(USER_ID, {
       title: "beer",

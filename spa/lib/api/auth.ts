@@ -28,6 +28,12 @@ export type UpdateProfilePayload = {
   username?: string
   email?: string
   profileVisibility?: "public" | "private"
+  // Self-authored profile fields (#289). The server normalises them (handle
+  // from "@x" or a pasted link, one-line bio); null or "" clears one, and a
+  // field left out is left as it is.
+  bio?: string | null
+  instagram?: string | null
+  telegram?: string | null
 }
 
 export function register(payload: RegisterPayload): Promise<AuthResponse> {

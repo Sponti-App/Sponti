@@ -3,38 +3,45 @@ import {
   HelpCircle,
   Info,
   LifeBuoy,
+  Scale,
   ShieldCheck,
 } from "lucide-react"
 
 export const menuItems = [
   {
     href: "/menu/about-sponti",
-    label: "About Sponti",
-    description: "What Sponti is for",
+    label: "about sponti",
+    description: "what sponti is for",
     icon: Info,
   },
   {
     href: "/menu/faq-feedback",
-    label: "FAQ & Feedback",
-    description: "Answers and product feedback",
+    label: "faq & feedback",
+    description: "answers and product feedback",
     icon: HelpCircle,
   },
   {
     href: "/menu/privacy",
-    label: "Privacy Policy",
-    description: "How Sponti handles personal data",
+    label: "privacy note",
+    description: "what we keep and who can see it",
     icon: ShieldCheck,
   },
   {
     href: "/menu/terms",
-    label: "Terms of Service",
-    description: "Terms and community basics",
+    label: "terms of service",
+    description: "terms and community basics",
     icon: FileText,
   },
   {
+    href: "/menu/impressum",
+    label: "impressum",
+    description: "who runs sponti",
+    icon: Scale,
+  },
+  {
     href: "/menu/support",
-    label: "Support",
-    description: "Help and safety contact paths",
+    label: "support",
+    description: "help, feedback and safety reports",
     icon: LifeBuoy,
   },
 ] as const
