@@ -13,6 +13,12 @@ import { fetchContactPreviewName } from "@/lib/api/contact-preview"
 import { parseContactPath } from "@/lib/contact-links"
 import { HttpError, warmBackends } from "@/lib/http"
 import { getRedirectTarget, useRedirectQuery } from "@/lib/redirect-path"
+import {
+  clearRegisterDraft,
+  readRegisterDraft,
+  writeRegisterDraft,
+  type RegisterDraft,
+} from "@/lib/register-draft"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -25,6 +31,24 @@ export default function RegisterPage() {
   const [submitting, setSubmitting] = useState(false)
   const [googleSubmitting, setGoogleSubmitting] = useState(false)
   const redirectQuery = useRedirectQuery()
+
+  // #300: bring back what was typed before a trip to the terms, privacy note
+  // or impressum. Read after mount, so the server render and the first client
+  // render agree. Never the password: the draft has no field for it.
+  useEffect(() => {
+    const draft = readRegisterDraft()
+    if (!draft) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-off restore from browser storage after hydration
+    setDisplayName(draft.displayName)
+    setUsername(draft.username)
+    setEmail(draft.email)
+  }, [])
+
+  // Saved from the change handlers rather than an effect, so an effect pass
+  // with the initial empty values can never overwrite a draft before it is
+  // restored.
+  const updateDraft = (patch: Partial<RegisterDraft>) =>
+    writeRegisterDraft({ displayName, username, email, ...patch })
 
   // #212: start waking both Render services while the user fills in the form.
   useEffect(() => {
@@ -78,6 +102,7 @@ export default function RegisterPage() {
         email: email.trim(),
         password,
       })
+      clearRegisterDraft()
       // #219: return to the page that sent the user to sign in, if any.
       router.replace(getRedirectTarget())
     } catch (err) {
@@ -97,6 +122,7 @@ export default function RegisterPage() {
       setGoogleSubmitting(true)
       try {
         await loginWithGoogle(credential)
+        clearRegisterDraft()
         router.replace(getRedirectTarget())
       } catch (err) {
         if (err instanceof HttpError) {
@@ -172,7 +198,10 @@ export default function RegisterPage() {
                 minLength={2}
                 maxLength={50}
                 value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                onChange={(e) => {
+                  setDisplayName(e.target.value)
+                  updateDraft({ displayName: e.target.value })
+                }}
                 className="h-[46px] rounded-xl"
               />
             </Field>
@@ -186,9 +215,11 @@ export default function RegisterPage() {
                 maxLength={30}
                 pattern="[a-zA-Z0-9_-]+"
                 value={username}
-                onChange={(e) =>
-                  setUsername(e.target.value.toLowerCase().replace(/\s/g, ""))
-                }
+                onChange={(e) => {
+                  const next = e.target.value.toLowerCase().replace(/\s/g, "")
+                  setUsername(next)
+                  updateDraft({ username: next })
+                }}
                 className="h-[46px] rounded-xl"
               />
               {usernameValid ? (
@@ -210,7 +241,10 @@ export default function RegisterPage() {
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  updateDraft({ email: e.target.value })
+                }}
                 className="h-[46px] rounded-xl"
               />
             </Field>
