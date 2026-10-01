@@ -15,7 +15,6 @@ import { createAccessToken } from "#lib/tokens";
 
 const PASSWORD = "correct-horse-battery";
 const PROFILE = { bio: "climbing and coffee", instagram: "sarah.kim", telegram: "sarahkim" };
-const PROFILE_KEYS = Object.keys(PROFILE);
 
 let server: Server;
 let baseUrl: string;
@@ -48,15 +47,6 @@ const request = async (method: string, path: string, body?: unknown, token?: str
 const mockSessionStore = () => {
     mock.method(RefreshToken, "deleteMany", async () => ({ deletedCount: 0 }));
     mock.method(RefreshToken, "create", async () => ({}));
-};
-
-const assertNoProfileFields = (text: string) => {
-    for (const key of PROFILE_KEYS) {
-        assert.ok(!text.includes(`"${key}"`), `response must not carry "${key}": ${text}`);
-    }
-    for (const value of Object.values(PROFILE)) {
-        assert.ok(!text.includes(value), `response must not carry "${value}": ${text}`);
-    }
 };
 
 before(async () => {
@@ -200,30 +190,46 @@ describe("GET /auth/me", () => {
     });
 });
 
-describe("the profile fields do not leak into any other response", () => {
+describe("session responses return the user's own profile fields (#309)", () => {
+    const assertOwnProfile = (user: Record<string, unknown>, expected: Record<string, unknown>) => {
+        assert.deepEqual(
+            { bio: user.bio, instagram: user.instagram, telegram: user.telegram },
+            expected,
+        );
+    };
+    const NOT_SET = { bio: null, instagram: null, telegram: null };
+
     it("login response", async () => {
         mock.method(User, "findOne", async () => makeUser());
         mockSessionStore();
 
-        const { status, text } = await request("POST", "/auth/login", { email: "sarah@example.com", password: PASSWORD });
+        const { status, json } = await request("POST", "/auth/login", { email: "sarah@example.com", password: PASSWORD });
         assert.equal(status, 200);
-        assertNoProfileFields(text);
+        assertOwnProfile(json.user, PROFILE);
     });
 
-    it("register response", async () => {
+    it("login response, null when unset", async () => {
+        mock.method(User, "findOne", async () => makeUser({ bio: undefined, instagram: undefined, telegram: undefined }));
+        mockSessionStore();
+
+        const { json } = await request("POST", "/auth/login", { email: "sarah@example.com", password: PASSWORD });
+        assertOwnProfile(json.user, NOT_SET);
+    });
+
+    it("register response, null for a new account", async () => {
         mock.method(User, "exists", async () => null);
-        mock.method(User, "create", async () => makeUser());
+        mock.method(User, "create", async () => makeUser({ bio: undefined, instagram: undefined, telegram: undefined }));
         mock.method(NotificationSettings, "create", async () => ({}));
         mockSessionStore();
 
-        const { status, text } = await request("POST", "/auth/register", {
+        const { status, json } = await request("POST", "/auth/register", {
             username: "sarah",
             displayName: "Sarah",
             email: "sarah@example.com",
             password: PASSWORD,
         });
         assert.equal(status, 201);
-        assertNoProfileFields(text);
+        assertOwnProfile(json.user, NOT_SET);
     });
 
     it("Google sign-in response", async () => {
@@ -235,11 +241,26 @@ describe("the profile fields do not leak into any other response", () => {
         mock.method(user, "save", async () => user);
         mockSessionStore();
 
-        const { status, text } = await request("POST", "/auth/google", { credential: "id-token" });
+        const { status, json } = await request("POST", "/auth/google", { credential: "id-token" });
         assert.equal(status, 200);
-        assertNoProfileFields(text);
+        assertOwnProfile(json.user, PROFILE);
     });
 
+    it("Google sign-in response, null when unset", async () => {
+        const user = makeUser({ googleId: "google-sub", bio: undefined, instagram: undefined, telegram: undefined });
+        mock.method(OAuth2Client.prototype, "verifyIdToken", async () => ({
+            getPayload: () => ({ sub: "google-sub", email: "sarah@example.com", email_verified: true }),
+        }));
+        mock.method(User, "findOne", async () => user);
+        mock.method(user, "save", async () => user);
+        mockSessionStore();
+
+        const { json } = await request("POST", "/auth/google", { credential: "id-token" });
+        assertOwnProfile(json.user, NOT_SET);
+    });
+});
+
+describe("the profile fields do not leak into tokens or errors", () => {
     it("access and refresh tokens carry only the user id", async () => {
         mock.method(User, "findOne", async () => makeUser());
         mockSessionStore();

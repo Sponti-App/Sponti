@@ -23,6 +23,9 @@ const USER: AuthUser = {
   email: "flaretester@sponti.test",
   profileVisibility: "public",
   socialBattery: 100,
+  bio: null,
+  instagram: null,
+  telegram: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 }
