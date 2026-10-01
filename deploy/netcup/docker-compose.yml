@@ -1,10 +1,18 @@
 # api + auth-server behind Caddy, which gets HTTPS certificates on its own.
 # Hostnames and secrets come from files next to this one on the server
 # (.env, api.env, auth.env), never from git. See README.md.
+#
+# Every service logs to the host's journald, tagged so one service can be
+# filtered. The host's journald keeps 14 days (journald-retention.conf, which
+# is installed by hand once, see README.md "Logs").
 services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    logging:
+      driver: journald
+      options:
+        tag: sponti-caddy
     ports:
       - "80:80"
       - "443:443"
@@ -23,6 +31,10 @@ services:
   api:
     build: ../../api
     restart: unless-stopped
+    logging:
+      driver: journald
+      options:
+        tag: sponti-api
     env_file: api.env
     environment:
       NODE_ENV: production
@@ -36,6 +48,10 @@ services:
   auth:
     build: ../../auth-server
     restart: unless-stopped
+    logging:
+      driver: journald
+      options:
+        tag: sponti-auth
     env_file: auth.env
     environment:
       NODE_ENV: production

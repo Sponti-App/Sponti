@@ -23,6 +23,7 @@ sslip.io resolves `<name>.<ip-with-dashes>.sslip.io` to that IP, so there's no D
 5. Atlas → Network Access: allow 152.53.198.143. Once Render is off, remove `0.0.0.0/0`.
 6. Vercel project `sponti` (Production and the `dev` branch): set `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_AUTH_BASE_URL` to the URLs above and redeploy. `NEXT_PUBLIC_*` values are baked in at build time.
 7. Once the core loop works (sign in → light a flare → a friend sees it → RSVP), suspend the Render services.
+8. Install the 14-day log retention, see [Logs](#logs).
 
 ## Deploying
 
@@ -37,6 +38,40 @@ ssh root@152.53.198.143 /opt/sponti/deploy/netcup/deploy.sh
 ```
 
 This pulls `DEPLOY_BRANCH`, rebuilds both images and restarts only what changed. Useful commands in `/opt/sponti/deploy/netcup`:
-- `docker compose logs -f api` (or `auth`, `caddy`)
+- `docker compose logs -f api` (or `auth`, `caddy`), see [Logs](#logs)
 - `docker compose ps`
 - `docker compose restart auth`
+
+## Logs
+
+`api`, `auth` and `caddy` log to the host's journald (`logging.driver: journald` in `docker-compose.yml`), each with a tag: `sponti-api`, `sponti-auth`, `sponti-caddy`. The privacy note promises that technical logs (IP address, time, requested path) are deleted after 14 days at the latest, so the host's journald is set to keep 14 days. Caddy writes no access log; its own startup and error output is what lands in `sponti-caddy`.
+
+**The 14-day limit is only enforced once the one-time host step below has been run.** Until then journald keeps logs by size only (no time limit). The step is not part of `deploy.sh`: it changes the host, not the app.
+
+### One-time host step (as root, after the deploy that brings the compose change)
+
+The deploy copies `journald-retention.conf` to `/opt/sponti/deploy/netcup/` first, so merge to `dev` (or run `deploy.sh`) before this. Then, on the server:
+
+```sh
+install -D -m 644 /opt/sponti/deploy/netcup/journald-retention.conf /etc/systemd/journald.conf.d/sponti-retention.conf
+systemctl restart systemd-journald
+journalctl --rotate && journalctl --vacuum-time=14d
+systemd-analyze cat-config systemd/journald.conf | grep -E 'MaxRetentionSec|MaxFileSec'
+```
+
+1. `install` puts the drop-in in place. It is safe to re-run, and it overwrites the file with the repo's version.
+2. Restarting journald makes it read the drop-in.
+3. `--rotate` closes the current journal files and `--vacuum-time=14d` deletes everything older than 14 days right away (otherwise that waits for the next rotation).
+4. The last line should show `MaxRetentionSec=14day` and `MaxFileSec=1day`.
+
+journald only deletes whole journal files, so `MaxFileSec=1day` makes it start a new file every day. Without it a file can stay open for a month, and the entries in it would be kept past 14 days. This applies to the host's whole journal (sshd and the rest too), not just the containers.
+
+### Reading logs
+
+In `/opt/sponti/deploy/netcup`:
+
+- `docker compose logs -f api` (or `auth`, `caddy`), `docker compose logs --since 1h api`
+- `journalctl CONTAINER_TAG=sponti-api --since "1 hour ago"` (or `sponti-auth`, `sponti-caddy`), add `-f` to follow
+- `journalctl CONTAINER_TAG=sponti-api -p err` for errors only
+
+Only the last 14 days exist. Switching the driver recreates the containers on the next deploy, and the logs of the old containers (Docker's default `json-file`) go with them.
