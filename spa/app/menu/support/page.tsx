@@ -167,7 +167,7 @@ export default function SupportPage() {
                         <p className="mt-1 text-sm leading-6 text-muted-foreground">
                           {item.description}
                         </p>
-                        <p className="mt-3 text-xs font-medium tracking-wide text-accent uppercase">
+                        <p className="mt-3 text-xs font-medium text-accent">
                           {item.detail}
                         </p>
                       </div>

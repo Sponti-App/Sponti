@@ -762,7 +762,7 @@ export default function CirclesPage() {
                           />
 
                           <div className="flex items-center gap-1.5">
-                            <p className="mr-1 text-xs tracking-wide text-muted-foreground uppercase">
+                            <p className="mr-1 text-xs text-muted-foreground">
                               sort
                             </p>
                             {(["recent", "alpha"] as const).map((s) => (
