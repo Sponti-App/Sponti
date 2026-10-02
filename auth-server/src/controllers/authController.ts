@@ -17,7 +17,7 @@ import {
   verifyRefreshToken,
 } from "#lib/tokens";
 import cloudinary from "#lib/cloudinary";
-import { toOwnProfileResponse, toUserResponse } from "#lib/userResponse";
+import { toOwnProfileResponse } from "#lib/userResponse";
 import { env } from "#config/env";
 import streamfier from "streamifier";
 
@@ -61,7 +61,7 @@ const createSessionResponse = async (user: InstanceType<typeof User>) => {
   return {
     accessToken,
     refreshToken,
-    user: toUserResponse(user),
+    user: toOwnProfileResponse(user),
   };
 };
 
