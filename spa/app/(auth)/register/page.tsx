@@ -13,6 +13,12 @@ import { fetchContactPreviewName } from "@/lib/api/contact-preview"
 import { parseContactPath } from "@/lib/contact-links"
 import { HttpError, warmBackends } from "@/lib/http"
 import { getRedirectTarget, useRedirectQuery } from "@/lib/redirect-path"
+import {
+  clearRegisterDraft,
+  readRegisterDraft,
+  writeRegisterDraft,
+  type RegisterDraft,
+} from "@/lib/register-draft"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -25,6 +31,24 @@ export default function RegisterPage() {
   const [submitting, setSubmitting] = useState(false)
   const [googleSubmitting, setGoogleSubmitting] = useState(false)
   const redirectQuery = useRedirectQuery()
+
+  // #300: bring back what was typed before a trip to the terms, privacy note
+  // or impressum. Read after mount, so the server render and the first client
+  // render agree. Never the password: the draft has no field for it.
+  useEffect(() => {
+    const draft = readRegisterDraft()
+    if (!draft) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-off restore from browser storage after hydration
+    setDisplayName(draft.displayName)
+    setUsername(draft.username)
+    setEmail(draft.email)
+  }, [])
+
+  // Saved from the change handlers rather than an effect, so an effect pass
+  // with the initial empty values can never overwrite a draft before it is
+  // restored.
+  const updateDraft = (patch: Partial<RegisterDraft>) =>
+    writeRegisterDraft({ displayName, username, email, ...patch })
 
   // #212: start waking both Render services while the user fills in the form.
   useEffect(() => {
@@ -50,17 +74,17 @@ export default function RegisterPage() {
   const usernameError =
     username && !usernameValid
       ? username.length < 3
-        ? "Use at least 3 characters."
-        : "Use letters, numbers, _ or -."
+        ? "use at least 3 characters"
+        : "use letters, numbers, _ or -"
       : null
   const passwordError =
-    password && password.length < 8 ? "Use at least 8 characters." : null
+    password && password.length < 8 ? "use at least 8 characters" : null
   const canSubmit = Boolean(
     displayName.trim() && usernameValid && email.trim() && password.length >= 8
   )
   const missingRequirements = canSubmit
-    ? "Create account"
-    : "Enter a name, valid username, email, and an 8 character password."
+    ? "create account"
+    : "enter a name, a valid username, an email and an 8 character password"
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -78,13 +102,14 @@ export default function RegisterPage() {
         email: email.trim(),
         password,
       })
+      clearRegisterDraft()
       // #219: return to the page that sent the user to sign in, if any.
       router.replace(getRedirectTarget())
     } catch (err) {
       if (err instanceof HttpError) {
         setError(err.message)
       } else {
-        setError("Something went wrong. Try again.")
+        setError("something went wrong, try again")
       }
       setSubmitting(false)
     }
@@ -97,12 +122,13 @@ export default function RegisterPage() {
       setGoogleSubmitting(true)
       try {
         await loginWithGoogle(credential)
+        clearRegisterDraft()
         router.replace(getRedirectTarget())
       } catch (err) {
         if (err instanceof HttpError) {
           setError(err.message)
         } else {
-          setError("Something went wrong. Try again.")
+          setError("something went wrong, try again")
         }
         setGoogleSubmitting(false)
       }
@@ -150,15 +176,15 @@ export default function RegisterPage() {
               <Flame className="size-3.5" />
             </span>
             <span className="text-sm font-semibold tracking-normal">
-              Sponti
+              sponti
             </span>
           </div>
           <div className="mb-4 inline-flex items-center gap-2 text-xs font-medium tracking-normal text-accent">
             <span className="h-px w-3.5 bg-accent" />
             last step
           </div>
-          <h1 className="text-[28px] leading-[1.08] font-bold tracking-normal">
-            Claim your handle.
+          <h1 className="text-lg font-semibold tracking-normal">
+            claim your handle
           </h1>
         </header>
 
@@ -172,7 +198,10 @@ export default function RegisterPage() {
                 minLength={2}
                 maxLength={50}
                 value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                onChange={(e) => {
+                  setDisplayName(e.target.value)
+                  updateDraft({ displayName: e.target.value })
+                }}
                 className="h-[46px] rounded-xl"
               />
             </Field>
@@ -186,9 +215,11 @@ export default function RegisterPage() {
                 maxLength={30}
                 pattern="[a-zA-Z0-9_-]+"
                 value={username}
-                onChange={(e) =>
-                  setUsername(e.target.value.toLowerCase().replace(/\s/g, ""))
-                }
+                onChange={(e) => {
+                  const next = e.target.value.toLowerCase().replace(/\s/g, "")
+                  setUsername(next)
+                  updateDraft({ username: next })
+                }}
                 className="h-[46px] rounded-xl"
               />
               {usernameValid ? (
@@ -210,7 +241,10 @@ export default function RegisterPage() {
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  updateDraft({ email: e.target.value })
+                }}
                 className="h-[46px] rounded-xl"
               />
             </Field>
@@ -246,9 +280,9 @@ export default function RegisterPage() {
               type="submit"
               disabled={submitting || !canSubmit}
               title={missingRequirements}
-              className="h-[52px] w-full rounded-full bg-accent text-[15px] text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
+              className="h-[52px] w-full rounded-full bg-accent text-base text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
             >
-              {submitting ? "creating account…" : "Create account"}
+              {submitting ? "creating account…" : "create account"}
               {!submitting && <ArrowRight className="size-4" />}
             </Button>
 
@@ -263,7 +297,7 @@ export default function RegisterPage() {
               onCredential={handleGoogleCredential}
             />
 
-            <p className="mt-4 text-center text-[11.5px] leading-5 text-muted-foreground">
+            <p className="mt-4 text-center text-xs leading-5 text-muted-foreground">
               by signing up you agree to the{" "}
               <Link
                 href="/menu/terms"

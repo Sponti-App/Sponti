@@ -33,13 +33,17 @@ The goal is a build we can hand to 5–10 friends who use it as a real app, then
 
 _Phase 0 — Understand & fix: done._ Codebase walkthrough (#87), discovery-only profile privacy in search (#88), circles/users owned by `api/` with aligned DBs (#89, #102), attendee ETAs surfaced to the host (#90, #211), settings wired to their backends (#91), demo data decoupled + real empty states (#92).
 
-_Phase 1 — Gate for external testers (in progress, #93):_ small, one-flag-per-PR render-site guards in `spa/lib/feature-flags.ts`. Re-share is gated (#231). +1 / guest invites wait on the decision in #159. `socialBattery` stays unrendered. **Keep custom circles**, which are fully wired. Social handles are no longer gated: they are being built for real in the profile work (#166).
+_Phase 1 — Gate for external testers: done (#93)._ The tester profile in `spa/lib/feature-flags.ts` hides re-share (#231) and +1 (#159 still decides what they become). `socialBattery` stays unrendered. **Keep custom circles**, which are fully wired.
+
+_Profile rebuild: done (#166)._ Photo, one-line bio and Instagram/Telegram handles. Bio and handles are visible to connections only. Strangers see name, @username and photo, and a user who blocked you gets "not found". The fields live in `auth-server/`, and `api/` reads them. Open privacy calls: #268.
 
 _Current work (tracked as GitHub issues):_
 
-- **First-friend onboarding (#124):** instant QR connect, 7-day invite link, and signed-out visitors land on sign-up and come back to the link. Still needs a real-phone check.
-- **Profile rebuild (#166):** photo, one-line bio, and Instagram/Telegram handles. Bio and handles are visible to connections only. Strangers see name, @username and photo, and a user who blocked you gets "not found". New fields live in `auth-server/`, and `api/` reads them. The host's profile opens from a flare for connected and unconnected viewers (#199). Settle #260, #267 and #268 before bio and handles ship.
+- **Pre-launch checklist (#274):** the living list of to-dos before sharing with testers. Add launch blockers there.
+- **Map pins (#315):** one circle per flare with its category icon, plum for invite only and teal for open to all. Peach on a pin means live only.
+- **Icon set (#345):** Iconoir vs Phosphor as a replacement for Lucide, previewed in a prototype PR. Keep using Lucide until it's decided.
 - **Ideas on a quiet map (#240):** curated Berlin idea spots (`spa/lib/flare-ideas.data.ts`, owned by the team) offered as one-tap flares.
+- **Parked until testers give feedback:** first-friend onboarding (#124: QR connect and the 7-day invite link work, and still need a real-phone check) and the composer layout (#311).
 
 **Milestone 2 — Native distribution (store-prep, after the web round):**
 
@@ -82,11 +86,13 @@ npm run build:mobile  # next build + cap sync (native builds need #205 settled)
 npm run open:ios      # Open Xcode
 npm run open:android  # Open Android Studio
 npm run lint          # ESLint
-npm run format        # Prettier (ts/tsx)
+npm run format        # Prettier (CI runs format:check, so format before committing)
 npm run typecheck     # tsc --noEmit
 npm test              # Vitest unit tests
 npm run test:e2e      # Playwright e2e against stubbed backends (e2e/support/stubs.ts)
 ```
+
+Design questions get a throwaway route under `spa/app/prototype/<name>/` (dev-only, nothing links to it) with committed screenshots, opened as a draft "prototype:" PR that is closed once a direction is picked.
 
 Playwright starts its own dev server on port 4415. Set `PLAYWRIGHT_WEB_SERVER_PORT` to run several copies side by side (e.g. one per git worktree). UI checks use the stubbed e2e setup, not real data: the local `.env` points at the shared database.
 
@@ -106,6 +112,7 @@ cd api
 npm run dev          # tsx watch
 npm test             # Vitest (unit + mongodb-memory-server db tests)
 npm run typecheck && npm run lint
+npm run format       # Prettier (CI runs format:check)
 ```
 
 ### auth-server
@@ -165,7 +172,7 @@ Canonical reference: [BRAND.md](./BRAND.md). Read it before touching styling.
 - One CTA color in both modes: saturated peach `oklch(0.8041 0.126 52.09)` (`--primary`, `--accent`, `--ring`). Foreground on peach: dark warm `oklch(0.25 0.06 50)`.
 - Light mode bg: pale pink-cream `oklch(0.97 0.015 346)`. Dark mode bg: ink-black navy `oklch(0.2178 0.0145 266.91)`.
 - Typography: **Bricolage Grotesque** (one family, 4-step scale 18/16/14/12 px, hierarchy via weight + color not size). All product copy lowercase.
-- Stack: Tailwind v4 + shadcn Nova preset + Radix + Lucide.
+- Stack: Tailwind v4 + shadcn Nova preset + Radix + Lucide (a replacement is under review in #345).
 - Recurring patterns: `border-l-[3px] border-l-accent` for live/active rows, `bg-card text-primary` for selected segmented/tab states, FAB only on map view, ended/past states muted and folded behind a "show N ended" toggle.
 - Do not fall back to stock shadcn `--accent` — we override it with the brand peach in both modes.
 

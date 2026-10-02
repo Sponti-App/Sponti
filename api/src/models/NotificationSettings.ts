@@ -6,6 +6,7 @@ const notificationSettingsSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      // The one declaration of the unique userId_1 index. A second schema.index() would warn.
       unique: true,
     },
     quietHoursEnabled: {
@@ -34,8 +35,6 @@ const notificationSettingsSchema = new Schema(
     timestamps: true,
   }
 );
-
-notificationSettingsSchema.index({ userId: 1 }, { unique: true });
 
 export type NotificationSettingsDocument = InferSchemaType<typeof notificationSettingsSchema>;
 

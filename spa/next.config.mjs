@@ -23,7 +23,8 @@ function getAllowedDevOrigins() {
 
 function getAppVersion() {
   try {
-    return JSON.parse(readFileSync(join(appDir, "package.json"), "utf8")).version
+    return JSON.parse(readFileSync(join(appDir, "package.json"), "utf8"))
+      .version
   } catch {
     return ""
   }

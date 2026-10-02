@@ -79,7 +79,11 @@ export function CategoryTile({
       )}
       style={{ backgroundColor: tint.bg, color: tint.fg }}
     >
-      <Icon className={size === "lg" ? "h-7 w-7" : size === "md" ? "h-5 w-5" : "h-4 w-4"} />
+      <Icon
+        className={
+          size === "lg" ? "h-7 w-7" : size === "md" ? "h-5 w-5" : "h-4 w-4"
+        }
+      />
     </div>
   )
 }

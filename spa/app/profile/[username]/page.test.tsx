@@ -263,7 +263,10 @@ describe("PublicProfilePage", () => {
 
     await renderPage()
 
-    expect(await screen.findByText("this is you")).toBeInTheDocument()
+    expect(
+      await screen.findByRole("link", { name: "edit profile" })
+    ).toBeInTheDocument()
+    expect(screen.queryByText("this is you")).not.toBeInTheDocument()
     expect(
       screen.queryByRole("button", { name: "options" })
     ).not.toBeInTheDocument()

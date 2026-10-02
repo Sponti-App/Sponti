@@ -166,7 +166,7 @@ export default function MonthCalendar({
   const pinnedOffsetPx = selectedWeekIndex * rows.step
   return (
     <div>
-      <div className="mb-1.5 grid grid-cols-7 text-center text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      <div className="mb-1.5 grid grid-cols-7 text-center text-xs font-medium text-muted-foreground">
         {WEEKDAY_LABELS.map((day) => (
           <div key={day}>{day}</div>
         ))}

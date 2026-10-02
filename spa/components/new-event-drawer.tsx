@@ -56,6 +56,7 @@ import {
   type ReverseGeocodeArea,
 } from "@/lib/current-location"
 import { EVENT_TYPES } from "@/types/utils"
+import { NOW_START_PRESETS, NowChipRow } from "@/components/now-chip-row"
 
 type Mode = "now" | "scheduled"
 type WhereType = "current" | "search"
@@ -283,6 +284,51 @@ export function buildTimeRange(args: {
   }
 }
 
+// "Right now" keeps the end as an offset from now (`endOffsetMin`), so the
+// duration is end − start. A start pick keeps the duration the person chose;
+// a duration pick keeps the start (#312). OPEN_ENDED stays open either way.
+export function nowRangeAfterStartPick(
+  prev: { startOffsetMin: number; endOffsetMin: number },
+  nextStartOffsetMin: number
+): { startOffsetMin: number; endOffsetMin: number } {
+  if (prev.endOffsetMin === OPEN_ENDED) {
+    return { startOffsetMin: nextStartOffsetMin, endOffsetMin: OPEN_ENDED }
+  }
+  const duration = prev.endOffsetMin - prev.startOffsetMin
+  return {
+    startOffsetMin: nextStartOffsetMin,
+    endOffsetMin: nextStartOffsetMin + duration,
+  }
+}
+
+export function nowRangeAfterDurationPick(
+  prev: { startOffsetMin: number },
+  durationOrOpenEnded: number
+): { startOffsetMin: number; endOffsetMin: number } {
+  return {
+    startOffsetMin: prev.startOffsetMin,
+    endOffsetMin:
+      durationOrOpenEnded === OPEN_ENDED
+        ? OPEN_ENDED
+        : prev.startOffsetMin + durationOrOpenEnded,
+  }
+}
+
+// The when chip in "right now" mode: "now · 1h", "in 30m · 1h",
+// "in 15m · open-ended".
+export function nowWhenLabel(
+  startOffsetMin: number,
+  endOffsetMin: number
+): string {
+  const start =
+    startOffsetMin === 0 ? "now" : `in ${formatRelative(startOffsetMin)}`
+  const length =
+    endOffsetMin === OPEN_ENDED
+      ? "open-ended"
+      : formatRelative(endOffsetMin - startOffsetMin)
+  return `${start} · ${length}`
+}
+
 const LETS_LIGHT_IT_UP = "let's light it up"
 const ON_CALENDAR_NOW_TOAST = "on your calendar now, on the map on the day"
 
@@ -290,9 +336,13 @@ const ON_CALENDAR_NOW_TOAST = "on your calendar now, on the map on the day"
 // A flare within the map's soon window lights up immediately; one further
 // out only shows on the calendar until it enters that window, so the toast
 // says so instead of implying it's live on the map now.
-export function successToastForStart(startAt: string, createdAt: string): string {
+export function successToastForStart(
+  startAt: string,
+  createdAt: string
+): string {
   const startsBeyondSoonWindow =
-    new Date(startAt).getTime() - new Date(createdAt).getTime() > MAP_SOON_WINDOW_MS
+    new Date(startAt).getTime() - new Date(createdAt).getTime() >
+    MAP_SOON_WINDOW_MS
   return startsBeyondSoonWindow ? ON_CALENDAR_NOW_TOAST : LETS_LIGHT_IT_UP
 }
 
@@ -1193,13 +1243,7 @@ export function NewEventDrawer({
   }, [whereType, selectedLocation, pickedSearchAddress, searchQuery])
 
   const whenLabel = useMemo(() => {
-    if (mode === "now") {
-      if (endOffsetMin === OPEN_ENDED) return "now · open-ended"
-      const dur = endOffsetMin - startOffsetMin
-      return startOffsetMin === 0
-        ? `now · ${formatRelative(dur)}`
-        : `in ${formatRelative(startOffsetMin)} · ${formatRelative(dur)}`
-    }
+    if (mode === "now") return nowWhenLabel(startOffsetMin, endOffsetMin)
     const d = new Date(startDate + "T00:00:00")
     const chip = formatDayChip(d)
     return `${chip.weekday} ${formatTimeOfDay(startTimeMin)}`
@@ -1585,20 +1629,43 @@ export function NewEventDrawer({
                   {mode === "now" ? (
                     <>
                       <p className="mb-2 text-xs font-medium text-muted-foreground">
+                        starts
+                      </p>
+                      <NowChipRow
+                        ariaLabel="starts"
+                        presets={NOW_START_PRESETS}
+                        value={startOffsetMin}
+                        onChange={(v) => {
+                          const next = nowRangeAfterStartPick(
+                            { startOffsetMin, endOffsetMin },
+                            v
+                          )
+                          setStartOffsetMin(next.startOffsetMin)
+                          setEndOffsetMin(next.endOffsetMin)
+                        }}
+                      />
+                      <p className="mt-3 mb-2 text-xs font-medium text-muted-foreground">
                         how long?
                       </p>
-                      <NowDurationChips
-                        value={endOffsetMin}
+                      <NowChipRow
+                        ariaLabel="how long?"
+                        presets={NOW_DURATION_PRESETS}
+                        value={
+                          endOffsetMin === OPEN_ENDED
+                            ? OPEN_ENDED
+                            : endOffsetMin - startOffsetMin
+                        }
                         onChange={(v) => {
-                          setStartOffsetMin(0)
-                          setEndOffsetMin(v)
+                          const next = nowRangeAfterDurationPick(
+                            { startOffsetMin },
+                            v
+                          )
+                          setStartOffsetMin(next.startOffsetMin)
+                          setEndOffsetMin(next.endOffsetMin)
                         }}
                       />
                       <p className="mt-2 text-xs text-muted-foreground">
-                        starts now
-                        {endOffsetMin === OPEN_ENDED
-                          ? " · open-ended"
-                          : ` · ${formatRelative(endOffsetMin)}`}
+                        starts {nowWhenLabel(startOffsetMin, endOffsetMin)}
                       </p>
                     </>
                   ) : (
@@ -1957,12 +2024,13 @@ function EventTypePills({
   )
 }
 
-// ----- Right Now duration chips -----
+// ----- Right Now chips -----
 
-// Compact horizontal scrollable chip row for the spontaneous flow. Replaces
+// Compact horizontal scrollable chip rows for the spontaneous flow. Replaces
 // the twin scroll wheels which trapped vertical-scroll gestures in a narrow
-// drawer. Start is always "now" in this mode — if the user needs a delayed
-// start they should switch to "pick a time".
+// drawer. "starts" offers a short delay ("heading there in half an hour",
+// #312; NOW_START_PRESETS in now-chip-row.tsx); anything later belongs in
+// "pick a time".
 const NOW_DURATION_PRESETS: { value: number; label: string }[] = [
   { value: 30, label: "30m" },
   { value: 60, label: "1h" },
@@ -1971,38 +2039,6 @@ const NOW_DURATION_PRESETS: { value: number; label: string }[] = [
   { value: 240, label: "4h" },
   { value: OPEN_ENDED, label: "open" },
 ]
-
-function NowDurationChips({
-  value,
-  onChange,
-}: {
-  value: number
-  onChange: (v: number) => void
-}) {
-  return (
-    <div className="-mx-4 no-scrollbar overflow-x-auto px-4">
-      <div className="flex gap-2">
-        {NOW_DURATION_PRESETS.map((p) => {
-          const selected = value === p.value
-          return (
-            <button
-              key={p.value}
-              type="button"
-              onClick={() => onChange(p.value)}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                selected
-                  ? "border-accent bg-accent/10 font-medium text-accent"
-                  : "border-border text-foreground hover:bg-secondary"
-              }`}
-            >
-              {p.label}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 // ----- Time wheels -----
 

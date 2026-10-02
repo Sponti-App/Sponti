@@ -77,7 +77,11 @@ export function VariantB(props: VariantProps) {
             onClick={() => onStub(isHost ? "edit flare" : "share")}
             className="h-10 w-10 rounded-full bg-background/90"
           >
-            {isHost ? <Pencil className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+            {isHost ? (
+              <Pencil className="h-4 w-4" />
+            ) : (
+              <Share2 className="h-4 w-4" />
+            )}
           </Button>
         </div>
         <button
@@ -86,7 +90,10 @@ export function VariantB(props: VariantProps) {
           className="absolute right-4 bottom-9 rounded-full bg-background/90 px-3 py-1.5 text-xs shadow-sm"
         >
           <span className="font-medium">{flare.place.name}</span>
-          <span className="text-muted-foreground"> · {flare.place.distance} · {flare.place.travel}</span>
+          <span className="text-muted-foreground">
+            {" "}
+            · {flare.place.distance} · {flare.place.travel}
+          </span>
         </button>
       </div>
 
@@ -97,7 +104,9 @@ export function VariantB(props: VariantProps) {
         <div className="flex items-start gap-3">
           <CategoryTile flare={flare} size="lg" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg leading-snug font-semibold">{flare.title}</h1>
+            <h1 className="text-lg leading-snug font-semibold">
+              {flare.title}
+            </h1>
             <p
               className={cn(
                 "mt-0.5 flex items-center gap-1 text-sm",
@@ -125,9 +134,12 @@ export function VariantB(props: VariantProps) {
           <div className="pr-3">
             <p className="text-xs text-muted-foreground">when</p>
             <p className="text-sm font-medium">
-              {live ? "now" : dayLabel(flare.startAt, now)} · {clock(flare.startAt)}
+              {live ? "now" : dayLabel(flare.startAt, now)} ·{" "}
+              {clock(flare.startAt)}
             </p>
-            <p className="text-xs text-muted-foreground">until {clock(flare.endAt)}</p>
+            <p className="text-xs text-muted-foreground">
+              until {clock(flare.endAt)}
+            </p>
           </div>
           <div className="pl-3">
             <p className="text-xs text-muted-foreground">where</p>
@@ -143,13 +155,18 @@ export function VariantB(props: VariantProps) {
           <PersonAvatar person={flare.host} className="size-7" />
           <div className="min-w-0">
             <p className="text-sm font-medium">
-              {isHost ? "hosted by you" : `hosted by ${flare.host.displayName.toLowerCase()}`}
+              {isHost
+                ? "hosted by you"
+                : `hosted by ${flare.host.displayName.toLowerCase()}`}
               <span className="font-normal text-muted-foreground">
-                {" "}· {categoryOf(flare).label}
+                {" "}
+                · {categoryOf(flare).label}
                 {flare.visibility === "private" && " · private"}
               </span>
             </p>
-            <p className="mt-0.5 text-sm text-muted-foreground">{flare.description}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {flare.description}
+            </p>
           </div>
         </div>
 
@@ -163,19 +180,27 @@ export function VariantB(props: VariantProps) {
               {goingCount(flare)} going
             </TabsTrigger>
             <TabsTrigger value="updates" className={TAB_TRIGGER}>
-              updates · {flare.updates.filter((u) => u.kind === "message").length}
+              updates ·{" "}
+              {flare.updates.filter((u) => u.kind === "message").length}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="guests" className="pt-2">
             {isHost ? (
-              <HostArrivals flare={flare} now={now} live={live} onStub={onStub} />
+              <HostArrivals
+                flare={flare}
+                now={now}
+                live={live}
+                onStub={onStub}
+              />
             ) : (
               <div className="grid grid-cols-4 gap-y-3">
                 {going.map((g) => (
                   <div key={g.id} className="flex flex-col items-center gap-1">
                     <PersonAvatar person={g} className="size-11" />
                     <span className="max-w-full truncate text-xs">
-                      {g.isYou ? "you" : g.displayName.split(" ")[0].toLowerCase()}
+                      {g.isYou
+                        ? "you"
+                        : g.displayName.split(" ")[0].toLowerCase()}
                     </span>
                   </div>
                 ))}
@@ -187,7 +212,9 @@ export function VariantB(props: VariantProps) {
               <PlaceholderTag>#140 thread</PlaceholderTag>
             </div>
             {viewer === "invited" ? (
-              <p className="text-xs text-muted-foreground">join to see updates.</p>
+              <p className="text-xs text-muted-foreground">
+                join to see updates.
+              </p>
             ) : (
               <div className="flex flex-col gap-3">
                 {flare.updates
@@ -229,12 +256,16 @@ function ActionsB({
   live,
 }: VariantProps & { live: boolean }) {
   const [etaOpen, setEtaOpen] = useState(false)
-  const peach = "h-12 w-full rounded-full bg-accent text-base text-accent-foreground hover:bg-accent/90"
+  const peach =
+    "h-12 w-full rounded-full bg-accent text-base text-accent-foreground hover:bg-accent/90"
 
   if (viewer === "host") {
     return (
       <div className="flex gap-2">
-        <Button className={cn(peach, "flex-1")} onClick={() => onStub("post update")}>
+        <Button
+          className={cn(peach, "flex-1")}
+          onClick={() => onStub("post update")}
+        >
           <Send className="h-4 w-4" /> post an update
         </Button>
         <Button
@@ -286,7 +317,9 @@ function ActionsB({
         )}
         <Button className={peach} onClick={onJoin}>
           <Check className="h-4 w-4" />
-          {live ? `on the way · ${etaLabel(myEta)}` : `i'm in · ${dayLabel(flare.startAt, now)} ${clock(flare.startAt)}`}
+          {live
+            ? `on the way · ${etaLabel(myEta)}`
+            : `i'm in · ${dayLabel(flare.startAt, now)} ${clock(flare.startAt)}`}
         </Button>
         <button
           type="button"
@@ -348,10 +381,17 @@ function ActionsB({
         </>
       ) : (
         <div className="flex gap-2">
-          <Button className={cn(peach, "flex-1")} onClick={() => onStub("add to calendar")}>
+          <Button
+            className={cn(peach, "flex-1")}
+            onClick={() => onStub("add to calendar")}
+          >
             add to calendar
           </Button>
-          <Button variant="outline" className="h-12 rounded-full px-4" onClick={onLeave}>
+          <Button
+            variant="outline"
+            className="h-12 rounded-full px-4"
+            onClick={onLeave}
+          >
             leave
           </Button>
         </div>
@@ -382,7 +422,9 @@ export function HostArrivals({
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">
                 {g.displayName.toLowerCase()}
-                {g.plusOne && <span className="text-muted-foreground"> +1</span>}
+                {g.plusOne && (
+                  <span className="text-muted-foreground"> +1</span>
+                )}
               </p>
               {live && g.willArriveAt && (
                 <p className="truncate text-xs text-muted-foreground">
@@ -411,7 +453,9 @@ export function HostArrivals({
         {invited.map((g) => (
           <div key={g.id} className="flex items-center gap-2.5 py-1 opacity-60">
             <PersonAvatar person={g} className="size-6" />
-            <span className="flex-1 text-sm">{g.displayName.toLowerCase()}</span>
+            <span className="flex-1 text-sm">
+              {g.displayName.toLowerCase()}
+            </span>
             <span className="text-xs text-muted-foreground">
               {g.rsvp === "declined" ? "can't make it" : "invited"}
             </span>
@@ -430,7 +474,13 @@ export function HostArrivals({
 }
 
 /** Stylised map stand-in (no Maps key needed). Streets, a park, the pin. */
-export function MapArt({ flare, showRoute }: { flare: MockFlare; showRoute: boolean }) {
+export function MapArt({
+  flare,
+  showRoute,
+}: {
+  flare: MockFlare
+  showRoute: boolean
+}) {
   const tint = tintFor(flare)
   const { icon: Icon } = categoryOf(flare)
   return (
@@ -441,8 +491,20 @@ export function MapArt({ flare, showRoute }: { flare: MockFlare; showRoute: bool
         className="h-full w-full text-border"
         aria-hidden
       >
-        <rect x="230" y="20" width="110" height="70" rx="8" className="fill-current opacity-40" />
-        <g stroke="currentColor" strokeWidth="10" fill="none" className="text-background">
+        <rect
+          x="230"
+          y="20"
+          width="110"
+          height="70"
+          rx="8"
+          className="fill-current opacity-40"
+        />
+        <g
+          stroke="currentColor"
+          strokeWidth="10"
+          fill="none"
+          className="text-background"
+        >
           <path d="M-10 70 L400 40" />
           <path d="M-10 170 L400 150" />
           <path d="M90 -10 L120 260" />
@@ -459,11 +521,25 @@ export function MapArt({ flare, showRoute }: { flare: MockFlare; showRoute: bool
             fill="none"
           />
         )}
-        {showRoute && <circle cx="70" cy="170" r="7" fill="oklch(0.6 0.15 250)" stroke="white" strokeWidth="3" />}
+        {showRoute && (
+          <circle
+            cx="70"
+            cy="170"
+            r="7"
+            fill="oklch(0.6 0.15 250)"
+            stroke="white"
+            strokeWidth="3"
+          />
+        )}
       </svg>
       <div
         className="absolute flex h-11 w-11 items-center justify-center rounded-full border-4 border-background shadow-md"
-        style={{ left: "calc(50% - 22px + 2px)", top: 76, backgroundColor: tint.fg, color: "white" }}
+        style={{
+          left: "calc(50% - 22px + 2px)",
+          top: 76,
+          backgroundColor: tint.fg,
+          color: "white",
+        }}
       >
         <Icon className="h-5 w-5" />
       </div>

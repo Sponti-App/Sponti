@@ -207,6 +207,89 @@ function StaticMapFallback({
   )
 }
 
+// The popover over a tapped flare pin. On the real map, Google cancels the
+// native touch on marker content and only re-sends the click itself, so a
+// plain button in a non-clickable marker can't be relied on for a tap
+// (#314). The marker is clickable instead and Google's marker click is the
+// one path that opens the flare, like the pins. The close button is told
+// apart by where the press started, since Google says not to rely on the
+// click's target.
+export function FlarePreviewMarker({
+  event,
+  position,
+  onOpen,
+  onClose,
+}: {
+  event: EventItem
+  position: GeoCoords
+  onOpen: () => void
+  onClose: () => void
+}) {
+  const closePressedRef = useRef(false)
+  return (
+    <AdvancedMarker
+      position={position}
+      zIndex={1000}
+      clickable
+      title={`open ${event.title.split("·", 2)[0].trim()}`}
+      onClick={() => {
+        if (closePressedRef.current) {
+          closePressedRef.current = false
+          onClose()
+          return
+        }
+        onOpen()
+      }}
+    >
+      <div
+        data-flare-preview={event.id}
+        onPointerDown={() => {
+          closePressedRef.current = false
+        }}
+        className="relative mb-10 flex origin-bottom animate-[scale-in_150ms_ease-out] flex-col items-center"
+      >
+        <div className="relative w-52 rounded-2xl border border-border/60 bg-background p-3.5 shadow-xl">
+          <button
+            type="button"
+            aria-label="close"
+            onPointerDown={(e) => {
+              e.stopPropagation()
+              closePressedRef.current = true
+            }}
+            onClick={(e) => {
+              // A mouse or keyboard click can reach the marker too. With the
+              // flag set, the marker's handler closes as well, never opens.
+              e.stopPropagation()
+              closePressedRef.current = true
+              onClose()
+            }}
+            className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+          <div className="flex w-full flex-col items-center gap-1.5 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15">
+              {eventIcon(event.type, event.host.avatar)}
+            </div>
+            <p className="line-clamp-2 text-sm font-semibold text-foreground">
+              {event.title.split("·", 2)[0]}
+            </p>
+            <p className="line-clamp-1 text-xs text-muted-foreground">
+              {event.location.name}
+            </p>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span>{event.going} going</span>
+              <span className="text-border">·</span>
+              <span>by {event.host.name.trim().split(/\s+/)[0]}</span>
+            </div>
+          </div>
+        </div>
+        <div className="h-0 w-0 border-x-[8px] border-t-[8px] border-x-transparent border-t-background" />
+      </div>
+    </AdvancedMarker>
+  )
+}
+
 function GoogleMapContent({
   events,
   onEventSelect,
@@ -367,45 +450,15 @@ function GoogleMapContent({
         )
       })}
       {previewEvent && eventCoords(previewEvent) && (
-        <AdvancedMarker position={eventCoords(previewEvent)!} zIndex={1000}>
-          <div className="relative mb-10 flex origin-bottom animate-[scale-in_150ms_ease-out] flex-col items-center">
-            <div className="relative w-52 rounded-2xl border border-border/60 bg-background p-3.5 shadow-xl">
-              <button
-                type="button"
-                onClick={() => setPreviewEvent(null)}
-                className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onEventSelect(previewEvent)
-                  setPreviewEvent(null)
-                }}
-                className="flex w-full flex-col items-center gap-1.5 text-center"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15">
-                  {eventIcon(previewEvent.type, previewEvent.host.avatar)}
-                </div>
-                <p className="line-clamp-2 text-sm font-semibold text-foreground">
-                  {previewEvent.title.split("·", 2)[0]}
-                </p>
-                <p className="line-clamp-1 text-xs text-muted-foreground">
-                  {previewEvent.location.name}
-                </p>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span>{previewEvent.going} going</span>
-                  <span className="text-border">·</span>
-                  <span>
-                    by {previewEvent.host.name.trim().split(/\s+/)[0]}
-                  </span>
-                </div>
-              </button>
-            </div>
-            <div className="h-0 w-0 border-x-[8px] border-t-[8px] border-x-transparent border-t-background" />
-          </div>
-        </AdvancedMarker>
+        <FlarePreviewMarker
+          event={previewEvent}
+          position={eventCoords(previewEvent)!}
+          onOpen={() => {
+            onEventSelect(previewEvent)
+            setPreviewEvent(null)
+          }}
+          onClose={() => setPreviewEvent(null)}
+        />
       )}
       {routeResult && <GoogleMapPolyline path={routeResult.path} />}
       {routeDestination && (
@@ -912,8 +965,7 @@ export function MapView({
         best = id
       }
     }
-    // The CTA card at the end of the rail has no pin to highlight.
-    setRailFocusId(best === RAIL_CTA_ID ? null : best)
+    setRailFocusId(best)
   }
 
   const singleType =
@@ -1108,40 +1160,18 @@ export function MapView({
                 />
               </RailPanel>
             ) : (
-              <>
-                {visibleEvents.map((event) => (
-                  <RailCard
-                    key={event.id}
-                    event={event}
-                    joined={isJoined(event, joinedIds)}
-                    user={geo.coords}
-                    onClick={() => onEventSelect(event)}
-                  />
-                ))}
-                <div
-                  data-rail-id={RAIL_CTA_ID}
-                  className="flex w-[78%] max-w-80 shrink-0 snap-center flex-col gap-2 rounded-2xl border border-border bg-card p-3 shadow-(--shadow-card)"
-                >
-                  <div>
-                    <p className="text-base font-semibold">
-                      {singleType
-                        ? `up for ${singleType.label}?`
-                        : "nothing you fancy?"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      start one and your circles will see it
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => lightFlare()}
-                    className="flex h-9 items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground active:scale-[0.98]"
-                  >
-                    <CtaIcon className="h-4 w-4" />
-                    {ctaLabel}
-                  </button>
-                </div>
-              </>
+              // #331: no "start one" card after the flares. The rail's only
+              // call to light one is the empty state above, so a live flare
+              // never sits next to a second peach button.
+              visibleEvents.map((event) => (
+                <RailCard
+                  key={event.id}
+                  event={event}
+                  joined={isJoined(event, joinedIds)}
+                  user={geo.coords}
+                  onClick={() => onEventSelect(event)}
+                />
+              ))
             )}
           </div>
         ) : null}
@@ -1782,9 +1812,6 @@ function FilterChip({
 }
 
 type TimeFilter = "live" | "upcoming" | "all"
-
-// data-rail-id of the CTA card at the end of the rail (it has no pin).
-const RAIL_CTA_ID = "cta"
 
 function TimeTabs({
   value,

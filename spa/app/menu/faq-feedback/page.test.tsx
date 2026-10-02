@@ -41,6 +41,20 @@ describe("faq & feedback page (#294)", () => {
     expect(document.body.textContent).not.toMatch(/@\w+\./)
   })
 
+  it("links the three legal pages", () => {
+    render(<FaqFeedbackPage />)
+
+    expect(
+      screen.getByRole("link", { name: "read the terms of service" })
+    ).toHaveAttribute("href", "/menu/terms")
+    expect(
+      screen.getByRole("link", { name: "read the privacy note" })
+    ).toHaveAttribute("href", "/menu/privacy")
+    expect(
+      screen.getByRole("link", { name: "read the impressum" })
+    ).toHaveAttribute("href", "/menu/impressum")
+  })
+
   it("keeps the faq answers", () => {
     render(<FaqFeedbackPage />)
 

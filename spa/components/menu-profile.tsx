@@ -22,7 +22,9 @@ export function MenuProfile() {
           {status === "loading" ? "Loading profile" : displayName}
         </p>
         <p className="mt-2 text-sm leading-5 text-muted-foreground">
-          {user?.username ? `@${user.username}` : "Sign in to show your profile"}
+          {user?.username
+            ? `@${user.username}`
+            : "Sign in to show your profile"}
         </p>
       </div>
     </section>

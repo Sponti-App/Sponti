@@ -27,6 +27,12 @@ const guestProfile: StubUserProfile = {
   connectionId: null,
 }
 
+// Tapping a guest is a client-side navigation to /profile/[username]. Under
+// `next dev` that route compiles on first use (global-setup warms it), and the
+// URL only changes once the page's payload arrives, so give it more room than
+// the 10s default when the machine is busy (#307).
+const NAV = { timeout: 20_000 }
+
 const inMinutes = (min: number) =>
   new Date(Date.now() + min * 60_000).toISOString()
 
@@ -77,7 +83,7 @@ test.describe("guest profile link (#265)", () => {
 
     await maya.click()
 
-    await expect(page).toHaveURL(/\/profile\/maya$/)
+    await expect(page).toHaveURL(/\/profile\/maya$/, NAV)
     await expect(page.getByText("Maya Chen")).toBeVisible()
     await expect(page.getByText("@maya")).toBeVisible()
   })
@@ -115,7 +121,7 @@ test.describe("guest profile link (#265)", () => {
     await expect(maya).not.toContainText(/min/)
 
     await maya.click()
-    await expect(page).toHaveURL(/\/profile\/maya$/)
+    await expect(page).toHaveURL(/\/profile\/maya$/, NAV)
   })
 
   test("on the map's flare sheet, tapping a guest closes the sheet and opens their profile", async ({
@@ -140,7 +146,7 @@ test.describe("guest profile link (#265)", () => {
 
     await sheet.getByRole("link", { name: "maya chen, open profile" }).click()
 
-    await expect(page).toHaveURL(/\/profile\/maya$/)
+    await expect(page).toHaveURL(/\/profile\/maya$/, NAV)
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await expect(page.getByText("@maya")).toBeVisible()
   })
@@ -162,7 +168,7 @@ test.describe("guest profile link (#265)", () => {
     // Hidden from the accessibility tree: the name link is the accessible one.
     await sheet.locator('a[href="/profile/maya"][aria-hidden="true"]').click()
 
-    await expect(page).toHaveURL(/\/profile\/maya$/)
+    await expect(page).toHaveURL(/\/profile\/maya$/, NAV)
     await expect(page.getByRole("dialog")).toHaveCount(0)
   })
 })

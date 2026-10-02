@@ -23,9 +23,7 @@ function normalizeOrigin(origin: string): string {
 }
 
 export function getAllowedCorsOrigins(): string[] {
-  const configuredOrigins = env.CORS_ORIGINS
-    ? env.CORS_ORIGINS.split(",")
-    : [env.CLIENT_BASE_URL];
+  const configuredOrigins = env.CORS_ORIGINS ? env.CORS_ORIGINS.split(",") : [env.CLIENT_BASE_URL];
   const origins =
     env.NODE_ENV === "development" && !env.CORS_ORIGINS
       ? [...configuredOrigins, ...defaultDevelopmentOrigins]

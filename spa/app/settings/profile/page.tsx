@@ -73,8 +73,9 @@ function formFrom(saved: Saved): Form {
   }
 }
 
-// The session user only carries these once GET /auth/me has answered; sign-in
-// responses leave them out, so undefined means "not loaded yet", not "empty".
+// Sign-in and /auth/me both send these now (#309), but a session stored by an
+// older build lacks them until it is revalidated, so undefined still means
+// "not loaded yet", not "empty". This guard and the fetch below are the net.
 const hasProfileFields = (user: AuthUser) =>
   user.bio !== undefined ||
   user.instagram !== undefined ||

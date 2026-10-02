@@ -36,6 +36,9 @@ function baseUser(overrides: Partial<AuthUser> = {}): AuthUser {
     avatarUrl: null,
     profileVisibility: "public",
     socialBattery: 100,
+    bio: null,
+    instagram: null,
+    telegram: null,
     createdAt: "2099-01-01T00:00:00.000Z",
     updatedAt: "2099-01-01T00:00:00.000Z",
     ...overrides,
@@ -162,7 +165,9 @@ describe("SettingsPage account tab", () => {
     expect(payload).not.toHaveProperty("telegram")
     expect(payload).not.toHaveProperty("bio")
     // The settings page leaves the old device copy for the edit page's offer.
-    expect(window.localStorage.getItem("sponti.profile.extras.v1")).not.toBeNull()
+    expect(
+      window.localStorage.getItem("sponti.profile.extras.v1")
+    ).not.toBeNull()
     window.localStorage.removeItem("sponti.profile.extras.v1")
   })
 
@@ -281,7 +286,9 @@ describe("SettingsPage notifications tab", () => {
     expect(
       await screen.findByRole("radio", { name: "any friend is free" })
     ).toBeDisabled()
-    expect(screen.getByRole("radio", { name: "only inner circle is free" })).toBeDisabled()
+    expect(
+      screen.getByRole("radio", { name: "only inner circle is free" })
+    ).toBeDisabled()
     expect(screen.getByRole("slider")).toBeDisabled()
     expect(screen.getAllByText(/coming soon/i).length).toBeGreaterThan(0)
   })

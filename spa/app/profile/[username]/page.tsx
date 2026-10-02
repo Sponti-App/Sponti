@@ -47,7 +47,6 @@ type LoadState =
 
 const RELATIONSHIP_NOTE: Partial<Record<UserProfile["relationship"], string>> =
   {
-    self: "this is you",
     connected: "you're friends",
     pending_outgoing: "request sent",
     pending_incoming: "wants to be friends",

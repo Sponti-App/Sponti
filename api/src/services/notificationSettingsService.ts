@@ -6,7 +6,7 @@ export const getMyNotificationSettings = async (userId: string) => {
   return NotificationSettings.findOneAndUpdate(
     { userId: toObjectId(userId) },
     { $setOnInsert: { userId: toObjectId(userId) } },
-    { new: true, upsert: true, setDefaultsOnInsert: true }
+    { returnDocument: "after", upsert: true, setDefaultsOnInsert: true }
   ).lean();
 };
 
@@ -20,6 +20,6 @@ export const updateMyNotificationSettings = async (
       $set: input,
       $setOnInsert: { userId: toObjectId(userId) },
     },
-    { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+    { returnDocument: "after", upsert: true, setDefaultsOnInsert: true, runValidators: true }
   ).lean();
 };

@@ -137,21 +137,40 @@ test.describe("home map dock geometry (#223)", () => {
     await expect(list).toBeHidden()
   })
 
-  test("rail cards are content-height, not stretched to the taller CTA card", async ({
+  test("rail cards are content-height, not stretched to a taller neighbour", async ({
     page,
   }) => {
-    const card = rail(page).locator('[data-rail-id="event-live-drinks"]')
-    const cta = rail(page).locator('[data-rail-id="cta"]')
-    await expect(cta).toBeAttached()
-    const emptyBelowContent = await card.evaluate((el) => {
-      const last = el.lastElementChild as HTMLElement
-      return (
-        el.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom
-      )
-    })
-    // p-3 plus the 1px border: anything more is stretched empty space.
-    expect(emptyBelowContent).toBeLessThanOrEqual(13.5)
-    expect((await box(card)).height).toBeLessThan((await box(cta)).height)
+    const cards = rail(page).locator("[data-rail-id]")
+    await expect(cards).toHaveCount(3)
+    for (const card of await cards.all()) {
+      const emptyBelowContent = await card.evaluate((el) => {
+        const last = el.lastElementChild as HTMLElement
+        return (
+          el.getBoundingClientRect().bottom -
+          last.getBoundingClientRect().bottom
+        )
+      })
+      // p-3 plus the 1px border: anything more is stretched empty space.
+      expect(emptyBelowContent).toBeLessThanOrEqual(13.5)
+    }
+  })
+
+  test("a rail with flares ends on the last flare, with no start-one card (#331)", async ({
+    page,
+  }) => {
+    const items = rail(page).locator(":scope > *")
+    await expect(items).toHaveCount(3)
+    await expect(items.last()).toHaveAttribute(
+      "data-rail-id",
+      "event-soon-culture"
+    )
+    await expect(rail(page).getByText("nothing you fancy?")).toHaveCount(0)
+    await expect(
+      rail(page).getByText("start one and your circles will see it")
+    ).toHaveCount(0)
+    await expect(
+      rail(page).getByRole("button", { name: "light a flare" })
+    ).toHaveCount(0)
   })
 
   for (const colorScheme of ["light", "dark"] as const) {
@@ -279,7 +298,7 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
   }) => {
     await chip(page, "drinks").click()
     await expect(rail(page).getByText("drinks after work")).toBeVisible()
-    await expect(rail(page).getByText("up for drinks?")).toBeVisible()
+    await expect(rail(page).getByText("up for drinks?")).toHaveCount(0)
     await expect(quietCard(page)).toBeHidden()
     await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
   })
@@ -476,5 +495,21 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
       }
     })
     expect(ideaStyle).toEqual(railStyle)
+  })
+})
+
+test.describe("empty rail (#331)", () => {
+  test("no flares nearby: the rail shows the empty state with its one call to action", async ({
+    page,
+  }) => {
+    await stubBackend(page, { mapEvents: [] })
+    await page.goto("/")
+    await expect(nav(page)).toBeVisible()
+
+    await expect(rail(page).getByText(/no flares within \d+ km/)).toBeVisible()
+    await expect(
+      rail(page).getByRole("button", { name: "connect with your friends" })
+    ).toBeVisible()
+    await expect(rail(page).locator("[data-rail-id]")).toHaveCount(0)
   })
 })

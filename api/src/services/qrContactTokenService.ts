@@ -50,10 +50,7 @@ export const createQrContactToken = async (userId: string) => {
   };
 };
 
-export const resolveQrContactToken = async (
-  viewerId: string,
-  input: ResolveQrContactTokenBody
-) => {
+export const resolveQrContactToken = async (viewerId: string, input: ResolveQrContactTokenBody) => {
   const token = await QrContactToken.findOne({
     tokenHash: hashToken(input.token),
     isActive: true,

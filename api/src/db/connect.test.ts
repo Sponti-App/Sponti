@@ -6,6 +6,7 @@ const mongooseMock = vi.hoisted(() => ({
   STATES: { connected: 1 },
 }));
 const circleCreateIndexesMock = vi.hoisted(() => vi.fn());
+const blockCreateIndexesMock = vi.hoisted(() => vi.fn());
 
 vi.mock("mongoose", () => ({
   default: mongooseMock,
@@ -25,8 +26,15 @@ vi.mock("#models/Circle", () => ({
   },
 }));
 
+vi.mock("#models/Block", () => ({
+  Block: {
+    createIndexes: blockCreateIndexesMock,
+  },
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
+  blockCreateIndexesMock.mockResolvedValue([]);
   vi.resetModules();
   mongooseMock.connection.readyState = 0;
 });
@@ -67,6 +75,33 @@ describe("connectDB", () => {
     expect(circleCreateIndexesMock).toHaveBeenCalledOnce();
     expect(first).toBe(mongooseMock);
     expect(second).toBe(mongooseMock);
+  });
+
+  it("provisions the Circle and Block indexes before resolving", async () => {
+    mongooseMock.connect.mockImplementation(async () => {
+      mongooseMock.connection.readyState = mongooseMock.STATES.connected;
+      return mongooseMock;
+    });
+    circleCreateIndexesMock.mockResolvedValue([]);
+    const { connectDB } = await import("#db/connect");
+
+    await expect(connectDB()).resolves.toBe(mongooseMock);
+
+    expect(circleCreateIndexesMock).toHaveBeenCalledOnce();
+    expect(blockCreateIndexesMock).toHaveBeenCalledOnce();
+  });
+
+  it("fails startup when the Block indexes cannot be built", async () => {
+    const indexError = new Error("E11000 duplicate key");
+    mongooseMock.connect.mockImplementation(async () => {
+      mongooseMock.connection.readyState = mongooseMock.STATES.connected;
+      return mongooseMock;
+    });
+    circleCreateIndexesMock.mockResolvedValue([]);
+    blockCreateIndexesMock.mockRejectedValue(indexError);
+    const { connectDB } = await import("#db/connect");
+
+    await expect(connectDB()).rejects.toBe(indexError);
   });
 
   it("retries index provisioning after a failure on an open connection", async () => {

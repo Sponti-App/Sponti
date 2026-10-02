@@ -86,7 +86,9 @@ export const searchUsers = async (requesterId: string, query: SearchUsersQuery) 
           $or: [
             { profileVisibility: { $ne: "private" } },
             { _id: { $in: Array.from(connectedIds, toObjectId) } },
-            ...(isExactUsername ? [{ username: new RegExp(`^${escapeRegex(query.q)}$`, "i") }] : []),
+            ...(isExactUsername
+              ? [{ username: new RegExp(`^${escapeRegex(query.q)}$`, "i") }]
+              : []),
           ],
         },
       ],

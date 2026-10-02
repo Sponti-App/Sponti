@@ -16,12 +16,14 @@ export type AuthUser = {
   avatarPublicId?: string | null
   profileVisibility: "public" | "private"
   socialBattery: number
-  // The user's own profile fields (#289). GET /auth/me and PATCH
-  // /auth/me/profile send them; login, register and Google sign-in do not, so
-  // they are undefined until the session is next revalidated. null = not set.
-  bio?: string | null
-  instagram?: string | null
-  telegram?: string | null
+  // The user's own profile fields (#289). Every auth-server response that
+  // returns the user's own session sends them (sign-in, register, GET /auth/me,
+  // PATCH /auth/me/profile). null = not set. A session stored by an older
+  // build lacks them until its next /auth/me revalidation, so code that must
+  // tell "not loaded" from "empty" can still check for undefined at runtime.
+  bio: string | null
+  instagram: string | null
+  telegram: string | null
   createdAt: string
   updatedAt: string
 }
@@ -32,7 +34,11 @@ export type Session = {
   user: AuthUser | null
 }
 
-const EMPTY_SESSION: Session = { accessToken: null, refreshToken: null, user: null }
+const EMPTY_SESSION: Session = {
+  accessToken: null,
+  refreshToken: null,
+  user: null,
+}
 
 // Cached snapshot keyed by raw localStorage contents — keeps referential
 // stability for useSyncExternalStore so React doesn't loop.
@@ -75,7 +81,11 @@ export function readServerSession(): Session {
   return EMPTY_SESSION
 }
 
-export function setSession(accessToken: string, refreshToken: string, user: AuthUser): void {
+export function setSession(
+  accessToken: string,
+  refreshToken: string,
+  user: AuthUser
+): void {
   if (typeof window === "undefined") return
   window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
   window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)

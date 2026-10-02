@@ -47,9 +47,12 @@ export function resolveQrContactToken(
   connect = false,
   signal?: AbortSignal
 ): Promise<QrContactResolveResult> {
-  return apiFetch<{ data: QrContactResolveResult }>("/qr-contact-tokens/resolve", {
-    method: "POST",
-    body: { token, connect },
-    signal,
-  }).then((response) => response.data)
+  return apiFetch<{ data: QrContactResolveResult }>(
+    "/qr-contact-tokens/resolve",
+    {
+      method: "POST",
+      body: { token, connect },
+      signal,
+    }
+  ).then((response) => response.data)
 }

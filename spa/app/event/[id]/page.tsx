@@ -160,7 +160,9 @@ function FlareDetail({
   event: HostedEvent
   viewer: FlareViewer
   viewerId?: string
-  onEventChange: (update: (current: HostedEvent | null) => HostedEvent | null) => void
+  onEventChange: (
+    update: (current: HostedEvent | null) => HostedEvent | null
+  ) => void
   /** Refetches the flare, e.g. so the guest list catches up after joining. */
   onReload: () => void
 }) {
@@ -218,7 +220,9 @@ function FlareDetail({
         setRsvpError("this flare is full")
         showActionFeedback("full", { tone: "error" })
       } else {
-        setRsvpError(err instanceof Error ? err.message : "could not update rsvp")
+        setRsvpError(
+          err instanceof Error ? err.message : "could not update rsvp"
+        )
         showActionFeedback("couldn't save that", { tone: "error" })
       }
     } finally {
@@ -229,7 +233,8 @@ function FlareDetail({
   const join = () => {
     const kind = etaControlKind(timing)
     const willArriveAt = kind === "minutes" ? etaToIso(eta) : null
-    const arrivalStatus = kind === "status" ? (eta as ArrivalStatus | null) : null
+    const arrivalStatus =
+      kind === "status" ? (eta as ArrivalStatus | null) : null
     void saveMembership(
       {
         rsvpStatus: "going",
@@ -245,40 +250,50 @@ function FlareDetail({
         myWillArriveAt: willArriveAt,
         myArrivalStatus: arrivalStatus,
         attendingCount:
-          current.myRsvp === "going" ? current.attendingCount : current.attendingCount + 1,
+          current.myRsvp === "going"
+            ? current.attendingCount
+            : current.attendingCount + 1,
       })
     )
   }
   const decline = () =>
-    void saveMembership({ rsvpStatus: "declined" }, "not this one", (current) => ({
-      ...current,
-      myRsvp: "declined",
-      myWillArriveAt: null,
-      myArrivalStatus: null,
-      attendingCount:
-        current.myRsvp === "going"
-          ? Math.max(0, current.attendingCount - 1)
-          : current.attendingCount,
-      attendees: (current.attendees ?? []).filter((a) => a.id !== viewerId),
-    }))
+    void saveMembership(
+      { rsvpStatus: "declined" },
+      "not this one",
+      (current) => ({
+        ...current,
+        myRsvp: "declined",
+        myWillArriveAt: null,
+        myArrivalStatus: null,
+        attendingCount:
+          current.myRsvp === "going"
+            ? Math.max(0, current.attendingCount - 1)
+            : current.attendingCount,
+        attendees: (current.attendees ?? []).filter((a) => a.id !== viewerId),
+      })
+    )
   // Sets a new answer, of whichever kind the current timing offers.
   const changeEta = (choice: string) => {
     setEta(choice)
     setEditingEta(false)
     if (etaControlKind(timing) === "status") {
       const arrivalStatus = choice as ArrivalStatus
-      void saveMembership(
-        { arrivalStatus },
-        "host knows",
-        (current) => ({ ...current, myArrivalStatus: arrivalStatus, myWillArriveAt: null })
-      )
+      void saveMembership({ arrivalStatus }, "host knows", (current) => ({
+        ...current,
+        myArrivalStatus: arrivalStatus,
+        myWillArriveAt: null,
+      }))
       return
     }
     const willArriveAt = etaToIso(choice)
     void saveMembership(
       { memberWillArriveAt: willArriveAt },
       willArriveAt ? "host knows" : "eta cleared",
-      (current) => ({ ...current, myWillArriveAt: willArriveAt, myArrivalStatus: null })
+      (current) => ({
+        ...current,
+        myWillArriveAt: willArriveAt,
+        myArrivalStatus: null,
+      })
     )
   }
   // Clears whichever answer is actually stored, independent of what the
@@ -302,14 +317,23 @@ function FlareDetail({
     )
   }
 
-  const hostName = (event.hostName ?? event.hostUsername ?? "host").toLowerCase()
+  const hostName = (
+    event.hostName ??
+    event.hostUsername ??
+    "host"
+  ).toLowerCase()
   const hostFirstName = hostName.split(" ")[0]
   const category = EVENT_TYPES.find((t) => t.value === event.type)?.label
   const mapsUrl = googleMapsUrl({
     coordinates: event.coordinates,
-    name: [event.locationLabel, event.locationDetail].filter(Boolean).join(", "),
+    name: [event.locationLabel, event.locationDetail]
+      .filter(Boolean)
+      .join(", "),
   })
-  const directions = useFlareDirections({ coordinates: event.coordinates, viewer })
+  const directions = useFlareDirections({
+    coordinates: event.coordinates,
+    viewer,
+  })
   const guests = event.attendees ?? []
   const spots = spotsLeftLabel({
     visibility: event.visibility,
@@ -318,9 +342,10 @@ function FlareDetail({
     headcount: event.attendingCount,
     allowGuestInvites: event.allowGuestInvites,
   })
-  const updateCount = canSeeThread && !thread.loading
-    ? thread.updates.length
-    : (event.updateCount ?? 0)
+  const updateCount =
+    canSeeThread && !thread.loading
+      ? thread.updates.length
+      : (event.updateCount ?? 0)
   const closedNote =
     timing === "cancelled"
       ? "this flare was cancelled · the thread is read-only"
@@ -368,7 +393,9 @@ function FlareDetail({
             <Navigation className="h-3.5 w-3.5 text-primary" />
             <span className="font-medium">open in maps</span>
             {directions.travelLabel && !isHost && (
-              <span className="text-muted-foreground">· {directions.travelLabel}</span>
+              <span className="text-muted-foreground">
+                · {directions.travelLabel}
+              </span>
             )}
           </a>
         </FlareMapHero>
@@ -423,7 +450,9 @@ function FlareDetail({
             }
           >
             <Avatar className="size-7">
-              {event.hostAvatarUrl && <AvatarImage src={event.hostAvatarUrl} alt="" />}
+              {event.hostAvatarUrl && (
+                <AvatarImage src={event.hostAvatarUrl} alt="" />
+              )}
               <AvatarFallback className="text-xs">
                 {initials(hostName)}
               </AvatarFallback>
@@ -483,13 +512,19 @@ function FlareDetail({
             </TabsList>
 
             <TabsContent value="guests" className="pt-2 pb-4">
-              {spots && <p className="mb-2 text-xs text-muted-foreground">{spots}</p>}
+              {spots && (
+                <p className="mb-2 text-xs text-muted-foreground">{spots}</p>
+              )}
               {guests.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   no one&apos;s said they&apos;re going yet.
                 </p>
               ) : isHost ? (
-                <ArrivalBoard guests={guests} timing={timing} viewerId={viewerId} />
+                <ArrivalBoard
+                  guests={guests}
+                  timing={timing}
+                  viewerId={viewerId}
+                />
               ) : (
                 <GuestGrid guests={guests} viewerId={viewerId} />
               )}
@@ -517,7 +552,9 @@ function FlareDetail({
             <EventThreadComposer
               ref={composerRef}
               thread={thread}
-              placeholder={isHost ? "announce to everyone..." : "say something..."}
+              placeholder={
+                isHost ? "announce to everyone..." : "say something..."
+              }
               onClose={() => setComposing(false)}
             />
           ) : (
@@ -581,9 +618,13 @@ function ArrivalBoard({
     return () => window.clearInterval(id)
   }, [])
   const arrivalMs = (g: (typeof guests)[number]) =>
-    g.willArriveAt ? new Date(g.willArriveAt).getTime() : Number.POSITIVE_INFINITY
+    g.willArriveAt
+      ? new Date(g.willArriveAt).getTime()
+      : Number.POSITIVE_INFINITY
   const sorted = [...guests].sort((a, b) => arrivalMs(a) - arrivalMs(b))
-  const next = sorted.find((g) => arrivalMs(g) > now && Number.isFinite(arrivalMs(g)))
+  const next = sorted.find(
+    (g) => arrivalMs(g) > now && Number.isFinite(arrivalMs(g))
+  )
   const showEtas = etaAvailable(timing)
 
   return (
@@ -613,7 +654,9 @@ function ArrivalBoard({
             <span
               className={cn(
                 "shrink-0 text-xs",
-                isNext || runningLate ? "font-medium text-accent" : "text-muted-foreground"
+                isNext || runningLate
+                  ? "font-medium text-accent"
+                  : "text-muted-foreground"
               )}
             >
               {!showEtas
@@ -650,7 +693,9 @@ function GuestGrid({
         >
           <GuestAvatar guest={guest} className="size-11" />
           <span className="max-w-full truncate text-xs">
-            {guest.id === viewerId ? "you" : guest.displayName.split(" ")[0].toLowerCase()}
+            {guest.id === viewerId
+              ? "you"
+              : guest.displayName.split(" ")[0].toLowerCase()}
           </span>
         </GuestLink>
       ))}
@@ -701,7 +746,9 @@ function GuestAvatar({
   return (
     <Avatar className={className}>
       {guest.avatarUrl && <AvatarImage src={guest.avatarUrl} alt="" />}
-      <AvatarFallback className="text-xs">{initials(guest.displayName)}</AvatarFallback>
+      <AvatarFallback className="text-xs">
+        {initials(guest.displayName)}
+      </AvatarFallback>
     </Avatar>
   )
 }

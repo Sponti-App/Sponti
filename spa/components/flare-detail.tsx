@@ -5,7 +5,15 @@
 // same flare reads and acts the same in both places. The rules behind them
 // live in lib/flare-detail.ts.
 
-import { Check, Clock, ExternalLink, Flame, MapPin, Send, X } from "lucide-react"
+import {
+  Check,
+  Clock,
+  ExternalLink,
+  Flame,
+  MapPin,
+  Send,
+  X,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { EventType } from "@/lib/api/events"
 import {
@@ -216,7 +224,9 @@ export function FlareActions({
                 key={choice.value}
                 compact
                 selected={eta === choice.value}
-                onClick={() => onEtaChange(eta === choice.value ? null : choice.value)}
+                onClick={() =>
+                  onEtaChange(eta === choice.value ? null : choice.value)
+                }
               >
                 {choice.label}
               </EtaChip>

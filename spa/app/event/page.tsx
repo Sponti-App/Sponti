@@ -108,7 +108,6 @@ export default function EventHubPage() {
           )}
         </main>
       </div>
-
     </div>
   )
 }
@@ -131,7 +130,7 @@ function EventSection({
       <button
         type="button"
         onClick={onToggle}
-        className="mb-2 flex w-full items-center justify-between px-1 text-xs font-medium tracking-wide text-muted-foreground uppercase"
+        className="mb-2 flex w-full items-center justify-between px-1 text-xs font-medium text-muted-foreground"
       >
         <span>{title}</span>
         <ChevronDown

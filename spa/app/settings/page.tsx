@@ -64,10 +64,10 @@ import {
 type ProfileVisibility = "public" | "private" // users.profileVisibility enum
 
 type AccountDraft = {
-  displayName: string        // users.displayName
-  username: string           // users.username
-  email: string              // users.email
-  profileVisibility: ProfileVisibility  // users.profileVisibility
+  displayName: string // users.displayName
+  username: string // users.username
+  email: string // users.email
+  profileVisibility: ProfileVisibility // users.profileVisibility
 }
 
 // Notification fields come from the `notification_settings` collection (api/).
@@ -82,11 +82,11 @@ type NotifyWhen = "any_friend" | "inner_circle" // not persisted — no backend 
 
 type NotificationDraft = {
   // ── real schema fields — auto-save individually as they change ─────────
-  quietHoursEnabled: boolean    // notification_settings.quietHoursEnabled
-  quietHoursStart: string       // notification_settings.quietHoursStart  ("HH:MM")
-  quietHoursEnd: string         // notification_settings.quietHoursEnd    ("HH:MM")
-  eventReminders: boolean       // notification_settings.eventReminders
-  invitationNotifications: boolean  // notification_settings.invitationNotifications
+  quietHoursEnabled: boolean // notification_settings.quietHoursEnabled
+  quietHoursStart: string // notification_settings.quietHoursStart  ("HH:MM")
+  quietHoursEnd: string // notification_settings.quietHoursEnd    ("HH:MM")
+  eventReminders: boolean // notification_settings.eventReminders
+  invitationNotifications: boolean // notification_settings.invitationNotifications
   // ── no backend field — local only, controls disabled ("coming soon") ───
   notifyWhen: NotifyWhen
   maxDistanceKm: number
@@ -105,16 +105,27 @@ const VISIBILITY_OPTIONS: {
   sublabel: string
   disabled?: boolean
 }[] = [
-  { value: "public",           label: "Public",           sublabel: "Anyone can find you by username" },
-  { value: "connections_only", label: "Connections only", sublabel: "Coming soon — not supported by the backend yet", disabled: true },
-  { value: "private",          label: "Private",          sublabel: "Hidden — invite only" },
+  {
+    value: "public",
+    label: "Public",
+    sublabel: "Anyone can find you by username",
+  },
+  {
+    value: "connections_only",
+    label: "Connections only",
+    sublabel: "Coming soon — not supported by the backend yet",
+    disabled: true,
+  },
+  { value: "private", label: "Private", sublabel: "Hidden — invite only" },
 ]
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const { user } = useAuth()
   if (!user) return null
-  return <SettingsPageContent key={`${user.id}:${user.updatedAt}`} user={user} />
+  return (
+    <SettingsPageContent key={`${user.id}:${user.updatedAt}`} user={user} />
+  )
 }
 
 function SettingsPageContent({ user }: { user: AuthUser }) {
@@ -135,17 +146,21 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
     profileVisibility: user.profileVisibility,
   })
 
-  const [avatarPreview, setAvatarPreview] = useState<string>(user.avatarUrl ?? "")
+  const [avatarPreview, setAvatarPreview] = useState<string>(
+    user.avatarUrl ?? ""
+  )
   const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [savingAccount, setSavingAccount] = useState(false)
 
   const avatarInitials = useMemo(
     () => initialsFromName(account.displayName),
-    [account.displayName],
+    [account.displayName]
   )
 
-  const handleAvatarPick = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarPick = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0]
     if (!file) return
     try {
@@ -219,7 +234,9 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
     } catch (err) {
       console.error("[Sponti] failed to save notification setting", field, err)
       if (committedNotif) {
-        patchNotif({ [field]: committedNotif[field] } as Partial<NotificationDraft>)
+        patchNotif({
+          [field]: committedNotif[field],
+        } as Partial<NotificationDraft>)
       }
       showActionFeedback("couldn't save that", { tone: "error" })
     }
@@ -284,13 +301,13 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
   }
 
   return (
-    <div className="min-h-dvh w-full bg-background flex flex-col relative">
+    <div className="relative flex min-h-dvh w-full flex-col bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-border">
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <button
           onClick={() => router.back()}
           aria-label="Back"
-          className="h-9 w-9 rounded-full border border-border flex items-center justify-center"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-border"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -298,7 +315,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
         <button
           onClick={() => setTheme(isDark ? "light" : "dark")}
           aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-          className="h-9 w-9 rounded-full border border-border flex items-center justify-center"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-border"
         >
           {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
@@ -321,8 +338,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
           </div>
 
           {/* ────────────────── Account tab ────────────────── */}
-          <TabsContent value="account" className="px-4 pt-5 space-y-6">
-
+          <TabsContent value="account" className="space-y-6 px-4 pt-5">
             {/* Bio and social handles are account fields with their own page
                 (#289): PATCH /auth/me/profile, validated on the server. */}
             <Section icon={Link2} label="bio and social links">
@@ -343,7 +359,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             {/* Avatar — users.avatarUrl, uploaded via POST /auth/me/avatar */}
             <Section icon={Camera} label="Profile picture">
               <div className="flex items-start gap-4">
-                <Avatar className="h-20 w-20 ring-1 ring-border bg-muted">
+                <Avatar className="h-20 w-20 bg-muted ring-1 ring-border">
                   <AvatarImage
                     src={avatarPreview || undefined}
                     alt={account.displayName}
@@ -354,7 +370,8 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 </Avatar>
                 <div className="min-w-0 flex-1 space-y-2">
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    Upload a photo from your device. Saved when you press “Save changes”.
+                    Upload a photo from your device. Saved when you press “Save
+                    changes”.
                   </p>
                   {uploadError && (
                     <p className="text-xs leading-relaxed text-destructive">
@@ -387,16 +404,22 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 <Field label="Display name">
                   <Input
                     value={account.displayName}
-                    onChange={(e) => patchAccount({ displayName: e.target.value })}
+                    onChange={(e) =>
+                      patchAccount({ displayName: e.target.value })
+                    }
                     placeholder="Your name"
                   />
                 </Field>
                 <Field label="Username">
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm select-none">@</span>
+                    <span className="absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground select-none">
+                      @
+                    </span>
                     <Input
                       value={account.username}
-                      onChange={(e) => patchAccount({ username: e.target.value })}
+                      onChange={(e) =>
+                        patchAccount({ username: e.target.value })
+                      }
                       placeholder="username"
                       className="pl-7"
                     />
@@ -422,32 +445,36 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 }
                 className="space-y-2"
               >
-                {VISIBILITY_OPTIONS.map(({ value, label, sublabel, disabled }) => (
-                  <Label
-                    key={value}
-                    htmlFor={`vis-${value}`}
-                    className={`flex items-start gap-3 rounded-xl border p-3 transition-colors ${
-                      disabled
-                        ? "cursor-not-allowed opacity-50 border-border"
-                        : "cursor-pointer"
-                    } ${
-                      !disabled && account.profileVisibility === value
-                        ? "border-accent bg-accent/5"
-                        : "border-border"
-                    }`}
-                  >
-                    <RadioGroupItem
-                      id={`vis-${value}`}
-                      value={value}
-                      disabled={disabled}
-                      className="mt-0.5"
-                    />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-medium">{label}</span>
-                      <span className="text-xs text-muted-foreground">{sublabel}</span>
-                    </div>
-                  </Label>
-                ))}
+                {VISIBILITY_OPTIONS.map(
+                  ({ value, label, sublabel, disabled }) => (
+                    <Label
+                      key={value}
+                      htmlFor={`vis-${value}`}
+                      className={`flex items-start gap-3 rounded-xl border p-3 transition-colors ${
+                        disabled
+                          ? "cursor-not-allowed border-border opacity-50"
+                          : "cursor-pointer"
+                      } ${
+                        !disabled && account.profileVisibility === value
+                          ? "border-accent bg-accent/5"
+                          : "border-border"
+                      }`}
+                    >
+                      <RadioGroupItem
+                        id={`vis-${value}`}
+                        value={value}
+                        disabled={disabled}
+                        className="mt-0.5"
+                      />
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-sm font-medium">{label}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {sublabel}
+                        </span>
+                      </div>
+                    </Label>
+                  )
+                )}
               </RadioGroup>
             </Section>
 
@@ -476,8 +503,9 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             <Section icon={Lock} label="Password">
               <div className="rounded-xl border border-border p-3.5 opacity-50">
                 <p className="text-sm font-medium">change password</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  coming soon — use &ldquo;forgot password&rdquo; on the sign-in screen for now
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  coming soon — use &ldquo;forgot password&rdquo; on the sign-in
+                  screen for now
                 </p>
               </div>
             </Section>
@@ -496,10 +524,11 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
           </TabsContent>
 
           {/* ────────────────── Notifications tab ────────────────── */}
-          <TabsContent value="notifications" className="px-4 pt-5 space-y-6">
+          <TabsContent value="notifications" className="space-y-6 px-4 pt-5">
             {notifLoadError && (
               <p className="text-xs text-destructive">
-                couldn&apos;t load your notification preferences — showing defaults
+                couldn&apos;t load your notification preferences — showing
+                defaults
               </p>
             )}
 
@@ -507,16 +536,20 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 Each control below auto-saves on change (see commitNotifField)
                 and reverts itself if the request fails. */}
             <Section icon={Clock} label="Quiet hours">
-              <div className="flex items-center justify-between mb-3">
+              <div className="mb-3 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">enable quiet hours</p>
-                  <p className="text-xs text-muted-foreground">for push notifications · coming soon</p>
+                  <p className="text-xs text-muted-foreground">
+                    for push notifications · coming soon
+                  </p>
                 </div>
                 <Switch
                   aria-label="enable quiet hours"
                   checked={notif.quietHoursEnabled}
                   disabled={notifLoading}
-                  onCheckedChange={(v) => handleNotifToggle("quietHoursEnabled", v)}
+                  onCheckedChange={(v) =>
+                    handleNotifToggle("quietHoursEnabled", v)
+                  }
                 />
               </div>
               {notif.quietHoursEnabled && (
@@ -527,22 +560,38 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                       aria-label="quiet hours start"
                       value={notif.quietHoursStart}
                       disabled={notifLoading}
-                      onChange={(e) => patchNotif({ quietHoursStart: e.target.value })}
-                      onBlur={(e) => commitTimeFieldIfChanged("quietHoursStart", e.target.value)}
+                      onChange={(e) =>
+                        patchNotif({ quietHoursStart: e.target.value })
+                      }
+                      onBlur={(e) =>
+                        commitTimeFieldIfChanged(
+                          "quietHoursStart",
+                          e.target.value
+                        )
+                      }
                       className="flex-1"
                     />
-                    <span className="text-sm text-muted-foreground shrink-0">to</span>
+                    <span className="shrink-0 text-sm text-muted-foreground">
+                      to
+                    </span>
                     <Input
                       type="time"
                       aria-label="quiet hours end"
                       value={notif.quietHoursEnd}
                       disabled={notifLoading}
-                      onChange={(e) => patchNotif({ quietHoursEnd: e.target.value })}
-                      onBlur={(e) => commitTimeFieldIfChanged("quietHoursEnd", e.target.value)}
+                      onChange={(e) =>
+                        patchNotif({ quietHoursEnd: e.target.value })
+                      }
+                      onBlur={(e) =>
+                        commitTimeFieldIfChanged(
+                          "quietHoursEnd",
+                          e.target.value
+                        )
+                      }
                       className="flex-1"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
+                  <p className="mt-2 text-xs text-muted-foreground">
                     notifications are muted during these times
                   </p>
                 </>
@@ -557,14 +606,18 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                   sublabel="1h before flares you've joined · coming soon"
                   checked={notif.eventReminders}
                   disabled={notifLoading}
-                  onCheckedChange={(v) => handleNotifToggle("eventReminders", v)}
+                  onCheckedChange={(v) =>
+                    handleNotifToggle("eventReminders", v)
+                  }
                 />
                 <ToggleRow
                   label="Invitation notifications"
                   sublabel="When someone invites you to a flare"
                   checked={notif.invitationNotifications}
                   disabled={notifLoading}
-                  onCheckedChange={(v) => handleNotifToggle("invitationNotifications", v)}
+                  onCheckedChange={(v) =>
+                    handleNotifToggle("invitationNotifications", v)
+                  }
                 />
               </div>
             </Section>
@@ -573,20 +626,36 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 `notifyWhen` column). Shown disabled, "coming soon", rather
                 than wired or deleted — see NotifyWhen above. */}
             <Section icon={Bell} label="Notify me when... (coming soon)">
-              <RadioGroup value={notif.notifyWhen} className="space-y-2" disabled>
+              <RadioGroup
+                value={notif.notifyWhen}
+                className="space-y-2"
+                disabled
+              >
                 <Label
                   htmlFor="notify-any_friend"
-                  className="flex items-center gap-3 rounded-xl border border-border p-3.5 opacity-50 cursor-not-allowed"
+                  className="flex cursor-not-allowed items-center gap-3 rounded-xl border border-border p-3.5 opacity-50"
                 >
-                  <RadioGroupItem id="notify-any_friend" value="any_friend" disabled />
-                  <span className="text-sm font-medium">any friend is free</span>
+                  <RadioGroupItem
+                    id="notify-any_friend"
+                    value="any_friend"
+                    disabled
+                  />
+                  <span className="text-sm font-medium">
+                    any friend is free
+                  </span>
                 </Label>
                 <Label
                   htmlFor="notify-inner_circle"
-                  className="flex items-center gap-3 rounded-xl border border-border p-3.5 opacity-50 cursor-not-allowed"
+                  className="flex cursor-not-allowed items-center gap-3 rounded-xl border border-border p-3.5 opacity-50"
                 >
-                  <RadioGroupItem id="notify-inner_circle" value="inner_circle" disabled />
-                  <span className="text-sm font-medium">only inner circle is free</span>
+                  <RadioGroupItem
+                    id="notify-inner_circle"
+                    value="inner_circle"
+                    disabled
+                  />
+                  <span className="text-sm font-medium">
+                    only inner circle is free
+                  </span>
                 </Label>
               </RadioGroup>
             </Section>
@@ -605,9 +674,9 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 value={notif.maxDistanceKm}
                 disabled
                 onChange={() => undefined}
-                className="w-full h-1.5 rounded-full appearance-none bg-border opacity-50 cursor-not-allowed [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-md"
+                className="h-1.5 w-full cursor-not-allowed appearance-none rounded-full bg-border opacity-50 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-md"
               />
-              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+              <div className="mt-1 flex justify-between text-xs text-muted-foreground">
                 <span>1 km</span>
                 <span>20 km</span>
               </div>
@@ -631,7 +700,7 @@ function Section({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 mb-3">
+      <div className="mb-3 flex items-center gap-1.5">
         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-xs font-medium text-muted-foreground">
           {label}
@@ -642,7 +711,13 @@ function Section({
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs text-muted-foreground">{label}</Label>
@@ -666,9 +741,9 @@ function ToggleRow({
 }) {
   return (
     <div className="flex items-center justify-between rounded-xl border border-border p-3">
-      <div className="flex-1 min-w-0 pr-4">
+      <div className="min-w-0 flex-1 pr-4">
         <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{sublabel}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{sublabel}</p>
       </div>
       <Switch
         aria-label={label}

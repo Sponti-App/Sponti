@@ -19,8 +19,13 @@ const blockSchema = new Schema(
   }
 );
 
+// The unique pair also serves every lookup by blockerId (its prefix), so
+// there is no separate { blockerId } index.
 blockSchema.index({ blockerId: 1, blockedId: 1 }, { unique: true });
-blockSchema.index({ blockerId: 1 });
+// The "blocked by" half of the relationship checks looks blocks up by
+// blockedId. Production runs with autoIndex off, so connectDB creates this
+// at startup (see db/connect.ts).
+blockSchema.index({ blockedId: 1, blockerId: 1 });
 
 export type BlockDocument = InferSchemaType<typeof blockSchema>;
 
