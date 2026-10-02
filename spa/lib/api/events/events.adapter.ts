@@ -306,7 +306,9 @@ export function deriveStatus(
 /**
  * Infers the edit form's date/time inputs from a hosted event's ISO range.
  */
-export function inferEventStartShape(event: HostedEvent): {
+export function inferEventStartShape(
+  event: Pick<HostedEvent, "startAt" | "endAt" | "createdAt">
+): {
   mode: "now" | "scheduled"
   startOffsetMinutes?: number
   startDate?: string
@@ -336,6 +338,28 @@ export function inferEventStartShape(event: HostedEvent): {
     startTime: `${hh}:${mi}`,
     durationMinutes,
   }
+}
+
+/**
+ * The start an edit should save. The edit form only shows the start to the
+ * minute, so an untouched date and time keep the stored start exactly. A
+ * "right now" flare that starts in 15 to 60 minutes (#312) is stored with
+ * seconds and opens as a scheduled one; rebuilding it from the inputs would
+ * move it and mark the form changed.
+ */
+export function editedStartAt(
+  original: Pick<HostedEvent, "startAt" | "endAt" | "createdAt">,
+  startDate: string,
+  startTime: string
+): string {
+  const shape = inferEventStartShape(original)
+  if (shape.mode !== "scheduled" || !startDate || !startTime) {
+    return original.startAt
+  }
+  if (startDate === shape.startDate && startTime === shape.startTime) {
+    return original.startAt
+  }
+  return new Date(`${startDate}T${startTime}`).toISOString()
 }
 
 /**

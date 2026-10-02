@@ -6,6 +6,9 @@ import {
   inferEventType,
   resolveEventType,
   buildTimeRange,
+  nowRangeAfterDurationPick,
+  nowRangeAfterStartPick,
+  nowWhenLabel,
   successToastForStart,
   getInitialEventDraftState,
   isUntouchedDraft,
@@ -264,6 +267,71 @@ describe("buildTimeRange", () => {
     const expectedEnd =
       new Date("2026-07-15T12:00:00.000Z").getTime() + 480 * 60_000
     expect(result.endAt).toBe(new Date(expectedEnd).toISOString())
+  })
+})
+
+describe("right now start offset (#312)", () => {
+  const createdAt = "2026-07-15T12:00:00.000Z"
+  const created = new Date(createdAt).getTime()
+
+  it("30m + 1h starts 30 minutes out and ends an hour after that", () => {
+    let range = nowRangeAfterStartPick(
+      { startOffsetMin: 0, endOffsetMin: 60 },
+      30
+    )
+    range = nowRangeAfterDurationPick(range, 60)
+    expect(range).toEqual({ startOffsetMin: 30, endOffsetMin: 90 })
+    const result = buildTimeRange({
+      mode: "now",
+      createdAt,
+      startOffsetMin: range.startOffsetMin,
+      startDate: "2026-07-15",
+      startTimeMin: 0,
+      durationMin: range.endOffsetMin - range.startOffsetMin,
+    })
+    expect(result.startAt).toBe(new Date(created + 30 * 60_000).toISOString())
+    expect(result.endAt).toBe(new Date(created + 90 * 60_000).toISOString())
+  })
+
+  it("a start pick keeps the chosen duration", () => {
+    expect(
+      nowRangeAfterStartPick({ startOffsetMin: 0, endOffsetMin: 120 }, 15)
+    ).toEqual({ startOffsetMin: 15, endOffsetMin: 135 })
+    expect(
+      nowRangeAfterStartPick({ startOffsetMin: 60, endOffsetMin: 90 }, 0)
+    ).toEqual({ startOffsetMin: 0, endOffsetMin: 30 })
+  })
+
+  it("a duration pick keeps the start", () => {
+    expect(nowRangeAfterDurationPick({ startOffsetMin: 15 }, 240)).toEqual({
+      startOffsetMin: 15,
+      endOffsetMin: 255,
+    })
+  })
+
+  it("open end with a start offset gives a valid start and end", () => {
+    const range = nowRangeAfterDurationPick({ startOffsetMin: 60 }, -1)
+    expect(nowRangeAfterStartPick(range, 15).endOffsetMin).toBe(-1)
+    const result = buildTimeRange({
+      mode: "now",
+      createdAt,
+      startOffsetMin: 60,
+      startDate: "2026-07-15",
+      startTimeMin: 0,
+      durationMin: null,
+    })
+    expect(result.startAt).toBe(new Date(created + 60 * 60_000).toISOString())
+    expect(result.endAt).toBe(
+      new Date(created + (60 + 480) * 60_000).toISOString()
+    )
+  })
+
+  it("labels the when chip with the offset", () => {
+    expect(nowWhenLabel(0, 60)).toBe("now · 1h")
+    expect(nowWhenLabel(30, 90)).toBe("in 30m · 1h")
+    expect(nowWhenLabel(60, 180)).toBe("in 1h · 2h")
+    expect(nowWhenLabel(0, -1)).toBe("now · open-ended")
+    expect(nowWhenLabel(15, -1)).toBe("in 15m · open-ended")
   })
 })
 

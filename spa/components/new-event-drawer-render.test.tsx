@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
@@ -180,6 +180,51 @@ describe("NewEventDrawer render", () => {
 
     await user.click(whenChip)
     expect(card.dataset.snap).toBe("380px")
+  })
+})
+
+// #312: "right now" can start in 15, 30 or 60 minutes.
+describe("NewEventDrawer start offset", () => {
+  it("offers now, 15m, 30m and 1h above the duration and keeps both picks", async () => {
+    const user = userEvent.setup()
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+
+    await user.click(screen.getByRole("button", { name: /now · 1h/i }))
+    const starts = screen.getByRole("group", { name: "starts" })
+    const howLong = screen.getByRole("group", { name: "how long?" })
+    expect(
+      Array.from(starts.querySelectorAll("button")).map((b) => b.textContent)
+    ).toEqual(["now", "15m", "30m", "1h"])
+    expect(within(starts).getByRole("button", { name: "now" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    )
+    // The starts row sits above "how long?".
+    expect(
+      starts.compareDocumentPosition(howLong) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    await user.click(within(starts).getByRole("button", { name: "30m" }))
+    expect(
+      screen.getByRole("button", { name: /in 30m · 1h/i })
+    ).toBeInTheDocument()
+
+    // Picking a duration no longer resets the start.
+    await user.click(within(howLong).getByRole("button", { name: "2h" }))
+    expect(
+      screen.getByRole("button", { name: /in 30m · 2h/i })
+    ).toBeInTheDocument()
+    expect(within(starts).getByRole("button", { name: "30m" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    )
+
+    // A trip through "pick a time" keeps the offset.
+    await user.click(screen.getByRole("tab", { name: "pick a time" }))
+    await user.click(screen.getByRole("tab", { name: "right now" }))
+    expect(
+      screen.getByRole("button", { name: /in 30m · 2h/i })
+    ).toBeInTheDocument()
   })
 })
 
