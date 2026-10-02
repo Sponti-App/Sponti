@@ -270,7 +270,7 @@ export const updateCircle = async (ownerId: string, circleId: string, input: Upd
   const circle = await Circle.findOneAndUpdate(
     { _id: toObjectId(circleId), ownerId: toObjectId(ownerId) },
     { $set: editableFields },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   ).lean();
 
   if (!circle) {
