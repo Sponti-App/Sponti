@@ -39,9 +39,15 @@ test.describe("privacy note and support (#129, #126)", () => {
     await stubBackend(page)
     await page.goto("/menu/support")
 
-    const hrefs = await page
-      .locator('a[href^="mailto:"]')
-      .evaluateAll((links) => links.map((a) => a.getAttribute("href") ?? ""))
+    const links = page.locator('a[href^="mailto:"]')
+    // The links render with the server markup first; the device details are
+    // added to the mail body after hydration. Wait for both before reading.
+    await expect(links.first()).toBeVisible()
+    await expect(links.first()).toHaveAttribute("href", /browser/)
+
+    const hrefs = await links.evaluateAll((anchors) =>
+      anchors.map((a) => a.getAttribute("href") ?? "")
+    )
 
     expect(hrefs.length).toBeGreaterThan(1)
     const addresses = new Set(hrefs.map((h) => new URL(h).pathname))
