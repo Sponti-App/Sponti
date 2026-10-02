@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 import {
   createEventRequestFromDraft,
+  durationChipFor,
+  editedEndAt,
+  OPEN_ENDED,
   editedStartAt,
   inferEventStartShape,
 } from "./events.adapter"
@@ -120,5 +123,61 @@ describe("editedStartAt", () => {
     expect(editedStartAt(lit, "", "", 60)).toBe(at(60))
     expect(editedStartAt(lit, "", "", 15)).toBe(at(15))
     expect(editedStartAt(lit, "", "", 0)).toBe(CREATED)
+  })
+})
+
+describe("durationChipFor (#340)", () => {
+  it("selects the chip a stored length matches", () => {
+    expect(durationChipFor(60, "now")).toBe(60)
+    expect(durationChipFor(240, "now")).toBe(240)
+    expect(durationChipFor(240, "scheduled")).toBe(240)
+  })
+
+  it("reads the open-ended fallback as open, for a right-now flare only", () => {
+    expect(durationChipFor(8 * 60, "now")).toBe(OPEN_ENDED)
+    expect(durationChipFor(8 * 60, "scheduled")).toBeNull()
+  })
+
+  it("selects nothing for a length no chip offers", () => {
+    expect(durationChipFor(45, "now")).toBeNull()
+    expect(durationChipFor(15, "scheduled")).toBeNull()
+  })
+})
+
+describe("editedEndAt (#340)", () => {
+  // A "right now" flare lit with a 30m delay, stored with seconds.
+  const now = {
+    createdAt: "2099-06-01T17:30:37.123Z",
+    startAt: "2099-06-01T18:00:37.123Z",
+    endAt: "2099-06-01T19:00:37.123Z",
+  }
+
+  it("keeps the stored end when nothing changed", () => {
+    expect(editedEndAt(now, now.startAt, 60)).toBe(now.endAt)
+    expect(editedEndAt(now, now.startAt, null)).toBe(now.endAt)
+  })
+
+  it("keeps an unmatched length to the millisecond", () => {
+    const odd = { ...now, endAt: "2099-06-01T18:45:59.999Z" }
+    expect(editedEndAt(odd, odd.startAt, null)).toBe(odd.endAt)
+    expect(editedEndAt(odd, "2099-06-01T18:30:37.123Z", null)).toBe(
+      "2099-06-01T19:15:59.999Z"
+    )
+  })
+
+  it("carries the length along when only the start moves", () => {
+    expect(editedEndAt(now, "2099-06-01T18:30:37.123Z", 60)).toBe(
+      "2099-06-01T19:30:37.123Z"
+    )
+  })
+
+  it("ends a newly picked length after the start", () => {
+    expect(editedEndAt(now, now.startAt, 240)).toBe("2099-06-01T22:00:37.123Z")
+  })
+
+  it("saves open as the open-ended fallback after the start", () => {
+    expect(editedEndAt(now, now.startAt, OPEN_ENDED)).toBe(
+      "2099-06-02T02:00:37.123Z"
+    )
   })
 })

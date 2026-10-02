@@ -1,7 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { Check, Clock, Lock, MapPin, MoreHorizontal, X } from "lucide-react"
+import {
+  CheckIcon,
+  ClockIcon,
+  LockIcon,
+  MapPinIcon,
+  DotsThreeIcon,
+  XIcon,
+} from "@/components/icons"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/components/auth-provider"
 import { type EventStatus, type HostedEvent } from "@/lib/api/events"
@@ -82,7 +89,7 @@ export function EventHostCard({
   const isGoing = event.myRsvp === "going"
   const isDeclined = event.myRsvp === "declined"
   const ActivityIcon =
-    EVENT_TYPES.find((type) => type.value === event.type)?.icon ?? Clock
+    EVENT_TYPES.find((type) => type.value === event.type)?.icon ?? ClockIcon
 
   return (
     <Link
@@ -100,7 +107,7 @@ export function EventHostCard({
           className="pointer-events-none absolute top-3 right-3 flex h-7 w-7 items-center justify-center text-muted-foreground/70"
           aria-hidden
         >
-          <MoreHorizontal className="h-4 w-4" />
+          <DotsThreeIcon className="h-4 w-4" />
         </div>
 
         <div className="flex min-w-0 items-center gap-2.5 pr-8">
@@ -113,7 +120,7 @@ export function EventHostCard({
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold">{hostName}</p>
             <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="h-3 w-3" />
+              <ClockIcon className="h-3 w-3" />
               <span className="truncate">
                 {day} · {time}
               </span>
@@ -142,7 +149,7 @@ export function EventHostCard({
         </div>
 
         <div className="flex min-w-0 items-center gap-2.5 pt-0.5 text-xs text-muted-foreground">
-          <MapPin className="h-3.5 w-3.5 shrink-0" />
+          <MapPinIcon className="h-3.5 w-3.5 shrink-0" />
           <span className="min-w-0 flex-1 truncate">
             {event.locationLabel.toLowerCase()}
           </span>
@@ -153,15 +160,15 @@ export function EventHostCard({
                 isGoing ? "text-primary" : "text-muted-foreground"
               )}
             >
-              {isGoing && <Check className="h-3.5 w-3.5" />}
-              {isDeclined && <X className="h-3.5 w-3.5" />}
+              {isGoing && <CheckIcon className="h-3.5 w-3.5" />}
+              {isDeclined && <XIcon className="h-3.5 w-3.5" />}
               {rsvpLabel(event.myRsvp)}
             </span>
           )}
           {event.visibility === "private" && (
             <>
               <span className="h-3 w-px shrink-0 bg-border" />
-              <Lock className="h-3 w-3 shrink-0" aria-label="private" />
+              <LockIcon className="h-3 w-3 shrink-0" aria-label="private" />
             </>
           )}
           <EventAvatarStack

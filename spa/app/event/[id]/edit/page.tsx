@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
-  ArrowLeft,
-  MapPin,
-  Pencil,
-  RotateCcw,
-  Search,
-  Trash2,
-} from "lucide-react"
+  ArrowLeftIcon,
+  MapPinIcon,
+  PencilSimpleIcon,
+  ArrowCounterClockwiseIcon,
+  MagnifyingGlassIcon,
+  TrashIcon,
+} from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,10 +18,17 @@ import { Switch } from "@/components/ui/switch"
 import { MakePrivateDialog } from "@/components/make-private-dialog"
 import { CancelEventDialog } from "@/components/cancel-event-dialog"
 import { EventGuestsSection } from "@/components/event-guests-section"
-import { NOW_START_PRESETS, NowChipRow } from "@/components/now-chip-row"
+import {
+  DURATION_PRESETS,
+  NOW_DURATION_PRESETS,
+  NOW_START_PRESETS,
+  NowChipRow,
+} from "@/components/now-chip-row"
 import {
   cancelEvent,
   deriveStatus,
+  durationChipFor,
+  editedEndAt,
   fetchEventGuests,
   fetchHostedEventById,
   editedStartAt,
@@ -32,13 +39,6 @@ import {
   type UpdateEventRequest,
 } from "@/lib/api/events"
 import { PLACE_SEARCH_UNAVAILABLE } from "@/lib/place-search"
-
-const DURATION_OPTIONS = [
-  { label: "30m", minutes: 30 },
-  { label: "1h", minutes: 60 },
-  { label: "2h", minutes: 120 },
-  { label: "3h", minutes: 180 },
-] as const
 
 const MIN = 60_000
 const DESCRIPTION_MAX_LENGTH = 200
@@ -97,7 +97,10 @@ export default function EventEditPage() {
   const [startTime, setStartTime] = useState("")
   // A "right now" flare's start, in minutes after it was lit (#330).
   const [startOffsetMinutes, setStartOffsetMinutes] = useState(0)
-  const [durationMinutes, setDurationMinutes] = useState(60)
+  // The selected "how long?" chip (#340): the composer's presets for the
+  // flare's shape, OPEN_ENDED for "open", or null when the stored length
+  // matches no chip.
+  const [durationChip, setDurationChip] = useState<number | null>(null)
   const [locationLabel, setLocationLabel] = useState("")
   const [locationDetail, setLocationDetail] = useState("")
   const [placeResults, setPlaceResults] = useState<PlaceSuggestion[]>([])
@@ -226,7 +229,7 @@ export default function EventEditPage() {
         setStartDate(shape.startDate ?? "")
         setStartTime(shape.startTime ?? "")
         setStartOffsetMinutes(shape.startOffsetMinutes ?? 0)
-        setDurationMinutes(shape.durationMinutes)
+        setDurationChip(durationChipFor(shape.durationMinutes, shape.mode))
         setLocationLabel(nextEvent.locationLabel)
         setLocationDetail(nextEvent.locationDetail ?? "")
         setIsPublic(nextEvent.visibility === "public")
@@ -278,9 +281,7 @@ export default function EventEditPage() {
     startTime,
     startOffsetMinutes
   )
-  const nextEndAt = new Date(
-    new Date(nextStartAt).getTime() + durationMinutes * MIN
-  ).toISOString()
+  const nextEndAt = editedEndAt(original, nextStartAt, durationChip)
 
   const titleChanged = title.trim() !== original.title
   const descriptionChanged =
@@ -292,13 +293,7 @@ export default function EventEditPage() {
     original.description?.length ?? 0
   )
   const timeChanged =
-    nextStartAt !== original.startAt ||
-    durationMinutes !==
-      Math.round(
-        (new Date(original.endAt).getTime() -
-          new Date(original.startAt).getTime()) /
-          MIN
-      )
+    nextStartAt !== original.startAt || nextEndAt !== original.endAt
   const locationChanged =
     locationLabel.trim() !== original.locationLabel ||
     (locationDetail.trim() || undefined) !== original.locationDetail ||
@@ -416,10 +411,10 @@ export default function EventEditPage() {
           aria-label="back"
           className="h-10 w-10 rounded-full"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeftIcon className="h-4 w-4" />
         </Button>
         <div className="flex items-center gap-1.5 text-base font-semibold">
-          <Pencil className="h-4 w-4" />
+          <PencilSimpleIcon className="h-4 w-4" />
           <span>edit flare</span>
         </div>
         <div className="h-9 w-9" aria-hidden />
@@ -539,24 +534,25 @@ export default function EventEditPage() {
           </Section>
         )}
 
+        {/* #340: the composer's own "how long?" chips for the flare's
+            shape. "open" is for "right now" flares only (#225). */}
         <Section label="how long">
-          <div className="flex flex-wrap gap-2">
-            {DURATION_OPTIONS.map((d) => (
-              <Chip
-                key={d.minutes}
-                selected={durationMinutes === d.minutes}
-                onClick={() => setDurationMinutes(d.minutes)}
-                disabled={isPast || isCancelled || saving}
-              >
-                {d.label}
-              </Chip>
-            ))}
-          </div>
+          <NowChipRow
+            ariaLabel="how long"
+            presets={
+              initialShape.mode === "now"
+                ? NOW_DURATION_PRESETS
+                : DURATION_PRESETS
+            }
+            value={durationChip}
+            onChange={setDurationChip}
+            isDisabled={() => isPast || isCancelled || saving}
+          />
         </Section>
 
         <Section label="where">
           <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="search a place"
               value={locationLabel}
@@ -598,7 +594,7 @@ export default function EventEditPage() {
                       className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
                       disabled={saving}
                     >
-                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <MapPinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm">{result.label}</div>
                         <div className="truncate text-xs text-muted-foreground">
@@ -663,7 +659,7 @@ export default function EventEditPage() {
                 disabled={saving}
                 className="w-full rounded-full border-accent/30 text-accent hover:bg-accent/5"
               >
-                <RotateCcw className="mr-1.5 h-4 w-4" />
+                <ArrowCounterClockwiseIcon className="mr-1.5 h-4 w-4" />
                 reactivate this flare
               </Button>
             ) : (
@@ -673,7 +669,7 @@ export default function EventEditPage() {
                 disabled={saving}
                 className="w-full rounded-full border-destructive/30 text-destructive hover:bg-destructive/5"
               >
-                <Trash2 className="mr-1.5 h-4 w-4" />
+                <TrashIcon className="mr-1.5 h-4 w-4" />
                 cancel this flare
               </Button>
             )}
@@ -742,33 +738,6 @@ function Section({
       </Label>
       {children}
     </div>
-  )
-}
-
-function Chip({
-  selected,
-  onClick,
-  disabled,
-  children,
-}: {
-  selected: boolean
-  onClick: () => void
-  disabled?: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm transition-colors disabled:opacity-40 ${
-        selected
-          ? "border-accent bg-accent/10 text-accent"
-          : "border-border bg-background text-foreground hover:bg-secondary"
-      }`}
-    >
-      {children}
-    </button>
   )
 }
 

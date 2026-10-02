@@ -3,16 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
-  ArrowLeft,
-  Check,
-  ChevronDown,
-  MoreHorizontal,
-  Plus,
-  QrCode,
-  Search,
-  UserPlus,
-  X,
-} from "lucide-react"
+  ArrowLeftIcon,
+  CheckIcon,
+  CaretDownIcon,
+  DotsThreeIcon,
+  PlusIcon,
+  QrCodeIcon,
+  MagnifyingGlassIcon,
+  UserPlusIcon,
+  XIcon,
+} from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { AddToFlaresDialog } from "@/components/add-to-flares-dialog"
 import { CircleChips, type CircleChipsState } from "@/components/circle-chips"
@@ -604,7 +604,7 @@ export default function CirclesPage() {
               aria-label="Back"
               className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeftIcon className="h-4 w-4" />
             </button>
             <span className="text-base font-semibold">circles</span>
             <button
@@ -612,7 +612,7 @@ export default function CirclesPage() {
               aria-label="Show your QR"
               className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground"
             >
-              <QrCode className="h-4 w-4" />
+              <QrCodeIcon className="h-4 w-4" />
             </button>
           </div>
           <div className="border-b border-border/60 px-4 pb-3">
@@ -722,7 +722,7 @@ export default function CirclesPage() {
                           {previewNames ? ` · ${previewNames}` : ""}
                         </p>
                       </div>
-                      <ChevronDown
+                      <CaretDownIcon
                         className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
                           isExpanded ? "rotate-180" : ""
                         }`}
@@ -831,7 +831,7 @@ export default function CirclesPage() {
                                           aria-label={`options for ${m.displayName}`}
                                           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
                                         >
-                                          <MoreHorizontal className="h-3.5 w-3.5" />
+                                          <DotsThreeIcon className="h-3.5 w-3.5" />
                                         </button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end">
@@ -873,7 +873,7 @@ export default function CirclesPage() {
 
                           <div className="flex flex-col gap-1.5">
                             <div className="relative">
-                              <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                              <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                               <Input
                                 placeholder="add a friend…"
                                 value={memberQuery}
@@ -906,7 +906,7 @@ export default function CirclesPage() {
                                         className="flex w-full items-center gap-3 px-2 py-2 text-left hover:bg-secondary"
                                       >
                                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">
-                                          <Plus className="h-3.5 w-3.5" />
+                                          <PlusIcon className="h-3.5 w-3.5" />
                                         </span>
                                         <span className="min-w-0 flex-1">
                                           <span className="block truncate text-sm font-medium">
@@ -935,7 +935,7 @@ export default function CirclesPage() {
               onClick={() => setNewCircleOpen((v) => !v)}
               className="flex items-center gap-3 rounded-xl border border-dashed border-border bg-background p-3 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary"
             >
-              <Plus className="h-4 w-4" />
+              <PlusIcon className="h-4 w-4" />
               <span>create custom circle</span>
             </button>
 
@@ -954,7 +954,7 @@ export default function CirclesPage() {
                     aria-label="Close"
                     className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-secondary"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <XIcon className="h-3.5 w-3.5" />
                   </button>
                 </div>
 
@@ -995,7 +995,7 @@ export default function CirclesPage() {
                                   : "border-border"
                               }`}
                             >
-                              {checked && <Check className="h-3 w-3" />}
+                              {checked && <CheckIcon className="h-3 w-3" />}
                             </span>
                             <span className="text-sm">{c.displayName}</span>
                             <span className="ml-auto text-xs text-muted-foreground">
@@ -1024,7 +1024,7 @@ export default function CirclesPage() {
             {/* Search — owns the discover + send-request flow */}
             <div className="pt-4 pb-2">
               <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="add by @handle"
                   value={peopleQuery}
@@ -1069,7 +1069,7 @@ export default function CirclesPage() {
                             }
                             className="h-8 rounded-full bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
                           >
-                            <UserPlus className="mr-1 h-3.5 w-3.5" />
+                            <UserPlusIcon className="mr-1 h-3.5 w-3.5" />
                             add
                           </Button>
                         </li>
@@ -1238,7 +1238,7 @@ export default function CirclesPage() {
                                 aria-label={`options for ${c.displayName}`}
                                 className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
                               >
-                                <MoreHorizontal className="h-4 w-4" />
+                                <DotsThreeIcon className="h-4 w-4" />
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -1349,7 +1349,7 @@ export default function CirclesPage() {
                                 aria-label={`options for ${b.displayName}`}
                                 className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
                               >
-                                <MoreHorizontal className="h-4 w-4" />
+                                <DotsThreeIcon className="h-4 w-4" />
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">

@@ -1,6 +1,6 @@
 "use client"
 
-import { Repeat, X } from "lucide-react"
+import { RepeatIcon, XIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 
 export type RecurringScope = "this" | "following" | "all"
@@ -43,7 +43,7 @@ export function RecurringScopeModal({
         <div className="flex items-start justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent">
-              <Repeat className="h-4 w-4" />
+              <RepeatIcon className="h-4 w-4" />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold">edit which occurrences?</p>
@@ -58,7 +58,7 @@ export function RecurringScopeModal({
             aria-label="Close"
             className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-secondary"
           >
-            <X className="h-3.5 w-3.5" />
+            <XIcon className="h-3.5 w-3.5" />
           </button>
         </div>
 

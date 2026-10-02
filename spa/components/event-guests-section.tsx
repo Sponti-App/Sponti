@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { UserMinus, UserPlus, X } from "lucide-react"
+import { UserMinusIcon, UserPlusIcon, XIcon } from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { CircleCards, FriendList } from "@/components/new-event-drawer"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -157,7 +157,7 @@ export function EventGuestsSection({
             onClick={() => setPickerOpen(true)}
             className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-2.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
-            <UserPlus className="h-3.5 w-3.5" />
+            <UserPlusIcon className="h-3.5 w-3.5" />
             invite more
           </button>
         ))}
@@ -247,7 +247,7 @@ function GuestRow({
           aria-label={`remove ${name}`}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-40"
         >
-          <UserMinus className="h-3.5 w-3.5" />
+          <UserMinusIcon className="h-3.5 w-3.5" />
         </button>
       )}
     </li>
@@ -338,7 +338,7 @@ function InvitePicker({
           aria-label="close invite more"
           className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
         >
-          <X className="h-3 w-3" />
+          <XIcon className="h-3 w-3" />
         </button>
       </div>
 

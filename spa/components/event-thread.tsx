@@ -7,7 +7,13 @@
 // Everyone else gets `EventThreadLocked`.
 
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react"
-import { Lock, Megaphone, Send, Trash2, X } from "lucide-react"
+import {
+  LockIcon,
+  MegaphoneIcon,
+  PaperPlaneRightIcon,
+  TrashIcon,
+  XIcon,
+} from "@/components/icons"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { initials } from "@/components/event-avatar-stack"
 import {
@@ -205,7 +211,7 @@ function EventUpdateRow({
       aria-label="delete update"
       className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
     >
-      <Trash2 className="h-3.5 w-3.5" />
+      <TrashIcon className="h-3.5 w-3.5" />
     </button>
   )
   const body = (
@@ -219,7 +225,7 @@ function EventUpdateRow({
       <li className="flex gap-2 rounded-xl border-l-[3px] border-l-accent bg-card px-3 py-2">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Megaphone className="h-3.5 w-3.5 text-accent" />
+            <MegaphoneIcon className="h-3.5 w-3.5 text-accent" />
             <span className="font-semibold text-foreground">
               {byViewer
                 ? "your announcement"
@@ -294,7 +300,7 @@ export const EventThreadComposer = forwardRef<
           onClick={onClose}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground"
         >
-          <X className="h-4 w-4" />
+          <XIcon className="h-4 w-4" />
         </button>
         <input
           ref={ref}
@@ -317,7 +323,7 @@ export const EventThreadComposer = forwardRef<
           disabled={!canSubmit}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground disabled:opacity-50"
         >
-          <Send className="h-4 w-4" />
+          <PaperPlaneRightIcon className="h-4 w-4" />
         </button>
       </div>
       {(thread.postError || nearLimit) && (
@@ -340,7 +346,7 @@ export const EventThreadComposer = forwardRef<
 export function EventThreadLocked({ count }: { count: number }) {
   return (
     <p className="flex items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-      <Lock className="h-3.5 w-3.5" />
+      <LockIcon className="h-3.5 w-3.5" />
       {count === 0
         ? "no updates yet · join to see them when they come"
         : `${count === 1 ? "1 update" : `${count} updates`} · join to see`}

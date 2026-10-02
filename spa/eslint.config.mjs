@@ -5,6 +5,44 @@ import nextTs from "eslint-config-next/typescript"
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  // Icons come only from the app icon module (#345), so a later swap of icon
+  // library touches one file. Lucide is gone; Phosphor is imported only by
+  // components/icons.tsx.
+  {
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["lucide-react", "lucide-react/*"],
+              message: "Import icons from @/components/icons (#345).",
+            },
+            {
+              group: ["@phosphor-icons/*", "@phosphor-icons/*/**"],
+              message: "Import icons from @/components/icons (#345).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["components/icons.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["lucide-react", "lucide-react/*"],
+              message: "The app's icons are Phosphor (#345).",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

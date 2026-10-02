@@ -1,6 +1,6 @@
 "use client"
 
-import { Lock } from "lucide-react"
+import { LockIcon } from "@/components/icons"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 
 /**
@@ -20,7 +20,7 @@ export function MakePrivateDialog({
 }) {
   return (
     <ConfirmDialog
-      icon={<Lock className="h-4 w-4" />}
+      icon={<LockIcon className="h-4 w-4" />}
       title="make this flare private?"
       subtitle={`${joiners} ${joiners === 1 ? "person joined" : "people joined"} without an invite`}
       body="they'll stay on the guest list. anyone who hasn't joined won't be able to find it anymore."

@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, AtSign, MessageSquareText } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  AtIcon,
+  ChatTextIcon,
+  type Icon,
+} from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -240,7 +245,7 @@ function EditProfileContent({ user }: { user: AuthUser }) {
           aria-label="Back"
           className="flex h-9 w-9 items-center justify-center rounded-full border border-border"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeftIcon className="h-4 w-4" />
         </button>
         <span className="text-base font-semibold">edit profile</span>
         <span className="h-9 w-9" aria-hidden />
@@ -322,7 +327,7 @@ function EditProfileContent({ user }: { user: AuthUser }) {
           </section>
         )}
 
-        <Section icon={MessageSquareText} label="about you">
+        <Section icon={ChatTextIcon} label="about you">
           <BioField
             value={form.bio}
             disabled={disabled}
@@ -334,7 +339,7 @@ function EditProfileContent({ user }: { user: AuthUser }) {
           />
         </Section>
 
-        <Section icon={AtSign} label="social links">
+        <Section icon={AtIcon} label="social links">
           <div className="space-y-4">
             <HandleField
               network="instagram"
@@ -520,7 +525,7 @@ function Section({
   label,
   children,
 }: {
-  icon: typeof AtSign
+  icon: Icon
   label: string
   children: React.ReactNode
 }) {

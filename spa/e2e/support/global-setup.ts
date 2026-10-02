@@ -6,8 +6,7 @@ import type { FullConfig } from "@playwright/test"
 // route here pays that one-time compile cost up front — instead of letting
 // several parallel workers' first navigations race to compile the same
 // route at once, which can blow past a test's 30s timeout under CPU
-// contention (see playwright.config.ts's `retries` comment, and the
-// intermittent beforeEach timeouts this was added to fix).
+// contention (the intermittent beforeEach timeouts this was added to fix).
 //
 // Dynamic routes compile once per route, not per param, so any id works. They
 // matter for tests that tap a link and expect the URL to change: a client-side

@@ -3,7 +3,12 @@
 import { use, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Loader2, MoreHorizontal, UserPlus } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  CircleNotchIcon,
+  DotsThreeIcon,
+  UserPlusIcon,
+} from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { MutualFriendsSummary } from "@/components/profile/mutual-friends"
@@ -188,7 +193,7 @@ function ProfileScreen({ username }: { username: string }) {
           aria-label="Back"
           className="flex h-9 w-9 items-center justify-center rounded-full border border-border"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeftIcon className="h-4 w-4" />
         </button>
         <span className="text-base font-semibold">profile</span>
         {canBlock ? (
@@ -199,7 +204,7 @@ function ProfileScreen({ username }: { username: string }) {
                 aria-label="options"
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-border"
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <DotsThreeIcon className="h-4 w-4" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -308,9 +313,9 @@ function ProfileScreen({ username }: { username: string }) {
                 className="rounded-full bg-accent px-6 text-accent-foreground hover:bg-accent/90"
               >
                 {busy ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <CircleNotchIcon className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <UserPlus className="mr-2 h-4 w-4" />
+                  <UserPlusIcon className="mr-2 h-4 w-4" />
                 )}
                 add friend
               </Button>

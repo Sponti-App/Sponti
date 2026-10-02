@@ -1,6 +1,6 @@
 "use client"
 
-import { UserMinus } from "lucide-react"
+import { UserMinusIcon } from "@/components/icons"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 
 /**
@@ -21,7 +21,7 @@ export function RemoveGuestDialog({
 }) {
   return (
     <ConfirmDialog
-      icon={<UserMinus className="h-4 w-4" />}
+      icon={<UserMinusIcon className="h-4 w-4" />}
       title={`remove ${name}?`}
       subtitle="they said they're going"
       body="they'll be told they're no longer on the guest list, and the flare will disappear for them. you can invite them again later."

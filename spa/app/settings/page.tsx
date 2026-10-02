@@ -4,21 +4,22 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
-  ArrowLeft,
-  Bell,
-  Camera,
-  ChevronRight,
-  Clock,
-  Link2,
-  Lock,
-  LogOut,
-  MapPin,
-  Moon,
-  Shield,
-  Sun,
-  Upload,
-  User,
-} from "lucide-react"
+  ArrowLeftIcon,
+  BellIcon,
+  CameraIcon,
+  CaretRightIcon,
+  ClockIcon,
+  LinkIcon,
+  LockIcon,
+  SignOutIcon,
+  MapPinIcon,
+  MoonIcon,
+  ShieldIcon,
+  SunIcon,
+  UploadSimpleIcon,
+  UserIcon,
+  type Icon,
+} from "@/components/icons"
 import { useTheme } from "next-themes"
 import { useActionFeedback } from "@/components/action-feedback"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -309,7 +310,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
           aria-label="Back"
           className="flex h-9 w-9 items-center justify-center rounded-full border border-border"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeftIcon className="h-4 w-4" />
         </button>
         <span className="text-base font-semibold">settings</span>
         <button
@@ -317,7 +318,11 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
           aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
           className="flex h-9 w-9 items-center justify-center rounded-full border border-border"
         >
-          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          {isDark ? (
+            <SunIcon className="h-4 w-4" />
+          ) : (
+            <MoonIcon className="h-4 w-4" />
+          )}
         </button>
       </div>
 
@@ -327,11 +332,11 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
           <div className="px-4 pt-4">
             <TabsList className="w-full">
               <TabsTrigger value="account" className="flex-1 gap-1.5">
-                <User className="h-3.5 w-3.5" />
+                <UserIcon className="h-3.5 w-3.5" />
                 Account
               </TabsTrigger>
               <TabsTrigger value="notifications" className="flex-1 gap-1.5">
-                <Bell className="h-3.5 w-3.5" />
+                <BellIcon className="h-3.5 w-3.5" />
                 Notifications
               </TabsTrigger>
             </TabsList>
@@ -341,7 +346,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
           <TabsContent value="account" className="space-y-6 px-4 pt-5">
             {/* Bio and social handles are account fields with their own page
                 (#289): PATCH /auth/me/profile, validated on the server. */}
-            <Section icon={Link2} label="bio and social links">
+            <Section icon={LinkIcon} label="bio and social links">
               <Link
                 href="/settings/profile"
                 className="flex items-center justify-between rounded-xl border border-border p-3 transition-colors hover:bg-muted/40"
@@ -352,12 +357,12 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                     your bio, instagram and telegram
                   </p>
                 </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <CaretRightIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
               </Link>
             </Section>
 
             {/* Avatar — users.avatarUrl, uploaded via POST /auth/me/avatar */}
-            <Section icon={Camera} label="Profile picture">
+            <Section icon={CameraIcon} label="Profile picture">
               <div className="flex items-start gap-4">
                 <Avatar className="h-20 w-20 bg-muted ring-1 ring-border">
                   <AvatarImage
@@ -384,7 +389,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                     className="rounded-full"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <Upload className="h-4 w-4" />
+                    <UploadSimpleIcon className="h-4 w-4" />
                     upload photo
                   </Button>
                   <Input
@@ -399,7 +404,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             </Section>
 
             {/* Profile — users: displayName, username, email */}
-            <Section icon={User} label="Profile">
+            <Section icon={UserIcon} label="Profile">
               <div className="space-y-3">
                 <Field label="Display name">
                   <Input
@@ -437,7 +442,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             </Section>
 
             {/* Privacy — users: profileVisibility (profile_visibility_status enum) */}
-            <Section icon={Shield} label="Privacy">
+            <Section icon={ShieldIcon} label="Privacy">
               <RadioGroup
                 value={account.profileVisibility}
                 onValueChange={(v) =>
@@ -480,7 +485,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
 
             {/* Map — device-only, applies at once (no save button): the idea
                 pins and cards on the home map (#245). Kept in localStorage. */}
-            <Section icon={MapPin} label="Map">
+            <Section icon={MapPinIcon} label="Map">
               <ToggleRow
                 label="show ideas on the map"
                 sublabel="suggested spots near you · kept on this device"
@@ -500,7 +505,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             {/* Password — auth-server has no change-password endpoint yet,
                 only the reset-by-email flow. Hidden behind "coming soon"
                 rather than wired to the wrong flow or removed (#91). */}
-            <Section icon={Lock} label="Password">
+            <Section icon={LockIcon} label="Password">
               <div className="rounded-xl border border-border p-3.5 opacity-50">
                 <p className="text-sm font-medium">change password</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
@@ -517,7 +522,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 onClick={() => logout()}
                 className="rounded-full border-destructive/20 text-destructive hover:bg-destructive/10"
               >
-                <LogOut className="h-4 w-4" />
+                <SignOutIcon className="h-4 w-4" />
                 sign out
               </Button>
             </div>
@@ -535,7 +540,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             {/* Quiet hours — notification_settings: quietHoursEnabled, quietHoursStart, quietHoursEnd.
                 Each control below auto-saves on change (see commitNotifField)
                 and reverts itself if the request fails. */}
-            <Section icon={Clock} label="Quiet hours">
+            <Section icon={ClockIcon} label="Quiet hours">
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">enable quiet hours</p>
@@ -599,7 +604,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             </Section>
 
             {/* Notification types — notification_settings: eventReminders, invitationNotifications */}
-            <Section icon={Bell} label="Notify me about">
+            <Section icon={BellIcon} label="Notify me about">
               <div className="space-y-2">
                 <ToggleRow
                   label="Event reminders"
@@ -625,7 +630,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             {/* Notify when — no backend field (notification_settings has no
                 `notifyWhen` column). Shown disabled, "coming soon", rather
                 than wired or deleted — see NotifyWhen above. */}
-            <Section icon={Bell} label="Notify me when... (coming soon)">
+            <Section icon={BellIcon} label="Notify me when... (coming soon)">
               <RadioGroup
                 value={notif.notifyWhen}
                 className="space-y-2"
@@ -663,7 +668,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             {/* Max distance — no backend field (notification_settings has no
                 `maxDistanceKm` column). Shown disabled, "coming soon". */}
             <Section
-              icon={MapPin}
+              icon={MapPinIcon}
               label={`max distance: ${notif.maxDistanceKm} km (coming soon)`}
             >
               <input
@@ -694,7 +699,7 @@ function Section({
   label,
   children,
 }: {
-  icon: typeof User
+  icon: Icon
   label: string
   children: React.ReactNode
 }) {

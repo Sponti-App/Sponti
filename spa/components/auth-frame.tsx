@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react"
+import { SparkleIcon } from "@/components/icons"
 
 export function AuthFrame({
   title,
@@ -16,7 +16,7 @@ export function AuthFrame({
       <div className="flex flex-1 flex-col overflow-y-auto px-6 pt-8 pb-10">
         <div className="mb-8 flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-accent-foreground">
-            <Sparkles className="h-4 w-4" />
+            <SparkleIcon className="h-4 w-4" />
           </div>
           <span className="text-lg font-semibold tracking-tight">sponti</span>
         </div>

@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Check, Loader2, UserPlus, XCircle } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  CheckIcon,
+  CircleNotchIcon,
+  UserPlusIcon,
+  XCircleIcon,
+} from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -170,15 +176,15 @@ export function ContactLinkScreen({ kind }: { kind: ContactLinkKind }) {
           className="mb-6 flex h-10 w-10 items-center justify-center rounded-full border border-border hover:bg-secondary"
           aria-label="Go back"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeftIcon className="h-4 w-4" />
         </button>
 
         <section className="flex flex-1 flex-col items-center justify-center text-center">
           {status !== "authenticated" || (!result && !error) ? (
-            <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+            <CircleNotchIcon className="h-7 w-7 animate-spin text-muted-foreground" />
           ) : error && !result ? (
             <>
-              <XCircle className="mb-4 h-10 w-10 text-muted-foreground" />
+              <XCircleIcon className="mb-4 h-10 w-10 text-muted-foreground" />
               <h1 className="text-lg font-semibold">{copy.unavailableTitle}</h1>
               <p className="mt-2 max-w-xs text-sm text-muted-foreground">
                 {error}
@@ -210,16 +216,16 @@ export function ContactLinkScreen({ kind }: { kind: ContactLinkKind }) {
                   className="mt-6 rounded-full bg-accent px-6 text-accent-foreground hover:bg-accent/90 disabled:opacity-60"
                 >
                   {connecting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <CircleNotchIcon className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <UserPlus className="mr-2 h-4 w-4" />
+                    <UserPlusIcon className="mr-2 h-4 w-4" />
                   )}
                   {actionLabel(kind, result)}
                 </Button>
               ) : (
                 <>
                   <div className="mt-6 inline-flex items-center rounded-full border border-border px-4 py-2 text-sm font-medium">
-                    <Check className="mr-2 h-4 w-4" />
+                    <CheckIcon className="mr-2 h-4 w-4" />
                     {result.relationship === "connected"
                       ? "you're friends"
                       : "no action needed"}

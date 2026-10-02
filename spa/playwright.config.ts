@@ -16,12 +16,11 @@ export default defineConfig({
   globalSetup: "./e2e/support/global-setup.ts",
   fullyParallel: true,
   forbidOnly: isCI,
-  // Next dev compiles each route on first visit; under worker contention
-  // (several browser contexts hitting a single shared dev server at once)
-  // that first compile can occasionally outrun a tight assertion timeout.
-  // One retry absorbs that without masking a real failure — a genuinely
-  // broken assertion fails the same way on the retry too.
-  retries: 1,
+  // No retries locally: a retry hides a flaky spec, and global-setup warms
+  // every route so a first visit doesn't race a compile (#323, #344). CI keeps
+  // one: 4 of the 7 CI runs checked on 2 Oct needed it, always for
+  // notifications-sheet's "keeps the toast anchor above the open sheet" spec.
+  retries: isCI ? 1 : 0,
   reporter: isCI ? [["github"], ["list"]] : "list",
   use: {
     baseURL: BASE_URL,

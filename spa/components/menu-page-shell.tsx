@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore, type MouseEvent, type ReactNode } from "react"
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeftIcon } from "@/components/icons"
 import { readSession, subscribeSession } from "@/lib/auth-store"
 import { hasInAppHistory } from "@/lib/in-app-history"
 
@@ -80,7 +80,7 @@ export function MenuPageShell({
           aria-label={backLabel}
           className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground transition-colors hover:bg-secondary active:scale-95"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeftIcon className="h-4 w-4" />
         </Link>
         <h1 className="text-lg font-semibold">{title}</h1>
         <div className="h-9 w-9" />

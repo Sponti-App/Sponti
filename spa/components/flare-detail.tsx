@@ -6,14 +6,14 @@
 // live in lib/flare-detail.ts.
 
 import {
-  Check,
-  Clock,
-  ExternalLink,
-  Flame,
-  MapPin,
-  Send,
-  X,
-} from "lucide-react"
+  CheckIcon,
+  ClockIcon,
+  ArrowSquareOutIcon,
+  FlameIcon,
+  MapPinIcon,
+  PaperPlaneRightIcon,
+  XIcon,
+} from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import type { EventType } from "@/lib/api/events"
 import {
@@ -39,7 +39,7 @@ export function CategoryTile({
   size?: "md" | "lg"
 }) {
   const match = EVENT_TYPES.find((t) => t.value === type)
-  const Icon = match?.icon ?? Flame
+  const Icon = match?.icon ?? FlameIcon
   return (
     <div
       role="img"
@@ -89,13 +89,13 @@ export function FlareHeader({
             live ? "text-accent" : "text-muted-foreground"
           )}
         >
-          {live && <Flame className="h-4 w-4" />}
+          {live && <FlameIcon className="h-4 w-4" />}
           {statusLine}
         </p>
       </div>
       {viewer === "joined" && !over && (
         <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent/15 px-2 py-1 text-xs font-medium text-accent">
-          <Check className="h-3 w-3" /> going
+          <CheckIcon className="h-3 w-3" /> going
         </span>
       )}
       {viewer === "host" && (
@@ -125,7 +125,7 @@ export function FlareFacts({
   return (
     <div className="grid grid-cols-2 divide-x divide-border/60 border-y border-border/60 py-3">
       <div className="flex min-w-0 gap-2 pr-3">
-        <Clock
+        <ClockIcon
           className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
           aria-label="when"
         />
@@ -141,13 +141,13 @@ export function FlareFacts({
         aria-label={`open ${placeName} in google maps`}
         className="flex min-w-0 gap-2 pl-3 active:opacity-70"
       >
-        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <div className="min-w-0">
           <p className="flex items-center gap-1 text-sm font-medium">
             <span className="truncate underline decoration-border underline-offset-2">
               {placeName.toLowerCase()}
             </span>
-            <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <ArrowSquareOutIcon className="h-3 w-3 shrink-0 text-muted-foreground" />
           </p>
           {placeDetail && (
             <p className="truncate text-xs text-muted-foreground">
@@ -236,7 +236,7 @@ export function FlareActions({
             disabled={saving}
             onClick={onJoin}
           >
-            <Check className="h-4 w-4" /> join
+            <CheckIcon className="h-4 w-4" /> join
           </Button>
           {!withEta && !declined && (
             <Button
@@ -264,7 +264,7 @@ export function FlareActions({
         className="h-11 flex-1 rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
         onClick={onShareUpdate}
       >
-        <Send className="h-4 w-4" /> share an update
+        <PaperPlaneRightIcon className="h-4 w-4" /> share an update
       </Button>
       {viewer === "joined" && !withEta && declineInline && (
         <Button
@@ -373,7 +373,7 @@ export function YourPlan({
         disabled={saving}
         className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground"
       >
-        <X className="h-3 w-3" /> can&apos;t make it
+        <XIcon className="h-3 w-3" /> can&apos;t make it
       </button>
     </div>
   )

@@ -3,19 +3,19 @@
 import { useSyncExternalStore } from "react"
 import Link from "next/link"
 import {
-  AlertTriangle,
-  Bug,
-  ChevronRight,
-  Clock3,
-  FileText,
-  Flag,
-  HelpCircle,
-  Mail,
-  MessageSquare,
-  Scale,
-  ShieldAlert,
-  UserCircle,
-} from "lucide-react"
+  WarningIcon,
+  BugIcon,
+  CaretRightIcon,
+  ClockIcon,
+  FileTextIcon,
+  FlagIcon,
+  QuestionIcon,
+  EnvelopeIcon,
+  ChatIcon,
+  ScalesIcon,
+  ShieldWarningIcon,
+  UserCircleIcon,
+} from "@/components/icons"
 import { MenuPageShell } from "@/components/menu-page-shell"
 import { Card } from "@/components/ui/card"
 import { CONTACT_EMAIL } from "@/lib/contact"
@@ -28,7 +28,7 @@ const supportPaths = [
       "report unsafe flares, harassment, impersonation, harmful images, or anything that could put people at risk.",
     subject: "safety or content report",
     detail: "read first",
-    icon: ShieldAlert,
+    icon: ShieldWarningIcon,
   },
   {
     title: "bug or broken feature",
@@ -36,7 +36,7 @@ const supportPaths = [
       "tell us which screen broke, what you expected, and what happened instead.",
     subject: "bug report",
     detail: "mention the screen",
-    icon: Bug,
+    icon: BugIcon,
   },
   {
     title: "account help",
@@ -44,7 +44,7 @@ const supportPaths = [
       "help with login, your profile, deleting your account, or suspicious activity on it.",
     subject: "account help",
     detail: "we reply by email",
-    icon: UserCircle,
+    icon: UserCircleIcon,
   },
   {
     title: "flare or rsvp problem",
@@ -52,7 +52,7 @@ const supportPaths = [
       "joining, leaving, host updates, location details, or who can see a flare.",
     subject: "flare or rsvp problem",
     detail: "mention the flare",
-    icon: Flag,
+    icon: FlagIcon,
   },
   {
     title: "feedback",
@@ -60,7 +60,7 @@ const supportPaths = [
       "confusing flows, missing info, or ideas that would make meeting up easier.",
     subject: "feedback",
     detail: "short is fine",
-    icon: MessageSquare,
+    icon: ChatIcon,
   },
 ] as const
 
@@ -75,25 +75,25 @@ const relatedLinks = [
     href: "/menu/faq-feedback",
     label: "faq & feedback",
     description: "common questions and product notes",
-    icon: HelpCircle,
+    icon: QuestionIcon,
   },
   {
     href: "/menu/terms",
     label: "terms of service",
     description: "rules for accounts, flares, and content",
-    icon: FileText,
+    icon: FileTextIcon,
   },
   {
     href: "/menu/privacy",
     label: "privacy note",
     description: "what we keep and who can see it",
-    icon: ShieldAlert,
+    icon: ShieldWarningIcon,
   },
   {
     href: "/menu/impressum",
     label: "impressum",
     description: "who runs sponti",
-    icon: Scale,
+    icon: ScalesIcon,
   },
 ] as const
 
@@ -122,7 +122,7 @@ export default function SupportPage() {
 
         <Card className="border border-border bg-card p-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle
+            <WarningIcon
               className="mt-0.5 size-5 shrink-0 text-accent"
               aria-hidden="true"
             />
@@ -159,7 +159,7 @@ export default function SupportPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-3">
                           <h4 className="text-sm font-medium">{item.title}</h4>
-                          <ChevronRight
+                          <CaretRightIcon
                             className="size-4 shrink-0 text-muted-foreground"
                             aria-hidden="true"
                           />
@@ -201,7 +201,7 @@ export default function SupportPage() {
           <h3 className="text-xl font-semibold">what happens next?</h3>
           <div className="flex flex-col gap-3 text-sm leading-6 text-muted-foreground">
             <div className="flex gap-3">
-              <Clock3
+              <ClockIcon
                 className="mt-0.5 size-4 shrink-0 text-muted-foreground"
                 aria-hidden="true"
               />
@@ -210,7 +210,7 @@ export default function SupportPage() {
               </p>
             </div>
             <div className="flex gap-3">
-              <Mail
+              <EnvelopeIcon
                 className="mt-0.5 size-4 shrink-0 text-muted-foreground"
                 aria-hidden="true"
               />
@@ -260,7 +260,7 @@ export default function SupportPage() {
                       {item.description}
                     </p>
                   </div>
-                  <ChevronRight
+                  <CaretRightIcon
                     className="size-4 shrink-0 text-muted-foreground"
                     aria-hidden="true"
                   />
