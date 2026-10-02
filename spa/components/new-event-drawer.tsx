@@ -56,6 +56,7 @@ import {
   type ReverseGeocodeArea,
 } from "@/lib/current-location"
 import { EVENT_TYPES } from "@/types/utils"
+import { NOW_START_PRESETS, NowChipRow } from "@/components/now-chip-row"
 
 type Mode = "now" | "scheduled"
 type WhereType = "current" | "search"
@@ -2028,14 +2029,8 @@ function EventTypePills({
 // Compact horizontal scrollable chip rows for the spontaneous flow. Replaces
 // the twin scroll wheels which trapped vertical-scroll gestures in a narrow
 // drawer. "starts" offers a short delay ("heading there in half an hour",
-// #312); anything later belongs in "pick a time".
-const NOW_START_PRESETS: { value: number; label: string }[] = [
-  { value: 0, label: "now" },
-  { value: 15, label: "15m" },
-  { value: 30, label: "30m" },
-  { value: 60, label: "1h" },
-]
-
+// #312; NOW_START_PRESETS in now-chip-row.tsx); anything later belongs in
+// "pick a time".
 const NOW_DURATION_PRESETS: { value: number; label: string }[] = [
   { value: 30, label: "30m" },
   { value: 60, label: "1h" },
@@ -2044,43 +2039,6 @@ const NOW_DURATION_PRESETS: { value: number; label: string }[] = [
   { value: 240, label: "4h" },
   { value: OPEN_ENDED, label: "open" },
 ]
-
-function NowChipRow({
-  ariaLabel,
-  presets,
-  value,
-  onChange,
-}: {
-  ariaLabel: string
-  presets: { value: number; label: string }[]
-  value: number
-  onChange: (v: number) => void
-}) {
-  return (
-    <div className="-mx-4 no-scrollbar overflow-x-auto px-4">
-      <div role="group" aria-label={ariaLabel} className="flex gap-2">
-        {presets.map((p) => {
-          const selected = value === p.value
-          return (
-            <button
-              key={p.value}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => onChange(p.value)}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                selected
-                  ? "border-accent bg-accent/10 font-medium text-accent"
-                  : "border-border text-foreground hover:bg-secondary"
-              }`}
-            >
-              {p.label}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 // ----- Time wheels -----
 

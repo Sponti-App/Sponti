@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import EventEditPage from "./page"
@@ -178,7 +178,8 @@ const guest = (
 })
 
 // #312: a "right now" flare can start 15 to 60 minutes out. Its start has
-// seconds, and the form shows minutes, so an untouched time must not move it.
+// seconds, so an untouched start must not move it. #330: it edits through the
+// right-now start chips, measured from when it was lit.
 describe("EventEditPage delayed flare", () => {
   const delayed = hostedEvent({
     createdAt: "2099-06-01T17:30:37.123Z",
@@ -217,6 +218,120 @@ describe("EventEditPage delayed flare", () => {
         endAt: delayed.endAt,
       })
     )
+  })
+})
+
+describe("EventEditPage delayed flare start chips (#330)", () => {
+  const delayed = hostedEvent({
+    createdAt: "2099-06-01T17:30:37.123Z",
+    startAt: "2099-06-01T18:00:37.123Z",
+    endAt: "2099-06-01T19:00:37.123Z",
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.fetchHostedEventById.mockResolvedValue(delayed)
+    mocks.updateEvent.mockResolvedValue(delayed)
+  })
+
+  it("opens with the start chips on 30m and no date or time fields", async () => {
+    render(<EventEditPage />)
+    const starts = await screen.findByRole("group", { name: "starts" })
+    expect(
+      Array.from(starts.querySelectorAll("button")).map((b) => [
+        b.textContent,
+        b.getAttribute("aria-pressed"),
+      ])
+    ).toEqual([
+      ["now", "false"],
+      ["15m", "false"],
+      ["30m", "true"],
+      ["1h", "false"],
+    ])
+    expect(screen.queryByLabelText("date")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("start")).not.toBeInTheDocument()
+    // The duration chips are still there.
+    expect(screen.getByRole("button", { name: "2h" })).toBeInTheDocument()
+  })
+
+  it("starts it at lit time + the new offset, keeping the duration", async () => {
+    const user = userEvent.setup()
+    render(<EventEditPage />)
+    const starts = await screen.findByRole("group", { name: "starts" })
+    await user.click(within(starts).getByRole("button", { name: "1h" }))
+    await user.click(screen.getByRole("button", { name: "save changes" }))
+
+    await waitFor(() => expect(mocks.updateEvent).toHaveBeenCalled())
+    expect(mocks.updateEvent).toHaveBeenCalledWith(
+      "event-1",
+      expect.objectContaining({
+        startAt: "2099-06-01T18:30:37.123Z",
+        endAt: "2099-06-01T19:30:37.123Z",
+      })
+    )
+  })
+
+  it("is back to unchanged after picking the original offset again", async () => {
+    const user = userEvent.setup()
+    render(<EventEditPage />)
+    const starts = await screen.findByRole("group", { name: "starts" })
+    await user.click(within(starts).getByRole("button", { name: "15m" }))
+    expect(screen.getByRole("button", { name: "save changes" })).toBeEnabled()
+    await user.click(within(starts).getByRole("button", { name: "30m" }))
+    expect(
+      screen.getByRole("button", { name: "no changes yet" })
+    ).toBeDisabled()
+  })
+
+  it("can't move the start to a time already gone", async () => {
+    const MIN = 60_000
+    const created = Date.now() - 20 * MIN
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({
+        createdAt: new Date(created).toISOString(),
+        startAt: new Date(created + 30 * MIN).toISOString(),
+        endAt: new Date(created + 90 * MIN).toISOString(),
+      })
+    )
+    render(<EventEditPage />)
+    const starts = await screen.findByRole("group", { name: "starts" })
+    expect(within(starts).getByRole("button", { name: "now" })).toBeDisabled()
+    expect(within(starts).getByRole("button", { name: "15m" })).toBeDisabled()
+    expect(within(starts).getByRole("button", { name: "30m" })).toBeEnabled()
+    expect(within(starts).getByRole("button", { name: "1h" })).toBeEnabled()
+  })
+
+  it("hides the start chips once the flare is live", async () => {
+    const MIN = 60_000
+    const created = Date.now() - 20 * MIN
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({
+        createdAt: new Date(created).toISOString(),
+        startAt: new Date(created + 15 * MIN).toISOString(),
+        endAt: new Date(created + 75 * MIN).toISOString(),
+      })
+    )
+    render(<EventEditPage />)
+    await screen.findByText(/this flare is live/)
+    expect(
+      screen.queryByRole("group", { name: "starts" })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("date")).not.toBeInTheDocument()
+  })
+
+  it("still edits a flare 45 min after it was made as a scheduled one", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({
+        createdAt: "2099-06-01T17:15:00.000Z",
+        startAt: "2099-06-01T18:00:00.000Z",
+        endAt: "2099-06-01T19:00:00.000Z",
+      })
+    )
+    render(<EventEditPage />)
+    expect(await screen.findByLabelText("date")).toBeInTheDocument()
+    expect(
+      screen.queryByRole("group", { name: "starts" })
+    ).not.toBeInTheDocument()
   })
 })
 

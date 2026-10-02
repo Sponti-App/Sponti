@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch"
 import { MakePrivateDialog } from "@/components/make-private-dialog"
 import { CancelEventDialog } from "@/components/cancel-event-dialog"
 import { EventGuestsSection } from "@/components/event-guests-section"
+import { NOW_START_PRESETS, NowChipRow } from "@/components/now-chip-row"
 import {
   cancelEvent,
   deriveStatus,
@@ -94,6 +95,8 @@ export default function EventEditPage() {
   const [description, setDescription] = useState("")
   const [startDate, setStartDate] = useState("")
   const [startTime, setStartTime] = useState("")
+  // A "right now" flare's start, in minutes after it was lit (#330).
+  const [startOffsetMinutes, setStartOffsetMinutes] = useState(0)
   const [durationMinutes, setDurationMinutes] = useState(60)
   const [locationLabel, setLocationLabel] = useState("")
   const [locationDetail, setLocationDetail] = useState("")
@@ -222,6 +225,7 @@ export default function EventEditPage() {
         setDescription(nextEvent.description ?? "")
         setStartDate(shape.startDate ?? "")
         setStartTime(shape.startTime ?? "")
+        setStartOffsetMinutes(shape.startOffsetMinutes ?? 0)
         setDurationMinutes(shape.durationMinutes)
         setLocationLabel(nextEvent.locationLabel)
         setLocationDetail(nextEvent.locationDetail ?? "")
@@ -268,7 +272,12 @@ export default function EventEditPage() {
     status === "past" ||
     deriveStatus({ ...event, apiStatus: "active" }) === "past"
 
-  const nextStartAt = editedStartAt(original, startDate, startTime)
+  const nextStartAt = editedStartAt(
+    original,
+    startDate,
+    startTime,
+    startOffsetMinutes
+  )
   const nextEndAt = new Date(
     new Date(nextStartAt).getTime() + durationMinutes * MIN
   ).toISOString()
@@ -506,6 +515,30 @@ export default function EventEditPage() {
           </Section>
         )}
 
+        {/* #330: a flare lit "right now", maybe 15 to 60 min out, edits
+            through the composer's start chips. Like an offset-0 flare, it
+            has no start control once it's live or over: the live note above
+            says why. */}
+        {initialShape.mode === "now" && !isLive && !isPast && (
+          <Section label="starts">
+            <NowChipRow
+              ariaLabel="starts"
+              presets={NOW_START_PRESETS}
+              value={startOffsetMinutes}
+              onChange={setStartOffsetMinutes}
+              isDisabled={(offset) =>
+                isCancelled ||
+                saving ||
+                (offset !== startOffsetMinutes &&
+                  startsInThePast(original.createdAt, offset))
+              }
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              starts at {formatClock(nextStartAt)}
+            </p>
+          </Section>
+        )}
+
         <Section label="how long">
           <div className="flex flex-wrap gap-2">
             {DURATION_OPTIONS.map((d) => (
@@ -681,6 +714,18 @@ export default function EventEditPage() {
       )}
     </div>
   )
+}
+
+/** Whether `offset` minutes after `createdAt` is already behind us. */
+function startsInThePast(createdAt: string, offset: number): boolean {
+  return new Date(createdAt).getTime() + offset * MIN <= Date.now()
+}
+
+function formatClock(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  })
 }
 
 function Section({
