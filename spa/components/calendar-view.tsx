@@ -345,7 +345,7 @@ export function CalendarView({
                   }`}
                 >
                   <span
-                    className={`text-xs font-medium tracking-wide uppercase ${
+                    className={`text-xs font-medium ${
                       isSelected
                         ? "text-primary"
                         : isToday
@@ -484,7 +484,7 @@ export function CalendarView({
             <div className="mt-6">
               <div className="mb-3 flex items-center gap-2">
                 <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                <h3 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
+                <h3 className="text-sm font-medium text-muted-foreground">
                   up next
                 </h3>
               </div>

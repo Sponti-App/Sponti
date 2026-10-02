@@ -74,7 +74,7 @@ test.describe("first friend from a link (#124)", () => {
       /\/register\?redirectTo=%2Fqr%2Fexpired123$/,
       FIRST_COMPILE
     )
-    await expect(page.getByText("Claim your handle.")).toBeVisible()
+    await expect(page.getByText("claim your handle")).toBeVisible()
     await expect.poll(() => calls.previews.length).toBeGreaterThanOrEqual(1)
     expect(calls.previews[0]).toEqual({ kind: "qr", token: "expired123" })
     await expect(page.getByText(/on sponti$/)).toHaveCount(0)

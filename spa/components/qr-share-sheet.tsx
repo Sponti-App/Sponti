@@ -175,9 +175,7 @@ export function QrShareSheet({
       />
       <div className="relative mt-auto flex flex-col rounded-t-3xl border-t border-border bg-card shadow-2xl">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <span className="text-xs tracking-wide text-muted-foreground uppercase">
-            your qr
-          </span>
+          <span className="text-xs text-muted-foreground">your qr</span>
           <button
             type="button"
             onClick={onClose}

@@ -100,7 +100,7 @@ describe("RegisterPage from a contact link (#124)", () => {
       )
     )
     expect(screen.queryByText(/on sponti$/)).not.toBeInTheDocument()
-    expect(screen.getByText("Claim your handle.")).toBeInTheDocument()
+    expect(screen.getByText("claim your handle")).toBeInTheDocument()
   })
 
   it("does not look anything up without a contact link", async () => {
@@ -108,7 +108,7 @@ describe("RegisterPage from a contact link (#124)", () => {
 
     render(<RegisterPage />)
 
-    expect(screen.getByText("Claim your handle.")).toBeInTheDocument()
+    expect(screen.getByText("claim your handle")).toBeInTheDocument()
     expect(mocks.fetchContactPreviewName).not.toHaveBeenCalled()
   })
 })
@@ -203,7 +203,7 @@ describe("RegisterPage draft across the legal pages (#300)", () => {
     render(<RegisterPage />)
 
     expect(
-      await screen.findByText("Use at least 3 characters.")
+      await screen.findByText("use at least 3 characters")
     ).toBeInTheDocument()
   })
 
@@ -246,7 +246,7 @@ describe("RegisterPage draft across the legal pages (#300)", () => {
     await user.click(screen.getByRole("button", { name: /create account/i }))
 
     expect(
-      await screen.findByText("Something went wrong. Try again.")
+      await screen.findByText("something went wrong, try again")
     ).toBeInTheDocument()
     expect(window.sessionStorage.getItem(REGISTER_DRAFT_KEY)).not.toBeNull()
   })
