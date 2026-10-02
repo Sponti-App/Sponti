@@ -6,7 +6,6 @@ import { API_BASE, AUTH_BASE, BERLIN_COORDS, STUB_USER } from "./support/stubs"
 // flare" (already connected). Signing in on an existing account never shows
 // it. Everything runs against stubbed backends.
 
-const FIRST_COMPILE = { timeout: 30_000 }
 // A day when the berlin idea spots near humboldthain are in season.
 const JUNE = "2026-06-15T12:00:00.000Z"
 
@@ -102,7 +101,7 @@ async function register(page: Page) {
 async function walkToLastScreen(page: Page) {
   await expect(
     page.getByRole("heading", { name: "see flares near you" })
-  ).toBeVisible(FIRST_COMPILE)
+  ).toBeVisible()
   await intro(page).getByRole("button", { name: "next", exact: true }).click()
   await expect(
     page.getByRole("heading", { name: "light a flare fast" })
@@ -114,16 +113,13 @@ async function walkToLastScreen(page: Page) {
 }
 
 test.describe("first-run intro (#313)", () => {
-  // Register, the map and the composer each compile on first visit.
-  test.describe.configure({ timeout: 60_000 })
-
   test("register → intro → add your first friend → map, and only once", async ({
     page,
   }) => {
     await stubSignedOut(page, { friends: 0 })
     await register(page)
 
-    await expect(intro(page)).toBeVisible(FIRST_COMPILE)
+    await expect(intro(page)).toBeVisible()
     await walkToLastScreen(page)
     await intro(page)
       .getByRole("button", { name: "add your first friend" })
@@ -136,7 +132,7 @@ test.describe("first-run intro (#313)", () => {
     await expect(nav(page)).toBeVisible()
 
     await page.reload()
-    await expect(nav(page)).toBeVisible(FIRST_COMPILE)
+    await expect(nav(page)).toBeVisible()
     await expect(intro(page)).toHaveCount(0)
   })
 
@@ -164,24 +160,24 @@ test.describe("first-run intro (#313)", () => {
     await stubSignedOut(page, { friends: 0 })
     await register(page)
 
-    await expect(intro(page)).toBeVisible(FIRST_COMPILE)
+    await expect(intro(page)).toBeVisible()
     await intro(page).getByRole("button", { name: "skip", exact: true }).click()
 
     await expect(intro(page)).toHaveCount(0)
     await expect(nav(page)).toBeVisible()
     await page.reload()
-    await expect(nav(page)).toBeVisible(FIRST_COMPILE)
+    await expect(nav(page)).toBeVisible()
     await expect(intro(page)).toHaveCount(0)
   })
 
   test("signing in on an existing account never shows it", async ({ page }) => {
     await stubSignedOut(page, { friends: 0 })
-    await page.goto("/login", FIRST_COMPILE)
+    await page.goto("/login")
     await page.getByLabel("email").fill("sam@example.com")
     await page.getByLabel("password").fill("password123")
     await page.getByRole("button", { name: /sign in/i }).click()
 
-    await expect(nav(page)).toBeVisible(FIRST_COMPILE)
+    await expect(nav(page)).toBeVisible()
     await expect(intro(page)).toHaveCount(0)
   })
 })

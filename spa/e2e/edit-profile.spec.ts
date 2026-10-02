@@ -7,9 +7,6 @@ import { STUB_USER, stubBackend } from "./support/stubs"
 
 const LEGACY_KEY = "sponti.profile.extras.v1"
 
-// Next dev compiles /settings/profile on first visit.
-const FIRST_COMPILE = { timeout: 30_000 }
-
 test.describe("edit profile (#289)", () => {
   test("settings links to the edit page", async ({ page }) => {
     await stubBackend(page)
@@ -17,7 +14,7 @@ test.describe("edit profile (#289)", () => {
 
     await page.getByRole("link", { name: /edit profile/ }).click()
 
-    await expect(page).toHaveURL(/\/settings\/profile$/, FIRST_COMPILE)
+    await expect(page).toHaveURL(/\/settings\/profile$/)
     await expect(page.getByRole("textbox", { name: "bio" })).toBeVisible()
     // The old device-only inputs are gone from settings.
     await page.goBack()
@@ -31,9 +28,7 @@ test.describe("edit profile (#289)", () => {
     await page.goto("/settings/profile")
 
     const save = page.getByRole("button", { name: "save changes" })
-    await expect(page.getByRole("textbox", { name: "bio" })).toBeEnabled(
-      FIRST_COMPILE
-    )
+    await expect(page.getByRole("textbox", { name: "bio" })).toBeEnabled()
     await expect(save).toBeDisabled()
 
     await page.getByRole("textbox", { name: "bio" }).fill("climbing, coffee")
@@ -65,7 +60,7 @@ test.describe("edit profile (#289)", () => {
     await page.goto("/settings/profile")
 
     const instagram = page.getByRole("textbox", { name: "instagram" })
-    await expect(instagram).toHaveValue("sarah.kim", FIRST_COMPILE)
+    await expect(instagram).toHaveValue("sarah.kim")
     await instagram.fill("")
     await page.getByRole("button", { name: "save changes" }).click()
 
@@ -78,7 +73,7 @@ test.describe("edit profile (#289)", () => {
     await page.goto("/settings/profile")
 
     const telegram = page.getByRole("textbox", { name: "telegram" })
-    await expect(telegram).toBeEnabled(FIRST_COMPILE)
+    await expect(telegram).toBeEnabled()
     await telegram.fill("abc")
     await telegram.blur()
     await expect(
@@ -112,7 +107,7 @@ test.describe("edit profile (#289)", () => {
 
     await expect(
       page.getByText("found handles saved on this device")
-    ).toBeVisible(FIRST_COMPILE)
+    ).toBeVisible()
     await expect(page.getByRole("textbox", { name: "instagram" })).toHaveValue(
       ""
     )

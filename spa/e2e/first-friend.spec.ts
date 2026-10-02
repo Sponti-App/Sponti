@@ -6,10 +6,6 @@ import { INVITER, stubSignedOutContactFlow } from "./support/contact-stubs"
 // back to the link to send the request. Also checks the redirectTo survives
 // the hop to sign-in.
 
-// Next dev compiles /register, /login and the link pages on first visit; give
-// navigations room for that under parallel workers.
-const FIRST_COMPILE = { timeout: 30_000 }
-
 test.describe("first friend from a link (#124)", () => {
   test("signed-out visitor → sign-up → back to the invite to send a request", async ({
     page,
@@ -18,10 +14,7 @@ test.describe("first friend from a link (#124)", () => {
 
     await page.goto("/invite/abc123")
 
-    await expect(page).toHaveURL(
-      /\/register\?redirectTo=%2Finvite%2Fabc123$/,
-      FIRST_COMPILE
-    )
+    await expect(page).toHaveURL(/\/register\?redirectTo=%2Finvite%2Fabc123$/)
     await expect(
       page.getByText(`join ${INVITER.displayName} on sponti`)
     ).toBeVisible()
@@ -42,7 +35,7 @@ test.describe("first friend from a link (#124)", () => {
     await page.getByLabel("password").fill("password123")
     await page.getByRole("button", { name: /create account/i }).click()
 
-    await expect(page).toHaveURL(/\/invite\/abc123$/, FIRST_COMPILE)
+    await expect(page).toHaveURL(/\/invite\/abc123$/)
     await expect(
       page.getByText(`send ${INVITER.displayName} a friend request.`)
     ).toBeVisible()
@@ -70,10 +63,7 @@ test.describe("first friend from a link (#124)", () => {
 
     await page.goto("/qr/expired123")
 
-    await expect(page).toHaveURL(
-      /\/register\?redirectTo=%2Fqr%2Fexpired123$/,
-      FIRST_COMPILE
-    )
+    await expect(page).toHaveURL(/\/register\?redirectTo=%2Fqr%2Fexpired123$/)
     await expect(page.getByText("claim your handle")).toBeVisible()
     await expect.poll(() => calls.previews.length).toBeGreaterThanOrEqual(1)
     expect(calls.previews[0]).toEqual({ kind: "qr", token: "expired123" })
@@ -86,13 +76,10 @@ test.describe("first friend from a link (#124)", () => {
     await stubSignedOutContactFlow(page)
 
     await page.goto("/invite/abc123")
-    await expect(page).toHaveURL(/\/register\?/, FIRST_COMPILE)
+    await expect(page).toHaveURL(/\/register\?/)
     await page.getByRole("link", { name: "sign in" }).click()
 
-    await expect(page).toHaveURL(
-      /\/login\?redirectTo=%2Finvite%2Fabc123$/,
-      FIRST_COMPILE
-    )
+    await expect(page).toHaveURL(/\/login\?redirectTo=%2Finvite%2Fabc123$/)
     await expect(page.getByRole("link", { name: "register" })).toHaveAttribute(
       "href",
       "/register?redirectTo=%2Finvite%2Fabc123"
