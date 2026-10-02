@@ -8,7 +8,13 @@
 import { useEffect, useRef, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, ChevronRight, Lock, Navigation, Pencil } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  CaretRightIcon,
+  LockIcon,
+  NavigationArrowIcon,
+  PencilSimpleIcon,
+} from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { initials } from "@/components/event-avatar-stack"
@@ -371,7 +377,7 @@ function FlareDetail({
         >
           <div className="absolute inset-x-0 top-0 flex justify-between px-4 pt-[max(0.5rem,env(safe-area-inset-top))]">
             <HeroButton label="back" onClick={() => router.push("/event")}>
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeftIcon className="h-4 w-4" />
             </HeroButton>
             {isHost && (
               <HeroButton
@@ -379,7 +385,7 @@ function FlareDetail({
                 disabled={timing === "ended"}
                 onClick={() => router.push(`/event/${event.id}/edit`)}
               >
-                <Pencil className="h-4 w-4" />
+                <PencilSimpleIcon className="h-4 w-4" />
               </HeroButton>
             )}
           </div>
@@ -390,7 +396,7 @@ function FlareDetail({
             rel="noreferrer"
             className="absolute right-4 bottom-9 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs shadow-sm"
           >
-            <Navigation className="h-3.5 w-3.5 text-primary" />
+            <NavigationArrowIcon className="h-3.5 w-3.5 text-primary" />
             <span className="font-medium">open in maps</span>
             {directions.travelLabel && !isHost && (
               <span className="text-muted-foreground">
@@ -506,7 +512,7 @@ function FlareDetail({
                 {event.attendingCount} going
               </TabsTrigger>
               <TabsTrigger value="updates" className={TAB_TRIGGER}>
-                {!canSeeThread && <Lock className="h-3 w-3" />}
+                {!canSeeThread && <LockIcon className="h-3 w-3" />}
                 updates · {updateCount}
               </TabsTrigger>
             </TabsList>
@@ -594,7 +600,7 @@ function HostCard({
       )}
     >
       {children}
-      <ChevronRight className="ml-auto h-4 w-4 shrink-0 self-center text-muted-foreground" />
+      <CaretRightIcon className="ml-auto h-4 w-4 shrink-0 self-center text-muted-foreground" />
     </Link>
   )
 }

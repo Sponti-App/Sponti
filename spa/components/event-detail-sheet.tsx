@@ -11,7 +11,12 @@ import {
   FlareFacts,
   FlareHeader,
 } from "@/components/flare-detail"
-import { ChevronRight, Navigation, Pencil, UserRound } from "lucide-react"
+import {
+  CaretRightIcon,
+  NavigationArrowIcon,
+  PencilSimpleIcon,
+  UserIcon,
+} from "@/components/icons"
 import {
   arrivalStatusLabel,
   avatarText,
@@ -322,7 +327,7 @@ export function EventDetailSheet({
                         onSeeRoute(displayEvent)
                       }}
                     >
-                      <Navigation className="h-4 w-4" /> see route
+                      <NavigationArrowIcon className="h-4 w-4" /> see route
                     </SecondaryAction>
                   )}
                 {viewer === "joined" &&
@@ -339,14 +344,14 @@ export function EventDetailSheet({
                   )}
                 {viewer === "host" && (
                   <SecondaryAction onClick={() => openFlarePage("/edit")}>
-                    <Pencil className="h-4 w-4" /> edit flare
+                    <PencilSimpleIcon className="h-4 w-4" /> edit flare
                   </SecondaryAction>
                 )}
                 <SecondaryAction onClick={() => openFlarePage()}>
                   {viewer === "invited"
                     ? "see details and updates"
                     : "open flare"}
-                  <ChevronRight className="h-4 w-4" />
+                  <CaretRightIcon className="h-4 w-4" />
                 </SecondaryAction>
               </div>
             </div>
@@ -441,7 +446,7 @@ function HostRow({
       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs ${color} ${avatarText(color)}`}
     >
       {avatar || name?.charAt(0).toUpperCase() || (
-        <UserRound className="h-4 w-4" />
+        <UserIcon className="h-4 w-4" />
       )}
     </div>
   )
@@ -472,7 +477,7 @@ function HostRow({
     >
       {face}
       {text}
-      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <CaretRightIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
     </Link>
   )
 }

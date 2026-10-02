@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Loader2, X } from "lucide-react"
+import { CircleNotchIcon, XIcon } from "@/components/icons"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { initials } from "@/lib/circles"
@@ -161,7 +161,7 @@ function MutualFriendsSheet({
             aria-label="close"
             className="flex h-9 w-9 items-center justify-center rounded-full border border-border"
           >
-            <X className="h-4 w-4" />
+            <XIcon className="h-4 w-4" />
           </button>
         </div>
         <ul className="flex-1 overflow-y-auto px-2 pb-4">
@@ -188,7 +188,7 @@ function MutualFriendsSheet({
               aria-label="loading mutual friends"
               className="flex justify-center py-4"
             >
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <CircleNotchIcon className="h-4 w-4 animate-spin text-muted-foreground" />
             </li>
           )}
           {list.status === "error" && (

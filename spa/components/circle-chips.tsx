@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Loader2 } from "lucide-react"
+import { CheckIcon, CircleNotchIcon } from "@/components/icons"
 import { orderCircleChoices } from "@/lib/circle-choices"
 import type { Circle } from "@/lib/circles"
 import { cn } from "@/lib/utils"
@@ -46,7 +46,7 @@ export function CircleChips({
           className
         )}
       >
-        <Check className="h-3.5 w-3.5 text-primary" />
+        <CheckIcon className="h-3.5 w-3.5 text-primary" />
         added to {state.circle.name}
       </p>
     )
@@ -76,7 +76,7 @@ export function CircleChips({
       <div className="flex flex-wrap items-center gap-2">
         {circles === null ? (
           <span className="flex h-8 items-center gap-1.5 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <CircleNotchIcon className="h-3.5 w-3.5 animate-spin" />
             loading circles
           </span>
         ) : (
@@ -96,7 +96,9 @@ export function CircleChips({
                     : "border-border text-foreground hover:bg-muted disabled:opacity-50"
                 )}
               >
-                {selected && <Loader2 className="h-3 w-3 animate-spin" />}
+                {selected && (
+                  <CircleNotchIcon className="h-3 w-3 animate-spin" />
+                )}
                 {circle.name}
               </button>
             )

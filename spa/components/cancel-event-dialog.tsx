@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertTriangle, X } from "lucide-react"
+import { WarningIcon, XIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import type { HostedEvent, EventStatus } from "@/lib/api/events"
 
@@ -45,7 +45,7 @@ export function CancelEventDialog({
         <div className="flex items-start justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-              <AlertTriangle className="h-4 w-4" />
+              <WarningIcon className="h-4 w-4" />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold">cancel {event.title}?</p>
@@ -58,7 +58,7 @@ export function CancelEventDialog({
             aria-label="Close"
             className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-secondary"
           >
-            <X className="h-3.5 w-3.5" />
+            <XIcon className="h-3.5 w-3.5" />
           </button>
         </div>
         <p className="px-4 pb-3 text-xs text-muted-foreground">{body}</p>

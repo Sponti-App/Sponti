@@ -1,24 +1,25 @@
 import { type EventType } from "@/lib/api/events"
 import {
-  Dumbbell,
-  Landmark,
-  Palette,
-  PartyPopper,
-  Users,
-  UtensilsCrossed,
-  Wine,
-} from "lucide-react"
+  BarbellIcon,
+  BankIcon,
+  PaletteIcon,
+  ConfettiIcon,
+  UsersIcon,
+  ForkKnifeIcon,
+  WineIcon,
+  type Icon,
+} from "@/components/icons"
 
 export const EVENT_TYPES: {
   value: EventType
   label: string
-  icon: typeof UtensilsCrossed
+  icon: Icon
 }[] = [
-  { value: "hangout", label: "hang out", icon: Users },
-  { value: "drinks", label: "drinks", icon: Wine },
-  { value: "food", label: "food", icon: UtensilsCrossed },
-  { value: "party", label: "party", icon: PartyPopper },
-  { value: "sports", label: "sports", icon: Dumbbell },
-  { value: "culture", label: "culture", icon: Landmark },
-  { value: "hobby", label: "hobby", icon: Palette },
+  { value: "hangout", label: "hang out", icon: UsersIcon },
+  { value: "drinks", label: "drinks", icon: WineIcon },
+  { value: "food", label: "food", icon: ForkKnifeIcon },
+  { value: "party", label: "party", icon: ConfettiIcon },
+  { value: "sports", label: "sports", icon: BarbellIcon },
+  { value: "culture", label: "culture", icon: BankIcon },
+  { value: "hobby", label: "hobby", icon: PaletteIcon },
 ]

@@ -2,18 +2,18 @@
 
 import { useEffect, type ReactNode } from "react"
 import {
-  Check,
-  EyeOff,
-  Flame,
-  MessageSquare,
-  RotateCcw,
-  Sparkles,
-  UserCheck,
-  UserMinus,
-  UserPlus,
-  X,
-  type LucideIcon,
-} from "lucide-react"
+  CheckIcon,
+  EyeSlashIcon,
+  FlameIcon,
+  ChatIcon,
+  ArrowCounterClockwiseIcon,
+  SparkleIcon,
+  UserCheckIcon,
+  UserMinusIcon,
+  UserPlusIcon,
+  XIcon,
+  type Icon,
+} from "@/components/icons"
 import { useOptionalActionFeedback } from "@/components/action-feedback"
 import { CircleChips, type CircleChipsState } from "@/components/circle-chips"
 import { Button } from "@/components/ui/button"
@@ -39,38 +39,38 @@ import { cn } from "@/lib/utils"
 // undo window, then the circle chips.
 
 type Visual = {
-  icon: LucideIcon
+  icon: Icon
   ring: string
 }
 
 const TYPE_VISUAL: Record<Notification["type"], Visual> = {
-  event_invitation: { icon: Flame, ring: "border-accent/30 text-accent" },
+  event_invitation: { icon: FlameIcon, ring: "border-accent/30 text-accent" },
   event_cancelled: {
-    icon: X,
+    icon: XIcon,
     ring: "border-destructive/40 text-destructive",
   },
   event_reactivated: {
-    icon: RotateCcw,
+    icon: ArrowCounterClockwiseIcon,
     ring: "border-accent/30 text-accent",
   },
   event_rsvp_change: {
-    icon: Sparkles,
+    icon: SparkleIcon,
     ring: "border-foreground/15 text-foreground",
   },
   event_guest_removed: {
-    icon: UserMinus,
+    icon: UserMinusIcon,
     ring: "border-foreground/15 text-muted-foreground",
   },
   event_update: {
-    icon: MessageSquare,
+    icon: ChatIcon,
     ring: "border-accent/30 text-accent",
   },
   connection_request: {
-    icon: UserPlus,
+    icon: UserPlusIcon,
     ring: "border-accent/30 text-accent",
   },
   connection_accepted: {
-    icon: UserCheck,
+    icon: UserCheckIcon,
     ring: "border-accent/30 text-accent",
   },
 }
@@ -126,13 +126,13 @@ function SwipeableRow({
         >
           {swipe.offset > 0 ? (
             <>
-              <Check className="h-4 w-4" />
+              <CheckIcon className="h-4 w-4" />
               accept
             </>
           ) : (
             <>
               hide
-              <EyeOff className="h-4 w-4" />
+              <EyeSlashIcon className="h-4 w-4" />
             </>
           )}
         </div>

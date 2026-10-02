@@ -6,19 +6,20 @@
 // document of zones. The one peach action lives in a sticky bar above the nav.
 
 import {
-  ArrowLeft,
-  Check,
-  Clock,
-  Lock,
-  MapPin,
-  MoreHorizontal,
-  Navigation,
-  Pencil,
-  Send,
-  Share2,
-  UserPlus,
-  Users,
-} from "lucide-react"
+  ArrowLeftIcon,
+  CheckIcon,
+  ClockIcon,
+  LockIcon,
+  MapPinIcon,
+  DotsThreeIcon,
+  NavigationArrowIcon,
+  PencilSimpleIcon,
+  PaperPlaneRightIcon,
+  ShareNetworkIcon,
+  UserPlusIcon,
+  UsersIcon,
+  type Icon,
+} from "@/components/icons"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { EventAvatarStack } from "@/components/event-avatar-stack"
@@ -56,7 +57,7 @@ export function VariantA(props: VariantProps) {
     <div className="pb-56">
       <header className="flex items-center justify-between px-4 pt-2">
         <RoundButton label="back" onClick={() => onStub("back")}>
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeftIcon className="h-4 w-4" />
         </RoundButton>
         <div className="flex gap-2">
           {isHost ? (
@@ -64,15 +65,15 @@ export function VariantA(props: VariantProps) {
               label="edit flare"
               onClick={() => onStub("edit flare")}
             >
-              <Pencil className="h-4 w-4" />
+              <PencilSimpleIcon className="h-4 w-4" />
             </RoundButton>
           ) : (
             <RoundButton label="share" onClick={() => onStub("share")}>
-              <Share2 className="h-4 w-4" />
+              <ShareNetworkIcon className="h-4 w-4" />
             </RoundButton>
           )}
           <RoundButton label="more" onClick={() => onStub("more")}>
-            <MoreHorizontal className="h-4 w-4" />
+            <DotsThreeIcon className="h-4 w-4" />
           </RoundButton>
         </div>
       </header>
@@ -87,7 +88,7 @@ export function VariantA(props: VariantProps) {
               {flare.visibility === "private" && (
                 <>
                   <span>·</span>
-                  <Lock className="h-3 w-3" /> private
+                  <LockIcon className="h-3 w-3" /> private
                 </>
               )}
               <PlaceholderTag>#138</PlaceholderTag>
@@ -101,7 +102,7 @@ export function VariantA(props: VariantProps) {
                 : `by ${flare.host.displayName.toLowerCase()}`}
               {viewer === "joined" && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 font-medium text-accent">
-                  <Check className="h-3 w-3" /> going
+                  <CheckIcon className="h-3 w-3" /> going
                 </span>
               )}
             </p>
@@ -109,10 +110,10 @@ export function VariantA(props: VariantProps) {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-1.5">
-          <FactChip icon={Clock} live={live} href="#a-when">
+          <FactChip icon={ClockIcon} live={live} href="#a-when">
             {statusLine(flare, now)}
           </FactChip>
-          <FactChip icon={MapPin} href="#a-where">
+          <FactChip icon={MapPinIcon} href="#a-where">
             {flare.place.name} · {flare.place.distance}
           </FactChip>
           <a
@@ -162,7 +163,7 @@ export function VariantA(props: VariantProps) {
             className="rounded-full"
             onClick={() => onStub("directions")}
           >
-            <Navigation className="h-3.5 w-3.5" />
+            <NavigationArrowIcon className="h-3.5 w-3.5" />
             directions
           </Button>
         </div>
@@ -181,7 +182,7 @@ export function VariantA(props: VariantProps) {
               onClick={() => onStub("invite more")}
               className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-primary"
             >
-              <UserPlus className="h-3.5 w-3.5" /> invite
+              <UserPlusIcon className="h-3.5 w-3.5" /> invite
             </button>
           )}
         </div>
@@ -214,7 +215,7 @@ export function VariantA(props: VariantProps) {
                   </p>
                 )}
               </div>
-              <Check className="h-4 w-4 shrink-0 text-primary" />
+              <CheckIcon className="h-4 w-4 shrink-0 text-primary" />
             </li>
           ))}
         </ul>
@@ -256,7 +257,7 @@ export function VariantA(props: VariantProps) {
               className="flex items-center gap-2 rounded-full bg-muted px-3 py-2 text-left text-sm text-muted-foreground"
             >
               <span className="flex-1">write an update...</span>
-              <Send className="h-3.5 w-3.5" />
+              <PaperPlaneRightIcon className="h-3.5 w-3.5" />
             </button>
           </div>
         )}
@@ -291,9 +292,9 @@ function ActionBarA({
             onClick={() => onStub(live ? "post update" : "invite more")}
           >
             {live ? (
-              <Send className="h-4 w-4" />
+              <PaperPlaneRightIcon className="h-4 w-4" />
             ) : (
-              <UserPlus className="h-4 w-4" />
+              <UserPlusIcon className="h-4 w-4" />
             )}
             {live ? "post an update" : "invite more"}
           </Button>
@@ -302,7 +303,7 @@ function ActionBarA({
             className="h-11 rounded-full px-5"
             onClick={() => onStub("manage")}
           >
-            <Users className="h-4 w-4" /> manage
+            <UsersIcon className="h-4 w-4" /> manage
           </Button>
         </div>
       ) : viewer === "invited" ? (
@@ -330,7 +331,7 @@ function ActionBarA({
               className="h-11 flex-1 rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
               onClick={onJoin}
             >
-              <Check className="h-4 w-4" />
+              <CheckIcon className="h-4 w-4" />
               {live ? `on my way · ${etaLabel(myEta)}` : "i'm in"}
             </Button>
           </div>
@@ -353,7 +354,7 @@ function ActionBarA({
                 className="h-11 rounded-full px-4"
                 onClick={() => setChangingEta((v) => !v)}
               >
-                <Clock className="h-4 w-4" /> eta {etaLabel(myEta)}
+                <ClockIcon className="h-4 w-4" /> eta {etaLabel(myEta)}
               </Button>
             ) : (
               <Button
@@ -369,9 +370,9 @@ function ActionBarA({
               onClick={() => onStub(live ? "directions" : "add to calendar")}
             >
               {live ? (
-                <Navigation className="h-4 w-4" />
+                <NavigationArrowIcon className="h-4 w-4" />
               ) : (
-                <Check className="h-4 w-4" />
+                <CheckIcon className="h-4 w-4" />
               )}
               {live ? "directions" : "add to calendar"}
             </Button>
@@ -447,7 +448,7 @@ function FactChip({
   href,
   children,
 }: {
-  icon: typeof Clock
+  icon: Icon
   live?: boolean
   href: string
   children: React.ReactNode

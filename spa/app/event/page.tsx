@@ -2,7 +2,12 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ChevronDown, ListFilter, Sparkles } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  CaretDownIcon,
+  FunnelSimpleIcon,
+  SparkleIcon,
+} from "@/components/icons"
 import { EventHostCard } from "@/components/event-host-card"
 import { Button } from "@/components/ui/button"
 import {
@@ -55,7 +60,7 @@ export default function EventHubPage() {
             aria-label="back"
             className="h-10 w-10 rounded-full"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeftIcon className="h-4 w-4" />
           </Button>
           <h1 className="text-base font-semibold">flares</h1>
           <EventFilterMenu value={filter} onChange={setFilter} />
@@ -133,7 +138,7 @@ function EventSection({
         className="mb-2 flex w-full items-center justify-between px-1 text-xs font-medium text-muted-foreground"
       >
         <span>{title}</span>
-        <ChevronDown
+        <CaretDownIcon
           className={cn(
             "h-3.5 w-3.5 transition-transform",
             !open && "-rotate-90"
@@ -202,7 +207,7 @@ function EventFilterMenu({
           aria-label="filter flares"
           className="h-10 w-10 rounded-full"
         >
-          <ListFilter className="h-4 w-4" />
+          <FunnelSimpleIcon className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
@@ -255,7 +260,7 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center px-4 pt-20 pb-8 text-center">
       <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-muted-foreground">
-        <Sparkles className="h-5 w-5" />
+        <SparkleIcon className="h-5 w-5" />
       </div>
       <p className="text-sm font-semibold">nothing yet</p>
       <p className="mt-1 max-w-[240px] text-xs text-muted-foreground">

@@ -41,7 +41,7 @@ _Current work (tracked as GitHub issues):_
 
 - **Pre-launch checklist (#274):** the living list of to-dos before sharing with testers. Add launch blockers there.
 - **Map pins (#315):** one circle per flare with its category icon, plum for invite only and teal for open to all. Peach on a pin means live only.
-- **Icon set (#345):** Iconoir vs Phosphor as a replacement for Lucide, previewed in a prototype PR. Keep using Lucide until it's decided.
+- **Icon set (#345):** Phosphor replaces Lucide. Every icon comes from `spa/components/icons.tsx`, and ESLint blocks importing an icon package anywhere else.
 - **Ideas on a quiet map (#240):** curated Berlin idea spots (`spa/lib/flare-ideas.data.ts`, owned by the team) offered as one-tap flares.
 - **Parked until testers give feedback:** first-friend onboarding (#124: QR connect and the 7-day invite link work, and still need a real-phone check) and the composer layout (#311).
 
@@ -172,7 +172,7 @@ Canonical reference: [BRAND.md](./BRAND.md). Read it before touching styling.
 - One CTA color in both modes: saturated peach `oklch(0.8041 0.126 52.09)` (`--primary`, `--accent`, `--ring`). Foreground on peach: dark warm `oklch(0.25 0.06 50)`.
 - Light mode bg: pale pink-cream `oklch(0.97 0.015 346)`. Dark mode bg: ink-black navy `oklch(0.2178 0.0145 266.91)`.
 - Typography: **Bricolage Grotesque** (one family, 4-step scale 18/16/14/12 px, hierarchy via weight + color not size). All product copy lowercase.
-- Stack: Tailwind v4 + shadcn Nova preset + Radix + Lucide (a replacement is under review in #345).
+- Stack: Tailwind v4 + shadcn Nova preset + Radix + Phosphor icons (regular weight; the active bottom-nav tab uses fill), imported only through `spa/components/icons.tsx`.
 - Recurring patterns: `border-l-[3px] border-l-accent` for live/active rows, `bg-card text-primary` for selected segmented/tab states, FAB only on map view, ended/past states muted and folded behind a "show N ended" toggle.
 - Do not fall back to stock shadcn `--accent` — we override it with the brand peach in both modes.
 

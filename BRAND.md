@@ -92,7 +92,7 @@ Strict 4-step scale. Hierarchy comes from **weight and color**, not from inventi
 
 ## 6. Component conventions
 
-Built on **shadcn (Nova preset)** + **Radix UI** + **Tailwind v4** + **Lucide icons**.
+Built on **shadcn (Nova preset)** + **Radix UI** + **Tailwind v4** + **Phosphor icons** (`@phosphor-icons/react`, through `spa/components/icons.tsx`).
 
 | Pattern | Implementation |
 |---|---|
@@ -123,7 +123,7 @@ Built on **shadcn (Nova preset)** + **Radix UI** + **Tailwind v4** + **Lucide ic
 
 ## 8. Imagery & iconography
 
-- **Icons:** Lucide React, default 16–20 px in product chrome, 24 px for FAB.
+- **Icons:** Phosphor (`@phosphor-icons/react`), regular weight, colour `currentColor`, default 16–20 px in product chrome, 24 px for the flare button and FAB. The active bottom-nav tab uses the fill weight. Components import icons only from `spa/components/icons.tsx`, never from an icon package. The flare button is `Flame`, "my flares" is `Fire`.
 - **Avatars:** circular, generated initials over a host-color bg (used on map markers and event hosts).
 - **No stock photography in-product.** Marketing surfaces only.
 - **Map markers** use the host's color as a circle fill — distinct from the brand peach so brand and identity don't collide on the map.

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Flame } from "lucide-react"
+import { ArrowRightIcon, FlameIcon } from "@/components/icons"
 import { GoogleAuthButton } from "@/components/google-auth-button"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -173,7 +173,7 @@ export default function RegisterPage() {
           )}
           <div className="mb-5 flex items-center gap-2.5">
             <span className="sponti-register-mark relative flex size-7 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm">
-              <Flame className="size-3.5" />
+              <FlameIcon className="size-3.5" />
             </span>
             <span className="text-sm font-semibold tracking-normal">
               sponti
@@ -283,7 +283,7 @@ export default function RegisterPage() {
               className="h-[52px] w-full rounded-full bg-accent text-base text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
             >
               {submitting ? "creating account…" : "create account"}
-              {!submitting && <ArrowRight className="size-4" />}
+              {!submitting && <ArrowRightIcon className="size-4" />}
             </Button>
 
             <div className="my-4 flex items-center gap-4 text-xs text-muted-foreground">

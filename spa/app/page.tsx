@@ -8,7 +8,14 @@ import { MenuDrawer } from "@/components/menu-drawer"
 import { FirstRunIntro } from "@/components/first-run-intro"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
-import { Menu, Settings, Map, Calendar, Navigation, X } from "lucide-react"
+import {
+  ListIcon,
+  GearIcon,
+  MapTrifoldIcon,
+  CalendarBlankIcon,
+  NavigationArrowIcon,
+  XIcon,
+} from "@/components/icons"
 import { useRouter } from "next/navigation"
 import {
   etaToIso,
@@ -190,7 +197,7 @@ export default function Home() {
             }}
             className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md active:scale-95 dark:bg-background/90"
           >
-            <Menu className="h-4 w-4" />
+            <ListIcon className="h-4 w-4" />
           </button>
 
           {/* View toggle pill */}
@@ -206,7 +213,7 @@ export default function Home() {
                   : "text-muted-foreground"
               }`}
             >
-              <Map className="h-4 w-4" />
+              <MapTrifoldIcon className="h-4 w-4" />
               <span>map</span>
             </button>
             <button
@@ -220,7 +227,7 @@ export default function Home() {
                   : "text-muted-foreground"
               }`}
             >
-              <Calendar className="h-4 w-4" />
+              <CalendarBlankIcon className="h-4 w-4" />
               <span>calendar</span>
             </button>
           </div>
@@ -234,7 +241,7 @@ export default function Home() {
             aria-label="Settings"
             className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md active:scale-95 dark:bg-background/90"
           >
-            <Settings className="h-4 w-4" />
+            <GearIcon className="h-4 w-4" />
           </button>
         </div>
 
@@ -246,7 +253,7 @@ export default function Home() {
               onClick={() => setSelectedEvent(activeRoute)}
               className="flex items-center gap-2"
             >
-              <Navigation className="h-3.5 w-3.5" />
+              <NavigationArrowIcon className="h-3.5 w-3.5" />
               <span>
                 routing to {activeRoute.location.name}
                 {routeEta ? ` · ETA ${routeEta}` : ""}
@@ -257,7 +264,7 @@ export default function Home() {
               aria-label="Clear route"
               className="ml-1 rounded-full p-1 hover:bg-accent-foreground/10"
             >
-              <X className="h-3 w-3" />
+              <XIcon className="h-3 w-3" />
             </button>
           </div>
         )}

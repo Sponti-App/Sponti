@@ -1,47 +1,47 @@
 import {
-  FileText,
-  HelpCircle,
-  Info,
-  LifeBuoy,
-  Scale,
-  ShieldCheck,
-} from "lucide-react"
+  FileTextIcon,
+  QuestionIcon,
+  InfoIcon,
+  LifebuoyIcon,
+  ScalesIcon,
+  ShieldCheckIcon,
+} from "@/components/icons"
 
 export const menuItems = [
   {
     href: "/menu/about-sponti",
     label: "about sponti",
     description: "what sponti is for",
-    icon: Info,
+    icon: InfoIcon,
   },
   {
     href: "/menu/faq-feedback",
     label: "faq & feedback",
     description: "answers and product feedback",
-    icon: HelpCircle,
+    icon: QuestionIcon,
   },
   {
     href: "/menu/privacy",
     label: "privacy note",
     description: "what we keep and who can see it",
-    icon: ShieldCheck,
+    icon: ShieldCheckIcon,
   },
   {
     href: "/menu/terms",
     label: "terms of service",
     description: "terms and community basics",
-    icon: FileText,
+    icon: FileTextIcon,
   },
   {
     href: "/menu/impressum",
     label: "impressum",
     description: "who runs sponti",
-    icon: Scale,
+    icon: ScalesIcon,
   },
   {
     href: "/menu/support",
     label: "support",
     description: "help, feedback and safety reports",
-    icon: LifeBuoy,
+    icon: LifebuoyIcon,
   },
 ] as const
