@@ -1,5 +1,9 @@
 // The adapter module itself, not the "@/lib/api/events" barrel that tests mock.
-import { NOW_START_OFFSETS_MIN } from "@/lib/api/events/events.adapter"
+import {
+  DURATIONS_MIN,
+  NOW_START_OFFSETS_MIN,
+  OPEN_ENDED,
+} from "@/lib/api/events/events.adapter"
 
 // The "starts" chips of a "right now" flare (#312): a short delay after it is
 // lit. Shared by the composer and the edit page (#330).
@@ -12,10 +16,30 @@ export const NOW_START_PRESETS: { value: number; label: string }[] =
     label: NOW_START_LABELS[value],
   }))
 
+// The "how long?" chips (#340): "pick a time" and a scheduled flare's edit
+// page offer DURATION_PRESETS; the "right now" flow, in the composer and on
+// the edit page, adds "open".
+const DURATION_LABELS: Record<(typeof DURATIONS_MIN)[number], string> = {
+  30: "30m",
+  60: "1h",
+  120: "2h",
+  180: "3h",
+  240: "4h",
+}
+
+export const DURATION_PRESETS: { value: number; label: string }[] =
+  DURATIONS_MIN.map((value) => ({ value, label: DURATION_LABELS[value] }))
+
+export const NOW_DURATION_PRESETS: { value: number; label: string }[] = [
+  ...DURATION_PRESETS,
+  { value: OPEN_ENDED, label: "open" },
+]
+
 /**
  * One row of compact chips for the "right now" flow: a labelled group of
  * toggle buttons, scrolling sideways when it doesn't fit. `isDisabled` greys
  * out single chips (the edit page uses it for starts already in the past).
+ * A `value` of null selects no chip.
  */
 export function NowChipRow({
   ariaLabel,
@@ -26,7 +50,7 @@ export function NowChipRow({
 }: {
   ariaLabel: string
   presets: { value: number; label: string }[]
-  value: number
+  value: number | null
   onChange: (v: number) => void
   isDisabled?: (v: number) => boolean
 }) {

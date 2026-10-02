@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import EventEditPage from "./page"
+import { buildTimeRange } from "@/components/new-event-drawer"
 import type { HostedEvent } from "@/lib/api/events"
 
 const mocks = vi.hoisted(() => ({
@@ -332,6 +333,146 @@ describe("EventEditPage delayed flare start chips (#330)", () => {
     expect(
       screen.queryByRole("group", { name: "starts" })
     ).not.toBeInTheDocument()
+  })
+})
+
+describe("EventEditPage duration chips (#340)", () => {
+  const MIN = 60_000
+  // A "right now" flare lit with a 30m delay, seconds kept.
+  const createdAt = "2099-06-01T17:30:37.123Z"
+  const startAt = "2099-06-01T18:00:37.123Z"
+  const nowFlare = (minutes: number) =>
+    hostedEvent({
+      createdAt,
+      startAt,
+      endAt: new Date(
+        new Date(startAt).getTime() + minutes * MIN
+      ).toISOString(),
+    })
+
+  const chips = async () =>
+    Array.from(
+      (await screen.findByRole("group", { name: "how long" })).querySelectorAll(
+        "button"
+      )
+    ).map((b) => [b.textContent, b.getAttribute("aria-pressed")])
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.updateEvent.mockImplementation(async (_id, updates) => ({
+      ...hostedEvent(),
+      ...updates,
+    }))
+  })
+
+  it("offers the composer's right-now presets with open, and selects an open-ended flare's open", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(nowFlare(8 * 60))
+    render(<EventEditPage />)
+    expect(await chips()).toEqual([
+      ["30m", "false"],
+      ["1h", "false"],
+      ["2h", "false"],
+      ["3h", "false"],
+      ["4h", "false"],
+      ["open", "true"],
+    ])
+  })
+
+  it.each([
+    [240, "4h"],
+    [60, "1h"],
+  ])("selects %s minutes as %s", async (minutes, label) => {
+    mocks.fetchHostedEventById.mockResolvedValue(nowFlare(minutes))
+    render(<EventEditPage />)
+    const selected = (await chips()).filter(([, pressed]) => pressed === "true")
+    expect(selected).toEqual([[label, "true"]])
+  })
+
+  it("selects nothing for a length no chip offers", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(nowFlare(45))
+    render(<EventEditPage />)
+    expect((await chips()).filter(([, pressed]) => pressed === "true")).toEqual(
+      []
+    )
+  })
+
+  it("offers a scheduled flare the pick-a-time presets, without open", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent())
+    render(<EventEditPage />)
+    expect(await chips()).toEqual([
+      ["30m", "false"],
+      ["1h", "true"],
+      ["2h", "false"],
+      ["3h", "false"],
+      ["4h", "false"],
+    ])
+  })
+
+  it.each([
+    ["an open-ended", nowFlare(8 * 60)],
+    ["an unmatched", nowFlare(45)],
+    ["a scheduled", hostedEvent({ endAt: "2099-06-01T19:00:59.999Z" })],
+  ])(
+    "saves %s flare's start and end unchanged when only the title changes",
+    async (_label, flare) => {
+      mocks.fetchHostedEventById.mockResolvedValue(flare)
+      const user = userEvent.setup()
+      render(<EventEditPage />)
+      const title = await screen.findByDisplayValue("coffee at annex")
+      expect(
+        screen.getByRole("button", { name: "no changes yet" })
+      ).toBeDisabled()
+      await user.type(title, "!")
+      await user.click(screen.getByRole("button", { name: "save changes" }))
+
+      await waitFor(() => expect(mocks.updateEvent).toHaveBeenCalled())
+      expect(mocks.updateEvent).toHaveBeenCalledWith(
+        "event-1",
+        expect.objectContaining({
+          startAt: flare.startAt,
+          endAt: flare.endAt,
+        })
+      )
+    }
+  )
+
+  it("saves open with the end the composer gives an open-ended flare", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(nowFlare(60))
+    const user = userEvent.setup()
+    render(<EventEditPage />)
+    const group = await screen.findByRole("group", { name: "how long" })
+    await user.click(within(group).getByRole("button", { name: "open" }))
+    await user.click(screen.getByRole("button", { name: "save changes" }))
+
+    const composer = buildTimeRange({
+      mode: "now",
+      createdAt,
+      startOffsetMin: 30,
+      startDate: "",
+      startTimeMin: 0,
+      durationMin: null,
+    })
+    await waitFor(() => expect(mocks.updateEvent).toHaveBeenCalled())
+    expect(mocks.updateEvent).toHaveBeenCalledWith(
+      "event-1",
+      expect.objectContaining({
+        startAt: composer.startAt,
+        endAt: composer.endAt,
+      })
+    )
+  })
+
+  it("is back to unchanged after picking the original length again", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(nowFlare(60))
+    const user = userEvent.setup()
+    render(<EventEditPage />)
+    const group = await screen.findByRole("group", { name: "how long" })
+    await user.click(within(group).getByRole("button", { name: "2h" }))
+    expect(screen.getByRole("button", { name: "save changes" })).toBeEnabled()
+    await user.click(within(group).getByRole("button", { name: "1h" }))
+    expect(
+      screen.getByRole("button", { name: "no changes yet" })
+    ).toBeDisabled()
   })
 })
 
