@@ -965,8 +965,7 @@ export function MapView({
         best = id
       }
     }
-    // The CTA card at the end of the rail has no pin to highlight.
-    setRailFocusId(best === RAIL_CTA_ID ? null : best)
+    setRailFocusId(best)
   }
 
   const singleType =
@@ -1161,40 +1160,18 @@ export function MapView({
                 />
               </RailPanel>
             ) : (
-              <>
-                {visibleEvents.map((event) => (
-                  <RailCard
-                    key={event.id}
-                    event={event}
-                    joined={isJoined(event, joinedIds)}
-                    user={geo.coords}
-                    onClick={() => onEventSelect(event)}
-                  />
-                ))}
-                <div
-                  data-rail-id={RAIL_CTA_ID}
-                  className="flex w-[78%] max-w-80 shrink-0 snap-center flex-col gap-2 rounded-2xl border border-border bg-card p-3 shadow-(--shadow-card)"
-                >
-                  <div>
-                    <p className="text-base font-semibold">
-                      {singleType
-                        ? `up for ${singleType.label}?`
-                        : "nothing you fancy?"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      start one and your circles will see it
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => lightFlare()}
-                    className="flex h-9 items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground active:scale-[0.98]"
-                  >
-                    <CtaIcon className="h-4 w-4" />
-                    {ctaLabel}
-                  </button>
-                </div>
-              </>
+              // #331: no "start one" card after the flares. The rail's only
+              // call to light one is the empty state above, so a live flare
+              // never sits next to a second peach button.
+              visibleEvents.map((event) => (
+                <RailCard
+                  key={event.id}
+                  event={event}
+                  joined={isJoined(event, joinedIds)}
+                  user={geo.coords}
+                  onClick={() => onEventSelect(event)}
+                />
+              ))
             )}
           </div>
         ) : null}
@@ -1835,9 +1812,6 @@ function FilterChip({
 }
 
 type TimeFilter = "live" | "upcoming" | "all"
-
-// data-rail-id of the CTA card at the end of the rail (it has no pin).
-const RAIL_CTA_ID = "cta"
 
 function TimeTabs({
   value,
