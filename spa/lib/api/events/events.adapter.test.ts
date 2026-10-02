@@ -50,10 +50,43 @@ describe("createEventRequestFromDraft start offset (#312)", () => {
   })
 })
 
-describe("editedStartAt", () => {
-  const delayed = { createdAt: CREATED, startAt: at(30), endAt: at(90) }
+describe("inferEventStartShape (#330)", () => {
+  const shapeFor = (startOffsetMin: number) =>
+    inferEventStartShape({
+      createdAt: CREATED,
+      startAt: at(startOffsetMin),
+      endAt: at(startOffsetMin + 60),
+    })
 
-  it("keeps a delayed flare's exact start when the time isn't touched", () => {
+  for (const offset of [0, 15, 30, 60]) {
+    for (const drift of [-2, 0, 2]) {
+      it(`reads a start ${offset} min ${drift >= 0 ? "+" : ""}${drift} after creation as right now + ${offset}`, () => {
+        expect(shapeFor(offset + drift)).toEqual({
+          mode: "now",
+          startOffsetMinutes: offset,
+          durationMinutes: 60,
+        })
+      })
+    }
+  }
+
+  for (const offset of [-3, 3, 12, 27, 33, 45, 57, 63, 90]) {
+    it(`reads a start ${offset} min from creation as scheduled`, () => {
+      const shape = shapeFor(offset)
+      expect(shape.mode).toBe("scheduled")
+      expect(shape.startOffsetMinutes).toBeUndefined()
+      expect(shape.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(shape.startTime).toMatch(/^\d{2}:\d{2}$/)
+      expect(shape.durationMinutes).toBe(60)
+    })
+  }
+})
+
+describe("editedStartAt", () => {
+  // 45 minutes isn't a "right now" offset, so this one edits as scheduled.
+  const delayed = { createdAt: CREATED, startAt: at(45), endAt: at(105) }
+
+  it("keeps a scheduled flare's exact start when the time isn't touched", () => {
     const shape = inferEventStartShape(delayed)
     expect(shape.mode).toBe("scheduled")
     expect(
@@ -73,5 +106,19 @@ describe("editedStartAt", () => {
     const now = { createdAt: CREATED, startAt: CREATED, endAt: at(60) }
     expect(inferEventStartShape(now).mode).toBe("now")
     expect(editedStartAt(now, "", "")).toBe(CREATED)
+  })
+
+  it("keeps a right now + 30m flare's exact start when the offset isn't touched (#330)", () => {
+    const lit = { createdAt: CREATED, startAt: at(31), endAt: at(91) }
+    expect(inferEventStartShape(lit).startOffsetMinutes).toBe(30)
+    expect(editedStartAt(lit, "", "")).toBe(lit.startAt)
+    expect(editedStartAt(lit, "", "", 30)).toBe(lit.startAt)
+  })
+
+  it("starts a right now flare at creation + the new offset (#330)", () => {
+    const lit = { createdAt: CREATED, startAt: at(30), endAt: at(90) }
+    expect(editedStartAt(lit, "", "", 60)).toBe(at(60))
+    expect(editedStartAt(lit, "", "", 15)).toBe(at(15))
+    expect(editedStartAt(lit, "", "", 0)).toBe(CREATED)
   })
 })

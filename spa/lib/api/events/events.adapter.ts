@@ -307,7 +307,22 @@ export function deriveStatus(
 }
 
 /**
- * Infers the edit form's date/time inputs from a hosted event's ISO range.
+ * The start delays a "right now" flare can be lit with (#312), in minutes
+ * after creation. The composer's "starts" chips offer exactly these.
+ */
+export const NOW_START_OFFSETS_MIN = [0, 15, 30, 60] as const
+
+// How far a stored start may sit from `createdAt + offset` and still read as
+// that "right now" offset: the client stamps `createdAt` for the start, the
+// server stamps its own on save.
+const NOW_OFFSET_TOLERANCE_MIN = 2
+
+/**
+ * Infers the edit form's shape from a hosted event's ISO range. A start at
+ * creation, or 15, 30 or 60 minutes after it (±2 min), reads as a "right now"
+ * flare with that offset (#330); anything else is scheduled. A planned flare
+ * that happens to start exactly that long after it was made reads as
+ * "right now" too, which is accepted: nothing stores how a flare was made.
  */
 export function inferEventStartShape(
   event: Pick<HostedEvent, "startAt" | "endAt" | "createdAt">
@@ -323,10 +338,14 @@ export function inferEventStartShape(
   const durationMinutes = Math.round((end.getTime() - start.getTime()) / MIN)
   const created = new Date(event.createdAt).getTime()
   const startMs = start.getTime()
-  const createdStartDiffMin = Math.abs(startMs - created) / MIN
+  const createdStartDiffMin = (startMs - created) / MIN
 
-  if (createdStartDiffMin <= 2) {
-    return { mode: "now", startOffsetMinutes: 0, durationMinutes }
+  const startOffsetMinutes = NOW_START_OFFSETS_MIN.find(
+    (offset) =>
+      Math.abs(createdStartDiffMin - offset) <= NOW_OFFSET_TOLERANCE_MIN
+  )
+  if (startOffsetMinutes !== undefined) {
+    return { mode: "now", startOffsetMinutes, durationMinutes }
   }
 
   const yyyy = start.getFullYear()
@@ -345,18 +364,33 @@ export function inferEventStartShape(
 
 /**
  * The start an edit should save. The edit form only shows the start to the
- * minute, so an untouched date and time keep the stored start exactly. A
- * "right now" flare that starts in 15 to 60 minutes (#312) is stored with
- * seconds and opens as a scheduled one; rebuilding it from the inputs would
- * move it and mark the form changed.
+ * minute, so an untouched date and time keep the stored start exactly.
+ * Rebuilding it from the inputs would drop its seconds, move it and mark the
+ * form changed.
+ *
+ * A "right now" flare (#330) edits through its start chips instead: an
+ * untouched offset keeps the stored start, and a new one starts it that many
+ * minutes after creation, as lighting it did.
  */
 export function editedStartAt(
   original: Pick<HostedEvent, "startAt" | "endAt" | "createdAt">,
   startDate: string,
-  startTime: string
+  startTime: string,
+  startOffsetMinutes?: number
 ): string {
   const shape = inferEventStartShape(original)
-  if (shape.mode !== "scheduled" || !startDate || !startTime) {
+  if (shape.mode === "now") {
+    if (
+      startOffsetMinutes === undefined ||
+      startOffsetMinutes === shape.startOffsetMinutes
+    ) {
+      return original.startAt
+    }
+    return new Date(
+      new Date(original.createdAt).getTime() + startOffsetMinutes * MIN
+    ).toISOString()
+  }
+  if (!startDate || !startTime) {
     return original.startAt
   }
   if (startDate === shape.startDate && startTime === shape.startTime) {
