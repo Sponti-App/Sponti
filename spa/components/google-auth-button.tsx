@@ -163,7 +163,7 @@ export function GoogleAuthButton({
         disabled
         className="h-11 w-full rounded-full border border-border bg-background text-sm text-muted-foreground"
       >
-        Google sign-in is not configured
+        google sign-in is not configured
       </button>
     )
   }

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { CheckIcon, FlameIcon, XIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import type { CircleFlare } from "@/lib/api/circles"
+import { formatClock, formatWeekdayShort } from "@/lib/format-date"
 import { cn } from "@/lib/utils"
 
 function whenLabel(startAt: string): string {
@@ -11,11 +12,8 @@ function whenLabel(startAt: string): string {
   const day =
     start.toDateString() === new Date().toDateString()
       ? "today"
-      : start.toLocaleDateString([], { weekday: "short" })
-  const time = start
-    .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    .toLowerCase()
-  return `${day} ${time}`
+      : formatWeekdayShort(start)
+  return `${day} ${formatClock(start)}`
 }
 
 /**

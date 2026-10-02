@@ -9,6 +9,7 @@ import {
 } from "react"
 import { dayKey } from "@/lib/api/events"
 import type { EventItem } from "@/lib/api/events"
+import { formatDayLong } from "@/lib/format-date"
 import { useMonthCollapse } from "@/lib/use-month-collapse"
 
 const WEEKDAY_LABELS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
@@ -226,11 +227,7 @@ export default function MonthCalendar({
                         }}
                         disabled={beyondHorizon}
                         aria-pressed={isSelected}
-                        aria-label={day.toLocaleDateString(undefined, {
-                          weekday: "long",
-                          month: "short",
-                          day: "numeric",
-                        })}
+                        aria-label={formatDayLong(day)}
                         className={`flex h-full flex-col items-center justify-center rounded-lg transition-colors active:scale-[0.97] ${mutedClass} ${
                           beyondHorizon
                             ? "cursor-not-allowed opacity-30"

@@ -39,6 +39,7 @@ import {
   type UpdateEventRequest,
 } from "@/lib/api/events"
 import { PLACE_SEARCH_UNAVAILABLE } from "@/lib/place-search"
+import { formatClock } from "@/lib/format-date"
 
 const MIN = 60_000
 const DESCRIPTION_MAX_LENGTH = 200
@@ -201,9 +202,7 @@ export default function EventEditPage() {
     } catch {
       if (placeDetailsRequestRef.current !== requestId) return
       setSelectedPlaceLocation(null)
-      setPlaceDetailsError(
-        "That place could not be resolved. Try another result."
-      )
+      setPlaceDetailsError("couldn't find that place, try another")
     } finally {
       if (placeDetailsRequestRef.current === requestId) {
         setPlaceDetailsLoading(false)
@@ -237,7 +236,9 @@ export default function EventEditPage() {
       })
       .catch((err) => {
         if (ac.signal.aborted) return
-        setError(err instanceof Error ? err.message : "Could not load flare")
+        setError(
+          err instanceof Error ? err.message : "couldn't load this flare"
+        )
         setLoading(false)
       })
 
@@ -337,7 +338,7 @@ export default function EventEditPage() {
       showActionFeedback("flare updated")
       router.push("/event")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save changes")
+      setError(err instanceof Error ? err.message : "couldn't save changes")
       showActionFeedback("couldn't update flare", { tone: "error" })
       setSaving(false)
     }
@@ -378,7 +379,9 @@ export default function EventEditPage() {
       showActionFeedback("flare cancelled")
       router.push("/event")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not cancel flare")
+      setError(
+        err instanceof Error ? err.message : "couldn't cancel this flare"
+      )
       showActionFeedback("couldn't cancel flare", { tone: "error" })
       setSaving(false)
     }
@@ -393,7 +396,7 @@ export default function EventEditPage() {
       router.push("/event")
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Could not reactivate flare"
+        err instanceof Error ? err.message : "couldn't reactivate this flare"
       )
       showActionFeedback("couldn't reactivate flare", { tone: "error" })
       setSaving(false)
@@ -715,13 +718,6 @@ export default function EventEditPage() {
 /** Whether `offset` minutes after `createdAt` is already behind us. */
 function startsInThePast(createdAt: string, offset: number): boolean {
   return new Date(createdAt).getTime() + offset * MIN <= Date.now()
-}
-
-function formatClock(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  })
 }
 
 function Section({

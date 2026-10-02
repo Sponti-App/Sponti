@@ -57,6 +57,7 @@ import {
   type FlareViewer,
 } from "@/lib/flare-detail"
 import { HttpError } from "@/lib/http"
+import { formatDayShort } from "@/lib/format-date"
 import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus"
 import { cn } from "@/lib/utils"
 import { EVENT_TYPES } from "@/types/utils"
@@ -804,13 +805,7 @@ function formatStartDay(iso: string): string {
     d.getDate() === tomorrow.getDate()
   if (sameDay) return "today"
   if (isTomorrow) return "tomorrow"
-  return d
-    .toLocaleDateString(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    })
-    .toLowerCase()
+  return formatDayShort(d)
 }
 
 function formatClock(iso: string): string {

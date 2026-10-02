@@ -5,9 +5,11 @@ import {
   editedEndAt,
   OPEN_ENDED,
   editedStartAt,
+  formatEventTime,
+  formatRelativeStatus,
   inferEventStartShape,
 } from "./events.adapter"
-import type { DraftEvent } from "./events.types"
+import type { DraftEvent, EventItem } from "./events.types"
 
 const MIN = 60_000
 // Seconds and milliseconds on purpose: a flare lit "right now" keeps them.
@@ -179,5 +181,22 @@ describe("editedEndAt (#340)", () => {
     expect(editedEndAt(now, now.startAt, OPEN_ENDED)).toBe(
       "2099-06-02T02:00:37.123Z"
     )
+  })
+})
+
+describe("event time labels are lowercase (#339)", () => {
+  // Local-time parts, so the labels don't depend on the machine's timezone.
+  const startAt = new Date(2026, 9, 4, 13, 24).toISOString()
+  const event = { startAt, endAt: startAt } as EventItem
+
+  it("formatEventTime lowercases am/pm", () => {
+    expect(formatEventTime(event)).toMatch(/^1:24\s?pm$/)
+  })
+
+  it("formatRelativeStatus lowercases a later day's weekday and am/pm", () => {
+    const now = new Date(2026, 9, 1, 9, 0).getTime()
+    const label = formatRelativeStatus(event, now)
+    expect(label).toBe(label.toLowerCase())
+    expect(label).toMatch(/^sun 1:24\s?pm$/)
   })
 })
