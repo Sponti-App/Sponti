@@ -8,8 +8,9 @@ import { hasInAppHistory } from "@/lib/in-app-history"
 
 // Where back goes when the page was opened directly (no in-app history):
 // signed in, the menu; signed out, registration. Signed-out visitors only
-// reach the legal pages, and those are linked from /register ("by signing up
-// you agree to the terms"), so that's where they most likely came from.
+// reach the legal pages (/menu/terms, /menu/privacy and /menu/impressum, see
+// LEGAL_PATHS in auth-gate), and those are linked from /register ("by signing
+// up you agree to the terms"), so that's where they most likely came from.
 // /login doesn't link them.
 const SIGNED_IN_FALLBACK = "/menu"
 const SIGNED_OUT_FALLBACK = "/register"

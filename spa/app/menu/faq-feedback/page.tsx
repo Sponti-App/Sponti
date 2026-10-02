@@ -168,6 +168,8 @@ export default function FaqFeedbackPage() {
           <div className="mt-4 flex flex-col gap-2">
             <LinkRow href="/menu/support" label="send feedback or get help" />
             <LinkRow href="/menu/terms" label="read the terms of service" />
+            <LinkRow href="/menu/privacy" label="read the privacy note" />
+            <LinkRow href="/menu/impressum" label="read the impressum" />
           </div>
         </Card>
       </article>
