@@ -163,6 +163,20 @@ test.describe("flare composer", () => {
       "false"
     )
     await expect(page.getByLabel("date")).toHaveCount(0)
+    // #340: the composer's "how long?" chips, with the 1h it was lit with.
+    const howLong = page.getByRole("group", { name: "how long" })
+    await expect(howLong.getByRole("button")).toHaveText([
+      "30m",
+      "1h",
+      "2h",
+      "3h",
+      "4h",
+      "open",
+    ])
+    await expect(howLong.getByRole("button", { name: "1h" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    )
     await expect(
       page.getByRole("button", { name: "no changes yet" })
     ).toBeDisabled()

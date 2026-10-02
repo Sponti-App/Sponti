@@ -312,6 +312,44 @@ export function deriveStatus(
  */
 export const NOW_START_OFFSETS_MIN = [0, 15, 30, 60] as const
 
+/**
+ * The lengths a flare's "how long?" chips offer, in minutes. "Pick a time"
+ * and a scheduled flare's edit page offer exactly these; the "right now"
+ * flow adds "open" (`OPEN_ENDED`) after them (#340). An open end for a
+ * scheduled flare is #225.
+ */
+export const DURATIONS_MIN = [30, 60, 120, 180, 240] as const
+
+/** The "open" chip's value: a "right now" flare without a set end. */
+export const OPEN_ENDED = -1
+
+/**
+ * The length an "open" flare is saved with, since the api needs an end. A
+ * stored flare this long reads back as "open" on the edit page (#340).
+ */
+export const OPEN_ENDED_FALLBACK_MIN = 8 * 60
+
+/** The minutes a "how long?" chip stands for, "open" included. */
+export function durationChipMinutes(chip: number): number {
+  return chip === OPEN_ENDED ? OPEN_ENDED_FALLBACK_MIN : chip
+}
+
+/**
+ * The "how long?" chip a stored length selects on the edit page (#340), or
+ * null when no chip matches. Only a "right now" flare offers "open".
+ */
+export function durationChipFor(
+  durationMinutes: number,
+  mode: "now" | "scheduled"
+): number | null {
+  if (mode === "now" && durationMinutes === OPEN_ENDED_FALLBACK_MIN) {
+    return OPEN_ENDED
+  }
+  return (DURATIONS_MIN as readonly number[]).includes(durationMinutes)
+    ? durationMinutes
+    : null
+}
+
 // How far a stored start may sit from `createdAt + offset` and still read as
 // that "right now" offset: the client stamps `createdAt` for the start, the
 // server stamps its own on save.
@@ -397,6 +435,35 @@ export function editedStartAt(
     return original.startAt
   }
   return new Date(`${startDate}T${startTime}`).toISOString()
+}
+
+/**
+ * The end an edit should save (#340). With the "how long?" chips untouched
+ * (no chip, or the one the flare opened with) the flare keeps its stored
+ * length to the millisecond, so an untouched form saves `endAt` unchanged and
+ * a moved start carries the same length along. A newly picked chip ends the
+ * flare that long after its start; "open" gives the end the composer gives
+ * an open-ended flare.
+ */
+export function editedEndAt(
+  original: Pick<HostedEvent, "startAt" | "endAt" | "createdAt">,
+  nextStartAt: string,
+  durationChip: number | null
+): string {
+  const shape = inferEventStartShape(original)
+  const startMs = new Date(nextStartAt).getTime()
+  if (
+    durationChip === null ||
+    durationChip === durationChipFor(shape.durationMinutes, shape.mode)
+  ) {
+    if (nextStartAt === original.startAt) return original.endAt
+    const lengthMs =
+      new Date(original.endAt).getTime() - new Date(original.startAt).getTime()
+    return new Date(startMs + lengthMs).toISOString()
+  }
+  return new Date(
+    startMs + durationChipMinutes(durationChip) * MIN
+  ).toISOString()
 }
 
 /**

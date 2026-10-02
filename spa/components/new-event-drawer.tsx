@@ -56,7 +56,16 @@ import {
   type ReverseGeocodeArea,
 } from "@/lib/current-location"
 import { EVENT_TYPES } from "@/types/utils"
-import { NOW_START_PRESETS, NowChipRow } from "@/components/now-chip-row"
+import {
+  NOW_DURATION_PRESETS,
+  NOW_START_PRESETS,
+  NowChipRow,
+} from "@/components/now-chip-row"
+// The adapter module itself, not the "@/lib/api/events" barrel that tests mock.
+import {
+  OPEN_ENDED,
+  OPEN_ENDED_FALLBACK_MIN,
+} from "@/lib/api/events/events.adapter"
 
 type Mode = "now" | "scheduled"
 type WhereType = "current" | "search"
@@ -77,8 +86,6 @@ const MIN_DURATION_MIN = 15
 const SCHEDULED_MAX_DAYS = 14
 const SCHEDULED_DAY_START_MIN = 6 * 60
 const SCHEDULED_DAY_END_MIN = 26 * 60
-const OPEN_ENDED = -1
-const OPEN_ENDED_FALLBACK_MIN = 8 * 60
 
 function formatDateInput(d: Date): string {
   const yyyy = d.getFullYear()
@@ -2030,15 +2037,8 @@ function EventTypePills({
 // the twin scroll wheels which trapped vertical-scroll gestures in a narrow
 // drawer. "starts" offers a short delay ("heading there in half an hour",
 // #312; NOW_START_PRESETS in now-chip-row.tsx); anything later belongs in
-// "pick a time".
-const NOW_DURATION_PRESETS: { value: number; label: string }[] = [
-  { value: 30, label: "30m" },
-  { value: 60, label: "1h" },
-  { value: 120, label: "2h" },
-  { value: 180, label: "3h" },
-  { value: 240, label: "4h" },
-  { value: OPEN_ENDED, label: "open" },
-]
+// "pick a time". "how long?" offers NOW_DURATION_PRESETS (now-chip-row.tsx),
+// which the edit page shares (#340).
 
 // ----- Time wheels -----
 
