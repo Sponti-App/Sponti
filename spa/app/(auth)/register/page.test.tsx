@@ -1,11 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { REGISTER_DRAFT_KEY } from "@/lib/register-draft"
 import RegisterPage from "./page"
 
 const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   register: vi.fn(),
+  loginWithGoogle: vi.fn(),
   fetchContactPreviewName: vi.fn(),
 }))
 
@@ -14,11 +16,22 @@ vi.mock("next/navigation", () => ({
 }))
 
 vi.mock("@/components/auth-provider", () => ({
-  useAuth: () => ({ register: mocks.register, loginWithGoogle: vi.fn() }),
+  useAuth: () => ({
+    register: mocks.register,
+    loginWithGoogle: mocks.loginWithGoogle,
+  }),
 }))
 
 vi.mock("@/components/google-auth-button", () => ({
-  GoogleAuthButton: () => null,
+  GoogleAuthButton: ({
+    onCredential,
+  }: {
+    onCredential: (credential: string) => void
+  }) => (
+    <button type="button" onClick={() => onCredential("google-credential")}>
+      google stub
+    </button>
+  ),
 }))
 
 vi.mock("@/lib/http", async (importOriginal) => ({
@@ -106,7 +119,9 @@ describe("RegisterPage legal links (#129)", () => {
 
     render(<RegisterPage />)
 
-    expect(screen.getByText(/by signing up you agree to the/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/by signing up you agree to the/)
+    ).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "terms" })).toHaveAttribute(
       "href",
       "/menu/terms"
@@ -119,5 +134,148 @@ describe("RegisterPage legal links (#129)", () => {
       "href",
       "/menu/impressum"
     )
+  })
+})
+
+describe("RegisterPage draft across the legal pages (#300)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.register.mockResolvedValue(undefined)
+    window.sessionStorage.clear()
+    visit("")
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.sessionStorage.clear()
+    window.history.replaceState(null, "", "/")
+  })
+
+  it("saves name, username and email as they're typed, never the password", async () => {
+    const user = userEvent.setup()
+    render(<RegisterPage />)
+
+    await user.type(screen.getByLabelText("your name"), "Sam")
+    await user.type(screen.getByLabelText("username"), "sam")
+    await user.type(screen.getByLabelText("email"), "sam@example.com")
+    await user.type(screen.getByLabelText("password"), "password123")
+
+    const stored = window.sessionStorage.getItem(REGISTER_DRAFT_KEY) ?? ""
+    expect(JSON.parse(stored)).toEqual({
+      displayName: "Sam",
+      username: "sam",
+      email: "sam@example.com",
+    })
+    expect(stored).not.toContain("password123")
+    for (let i = 0; i < window.sessionStorage.length; i++) {
+      const key = window.sessionStorage.key(i) ?? ""
+      expect(window.sessionStorage.getItem(key)).not.toContain("password123")
+    }
+  })
+
+  it("restores the draft on a return visit, with an empty password", async () => {
+    window.sessionStorage.setItem(
+      REGISTER_DRAFT_KEY,
+      JSON.stringify({
+        displayName: "Sam",
+        username: "sam",
+        email: "sam@example.com",
+      })
+    )
+
+    render(<RegisterPage />)
+
+    expect(await screen.findByDisplayValue("Sam")).toBe(
+      screen.getByLabelText("your name")
+    )
+    expect(screen.getByLabelText("username")).toHaveValue("sam")
+    expect(screen.getByLabelText("email")).toHaveValue("sam@example.com")
+    expect(screen.getByLabelText("password")).toHaveValue("")
+    expect(screen.getByText("@sam")).toBeInTheDocument()
+  })
+
+  it("still validates a restored username", async () => {
+    window.sessionStorage.setItem(
+      REGISTER_DRAFT_KEY,
+      JSON.stringify({ displayName: "Sam", username: "s!", email: "" })
+    )
+
+    render(<RegisterPage />)
+
+    expect(
+      await screen.findByText("Use at least 3 characters.")
+    ).toBeInTheDocument()
+  })
+
+  it("clears the draft after a successful sign-up", async () => {
+    const user = userEvent.setup()
+    render(<RegisterPage />)
+
+    await user.type(screen.getByLabelText("your name"), "Sam")
+    await user.type(screen.getByLabelText("username"), "sam")
+    await user.type(screen.getByLabelText("email"), "sam@example.com")
+    await user.type(screen.getByLabelText("password"), "password123")
+    await user.click(screen.getByRole("button", { name: /create account/i }))
+
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalled())
+    expect(window.sessionStorage.getItem(REGISTER_DRAFT_KEY)).toBeNull()
+  })
+
+  it("clears the draft after a Google sign-up", async () => {
+    mocks.loginWithGoogle.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<RegisterPage />)
+
+    await user.type(screen.getByLabelText("your name"), "Sam")
+    expect(window.sessionStorage.getItem(REGISTER_DRAFT_KEY)).not.toBeNull()
+    await user.click(screen.getByRole("button", { name: "google stub" }))
+
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalled())
+    expect(window.sessionStorage.getItem(REGISTER_DRAFT_KEY)).toBeNull()
+  })
+
+  it("keeps the draft when sign-up fails", async () => {
+    mocks.register.mockRejectedValue(new Error("offline"))
+    const user = userEvent.setup()
+    render(<RegisterPage />)
+
+    await user.type(screen.getByLabelText("your name"), "Sam")
+    await user.type(screen.getByLabelText("username"), "sam")
+    await user.type(screen.getByLabelText("email"), "sam@example.com")
+    await user.type(screen.getByLabelText("password"), "password123")
+    await user.click(screen.getByRole("button", { name: /create account/i }))
+
+    expect(
+      await screen.findByText("Something went wrong. Try again.")
+    ).toBeInTheDocument()
+    expect(window.sessionStorage.getItem(REGISTER_DRAFT_KEY)).not.toBeNull()
+  })
+
+  it("renders and submits normally when sessionStorage throws", async () => {
+    const boom = () => {
+      throw new Error("SecurityError")
+    }
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(boom)
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(boom)
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(boom)
+    const user = userEvent.setup()
+
+    render(<RegisterPage />)
+
+    await user.type(screen.getByLabelText("your name"), "Sam")
+    await user.type(screen.getByLabelText("username"), "sam")
+    await user.type(screen.getByLabelText("email"), "sam@example.com")
+    await user.type(screen.getByLabelText("password"), "password123")
+    await user.click(screen.getByRole("button", { name: /create account/i }))
+
+    await waitFor(() =>
+      expect(mocks.register).toHaveBeenCalledWith({
+        displayName: "Sam",
+        username: "sam",
+        email: "sam@example.com",
+        password: "password123",
+      })
+    )
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/"))
   })
 })
