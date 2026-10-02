@@ -442,7 +442,10 @@ describe("normalizePrefill", () => {
 // Which drafts a prefill may replace: only ones the person hasn't started.
 describe("isUntouchedDraft", () => {
   const empty = getInitialEventDraftState()
-  const roses = getInitialEventDraftState({ title: "roses", category: "hangout" })
+  const roses = getInitialEventDraftState({
+    title: "roses",
+    category: "hangout",
+  })
   const none = { audience: false, invitedCount: 0 }
 
   it("is true for the empty draft, and for a prefill left exactly as applied", () => {
@@ -451,15 +454,31 @@ describe("isUntouchedDraft", () => {
   })
 
   it("is false once anything was typed, picked or changed", () => {
-    expect(isUntouchedDraft({ ...roses, title: "roses!" }, [empty, roses], none)).toBe(false)
-    expect(isUntouchedDraft({ ...empty, details: "bring a blanket" }, [empty, null], none)).toBe(false)
-    expect(isUntouchedDraft({ ...empty, startOffsetMin: 30 }, [empty, null], none)).toBe(false)
-    expect(isUntouchedDraft({ ...empty, guestLimit: 4 }, [empty, null], none)).toBe(false)
+    expect(
+      isUntouchedDraft({ ...roses, title: "roses!" }, [empty, roses], none)
+    ).toBe(false)
+    expect(
+      isUntouchedDraft(
+        { ...empty, details: "bring a blanket" },
+        [empty, null],
+        none
+      )
+    ).toBe(false)
+    expect(
+      isUntouchedDraft({ ...empty, startOffsetMin: 30 }, [empty, null], none)
+    ).toBe(false)
+    expect(
+      isUntouchedDraft({ ...empty, guestLimit: 4 }, [empty, null], none)
+    ).toBe(false)
   })
 
   it("is false when the audience was picked or friends were invited", () => {
-    expect(isUntouchedDraft(empty, [empty], { audience: true, invitedCount: 0 })).toBe(false)
-    expect(isUntouchedDraft(empty, [empty], { audience: false, invitedCount: 2 })).toBe(false)
+    expect(
+      isUntouchedDraft(empty, [empty], { audience: true, invitedCount: 0 })
+    ).toBe(false)
+    expect(
+      isUntouchedDraft(empty, [empty], { audience: false, invitedCount: 2 })
+    ).toBe(false)
   })
 
   it("does not treat a prefill as untouched once it is no longer the baseline", () => {

@@ -49,7 +49,7 @@ function ResetPasswordForm() {
       title="new password"
       subtitle="choose a new password for your account."
       footer={
-        <Link href="/login" className="text-accent font-medium">
+        <Link href="/login" className="font-medium text-accent">
           back to sign in
         </Link>
       }
@@ -99,7 +99,7 @@ function ResetPasswordForm() {
         <Button
           type="submit"
           disabled={submitting || !password || !confirm || mismatch}
-          className="w-full rounded-full py-6 text-base bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-40 mt-2"
+          className="mt-2 w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
         >
           {submitting ? "updating…" : "update password"}
         </Button>

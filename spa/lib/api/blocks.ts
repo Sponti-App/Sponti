@@ -26,7 +26,9 @@ function adaptApiBlock(block: ApiBlock): BlockedUser | null {
   }
 }
 
-export function fetchBlockedUsers(signal?: AbortSignal): Promise<BlockedUser[]> {
+export function fetchBlockedUsers(
+  signal?: AbortSignal
+): Promise<BlockedUser[]> {
   return apiFetch<{ data: ApiBlock[] }>("/blocks", { signal }).then(
     (response) =>
       response.data

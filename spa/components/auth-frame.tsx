@@ -12,21 +12,21 @@ export function AuthFrame({
   footer?: React.ReactNode
 }) {
   return (
-    <div className="min-h-dvh w-full bg-background relative overflow-hidden flex flex-col">
-      <div className="flex-1 flex flex-col px-6 pt-8 pb-10 overflow-y-auto">
-        <div className="flex items-center gap-2 mb-8">
-          <div className="h-9 w-9 rounded-full bg-accent text-accent-foreground flex items-center justify-center">
+    <div className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-background">
+      <div className="flex flex-1 flex-col overflow-y-auto px-6 pt-8 pb-10">
+        <div className="mb-8 flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-accent-foreground">
             <Sparkles className="h-4 w-4" />
           </div>
           <span className="text-lg font-semibold tracking-tight">sponti</span>
         </div>
 
-        <h1 className="text-2xl font-bold mb-1">{title}</h1>
-        <p className="text-sm text-muted-foreground mb-6">{subtitle}</p>
+        <h1 className="mb-1 text-2xl font-bold">{title}</h1>
+        <p className="mb-6 text-sm text-muted-foreground">{subtitle}</p>
 
         <div className="flex-1">{children}</div>
 
-        {footer && <div className="mt-6 text-sm text-center">{footer}</div>}
+        {footer && <div className="mt-6 text-center text-sm">{footer}</div>}
       </div>
     </div>
   )

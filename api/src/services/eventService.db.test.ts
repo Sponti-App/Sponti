@@ -255,9 +255,7 @@ describe("eventService invitation-notification opt-out database behavior (#91)",
       circles: [],
     });
 
-    expect(new Set(result.invitedUserIds)).toEqual(
-      new Set([OPTED_OUT_GUEST_ID, DEFAULT_GUEST_ID])
-    );
+    expect(new Set(result.invitedUserIds)).toEqual(new Set([OPTED_OUT_GUEST_ID, DEFAULT_GUEST_ID]));
 
     const optedOutMember = await EventMember.findOne({
       eventId,
@@ -443,14 +441,14 @@ describe("eventService attendee ETA visibility database behavior (#90)", () => {
     const { eventId, arrival } = await seedFlareWithGoingGuest("private");
 
     const hostView = await getEventById(HOST_ID, eventId);
-    expect(
-      hostView.attendees.find((a) => a._id === GOING_GUEST_ID)?.willArriveAt
-    ).toBe(arrival.toISOString());
+    expect(hostView.attendees.find((a) => a._id === GOING_GUEST_ID)?.willArriveAt).toBe(
+      arrival.toISOString()
+    );
 
     const guestView = await getEventById(GOING_GUEST_ID, eventId);
-    expect(
-      guestView.attendees.find((a) => a._id === GOING_GUEST_ID)
-    ).not.toHaveProperty("willArriveAt");
+    expect(guestView.attendees.find((a) => a._id === GOING_GUEST_ID)).not.toHaveProperty(
+      "willArriveAt"
+    );
   });
 
   it("gives each caller only their own arrival time as myWillArriveAt (#139)", async () => {
@@ -483,9 +481,9 @@ describe("eventService attendee ETA visibility database behavior (#90)", () => {
     expect(notices[0]?.title).toMatch(/arrival time/);
 
     const hostView = await getEventById(HOST_ID, eventId);
-    expect(
-      hostView.attendees.find((a) => a._id === GOING_GUEST_ID)?.willArriveAt
-    ).toBe(newArrival.toISOString());
+    expect(hostView.attendees.find((a) => a._id === GOING_GUEST_ID)?.willArriveAt).toBe(
+      newArrival.toISOString()
+    );
   });
 
   it("doesn't notify again when a going member resubmits the same arrival time", async () => {
@@ -540,9 +538,9 @@ describe("eventService near-term arrival status database behavior (#211)", () =>
     );
 
     const guestView = await getEventById(GOING_GUEST_ID, eventId);
-    expect(
-      guestView.attendees.find((a) => a._id === GOING_GUEST_ID)
-    ).not.toHaveProperty("arrivalStatus");
+    expect(guestView.attendees.find((a) => a._id === GOING_GUEST_ID)).not.toHaveProperty(
+      "arrivalStatus"
+    );
   });
 
   it("gives each caller only their own arrival status as myArrivalStatus", async () => {
@@ -718,9 +716,7 @@ describe("eventService guest limit database behavior (#181)", () => {
     ]);
 
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-    const rejected = results.find(
-      (r): r is PromiseRejectedResult => r.status === "rejected"
-    );
+    const rejected = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
     expect(rejected?.reason).toMatchObject({ statusCode: 409, code: "EVENT_FULL" });
 
     const goingCount = await EventMember.countDocuments({
@@ -1305,9 +1301,7 @@ describe("eventService 'all friends' database behavior (#154)", () => {
     const memberUserIds = (await EventMember.find({ eventId: event._id }).lean()).map((member) =>
       String(member.userId)
     );
-    expect(new Set(memberUserIds)).toEqual(
-      new Set([HOST_ID, GOING_GUEST_ID, NEW_GUEST_ID])
-    );
+    expect(new Set(memberUserIds)).toEqual(new Set([HOST_ID, GOING_GUEST_ID, NEW_GUEST_ID]));
 
     const notifiedUserIds = (
       await Notification.find({ targetId: String(event._id), type: "event_invitation" }).lean()
@@ -1370,8 +1364,14 @@ describe("eventService 'all friends' database behavior (#154)", () => {
 
     await Connection.deleteMany({
       $or: [
-        { requesterId: new Types.ObjectId(HOST_ID), receiverId: new Types.ObjectId(GOING_GUEST_ID) },
-        { requesterId: new Types.ObjectId(GOING_GUEST_ID), receiverId: new Types.ObjectId(HOST_ID) },
+        {
+          requesterId: new Types.ObjectId(HOST_ID),
+          receiverId: new Types.ObjectId(GOING_GUEST_ID),
+        },
+        {
+          requesterId: new Types.ObjectId(GOING_GUEST_ID),
+          receiverId: new Types.ObjectId(HOST_ID),
+        },
       ],
     });
 

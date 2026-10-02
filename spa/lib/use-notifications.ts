@@ -283,13 +283,18 @@ export async function markAllRead(): Promise<void> {
       unreadCount,
       caughtUpAt: readAt,
       notifications: current.notifications.map((notification) =>
-        notification.read ? notification : { ...notification, read: true, readAt }
+        notification.read
+          ? notification
+          : { ...notification, read: true, readAt }
       ),
     }))
   } catch (err) {
     console.warn("[Sponti] failed to mark all notifications read", err)
     // Surface it: the check mark otherwise looks dead when the call fails.
-    setState((current) => ({ ...current, error: "couldn't mark as read, try again" }))
+    setState((current) => ({
+      ...current,
+      error: "couldn't mark as read, try again",
+    }))
   }
 }
 

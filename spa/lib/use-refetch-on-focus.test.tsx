@@ -52,9 +52,7 @@ describe("useRefetchOnFocus", () => {
 
   it("throttles back-to-back focus events", () => {
     const onRefetch = vi.fn()
-    renderHook(() =>
-      useRefetchOnFocus(onRefetch, { minIntervalMs: 15_000 })
-    )
+    renderHook(() => useRefetchOnFocus(onRefetch, { minIntervalMs: 15_000 }))
 
     window.dispatchEvent(new Event("focus"))
     document.dispatchEvent(new Event("visibilitychange"))
@@ -88,10 +86,9 @@ describe("useRefetchOnFocus", () => {
   it("always calls the latest callback even if identity changes", () => {
     const first = vi.fn()
     const second = vi.fn()
-    const { rerender } = renderHook(
-      ({ cb }) => useRefetchOnFocus(cb),
-      { initialProps: { cb: first } }
-    )
+    const { rerender } = renderHook(({ cb }) => useRefetchOnFocus(cb), {
+      initialProps: { cb: first },
+    })
 
     rerender({ cb: second })
     window.dispatchEvent(new Event("focus"))

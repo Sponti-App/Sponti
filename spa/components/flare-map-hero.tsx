@@ -48,7 +48,9 @@ export function useFlareDirections({
   const geo = useGeolocation()
   const viewerCoords = geo.coords ?? geo.lastKnownCoords
   const distanceMeters =
-    viewerCoords && coordinates ? haversineMeters(viewerCoords, coordinates) : null
+    viewerCoords && coordinates
+      ? haversineMeters(viewerCoords, coordinates)
+      : null
   const drawRoute = shouldDrawRoute({ viewer, distanceMeters })
   const [route, setRoute] = useState<RouteResult | null>(null)
 
@@ -65,7 +67,12 @@ export function useFlareDirections({
     const [oLat, oLng] = originKey.split(",").map(Number)
     const [dLat, dLng] = destinationKey.split(",").map(Number)
     const ac = new AbortController()
-    computeRoute({ lat: oLat, lng: oLng }, { lat: dLat, lng: dLng }, "WALK", ac.signal)
+    computeRoute(
+      { lat: oLat, lng: oLng },
+      { lat: dLat, lng: dLng },
+      "WALK",
+      ac.signal
+    )
       .then(setRoute)
       .catch((err) => {
         if (!ac.signal.aborted) console.warn("[Sponti] route failed:", err)
@@ -101,7 +108,11 @@ export function FlareMapHero({
     <div className="relative h-56 overflow-hidden bg-muted">
       {apiKey && coordinates ? (
         <APIProvider apiKey={apiKey}>
-          <HeroMap coordinates={coordinates} type={type} directions={directions} />
+          <HeroMap
+            coordinates={coordinates}
+            type={type}
+            directions={directions}
+          />
         </APIProvider>
       ) : (
         <StaticHero type={type} />

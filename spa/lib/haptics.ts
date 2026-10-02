@@ -14,7 +14,14 @@
 
 import { Capacitor } from "@capacitor/core"
 
-type HapticStyle = "selection" | "light" | "medium" | "heavy" | "success" | "warning" | "error"
+type HapticStyle =
+  | "selection"
+  | "light"
+  | "medium"
+  | "heavy"
+  | "success"
+  | "warning"
+  | "error"
 
 let _haptics: typeof import("@capacitor/haptics") | null = null
 

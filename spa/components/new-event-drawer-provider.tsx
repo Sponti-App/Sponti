@@ -17,7 +17,7 @@ type NewEventDrawerContextValue = {
 }
 
 const NewEventDrawerContext = createContext<NewEventDrawerContextValue | null>(
-  null,
+  null
 )
 
 export function NewEventDrawerProvider({
@@ -45,7 +45,7 @@ export function useNewEventDrawer(): NewEventDrawerContextValue {
   const ctx = useContext(NewEventDrawerContext)
   if (!ctx) {
     throw new Error(
-      "useNewEventDrawer must be used inside <NewEventDrawerProvider>",
+      "useNewEventDrawer must be used inside <NewEventDrawerProvider>"
     )
   }
   return ctx

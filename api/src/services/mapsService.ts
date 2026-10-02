@@ -10,8 +10,7 @@ import { AppError } from "#utils/AppError";
 
 const ROUTES_ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
-const FIELD_MASK =
-  "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline";
+const FIELD_MASK = "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline";
 
 export type ComputeRouteResult = {
   encodedPolyline: string;
@@ -25,15 +24,9 @@ const parseDurationSeconds = (value: string | undefined): number => {
   return match ? Number(match[1]) : 0;
 };
 
-export const computeRoute = async (
-  input: ComputeRouteBody
-): Promise<ComputeRouteResult> => {
+export const computeRoute = async (input: ComputeRouteBody): Promise<ComputeRouteResult> => {
   if (!env.GOOGLE_MAPS_API_KEY) {
-    throw new AppError(
-      "Maps integration is not configured",
-      503,
-      "MAPS_KEY_MISSING"
-    );
+    throw new AppError("Maps integration is not configured", 503, "MAPS_KEY_MISSING");
   }
 
   const body = {

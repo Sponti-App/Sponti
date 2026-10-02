@@ -16,7 +16,8 @@ vi.mock("@/components/auth-provider", () => ({
   useAuth: () => ({ user: { id: "guest-1" } }),
 }))
 
-const at = (offsetMin: number) => new Date(Date.now() + offsetMin * MIN).toISOString()
+const at = (offsetMin: number) =>
+  new Date(Date.now() + offsetMin * MIN).toISOString()
 
 function flare(overrides: Partial<EventItem> = {}): EventItem {
   return {
@@ -28,7 +29,13 @@ function flare(overrides: Partial<EventItem> = {}): EventItem {
     endAt: at(90),
     visibility: "private",
     myRsvp: "invited",
-    host: { id: "host-1", name: "Sarah Kim", avatar: "SK", color: "bg-stone-400", note: "" },
+    host: {
+      id: "host-1",
+      name: "Sarah Kim",
+      avatar: "SK",
+      color: "bg-stone-400",
+      note: "",
+    },
     location: { name: "the harp", coordinates: [9.99, 53.55] },
     attendees: [],
     going: 1,
@@ -36,7 +43,9 @@ function flare(overrides: Partial<EventItem> = {}): EventItem {
   }
 }
 
-function renderSheet(props: Partial<React.ComponentProps<typeof EventDetailSheet>> = {}) {
+function renderSheet(
+  props: Partial<React.ComponentProps<typeof EventDetailSheet>> = {}
+) {
   const handlers = {
     onClose: vi.fn(),
     onJoin: vi.fn(),
@@ -44,7 +53,13 @@ function renderSheet(props: Partial<React.ComponentProps<typeof EventDetailSheet
     onSeeRoute: vi.fn(),
   }
   render(
-    <EventDetailSheet open event={flare()} joined={false} {...handlers} {...props} />
+    <EventDetailSheet
+      open
+      event={flare()}
+      joined={false}
+      {...handlers}
+      {...props}
+    />
   )
   return handlers
 }
@@ -60,17 +75,25 @@ describe("EventDetailSheet", () => {
     const user = userEvent.setup()
     const { onClose } = renderSheet({ joined: true })
 
-    await user.click(await screen.findByRole("button", { name: /share an update/ }))
+    await user.click(
+      await screen.findByRole("button", { name: /share an update/ })
+    )
 
     expect(onClose).toHaveBeenCalled()
-    expect(mocks.push).toHaveBeenCalledWith("/event/event-1?tab=updates&compose=1")
+    expect(mocks.push).toHaveBeenCalledWith(
+      "/event/event-1?tab=updates&compose=1"
+    )
   })
 
   it("gives the host 'share an update' too", async () => {
     renderSheet({ isHost: true })
 
-    expect(await screen.findByRole("button", { name: /share an update/ })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /edit flare/ })).toBeInTheDocument()
+    expect(
+      await screen.findByRole("button", { name: /share an update/ })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: /edit flare/ })
+    ).toBeInTheDocument()
   })
 
   it("lets an invited guest join with an ETA, or open the full flare", async () => {
@@ -79,9 +102,14 @@ describe("EventDetailSheet", () => {
 
     await user.click(await screen.findByRole("button", { name: "15m" }))
     await user.click(screen.getByRole("button", { name: "join" }))
-    expect(onJoin).toHaveBeenCalledWith(expect.objectContaining({ id: "event-1" }), "15 min")
+    expect(onJoin).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "event-1" }),
+      "15 min"
+    )
 
-    await user.click(screen.getByRole("button", { name: /see details and updates/ }))
+    await user.click(
+      screen.getByRole("button", { name: /see details and updates/ })
+    )
     expect(mocks.push).toHaveBeenCalledWith("/event/event-1")
   })
 
@@ -89,11 +117,20 @@ describe("EventDetailSheet", () => {
     const user = userEvent.setup()
     const { onClose } = renderSheet({
       event: flare({
-        host: { id: "host-1", name: "Sarah Kim", username: "sarah", avatar: "SK", color: "bg-stone-400", note: "" },
+        host: {
+          id: "host-1",
+          name: "Sarah Kim",
+          username: "sarah",
+          avatar: "SK",
+          color: "bg-stone-400",
+          note: "",
+        },
       }),
     })
 
-    const link = await screen.findByRole("link", { name: /hosted by sarah kim/ })
+    const link = await screen.findByRole("link", {
+      name: /hosted by sarah kim/,
+    })
     expect(link).toHaveAttribute("href", "/profile/sarah")
     await user.click(link)
     // Closes first, like the other exits, so vaul's scroll lock doesn't leak (#168).
@@ -103,23 +140,39 @@ describe("EventDetailSheet", () => {
   it("leaves the host row plain when it is you, or there is no username to link", async () => {
     renderSheet({
       event: flare({
-        host: { id: "guest-1", name: "Me", username: "me", avatar: "M", color: "bg-stone-400", note: "" },
+        host: {
+          id: "guest-1",
+          name: "Me",
+          username: "me",
+          avatar: "M",
+          color: "bg-stone-400",
+          note: "",
+        },
       }),
     })
     expect(await screen.findByText("hosted by you")).toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: /open profile/ })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: /open profile/ })
+    ).not.toBeInTheDocument()
   })
 
   it("does not link a host the api sent without a username", async () => {
     renderSheet()
     expect(await screen.findByText("hosted by sarah kim")).toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: /open profile/ })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: /open profile/ })
+    ).not.toBeInTheDocument()
   })
 
   it("keeps the secondary actions together in one row, not beside the main action", async () => {
-    renderSheet({ joined: true, event: flare({ startAt: at(60 * 24), endAt: at(60 * 27) }) })
+    renderSheet({
+      joined: true,
+      event: flare({ startAt: at(60 * 24), endAt: at(60 * 27) }),
+    })
 
-    const cantMakeIt = await screen.findByRole("button", { name: "can't make it" })
+    const cantMakeIt = await screen.findByRole("button", {
+      name: "can't make it",
+    })
     const openFlare = screen.getByRole("button", { name: /open flare/ })
     const share = screen.getByRole("button", { name: /share an update/ })
 
@@ -147,7 +200,10 @@ describe("EventDetailSheet", () => {
 
     expect(
       await screen.findByRole("link", { name: "open the harp in google maps" })
-    ).toHaveAttribute("href", "https://www.google.com/maps/search/?api=1&query=53.55%2C9.99")
+    ).toHaveAttribute(
+      "href",
+      "https://www.google.com/maps/search/?api=1&query=53.55%2C9.99"
+    )
   })
 
   it("offers on time / running late, not minutes, when joining a flare starting within the hour (#211)", async () => {
@@ -156,8 +212,12 @@ describe("EventDetailSheet", () => {
       event: flare({ startAt: at(40), endAt: at(160) }),
     })
 
-    expect(screen.queryByRole("button", { name: "15m" })).not.toBeInTheDocument()
-    await user.click(await screen.findByRole("button", { name: "running late" }))
+    expect(
+      screen.queryByRole("button", { name: "15m" })
+    ).not.toBeInTheDocument()
+    await user.click(
+      await screen.findByRole("button", { name: "running late" })
+    )
     await user.click(screen.getByRole("button", { name: "join" }))
 
     expect(onJoin).toHaveBeenCalledWith(
@@ -173,8 +233,20 @@ describe("EventDetailSheet", () => {
         startAt: at(40),
         endAt: at(160),
         attendees: [
-          { id: "g1", name: "Priya", avatar: "P", color: "bg-stone-300", arrivalStatus: "running_late" },
-          { id: "g2", name: "Tom", avatar: "T", color: "bg-stone-300", arrivalStatus: "on_time" },
+          {
+            id: "g1",
+            name: "Priya",
+            avatar: "P",
+            color: "bg-stone-300",
+            arrivalStatus: "running_late",
+          },
+          {
+            id: "g2",
+            name: "Tom",
+            avatar: "T",
+            color: "bg-stone-300",
+            arrivalStatus: "on_time",
+          },
         ],
       }),
     })

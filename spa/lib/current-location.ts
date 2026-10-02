@@ -24,7 +24,9 @@ export function isLegacyCurrentLocationName(name: string): boolean {
  * neighbourhood/coarse labels this fix now stores going forward — passes
  * through unchanged. */
 export function displayLocationName(name: string): string {
-  return isLegacyCurrentLocationName(name) ? CURRENT_LOCATION_FALLBACK_LABEL : name
+  return isLegacyCurrentLocationName(name)
+    ? CURRENT_LOCATION_FALLBACK_LABEL
+    : name
 }
 
 /** The shape the reverse-geocode API route resolves to: `area` is the most

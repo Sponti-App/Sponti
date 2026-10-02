@@ -78,7 +78,9 @@ export function VariantC(props: VariantProps) {
                 live ? "font-medium text-accent" : "text-muted-foreground"
               )}
             >
-              {live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />}
+              {live && (
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+              )}
               {statusLine(flare, now)}
             </p>
           </div>
@@ -89,7 +91,11 @@ export function VariantC(props: VariantProps) {
             onClick={() => onStub(isHost ? "edit flare" : "more")}
             className="h-10 w-10 shrink-0 rounded-full"
           >
-            {isHost ? <Pencil className="h-4 w-4" /> : <MoreHorizontal className="h-4 w-4" />}
+            {isHost ? (
+              <Pencil className="h-4 w-4" />
+            ) : (
+              <MoreHorizontal className="h-4 w-4" />
+            )}
           </Button>
         </div>
       </header>
@@ -104,14 +110,26 @@ export function VariantC(props: VariantProps) {
           <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate">
             <span className="font-medium">{flare.place.name}</span>
-            <span className="text-muted-foreground"> · {flare.place.address}</span>
+            <span className="text-muted-foreground">
+              {" "}
+              · {flare.place.address}
+            </span>
           </span>
-          <span className="shrink-0 text-xs text-muted-foreground">{flare.place.distance}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {flare.place.distance}
+          </span>
         </button>
         <div className="flex items-center gap-2 text-sm">
-          <EventAvatarStack people={going} size="xs" count={goingCount(flare)} />
+          <EventAvatarStack
+            people={going}
+            size="xs"
+            count={goingCount(flare)}
+          />
           <span className="text-muted-foreground">
-            going · by {isHost ? "you" : flare.host.displayName.split(" ")[0].toLowerCase()}
+            going · by{" "}
+            {isHost
+              ? "you"
+              : flare.host.displayName.split(" ")[0].toLowerCase()}
           </span>
         </div>
         <p className="text-sm text-muted-foreground">{flare.description}</p>
@@ -130,10 +148,14 @@ export function VariantC(props: VariantProps) {
         ) : (
           <p className="text-sm">
             <span className="font-medium">
-              {live ? "happening now" : `${dayLabel(flare.startAt, now)} at ${clock(flare.startAt)}`}
+              {live
+                ? "happening now"
+                : `${dayLabel(flare.startAt, now)} at ${clock(flare.startAt)}`}
             </span>
             <span className="text-muted-foreground">
-              {live ? ` · until ${clock(flare.endAt)}` : ` · ${startsIn(flare, now)}`}
+              {live
+                ? ` · until ${clock(flare.endAt)}`
+                : ` · ${startsIn(flare, now)}`}
             </span>
           </p>
         )}
@@ -148,7 +170,10 @@ export function VariantC(props: VariantProps) {
         <ol className="flex flex-col gap-3">
           {flare.updates.map((u) =>
             u.kind === "activity" ? (
-              <li key={u.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+              <li
+                key={u.id}
+                className="flex items-center gap-2 text-xs text-muted-foreground"
+              >
                 <PersonAvatar person={u.author} className="size-5" />
                 <span className="flex-1">
                   <span className="font-medium text-foreground">
@@ -178,7 +203,9 @@ export function VariantC(props: VariantProps) {
           {viewer === "invited" && (
             <li className="rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
               {(() => {
-                const n = flare.updates.filter((u) => u.kind === "message").length
+                const n = flare.updates.filter(
+                  (u) => u.kind === "message"
+                ).length
                 return `${n} ${n === 1 ? "update" : "updates"} from the group · join to read ${n === 1 ? "it" : "them"}`
               })()}
             </li>
@@ -191,7 +218,13 @@ export function VariantC(props: VariantProps) {
   )
 }
 
-export function ArrivalBoard({ flare, now }: { flare: MockFlare; now: number }) {
+export function ArrivalBoard({
+  flare,
+  now,
+}: {
+  flare: MockFlare
+  now: number
+}) {
   const going = byArrival(goingGuests(flare))
   const nextId = going.find(
     (g) => g.willArriveAt && arrivalShort(g.willArriveAt, now) !== "there"
@@ -203,24 +236,36 @@ export function ArrivalBoard({ flare, now }: { flare: MockFlare; now: number }) 
       </p>
       <ol className="relative ml-2 border-l border-border pl-4">
         {going.map((g) => {
-          const there = g.willArriveAt && arrivalShort(g.willArriveAt, now) === "there"
+          const there =
+            g.willArriveAt && arrivalShort(g.willArriveAt, now) === "there"
           return (
-            <li key={g.id} className="relative flex items-center gap-2.5 py-1.5">
+            <li
+              key={g.id}
+              className="relative flex items-center gap-2.5 py-1.5"
+            >
               <span
                 className={cn(
                   "absolute -left-[21px] h-2.5 w-2.5 rounded-full border-2 border-background",
-                  there ? "bg-muted-foreground" : g.id === nextId ? "bg-accent" : "bg-border"
+                  there
+                    ? "bg-muted-foreground"
+                    : g.id === nextId
+                      ? "bg-accent"
+                      : "bg-border"
                 )}
               />
               <PersonAvatar person={g} className="size-7" />
               <span className="min-w-0 flex-1 truncate text-sm">
                 {g.displayName.toLowerCase()}
-                {g.plusOne && <span className="text-muted-foreground"> +1</span>}
+                {g.plusOne && (
+                  <span className="text-muted-foreground"> +1</span>
+                )}
               </span>
               <span
                 className={cn(
                   "shrink-0 text-xs tabular-nums",
-                  g.id === nextId ? "font-medium text-accent" : "text-muted-foreground"
+                  g.id === nextId
+                    ? "font-medium text-accent"
+                    : "text-muted-foreground"
                 )}
               >
                 {g.willArriveAt
@@ -255,7 +300,8 @@ function HostCountdown({
     <div className="flex items-center gap-3">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">
-          {dayLabel(flare.startAt, now)} · {clock(flare.startAt)}–{clock(flare.endAt)}
+          {dayLabel(flare.startAt, now)} · {clock(flare.startAt)}–
+          {clock(flare.endAt)}
         </p>
         <p className="text-xs text-muted-foreground">
           {`${startsIn(flare, now)} · ${flare.guests.filter((g) => g.rsvp === "invited").length} invited, no answer yet`}
@@ -289,17 +335,21 @@ function YourPlan({
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1 text-sm font-medium">
             <Check className="h-4 w-4 text-primary" />
-            {live ? `you're arriving in ${etaLabel(myEta)}` : `you're going · ${startsIn(flare, now)}`}
+            {live
+              ? `you're arriving in ${etaLabel(myEta)}`
+              : `you're going · ${startsIn(flare, now)}`}
           </p>
           <p className="text-xs text-muted-foreground">
             {live ? (
               <button type="button" onClick={() => setOpen((v) => !v)}>
-                {flare.host.displayName.split(" ")[0].toLowerCase()} can see this ·{" "}
-                <span className="font-medium text-primary">change</span>
+                {flare.host.displayName.split(" ")[0].toLowerCase()} can see
+                this · <span className="font-medium text-primary">change</span>
               </button>
             ) : (
               <button type="button" onClick={() => onStub("add to calendar")}>
-                <span className="font-medium text-primary">add to calendar</span>
+                <span className="font-medium text-primary">
+                  add to calendar
+                </span>
               </button>
             )}
             {" · "}
@@ -314,7 +364,8 @@ function YourPlan({
           className="rounded-full"
           onClick={() => onStub("directions")}
         >
-          <Navigation className="h-3.5 w-3.5" /> {flare.place.travel.replace(" walk", "")}
+          <Navigation className="h-3.5 w-3.5" />{" "}
+          {flare.place.travel.replace(" walk", "")}
         </Button>
       </div>
       {open && (
@@ -359,7 +410,9 @@ function BottomBarC({
       <div className="fixed inset-x-0 bottom-(--nav-h) z-30 flex flex-col gap-2 border-t border-border/60 bg-background/95 px-4 py-3 backdrop-blur">
         {live && (
           <div className="flex items-center gap-1.5">
-            <span className="shrink-0 pr-1 text-xs text-muted-foreground">there in</span>
+            <span className="shrink-0 pr-1 text-xs text-muted-foreground">
+              there in
+            </span>
             {ETA_OPTIONS.map((m) => (
               <button
                 key={m}
@@ -384,7 +437,9 @@ function BottomBarC({
               onClick={() => onPlusOneChange(!plusOne)}
               className={cn(
                 "h-11 shrink-0 rounded-full border px-4 text-sm",
-                plusOne ? "border-primary bg-card font-medium text-primary" : "border-border text-muted-foreground"
+                plusOne
+                  ? "border-primary bg-card font-medium text-primary"
+                  : "border-border text-muted-foreground"
               )}
             >
               +1
@@ -406,7 +461,9 @@ function BottomBarC({
     <div className="fixed inset-x-0 bottom-(--nav-h) z-30 border-t border-border/60 bg-background/95 px-4 py-3 backdrop-blur">
       <button
         type="button"
-        onClick={() => onStub(viewer === "host" ? "post update to everyone" : "post update")}
+        onClick={() =>
+          onStub(viewer === "host" ? "post update to everyone" : "post update")
+        }
         className="flex w-full items-center gap-2 rounded-full bg-muted py-1 pr-1 pl-4 text-left text-sm text-muted-foreground"
       >
         <span className="flex-1">

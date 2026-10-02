@@ -13,7 +13,13 @@
 import { Suspense, useState, useSyncExternalStore } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useActionFeedback } from "@/components/action-feedback"
-import { buildFlare, type Arrival, type Distance, type Timing, type Viewer } from "./_mock"
+import {
+  buildFlare,
+  type Arrival,
+  type Distance,
+  type Timing,
+  type Viewer,
+} from "./_mock"
 import {
   PrototypeBar,
   VARIANTS,
@@ -58,7 +64,11 @@ function subscribeClock(cb: () => void) {
 const clockSnapshot = () => Math.floor(Date.now() / TICK) * TICK
 const serverClockSnapshot = () => null
 
-function pick<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
+function pick<T extends string>(
+  value: string | null,
+  allowed: readonly T[],
+  fallback: T
+): T {
   return allowed.includes(value as T) ? (value as T) : fallback
 }
 
@@ -66,14 +76,35 @@ function Prototype() {
   const router = useRouter()
   const params = useSearchParams()
   const { showActionFeedback } = useActionFeedback()
-  const now = useSyncExternalStore(subscribeClock, clockSnapshot, serverClockSnapshot)
+  const now = useSyncExternalStore(
+    subscribeClock,
+    clockSnapshot,
+    serverClockSnapshot
+  )
 
-  const variant = pick(params.get("variant"), VARIANTS.map((v) => v.key), "D")
-  const viewer = pick<Viewer>(params.get("viewer"), ["host", "joined", "invited"], "invited")
-  const rawTiming = pick<Timing>(params.get("timing"), ["live", "soon", "upcoming"], "live")
+  const variant = pick(
+    params.get("variant"),
+    VARIANTS.map((v) => v.key),
+    "D"
+  )
+  const viewer = pick<Viewer>(
+    params.get("viewer"),
+    ["host", "joined", "invited"],
+    "invited"
+  )
+  const rawTiming = pick<Timing>(
+    params.get("timing"),
+    ["live", "soon", "upcoming"],
+    "live"
+  )
   // "within 1h" only exists in D; A–C show it as upcoming, as before.
-  const timing: Timing = variant !== "D" && rawTiming === "soon" ? "upcoming" : rawTiming
-  const distance = pick<Distance>(params.get("distance"), ["near", "far"], "near")
+  const timing: Timing =
+    variant !== "D" && rawTiming === "soon" ? "upcoming" : rawTiming
+  const distance = pick<Distance>(
+    params.get("distance"),
+    ["near", "far"],
+    "near"
+  )
   const showBar = params.get("bar") !== "0"
 
   const [myEta, setMyEta] = useState(15)

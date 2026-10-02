@@ -59,7 +59,12 @@ import {
   type Arrival,
   type MockFlare,
 } from "./_mock"
-import { CategoryTile, PersonAvatar, PlaceholderTag, type VariantProps } from "./_shared"
+import {
+  CategoryTile,
+  PersonAvatar,
+  PlaceholderTag,
+  type VariantProps,
+} from "./_shared"
 import { HostArrivals, MapArt } from "./_variant-b"
 import { ArrivalBoard } from "./_variant-c"
 
@@ -95,7 +100,9 @@ export function VariantD(props: VariantProps) {
 
   // Guests never see +1s next to a name, so their going count is people;
   // spots left always counts heads (+1s included).
-  const countLabel = isHost ? `${goingCount(flare)} going` : `${going.length} going`
+  const countLabel = isHost
+    ? `${goingCount(flare)} going`
+    : `${going.length} going`
   const spots = spotsLeft(flare)
 
   return (
@@ -111,10 +118,16 @@ export function VariantD(props: VariantProps) {
           <div className="flex gap-2">
             {isHost ? (
               <>
-                <HeaderButton label="manage guests" onClick={() => onStub("manage guests")}>
+                <HeaderButton
+                  label="manage guests"
+                  onClick={() => onStub("manage guests")}
+                >
                   <Users className="h-4 w-4" />
                 </HeaderButton>
-                <HeaderButton label="edit flare" onClick={() => onStub("edit flare")}>
+                <HeaderButton
+                  label="edit flare"
+                  onClick={() => onStub("edit flare")}
+                >
                   <Pencil className="h-4 w-4" />
                 </HeaderButton>
               </>
@@ -135,7 +148,10 @@ export function VariantD(props: VariantProps) {
           <Navigation className="h-3.5 w-3.5 text-primary" />
           <span className="font-medium">open in maps</span>
           <span className="text-muted-foreground">
-            · {near && !isHost ? flare.place.travel : `${flare.place.distance} away`}
+            ·{" "}
+            {near && !isHost
+              ? flare.place.travel
+              : `${flare.place.distance} away`}
           </span>
         </a>
       </div>
@@ -147,7 +163,9 @@ export function VariantD(props: VariantProps) {
         <div className="flex items-start gap-3">
           <CategoryTile flare={flare} size="lg" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg leading-snug font-semibold">{flare.title}</h1>
+            <h1 className="text-lg leading-snug font-semibold">
+              {flare.title}
+            </h1>
             <p
               className={cn(
                 "mt-0.5 flex items-center gap-1 text-sm",
@@ -173,12 +191,18 @@ export function VariantD(props: VariantProps) {
         {/* when | where — icons, no labels; the place opens Google Maps */}
         <div className="mt-4 grid grid-cols-2 divide-x divide-border/60 border-y border-border/60 py-3">
           <div className="flex gap-2 pr-3">
-            <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-label="when" />
+            <Clock
+              className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+              aria-label="when"
+            />
             <div className="min-w-0">
               <p className="text-sm font-medium">
-                {live ? "now" : dayLabel(flare.startAt, now)} · {clock(flare.startAt)}
+                {live ? "now" : dayLabel(flare.startAt, now)} ·{" "}
+                {clock(flare.startAt)}
               </p>
-              <p className="text-xs text-muted-foreground">until {clock(flare.endAt)}</p>
+              <p className="text-xs text-muted-foreground">
+                until {clock(flare.endAt)}
+              </p>
             </div>
           </div>
           <a
@@ -206,18 +230,25 @@ export function VariantD(props: VariantProps) {
           <PersonAvatar person={flare.host} className="size-7" />
           <div className="min-w-0">
             <p className="text-sm font-medium">
-              {isHost ? "hosted by you" : `hosted by ${flare.host.displayName.toLowerCase()}`}
+              {isHost
+                ? "hosted by you"
+                : `hosted by ${flare.host.displayName.toLowerCase()}`}
               <span className="font-normal text-muted-foreground">
-                {" "}· {categoryOf(flare).label}
+                {" "}
+                · {categoryOf(flare).label}
                 {flare.visibility === "private" && " · private"}
               </span>
             </p>
-            <p className="mt-0.5 text-sm text-muted-foreground">{flare.description}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {flare.description}
+            </p>
           </div>
         </div>
 
         {/* your plan — joined guest, only while an ETA applies */}
-        {viewer === "joined" && withEta && <YourPlan {...props} live={live} hostFirst={hostFirst} />}
+        {viewer === "joined" && withEta && (
+          <YourPlan {...props} live={live} hostFirst={hostFirst} />
+        )}
 
         <Tabs value={tab} onValueChange={setTab} className="mt-5">
           <TabsList className="h-9 w-full">
@@ -240,7 +271,12 @@ export function VariantD(props: VariantProps) {
               ) : withEta ? (
                 <HostSoonBoard flare={flare} />
               ) : (
-                <HostArrivals flare={flare} now={now} live={false} onStub={onStub} />
+                <HostArrivals
+                  flare={flare}
+                  now={now}
+                  live={false}
+                  onStub={onStub}
+                />
               )
             ) : (
               // Guests: names only. No ETAs, no +1s.
@@ -249,7 +285,9 @@ export function VariantD(props: VariantProps) {
                   <div key={g.id} className="flex flex-col items-center gap-1">
                     <PersonAvatar person={g} className="size-11" />
                     <span className="max-w-full truncate text-xs">
-                      {g.isYou ? "you" : g.displayName.split(" ")[0].toLowerCase()}
+                      {g.isYou
+                        ? "you"
+                        : g.displayName.split(" ")[0].toLowerCase()}
                     </span>
                   </div>
                 ))}
@@ -277,7 +315,9 @@ export function VariantD(props: VariantProps) {
                       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Megaphone className="h-3.5 w-3.5 text-accent" />
                         <span className="font-semibold text-foreground">
-                          {isHost ? "your announcement" : `announcement from ${hostFirst}`}
+                          {isHost
+                            ? "your announcement"
+                            : `announcement from ${hostFirst}`}
                         </span>
                         · {ago(u.at, now)}
                       </p>
@@ -321,7 +361,8 @@ export function VariantD(props: VariantProps) {
 function HostSoonBoard({ flare }: { flare: MockFlare }) {
   const order = { "on-time": 0, late: 1 } as const
   const going = [...goingGuests(flare)].sort(
-    (a, b) => (a.arrival ? order[a.arrival] : 2) - (b.arrival ? order[b.arrival] : 2)
+    (a, b) =>
+      (a.arrival ? order[a.arrival] : 2) - (b.arrival ? order[b.arrival] : 2)
   )
   return (
     <ul>
@@ -335,7 +376,9 @@ function HostSoonBoard({ flare }: { flare: MockFlare }) {
           <span
             className={cn(
               "text-xs",
-              g.arrival === "late" ? "font-medium text-accent" : "text-muted-foreground"
+              g.arrival === "late"
+                ? "font-medium text-accent"
+                : "text-muted-foreground"
             )}
           >
             {g.arrival ? ARRIVAL_LABEL[g.arrival] : "no answer"}
@@ -373,7 +416,9 @@ function YourPlan({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{summary}</p>
           <p className="text-xs text-muted-foreground">
-            {etaShared ? `only ${hostFirst} sees this` : `${hostFirst} won't see an eta`}
+            {etaShared
+              ? `only ${hostFirst} sees this`
+              : `${hostFirst} won't see an eta`}
           </p>
         </div>
         <Button
@@ -482,12 +527,22 @@ function PinnedBarD({
           {withEta &&
             (live
               ? ETA_OPTIONS.map((m) => (
-                  <Chip key={m} compact selected={m === myEta} onClick={() => onEtaChange(m)}>
+                  <Chip
+                    key={m}
+                    compact
+                    selected={m === myEta}
+                    onClick={() => onEtaChange(m)}
+                  >
                     {m >= 60 ? "1h" : `${m}m`}
                   </Chip>
                 ))
               : (["on-time", "late"] as const).map((a) => (
-                  <Chip key={a} compact selected={a === arrival} onClick={() => onArrivalChange?.(a)}>
+                  <Chip
+                    key={a}
+                    compact
+                    selected={a === arrival}
+                    onClick={() => onArrivalChange?.(a)}
+                  >
                     {a === "on-time" ? "on time" : "late"}
                   </Chip>
                 )))}
@@ -546,7 +601,9 @@ function PinnedBarD({
             onBlur={() => {
               if (!draft.trim()) onCloseComposer()
             }}
-            placeholder={viewer === "host" ? "announce to everyone..." : "say something..."}
+            placeholder={
+              viewer === "host" ? "announce to everyone..." : "say something..."
+            }
             className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
           />
           <button

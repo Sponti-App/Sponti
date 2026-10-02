@@ -527,8 +527,7 @@ export const createEventRsvpChangeNotification = async ({
   const attendee = users.get(attendeeId);
   const attendeeName = actorDisplayName(attendee, "Someone");
   const rsvpLabel = rsvpStatus === "going" ? "is going to" : "can't make it to";
-  const eta =
-    rsvpStatus === "going" && memberWillArriveAt ? new Date(memberWillArriveAt) : null;
+  const eta = rsvpStatus === "going" && memberWillArriveAt ? new Date(memberWillArriveAt) : null;
   const etaLabel = eta ? formatEtaLabel(eta) : null;
   const statusLabel =
     rsvpStatus === "going" && arrivalStatus ? formatArrivalStatusLabel(arrivalStatus) : null;

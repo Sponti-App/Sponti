@@ -37,7 +37,7 @@ export async function computeRoute(
   origin: GeoCoords,
   destination: GeoCoords,
   travelMode: TravelMode = "WALK",
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<RouteResult> {
   const res = await apiFetch<ComputeRouteResponse>("/maps/route", {
     method: "POST",

@@ -1,12 +1,5 @@
 import { type ClientSession } from "mongoose";
-import {
-  Block,
-  Circle,
-  CircleMember,
-  Event,
-  EventMember,
-  EventUpdate,
-} from "#models/index";
+import { Block, Circle, CircleMember, Event, EventMember, EventUpdate } from "#models/index";
 import type { ArrivalStatus } from "#models/EventMember";
 import type {
   ActiveMapEventsQuery,

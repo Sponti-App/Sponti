@@ -19,7 +19,9 @@ type SiteUrlEnv = Partial<
   >
 >
 
-export function resolveSiteUrl(env: SiteUrlEnv = process.env as SiteUrlEnv): string {
+export function resolveSiteUrl(
+  env: SiteUrlEnv = process.env as SiteUrlEnv
+): string {
   const explicit = env.NEXT_PUBLIC_SITE_URL?.trim()
   if (explicit) return withScheme(stripTrailingSlash(explicit))
 

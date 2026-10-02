@@ -141,7 +141,8 @@ export function spotsLeftLabel({
   if (visibility !== "public" || guestLimit <= 0) return null
   const left = Math.max(0, guestLimit - headcount)
   if (left === 0) return `full · ${guestLimit} max`
-  const approximate = allowGuestInvites !== undefined && allowGuestInvites !== "none"
+  const approximate =
+    allowGuestInvites !== undefined && allowGuestInvites !== "none"
   const spots = `${left} ${left === 1 ? "spot" : "spots"} left`
   return `${approximate ? "about " : ""}${spots} · ${guestLimit} max`
 }

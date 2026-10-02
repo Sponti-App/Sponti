@@ -89,7 +89,9 @@ export const getMyCircles = async (ownerId: string) => {
   const [members, allCircleConnectionUserIds] = await Promise.all([
     CircleMember.find({
       ownerId: ownerObjectId,
-      circleId: { $in: circles.filter((circle) => circle.type !== "all").map((circle) => circle._id) },
+      circleId: {
+        $in: circles.filter((circle) => circle.type !== "all").map((circle) => circle._id),
+      },
     })
       .sort({ createdAt: 1 })
       .lean(),

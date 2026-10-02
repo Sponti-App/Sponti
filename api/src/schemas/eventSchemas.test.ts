@@ -44,15 +44,15 @@ describe("updateMyEventMembershipBodySchema", () => {
   });
 
   it("accepts an arrivalStatus of on_time or running_late (#211)", () => {
-    expect(
-      updateMyEventMembershipBodySchema.safeParse({ arrivalStatus: "on_time" }).success
-    ).toBe(true);
+    expect(updateMyEventMembershipBodySchema.safeParse({ arrivalStatus: "on_time" }).success).toBe(
+      true
+    );
     expect(
       updateMyEventMembershipBodySchema.safeParse({ arrivalStatus: "running_late" }).success
     ).toBe(true);
-    expect(
-      updateMyEventMembershipBodySchema.safeParse({ arrivalStatus: "on-time" }).success
-    ).toBe(false);
+    expect(updateMyEventMembershipBodySchema.safeParse({ arrivalStatus: "on-time" }).success).toBe(
+      false
+    );
   });
 
   it("rejects sending a real memberWillArriveAt and a real arrivalStatus together (#211)", () => {

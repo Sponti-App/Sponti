@@ -335,9 +335,13 @@ const ON_CALENDAR_NOW_TOAST = "on your calendar now, on the map on the day"
 // A flare within the map's soon window lights up immediately; one further
 // out only shows on the calendar until it enters that window, so the toast
 // says so instead of implying it's live on the map now.
-export function successToastForStart(startAt: string, createdAt: string): string {
+export function successToastForStart(
+  startAt: string,
+  createdAt: string
+): string {
   const startsBeyondSoonWindow =
-    new Date(startAt).getTime() - new Date(createdAt).getTime() > MAP_SOON_WINDOW_MS
+    new Date(startAt).getTime() - new Date(createdAt).getTime() >
+    MAP_SOON_WINDOW_MS
   return startsBeyondSoonWindow ? ON_CALENDAR_NOW_TOAST : LETS_LIGHT_IT_UP
 }
 

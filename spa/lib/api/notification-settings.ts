@@ -19,9 +19,9 @@ type NotificationSettingsResponse = {
 }
 
 export function fetchNotificationSettings(): Promise<NotificationSettings> {
-  return apiFetch<NotificationSettingsResponse>("/notification-settings/me").then(
-    (res) => res.data
-  )
+  return apiFetch<NotificationSettingsResponse>(
+    "/notification-settings/me"
+  ).then((res) => res.data)
 }
 
 export function updateNotificationSettings(

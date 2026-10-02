@@ -86,9 +86,7 @@ describe("AuthenticatedAppShell notification feed", () => {
       </AuthenticatedAppShell>
     )
     await waitFor(() =>
-      expect(
-        screen.queryByTestId("notifications-feed")
-      ).not.toBeInTheDocument()
+      expect(screen.queryByTestId("notifications-feed")).not.toBeInTheDocument()
     )
 
     // Navigate back to Home. The feed must not reopen on its own.
@@ -99,9 +97,7 @@ describe("AuthenticatedAppShell notification feed", () => {
       </AuthenticatedAppShell>
     )
     await waitFor(() =>
-      expect(
-        screen.queryByTestId("notifications-feed")
-      ).not.toBeInTheDocument()
+      expect(screen.queryByTestId("notifications-feed")).not.toBeInTheDocument()
     )
   })
 })

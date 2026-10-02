@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation"
 import { Drawer } from "vaul"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
-import { FlareActions, FlareFacts, FlareHeader } from "@/components/flare-detail"
+import {
+  FlareActions,
+  FlareFacts,
+  FlareHeader,
+} from "@/components/flare-detail"
 import { ChevronRight, Navigation, Pencil, UserRound } from "lucide-react"
 import {
   arrivalStatusLabel,
@@ -141,7 +145,10 @@ export function EventDetailSheet({
           </Drawer.Description>
 
           {displayEvent && (
-            <div className="max-h-[62vh] overflow-y-auto px-4 pb-6" data-vaul-no-drag>
+            <div
+              className="max-h-[62vh] overflow-y-auto px-4 pb-6"
+              data-vaul-no-drag
+            >
               <FlareHeader
                 as="h2"
                 type={displayEvent.type}
@@ -159,7 +166,8 @@ export function EventDetailSheet({
                   placeDetail={
                     [
                       distance?.label,
-                      displayEvent.location.area ?? displayEvent.location.address,
+                      displayEvent.location.area ??
+                        displayEvent.location.address,
                     ]
                       .filter(Boolean)
                       .join(" · ") || null
@@ -187,8 +195,11 @@ export function EventDetailSheet({
               {/* Who's Going. With nobody yet it is one quiet line instead of
                   a label over an empty row. */}
               <div className="mb-4">
-                {displayEvent.going === 0 && displayEvent.attendees.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">no one going yet</p>
+                {displayEvent.going === 0 &&
+                displayEvent.attendees.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    no one going yet
+                  </p>
                 ) : (
                   <>
                     <p className="mb-2 text-xs text-muted-foreground">
@@ -204,7 +215,9 @@ export function EventDetailSheet({
                               onNavigate={() => onClose()}
                               className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-xs ${a.color} ${avatarText(a.color)}`}
                             >
-                              {a.avatar || a.name?.charAt(0).toUpperCase() || "U"}
+                              {a.avatar ||
+                                a.name?.charAt(0).toUpperCase() ||
+                                "U"}
                             </GuestFace>
                           ))}
                         </div>
@@ -300,16 +313,18 @@ export function EventDetailSheet({
                   the sheet ends on a balanced pair rather than a stack. An odd
                   one out spans the full width. */}
               <div className="mt-3 grid grid-cols-2 gap-2 [&>*:last-child:nth-child(odd)]:col-span-2">
-                {viewer === "joined" && withEta && eventCoords(displayEvent) && (
-                  <SecondaryAction
-                    onClick={() => {
-                      haptic("medium")
-                      onSeeRoute(displayEvent)
-                    }}
-                  >
-                    <Navigation className="h-4 w-4" /> see route
-                  </SecondaryAction>
-                )}
+                {viewer === "joined" &&
+                  withEta &&
+                  eventCoords(displayEvent) && (
+                    <SecondaryAction
+                      onClick={() => {
+                        haptic("medium")
+                        onSeeRoute(displayEvent)
+                      }}
+                    >
+                      <Navigation className="h-4 w-4" /> see route
+                    </SecondaryAction>
+                  )}
                 {viewer === "joined" &&
                   timing !== "ended" &&
                   timing !== "cancelled" && (
@@ -328,7 +343,9 @@ export function EventDetailSheet({
                   </SecondaryAction>
                 )}
                 <SecondaryAction onClick={() => openFlarePage()}>
-                  {viewer === "invited" ? "see details and updates" : "open flare"}
+                  {viewer === "invited"
+                    ? "see details and updates"
+                    : "open flare"}
                   <ChevronRight className="h-4 w-4" />
                 </SecondaryAction>
               </div>
@@ -414,12 +431,18 @@ function HostRow({
     // use next/image's server-side optimizer, and host avatar URLs are
     // arbitrary/remote, so a plain <img> is intentional here.
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={avatarUrl} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />
+    <img
+      src={avatarUrl}
+      alt=""
+      className="h-7 w-7 shrink-0 rounded-full object-cover"
+    />
   ) : (
     <div
       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs ${color} ${avatarText(color)}`}
     >
-      {avatar || name?.charAt(0).toUpperCase() || <UserRound className="h-4 w-4" />}
+      {avatar || name?.charAt(0).toUpperCase() || (
+        <UserRound className="h-4 w-4" />
+      )}
     </div>
   )
   const text = (
@@ -466,7 +489,11 @@ function formatWhen(startIso: string, live: boolean): string {
       : start.toDateString() === tomorrow.toDateString()
         ? "tomorrow"
         : start
-            .toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+            .toLocaleDateString(undefined, {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            })
             .toLowerCase()
   return `${day} · ${formatClock(startIso)}`
 }

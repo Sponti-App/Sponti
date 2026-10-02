@@ -164,8 +164,9 @@ const mockCircleMemberFindLean = (members: Array<Record<string, unknown>>) => {
 // Who the owner is connected to, as the shared relationship function
 // (relationshipService.getConnectedUserIds) would answer.
 const mockConnectedUsers = (userIds: string[]) => {
-  getConnectedUserIdsMock.mockImplementation(async (_userId: string, among?: string[]) =>
-    new Set(among ? userIds.filter((id) => among.includes(id)) : userIds)
+  getConnectedUserIdsMock.mockImplementation(
+    async (_userId: string, among?: string[]) =>
+      new Set(among ? userIds.filter((id) => among.includes(id)) : userIds)
   );
 };
 

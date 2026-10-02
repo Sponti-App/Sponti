@@ -34,7 +34,11 @@ export type Session = {
   user: AuthUser | null
 }
 
-const EMPTY_SESSION: Session = { accessToken: null, refreshToken: null, user: null }
+const EMPTY_SESSION: Session = {
+  accessToken: null,
+  refreshToken: null,
+  user: null,
+}
 
 // Cached snapshot keyed by raw localStorage contents — keeps referential
 // stability for useSyncExternalStore so React doesn't loop.
@@ -77,7 +81,11 @@ export function readServerSession(): Session {
   return EMPTY_SESSION
 }
 
-export function setSession(accessToken: string, refreshToken: string, user: AuthUser): void {
+export function setSession(
+  accessToken: string,
+  refreshToken: string,
+  user: AuthUser
+): void {
   if (typeof window === "undefined") return
   window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
   window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
