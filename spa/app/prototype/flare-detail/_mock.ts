@@ -2,7 +2,7 @@
 // prototypes. Nothing here talks to the api; delete with the route once a
 // layout is chosen.
 
-import type { LucideIcon } from "lucide-react"
+import type { Icon } from "@/components/icons"
 import { EVENT_TYPES } from "@/types/utils"
 
 export type Viewer = "host" | "joined" | "invited"
@@ -293,7 +293,7 @@ export function byArrival(guests: MockGuest[]): MockGuest[] {
 
 export function categoryOf(flare: MockFlare): {
   label: string
-  icon: LucideIcon
+  icon: Icon
 } {
   const t =
     EVENT_TYPES.find((x) => x.value === flare.category) ?? EVENT_TYPES[0]

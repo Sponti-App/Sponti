@@ -7,16 +7,16 @@
 // consistency), then segmented tabs for guests and updates.
 
 import {
-  ArrowLeft,
-  Check,
-  Flame,
-  Navigation,
-  Pencil,
-  Send,
-  Share2,
-  UserPlus,
-  X,
-} from "lucide-react"
+  ArrowLeftIcon,
+  CheckIcon,
+  FlameIcon,
+  NavigationArrowIcon,
+  PencilSimpleIcon,
+  PaperPlaneRightIcon,
+  ShareNetworkIcon,
+  UserPlusIcon,
+  XIcon,
+} from "@/components/icons"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -68,7 +68,7 @@ export function VariantB(props: VariantProps) {
             onClick={() => onStub("back")}
             className="h-10 w-10 rounded-full bg-background/90"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeftIcon className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
@@ -78,9 +78,9 @@ export function VariantB(props: VariantProps) {
             className="h-10 w-10 rounded-full bg-background/90"
           >
             {isHost ? (
-              <Pencil className="h-4 w-4" />
+              <PencilSimpleIcon className="h-4 w-4" />
             ) : (
-              <Share2 className="h-4 w-4" />
+              <ShareNetworkIcon className="h-4 w-4" />
             )}
           </Button>
         </div>
@@ -113,13 +113,13 @@ export function VariantB(props: VariantProps) {
                 live ? "text-accent" : "text-muted-foreground"
               )}
             >
-              {live && <Flame className="h-4 w-4" />}
+              {live && <FlameIcon className="h-4 w-4" />}
               {live ? statusLine(flare, now) : startsIn(flare, now)}
             </p>
           </div>
           {viewer === "joined" && (
             <span className="flex items-center gap-1 rounded-full bg-accent/15 px-2 py-1 text-xs font-medium text-accent">
-              <Check className="h-3 w-3" /> going
+              <CheckIcon className="h-3 w-3" /> going
             </span>
           )}
           {isHost && (
@@ -266,7 +266,7 @@ function ActionsB({
           className={cn(peach, "flex-1")}
           onClick={() => onStub("post update")}
         >
-          <Send className="h-4 w-4" /> post an update
+          <PaperPlaneRightIcon className="h-4 w-4" /> post an update
         </Button>
         <Button
           variant="outline"
@@ -274,7 +274,7 @@ function ActionsB({
           onClick={() => onStub("invite more")}
           aria-label="invite more"
         >
-          <UserPlus className="h-4 w-4" />
+          <UserPlusIcon className="h-4 w-4" />
         </Button>
       </div>
     )
@@ -316,7 +316,7 @@ function ActionsB({
           </label>
         )}
         <Button className={peach} onClick={onJoin}>
-          <Check className="h-4 w-4" />
+          <CheckIcon className="h-4 w-4" />
           {live
             ? `on the way · ${etaLabel(myEta)}`
             : `i'm in · ${dayLabel(flare.startAt, now)} ${clock(flare.startAt)}`}
@@ -338,7 +338,8 @@ function ActionsB({
       {live ? (
         <>
           <Button className={peach} onClick={() => onStub("directions")}>
-            <Navigation className="h-4 w-4" /> see route · {flare.place.travel}
+            <NavigationArrowIcon className="h-4 w-4" /> see route ·{" "}
+            {flare.place.travel}
           </Button>
           <div className="flex items-center justify-between text-xs">
             <button
@@ -354,7 +355,7 @@ function ActionsB({
               onClick={onLeave}
               className="inline-flex items-center gap-1 text-muted-foreground"
             >
-              <X className="h-3.5 w-3.5" /> can&apos;t make it
+              <XIcon className="h-3.5 w-3.5" /> can&apos;t make it
             </button>
           </div>
           {etaOpen && (

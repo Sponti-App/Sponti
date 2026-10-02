@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react"
 import QRCode from "qrcode"
-import { Check, Loader2, RotateCcw, Share2, X } from "lucide-react"
+import {
+  CheckIcon,
+  CircleNotchIcon,
+  ArrowCounterClockwiseIcon,
+  ShareNetworkIcon,
+  XIcon,
+} from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
 import { getMyInviteLink, resetMyInviteLink } from "@/lib/api/invite-links"
@@ -182,7 +188,7 @@ export function QrShareSheet({
             aria-label="Close"
             className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary"
           >
-            <X className="h-4 w-4" />
+            <XIcon className="h-4 w-4" />
           </button>
         </div>
 
@@ -203,7 +209,7 @@ export function QrShareSheet({
                 {qrError}
               </p>
             ) : (
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <CircleNotchIcon className="h-6 w-6 animate-spin text-muted-foreground" />
             )}
           </div>
 
@@ -219,9 +225,9 @@ export function QrShareSheet({
               className="rounded-full bg-accent px-5 text-accent-foreground hover:bg-accent/90 disabled:opacity-60"
             >
               {copied ? (
-                <Check className="mr-2 h-4 w-4" />
+                <CheckIcon className="mr-2 h-4 w-4" />
               ) : (
-                <Share2 className="mr-2 h-4 w-4" />
+                <ShareNetworkIcon className="mr-2 h-4 w-4" />
               )}
               {copied ? "copied link" : "share sponti link"}
             </Button>
@@ -235,9 +241,9 @@ export function QrShareSheet({
               className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-60"
             >
               {resetting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <CircleNotchIcon className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <RotateCcw className="h-3.5 w-3.5" />
+                <ArrowCounterClockwiseIcon className="h-3.5 w-3.5" />
               )}
               reset link
             </button>

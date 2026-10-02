@@ -263,7 +263,7 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
   test("shows the type card and the nav's type icon, and reverts on a second chip or deselecting", async ({
     page,
   }) => {
-    await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
+    await expect(navFlare(page).locator("svg[data-icon='flame']")).toBeVisible()
 
     await chip(page, "food").click()
     await expect(quietCard(page)).toBeVisible()
@@ -273,7 +273,7 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
     ).toBeVisible()
     await expect(rail(page)).toBeHidden()
     await expect(
-      navFlare(page).locator("svg.lucide-utensils-crossed")
+      navFlare(page).locator("svg[data-icon='fork-knife']")
     ).toBeVisible()
     // The card floats above the dock's filter bar, inside the dock.
     expect(Math.abs(await gapAboveNav(page, dock(page)))).toBeLessThanOrEqual(1)
@@ -281,7 +281,7 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
     // A second chip: no longer exactly one type.
     await chip(page, "party").click()
     await expect(quietCard(page)).toBeHidden()
-    await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
+    await expect(navFlare(page).locator("svg[data-icon='flame']")).toBeVisible()
 
     await chip(page, "party").click()
     await expect(quietCard(page).getByText("up for food?")).toBeVisible()
@@ -290,7 +290,7 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
     await chip(page, "food").click()
     await expect(quietCard(page)).toBeHidden()
     await expect(rail(page)).toBeVisible()
-    await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
+    await expect(navFlare(page).locator("svg[data-icon='flame']")).toBeVisible()
   })
 
   test("a live flare of the selected type keeps the rail and the plain nav icon", async ({
@@ -300,7 +300,7 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
     await expect(rail(page).getByText("drinks after work")).toBeVisible()
     await expect(rail(page).getByText("up for drinks?")).toHaveCount(0)
     await expect(quietCard(page)).toBeHidden()
-    await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
+    await expect(navFlare(page).locator("svg[data-icon='flame']")).toBeVisible()
   })
 
   test("upcoming flares of the type don't count: nothing is live", async ({
@@ -308,7 +308,7 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
   }) => {
     await chip(page, "culture").click()
     await expect(quietCard(page).getByText("up for culture?")).toBeVisible()
-    await expect(navFlare(page).locator("svg.lucide-landmark")).toBeVisible()
+    await expect(navFlare(page).locator("svg[data-icon='bank']")).toBeVisible()
   })
 
   test("the card shows at peek too, next to the FAB, and opens the composer", async ({
@@ -332,23 +332,23 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
   test("the nav icon resets when leaving the home map", async ({ page }) => {
     await chip(page, "food").click()
     await expect(
-      navFlare(page).locator("svg.lucide-utensils-crossed")
+      navFlare(page).locator("svg[data-icon='fork-knife']")
     ).toBeVisible()
 
     // The calendar view unmounts the map.
     await page.getByRole("button", { name: "calendar" }).click()
-    await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
+    await expect(navFlare(page).locator("svg[data-icon='flame']")).toBeVisible()
 
     await page.getByRole("button", { name: "map" }).click()
     await chip(page, "food").click()
     await expect(
-      navFlare(page).locator("svg.lucide-utensils-crossed")
+      navFlare(page).locator("svg[data-icon='fork-knife']")
     ).toBeVisible()
 
     // Another route.
     await page.getByRole("button", { name: "my flares", exact: true }).click()
     await expect(page).toHaveURL(/\/event$/)
-    await expect(navFlare(page).locator("svg.lucide-flame")).toBeVisible()
+    await expect(navFlare(page).locator("svg[data-icon='flame']")).toBeVisible()
   })
 })
 

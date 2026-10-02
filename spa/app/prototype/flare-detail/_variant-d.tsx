@@ -22,21 +22,21 @@
 // - Compact one-row join bar.
 
 import {
-  ArrowLeft,
-  Check,
-  Clock,
-  ExternalLink,
-  Flame,
-  Lock,
-  MapPin,
-  Megaphone,
-  Navigation,
-  Pencil,
-  Send,
-  Share2,
-  Users,
-  X,
-} from "lucide-react"
+  ArrowLeftIcon,
+  CheckIcon,
+  ClockIcon,
+  ArrowSquareOutIcon,
+  FlameIcon,
+  LockIcon,
+  MapPinIcon,
+  MegaphoneIcon,
+  NavigationArrowIcon,
+  PencilSimpleIcon,
+  PaperPlaneRightIcon,
+  ShareNetworkIcon,
+  UsersIcon,
+  XIcon,
+} from "@/components/icons"
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -113,7 +113,7 @@ export function VariantD(props: VariantProps) {
         <MapArt flare={flare} showRoute={near && !isHost} />
         <div className="absolute inset-x-0 top-0 flex justify-between px-4 pt-2">
           <HeaderButton label="back" onClick={() => onStub("back")}>
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeftIcon className="h-4 w-4" />
           </HeaderButton>
           <div className="flex gap-2">
             {isHost ? (
@@ -122,18 +122,18 @@ export function VariantD(props: VariantProps) {
                   label="manage guests"
                   onClick={() => onStub("manage guests")}
                 >
-                  <Users className="h-4 w-4" />
+                  <UsersIcon className="h-4 w-4" />
                 </HeaderButton>
                 <HeaderButton
                   label="edit flare"
                   onClick={() => onStub("edit flare")}
                 >
-                  <Pencil className="h-4 w-4" />
+                  <PencilSimpleIcon className="h-4 w-4" />
                 </HeaderButton>
               </>
             ) : (
               <HeaderButton label="share" onClick={() => onStub("share")}>
-                <Share2 className="h-4 w-4" />
+                <ShareNetworkIcon className="h-4 w-4" />
               </HeaderButton>
             )}
           </div>
@@ -145,7 +145,7 @@ export function VariantD(props: VariantProps) {
           rel="noreferrer"
           className="absolute right-4 bottom-9 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs shadow-sm"
         >
-          <Navigation className="h-3.5 w-3.5 text-primary" />
+          <NavigationArrowIcon className="h-3.5 w-3.5 text-primary" />
           <span className="font-medium">open in maps</span>
           <span className="text-muted-foreground">
             ·{" "}
@@ -172,13 +172,13 @@ export function VariantD(props: VariantProps) {
                 live ? "text-accent" : "text-muted-foreground"
               )}
             >
-              {live && <Flame className="h-4 w-4" />}
+              {live && <FlameIcon className="h-4 w-4" />}
               {live ? statusLine(flare, now) : `starts ${startsIn(flare, now)}`}
             </p>
           </div>
           {viewer === "joined" && (
             <span className="flex items-center gap-1 rounded-full bg-accent/15 px-2 py-1 text-xs font-medium text-accent">
-              <Check className="h-3 w-3" /> going
+              <CheckIcon className="h-3 w-3" /> going
             </span>
           )}
           {isHost && (
@@ -191,7 +191,7 @@ export function VariantD(props: VariantProps) {
         {/* when | where — icons, no labels; the place opens Google Maps */}
         <div className="mt-4 grid grid-cols-2 divide-x divide-border/60 border-y border-border/60 py-3">
           <div className="flex gap-2 pr-3">
-            <Clock
+            <ClockIcon
               className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
               aria-label="when"
             />
@@ -212,11 +212,11 @@ export function VariantD(props: VariantProps) {
             aria-label={`open ${flare.place.name} in google maps`}
             className="flex gap-2 pl-3 active:opacity-70"
           >
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <div className="min-w-0">
               <p className="flex items-center gap-1 truncate text-sm font-medium underline decoration-border underline-offset-2">
                 {flare.place.name}
-                <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                <ArrowSquareOutIcon className="h-3 w-3 shrink-0 text-muted-foreground" />
               </p>
               <p className="truncate text-xs text-muted-foreground">
                 {flare.place.distance} · {flare.place.address}
@@ -256,7 +256,7 @@ export function VariantD(props: VariantProps) {
               {countLabel}
             </TabsTrigger>
             <TabsTrigger value="updates" className={TAB_TRIGGER}>
-              {!canSeeThread && <Lock className="h-3 w-3" />}
+              {!canSeeThread && <LockIcon className="h-3 w-3" />}
               updates · {messages.length}
             </TabsTrigger>
           </TabsList>
@@ -301,7 +301,7 @@ export function VariantD(props: VariantProps) {
             </div>
             {!canSeeThread ? (
               <p className="flex items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-                <Lock className="h-3.5 w-3.5" />
+                <LockIcon className="h-3.5 w-3.5" />
                 {`${messages.length} ${messages.length === 1 ? "update" : "updates"} · join to see`}
               </p>
             ) : (
@@ -313,7 +313,7 @@ export function VariantD(props: VariantProps) {
                       className="rounded-xl border-l-[3px] border-l-accent bg-card px-3 py-2"
                     >
                       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Megaphone className="h-3.5 w-3.5 text-accent" />
+                        <MegaphoneIcon className="h-3.5 w-3.5 text-accent" />
                         <span className="font-semibold text-foreground">
                           {isHost
                             ? "your announcement"
@@ -478,7 +478,7 @@ function YourPlan({
         onClick={onLeave}
         className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground"
       >
-        <X className="h-3 w-3" /> can&apos;t make it
+        <XIcon className="h-3 w-3" /> can&apos;t make it
       </button>
     </div>
   )
@@ -566,7 +566,7 @@ function PinnedBarD({
             className="h-10 min-w-0 flex-1 rounded-full bg-accent px-3 text-accent-foreground hover:bg-accent/90"
             onClick={onJoin}
           >
-            <Check className="h-4 w-4" /> join
+            <CheckIcon className="h-4 w-4" /> join
           </Button>
           {!withEta && (
             <Button
@@ -611,7 +611,7 @@ function PinnedBarD({
             aria-label="send"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground"
           >
-            <Send className="h-4 w-4" />
+            <PaperPlaneRightIcon className="h-4 w-4" />
           </button>
         </div>
       </form>
@@ -624,7 +624,7 @@ function PinnedBarD({
         className="h-11 flex-1 rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
         onClick={onCompose}
       >
-        <Send className="h-4 w-4" /> share an update
+        <PaperPlaneRightIcon className="h-4 w-4" /> share an update
       </Button>
       {viewer === "joined" && !withEta && (
         <Button

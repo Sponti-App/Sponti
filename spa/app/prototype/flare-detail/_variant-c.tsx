@@ -8,16 +8,16 @@
 // composer once you're in, the join bar before.
 
 import {
-  ArrowLeft,
-  Check,
-  Lock,
-  MapPin,
-  MoreHorizontal,
-  Navigation,
-  Pencil,
-  Send,
-  UserPlus,
-} from "lucide-react"
+  ArrowLeftIcon,
+  CheckIcon,
+  LockIcon,
+  MapPinIcon,
+  DotsThreeIcon,
+  NavigationArrowIcon,
+  PencilSimpleIcon,
+  PaperPlaneRightIcon,
+  UserPlusIcon,
+} from "@/components/icons"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { EventAvatarStack } from "@/components/event-avatar-stack"
@@ -62,14 +62,14 @@ export function VariantC(props: VariantProps) {
             onClick={() => onStub("back")}
             className="h-10 w-10 shrink-0 rounded-full"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeftIcon className="h-4 w-4" />
           </Button>
           <CategoryTile flare={flare} size="sm" />
           <div className="min-w-0 flex-1">
             <h1 className="flex items-center gap-1 truncate text-base font-semibold">
               {flare.title}
               {flare.visibility === "private" && (
-                <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />
+                <LockIcon className="h-3 w-3 shrink-0 text-muted-foreground" />
               )}
             </h1>
             <p
@@ -92,9 +92,9 @@ export function VariantC(props: VariantProps) {
             className="h-10 w-10 shrink-0 rounded-full"
           >
             {isHost ? (
-              <Pencil className="h-4 w-4" />
+              <PencilSimpleIcon className="h-4 w-4" />
             ) : (
-              <MoreHorizontal className="h-4 w-4" />
+              <DotsThreeIcon className="h-4 w-4" />
             )}
           </Button>
         </div>
@@ -107,7 +107,7 @@ export function VariantC(props: VariantProps) {
           onClick={() => onStub("directions")}
           className="flex items-center gap-2 text-left text-sm"
         >
-          <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <MapPinIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate">
             <span className="font-medium">{flare.place.name}</span>
             <span className="text-muted-foreground">
@@ -313,7 +313,7 @@ function HostCountdown({
         className="rounded-full"
         onClick={() => onStub("invite more")}
       >
-        <UserPlus className="h-3.5 w-3.5" /> invite
+        <UserPlusIcon className="h-3.5 w-3.5" /> invite
       </Button>
     </div>
   )
@@ -334,7 +334,7 @@ function YourPlan({
       <div className="flex items-center gap-3 border-l-[3px] border-l-accent pl-3">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1 text-sm font-medium">
-            <Check className="h-4 w-4 text-primary" />
+            <CheckIcon className="h-4 w-4 text-primary" />
             {live
               ? `you're arriving in ${etaLabel(myEta)}`
               : `you're going · ${startsIn(flare, now)}`}
@@ -364,7 +364,7 @@ function YourPlan({
           className="rounded-full"
           onClick={() => onStub("directions")}
         >
-          <Navigation className="h-3.5 w-3.5" />{" "}
+          <NavigationArrowIcon className="h-3.5 w-3.5" />{" "}
           {flare.place.travel.replace(" walk", "")}
         </Button>
       </div>
@@ -449,7 +449,7 @@ function BottomBarC({
             className="h-11 flex-1 rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
             onClick={onJoin}
           >
-            <Check className="h-4 w-4" />
+            <CheckIcon className="h-4 w-4" />
             {live ? `join · there in ${etaLabel(myEta)}` : "i'm in"}
           </Button>
         </div>
@@ -470,7 +470,7 @@ function BottomBarC({
           {viewer === "host" ? "update everyone..." : "say something..."}
         </span>
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-accent-foreground">
-          <Send className="h-4 w-4" />
+          <PaperPlaneRightIcon className="h-4 w-4" />
         </span>
       </button>
     </div>

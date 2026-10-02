@@ -10,13 +10,13 @@ import MonthCalendar, {
   useCompactMonthRows,
 } from "@/components/month-calendar"
 import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Flame,
-  AlertCircle,
-  Calendar as CalendarIcon,
-} from "lucide-react"
+  CheckIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
+  FlameIcon,
+  WarningCircleIcon,
+  CalendarBlankIcon,
+} from "@/components/icons"
 import {
   avatarText,
   dayKey,
@@ -299,7 +299,7 @@ export function CalendarView({
               aria-label="Previous"
               className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-secondary active:bg-muted"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <CaretLeftIcon className="h-4 w-4" />
             </button>
             <button
               type="button"
@@ -308,7 +308,7 @@ export function CalendarView({
               aria-label="Next"
               className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-secondary active:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-background"
             >
-              <ChevronRight className="h-4 w-4" />
+              <CaretRightIcon className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -432,7 +432,7 @@ export function CalendarView({
                   className="mt-3 flex w-full items-center gap-3 rounded-xl bg-card px-4 py-3 text-left transition-colors hover:bg-secondary"
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
-                    <Flame className="h-4 w-4" />
+                    <FlameIcon className="h-4 w-4" />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-foreground">
@@ -468,7 +468,7 @@ export function CalendarView({
           )}
           {error && events.length === 0 && (
             <div className="my-4 rounded-xl border border-border p-4 text-center">
-              <AlertCircle className="mx-auto mb-2 h-5 w-5 text-destructive" />
+              <WarningCircleIcon className="mx-auto mb-2 h-5 w-5 text-destructive" />
               <p className="mb-3 text-sm text-muted-foreground">{error}</p>
               <button
                 onClick={refresh}
@@ -483,7 +483,7 @@ export function CalendarView({
           {agenda.length > 0 && (
             <div className="mt-6">
               <div className="mb-3 flex items-center gap-2">
-                <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                <CalendarBlankIcon className="h-3.5 w-3.5 text-muted-foreground" />
                 <h3 className="text-sm font-medium text-muted-foreground">
                   up next
                 </h3>
@@ -599,7 +599,7 @@ function EventCard({
           <p className="truncate text-sm font-medium">{event.title}</p>
           {joined && (
             <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
-              <Check className="h-2.5 w-2.5" /> going
+              <CheckIcon className="h-2.5 w-2.5" /> going
             </span>
           )}
         </div>

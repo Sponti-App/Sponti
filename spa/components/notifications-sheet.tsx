@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Drawer } from "vaul"
-import { Bell, Check, ChevronDown, Loader2, X } from "lucide-react"
+import {
+  BellIcon,
+  CheckIcon,
+  CaretDownIcon,
+  CircleNotchIcon,
+  XIcon,
+} from "@/components/icons"
 import { NotificationRow } from "@/components/notification-row"
 import type { Notification } from "@/lib/notifications"
 import { haptic } from "@/lib/haptics"
@@ -189,7 +195,7 @@ export function NotificationsSheet({
                 aria-label="Close notifications"
                 className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted"
               >
-                <X className="h-4 w-4" />
+                <XIcon className="h-4 w-4" />
               </button>
             </div>
             <Drawer.Description className="sr-only">
@@ -198,12 +204,12 @@ export function NotificationsSheet({
 
             {loading && notifications.length === 0 ? (
               <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <CircleNotchIcon className="h-4 w-4 animate-spin" />
                 loading
               </div>
             ) : notifications.length === 0 ? (
               <div className="px-4 py-10 text-center">
-                <Bell className="mx-auto h-5 w-5 text-muted-foreground" />
+                <BellIcon className="mx-auto h-5 w-5 text-muted-foreground" />
                 <p className="mt-2 text-sm text-muted-foreground">
                   no notifications yet
                 </p>
@@ -213,7 +219,7 @@ export function NotificationsSheet({
               </div>
             ) : showCollapsed ? (
               <div className="px-4 py-10 text-center">
-                <Check className="mx-auto h-5 w-5 text-accent" />
+                <CheckIcon className="mx-auto h-5 w-5 text-accent" />
                 <p className="mt-2 text-sm font-medium">
                   you&rsquo;re caught up
                 </p>
@@ -223,7 +229,7 @@ export function NotificationsSheet({
                   className="mt-3 inline-flex min-h-11 items-center gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
                 >
                   show {notifications.length} earlier
-                  <ChevronDown className="h-3.5 w-3.5" />
+                  <CaretDownIcon className="h-3.5 w-3.5" />
                 </button>
               </div>
             ) : (
@@ -247,7 +253,7 @@ export function NotificationsSheet({
                   <div className="flex min-h-11 items-center justify-center px-4 py-3 text-xs text-muted-foreground">
                     {loadingMore ? (
                       <span className="flex items-center gap-2">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <CircleNotchIcon className="h-3.5 w-3.5 animate-spin" />
                         loading older
                       </span>
                     ) : hasMore ? (
@@ -277,7 +283,7 @@ export function NotificationsSheet({
                     aria-label="Mark all as seen"
                     className="flex h-11 w-full items-center justify-center gap-2 rounded-full text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
-                    <Check className="h-4 w-4" />
+                    <CheckIcon className="h-4 w-4" />
                     mark all as seen
                   </button>
                 </div>

@@ -12,21 +12,21 @@ import {
 } from "@vis.gl/react-google-maps"
 import { Card } from "@/components/ui/card"
 import {
-  ChevronRight,
-  ChevronDown,
-  Check,
-  Flame,
-  List,
-  LocateFixed,
-  Map as MapIcon,
-  MapPin,
-  AlertCircle,
-  Calendar as CalendarIcon,
-  Expand,
-  EyeOff,
-  Users,
-  X,
-} from "lucide-react"
+  CaretRightIcon,
+  CaretDownIcon,
+  CheckIcon,
+  FlameIcon,
+  ListBulletsIcon,
+  GpsFixIcon,
+  MapTrifoldIcon,
+  MapPinIcon,
+  WarningCircleIcon,
+  CalendarBlankIcon,
+  ArrowsOutIcon,
+  EyeSlashIcon,
+  UsersIcon,
+  XIcon,
+} from "@/components/icons"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   distanceFromUser,
@@ -88,7 +88,7 @@ function IdeaPinMark({
   selected: boolean
 }) {
   const match = EVENT_TYPES.find((t) => t.value === idea.category)
-  const Icon = match?.icon ?? MapPin
+  const Icon = match?.icon ?? MapPinIcon
   return (
     <div className="flex cursor-pointer items-center justify-center p-2">
       <div
@@ -265,7 +265,7 @@ export function FlarePreviewMarker({
             }}
             className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
           >
-            <X className="h-3.5 w-3.5" />
+            <XIcon className="h-3.5 w-3.5" />
           </button>
           <div className="flex w-full flex-col items-center gap-1.5 text-center">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15">
@@ -975,7 +975,7 @@ export function MapView({
   const ctaLabel = singleType
     ? `light a ${singleType.label} flare`
     : "light a flare"
-  const CtaIcon = singleType?.icon ?? Flame
+  const CtaIcon = singleType?.icon ?? FlameIcon
 
   const statusLabel = !cameraCenter
     ? locationStatusLabel(geo.status)
@@ -1049,7 +1049,7 @@ export function MapView({
 
       {routeError && (
         <div className="absolute top-28 right-3 z-30 flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1.5 text-xs shadow">
-          <AlertCircle className="h-3 w-3 text-destructive" />
+          <WarningCircleIcon className="h-3 w-3 text-destructive" />
           <span>Route unavailable</span>
         </div>
       )}
@@ -1084,7 +1084,7 @@ export function MapView({
                 aria-label="Recenter on my location"
                 className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md active:scale-95"
               >
-                <LocateFixed className="h-5 w-5" />
+                <GpsFixIcon className="h-5 w-5" />
               </button>
             )}
             {dock === "peek" && (
@@ -1094,7 +1094,7 @@ export function MapView({
                 aria-label="Light a flare"
                 className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg active:scale-95"
               >
-                <Flame className="h-6 w-6" />
+                <FlameIcon className="h-6 w-6" />
               </button>
             )}
           </div>
@@ -1192,7 +1192,7 @@ export function MapView({
             >
               {dock === "mid" ? (
                 <>
-                  <ChevronDown className="h-3.5 w-3.5" />
+                  <CaretDownIcon className="h-3.5 w-3.5" />
                   hide
                 </>
               ) : (
@@ -1211,7 +1211,7 @@ export function MapView({
               onClick={() => snap("full")}
               className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-card px-2.5 text-xs font-medium text-primary active:scale-[0.97]"
             >
-              <List className="h-3.5 w-3.5" />
+              <ListBulletsIcon className="h-3.5 w-3.5" />
               list
             </button>
           </div>
@@ -1254,7 +1254,7 @@ export function MapView({
                 onClick={() => snap("mid")}
                 className="flex h-8 items-center gap-1 rounded-full bg-card px-3 text-xs font-medium text-primary active:scale-[0.97]"
               >
-                <MapIcon className="h-3.5 w-3.5" />
+                <MapTrifoldIcon className="h-3.5 w-3.5" />
                 map
               </button>
             </div>
@@ -1350,7 +1350,7 @@ export function MapView({
                       {showEnded ? "hide" : "show"} {groupedEvents.ended.length}{" "}
                       ended
                     </span>
-                    <ChevronDown
+                    <CaretDownIcon
                       className={`h-4 w-4 transition-transform ${
                         showEnded ? "rotate-180" : ""
                       }`}
@@ -1421,7 +1421,7 @@ function MapCameraPlaceholder({
       <div className="relative mx-6 flex max-w-xs flex-col items-center text-center">
         <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background shadow-sm">
           {blocked ? (
-            <MapPin className="h-5 w-5 text-accent" />
+            <MapPinIcon className="h-5 w-5 text-accent" />
           ) : (
             <span className="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
           )}
@@ -1469,7 +1469,7 @@ function GeolocationBanner({
           : "absolute top-16 right-3 left-3 z-30 bg-background/95 shadow-md"
       }`}
     >
-      <MapPin className="h-3.5 w-3.5 shrink-0 text-accent" />
+      <MapPinIcon className="h-3.5 w-3.5 shrink-0 text-accent" />
       <span className="flex-1">{msg}</span>
       <button onClick={onRetry} className="shrink-0 font-medium text-accent">
         retry
@@ -1510,7 +1510,7 @@ function LocationSheetState({
 
   return (
     <div className="rounded-xl border border-border p-4 text-center">
-      <MapPin className="mx-auto mb-2 h-5 w-5 text-accent" />
+      <MapPinIcon className="mx-auto mb-2 h-5 w-5 text-accent" />
       <p className="text-sm font-medium">location needed</p>
       <p className="mt-1 text-xs text-muted-foreground">
         {errorMessage ??
@@ -1537,7 +1537,7 @@ function ErrorPanel({
   return (
     <div className="flex flex-col items-center gap-1 rounded-xl border border-border p-3 text-center">
       <p className="flex items-center gap-1.5 text-sm font-medium">
-        <AlertCircle className="h-4 w-4 text-destructive" />
+        <WarningCircleIcon className="h-4 w-4 text-destructive" />
         couldn&apos;t load flares
       </p>
       <p className="line-clamp-1 text-xs text-muted-foreground">{message}</p>
@@ -1579,7 +1579,7 @@ function EmptyState({
           onClick={onFindConnections}
           className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground hover:opacity-90 active:scale-[0.97]"
         >
-          <Flame className="h-4 w-4" /> connect with your friends
+          <FlameIcon className="h-4 w-4" /> connect with your friends
         </button>
         {(onWiden || onSeeCalendar) && (
           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
@@ -1618,7 +1618,8 @@ function EmptyState({
             onClick={onWiden}
             className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary active:bg-muted"
           >
-            <Expand className="h-4 w-4" /> search within {WIDE_RADIUS_KM} km
+            <ArrowsOutIcon className="h-4 w-4" /> search within {WIDE_RADIUS_KM}{" "}
+            km
           </button>
         )}
         {onSeeCalendar && (
@@ -1626,14 +1627,14 @@ function EmptyState({
             onClick={onSeeCalendar}
             className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary active:bg-muted"
           >
-            <CalendarIcon className="h-4 w-4" /> see what&apos;s planned
+            <CalendarBlankIcon className="h-4 w-4" /> see what&apos;s planned
           </button>
         )}
         <button
           onClick={onFindConnections}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 active:scale-[0.97]"
         >
-          <Flame className="h-4 w-4" /> connect with your friends
+          <FlameIcon className="h-4 w-4" /> connect with your friends
         </button>
       </div>
     </div>
@@ -1722,7 +1723,7 @@ function FlareCard({
       {swipeEnabled && (
         <div className="absolute inset-y-0 left-0 flex w-16 items-center justify-center rounded-l-xl bg-accent">
           <span className="flex flex-col items-center gap-0.5 text-[10px] font-semibold text-accent-foreground">
-            <Check className="h-4 w-4" />
+            <CheckIcon className="h-4 w-4" />
             I&apos;m in
           </span>
         </div>
@@ -1762,7 +1763,7 @@ function FlareCard({
             </p>
             {joined && !isEnded && (
               <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
-                <Check className="h-2.5 w-2.5" /> going
+                <CheckIcon className="h-2.5 w-2.5" /> going
               </span>
             )}
           </div>
@@ -1774,7 +1775,7 @@ function FlareCard({
             {metaText}
           </p>
         </div>
-        <ChevronRight
+        <CaretRightIcon
           className={`h-5 w-5 shrink-0 ${
             isEnded ? "text-muted-foreground/50" : "text-muted-foreground"
           }`}
@@ -1874,7 +1875,7 @@ function TypeChips({
           onClick={onClear}
           className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
         >
-          <X className="h-3 w-3" />
+          <XIcon className="h-3 w-3" />
           clear
         </button>
       )}
@@ -1967,7 +1968,7 @@ export function QuietFlareCard({
             aria-label="close idea"
             className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center self-start rounded-full text-muted-foreground hover:bg-muted"
           >
-            <X className="h-3.5 w-3.5" />
+            <XIcon className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
@@ -1990,7 +1991,7 @@ export function QuietFlareCard({
             onClick={onHideIdeas}
             className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-muted px-3 text-sm font-medium text-muted-foreground active:scale-[0.98]"
           >
-            <EyeOff className="h-4 w-4" />
+            <EyeSlashIcon className="h-4 w-4" />
             hide ideas
           </button>
         )}
@@ -2040,7 +2041,7 @@ function RailCard({
       <div className="flex w-full items-center justify-between text-xs text-muted-foreground">
         {event.going > 0 ? (
           <span className="flex items-center gap-1">
-            <Users className="h-3.5 w-3.5" />
+            <UsersIcon className="h-3.5 w-3.5" />
             {event.going} going
           </span>
         ) : (
@@ -2048,7 +2049,7 @@ function RailCard({
         )}
         {joined ? (
           <span className="flex items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 font-medium text-accent">
-            <Check className="h-2.5 w-2.5" /> going
+            <CheckIcon className="h-2.5 w-2.5" /> going
           </span>
         ) : (
           <span className="font-medium text-foreground">

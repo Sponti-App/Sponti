@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react"
-import { AlertCircle, Check } from "lucide-react"
+import { WarningCircleIcon, CheckIcon } from "@/components/icons"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 
@@ -125,9 +125,9 @@ export function ActionFeedbackProvider({
               )}
             >
               {current.tone === "success" ? (
-                <Check className="h-3.5 w-3.5" />
+                <CheckIcon className="h-3.5 w-3.5" />
               ) : (
-                <AlertCircle className="h-3.5 w-3.5" />
+                <WarningCircleIcon className="h-3.5 w-3.5" />
               )}
             </span>
             <span className="truncate">{current.message}</span>

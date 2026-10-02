@@ -1,12 +1,12 @@
 import Link from "next/link"
 import {
-  ChevronDown,
-  ChevronRight,
-  LockKeyhole,
-  MapPin,
-  Sparkles,
-  UserCircle,
-} from "lucide-react"
+  CaretDownIcon,
+  CaretRightIcon,
+  LockKeyIcon,
+  MapPinIcon,
+  SparkleIcon,
+  UserCircleIcon,
+} from "@/components/icons"
 import { MenuPageShell } from "@/components/menu-page-shell"
 import { Card } from "@/components/ui/card"
 
@@ -16,7 +16,7 @@ import { Card } from "@/components/ui/card"
 const faqGroups = [
   {
     title: "getting started",
-    icon: Sparkles,
+    icon: SparkleIcon,
     questions: [
       {
         question: "what is sponti for?",
@@ -32,7 +32,7 @@ const faqGroups = [
   },
   {
     title: "flares and rsvps",
-    icon: MapPin,
+    icon: MapPinIcon,
     questions: [
       {
         question: "who can see a flare?",
@@ -53,7 +53,7 @@ const faqGroups = [
   },
   {
     title: "privacy and trust",
-    icon: LockKeyhole,
+    icon: LockKeyIcon,
     questions: [
       {
         question: "does sponti read my contacts?",
@@ -74,7 +74,7 @@ const faqGroups = [
   },
   {
     title: "accounts and support",
-    icon: UserCircle,
+    icon: UserCircleIcon,
     questions: [
       {
         question: "how do i get account help?",
@@ -97,7 +97,7 @@ function LinkRow({ href, label }: { href: string; label: string }) {
       className="inline-flex items-center justify-between rounded-xl border border-border px-3 py-3 text-sm font-medium transition-colors hover:bg-secondary"
     >
       <span>{label}</span>
-      <ChevronRight
+      <CaretRightIcon
         className="size-4 text-muted-foreground"
         aria-hidden="true"
       />
@@ -142,7 +142,7 @@ export default function FaqFeedbackPage() {
                     >
                       <summary className="flex cursor-pointer list-none items-start justify-between gap-3 text-sm font-medium marker:hidden">
                         <span>{item.question}</span>
-                        <ChevronDown
+                        <CaretDownIcon
                           className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
                           aria-hidden="true"
                         />

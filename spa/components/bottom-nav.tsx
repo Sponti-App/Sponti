@@ -1,7 +1,14 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { Home, Zap, Users, Bell, Flame } from "lucide-react"
+import {
+  HouseIcon,
+  FireIcon,
+  UsersIcon,
+  BellIcon,
+  FlameIcon,
+  type Icon,
+} from "@/components/icons"
 import { usePathname, useRouter } from "next/navigation"
 import { useMyFlares } from "@/lib/use-events"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
@@ -12,7 +19,7 @@ import { EVENT_TYPES } from "@/types/utils"
 type NavItem =
   | {
       kind: "route"
-      icon: typeof Home
+      icon: Icon
       label: string
       href: string
       center?: boolean
@@ -20,7 +27,7 @@ type NavItem =
     }
   | {
       kind: "action"
-      icon: typeof Home
+      icon: Icon
       label: string
       onClick: () => void
       center?: boolean
@@ -52,13 +59,13 @@ export function BottomNav({
   const flareIcon =
     (pathname === "/" &&
       EVENT_TYPES.find((t) => t.value === suggestedType)?.icon) ||
-    Flame
+    FlameIcon
 
   const items: NavItem[] = [
-    { kind: "route", icon: Home, label: "Home", href: "/" },
+    { kind: "route", icon: HouseIcon, label: "Home", href: "/" },
     {
       kind: "action",
-      icon: Bell,
+      icon: BellIcon,
       label: "Feed",
       onClick: onOpenNotifications ?? (() => router.push("/")),
       badge: notificationsUnread,
@@ -70,10 +77,10 @@ export function BottomNav({
       onClick: () => openDrawer(),
       center: true,
     },
-    { kind: "route", icon: Users, label: "Circles", href: "/circles" },
+    { kind: "route", icon: UsersIcon, label: "Circles", href: "/circles" },
     {
       kind: "route",
-      icon: Zap,
+      icon: FireIcon,
       label: "my flares",
       href: "/event",
       badge: flaresBadge,
@@ -146,11 +153,12 @@ export function BottomNav({
             aria-label={item.label}
             className={`relative flex min-h-11 max-w-20 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-xs font-medium active:scale-95 active:opacity-80 ${
               active
-                ? "text-accent [&_svg]:fill-current"
+                ? "text-accent"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Icon className="h-5 w-5" />
+            {/* The active tab's icon takes Phosphor's fill weight (#345). */}
+            <Icon className="h-5 w-5" weight={active ? "fill" : "regular"} />
             <span>{item.label.toLowerCase()}</span>
             {(item.badge ?? 0) > 0 && (
               <span
@@ -173,11 +181,11 @@ export function BottomNav({
  * icon when the home map suggests that type.
  */
 export function NavFlareButton({
-  icon: Icon = Flame,
+  icon: Icon = FlameIcon,
   label = "flare",
   onClick,
 }: {
-  icon?: typeof Home
+  icon?: Icon
   label?: string
   onClick: () => void
 }) {

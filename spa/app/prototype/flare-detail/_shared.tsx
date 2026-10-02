@@ -4,7 +4,7 @@
 // plus the prototype switcher. Layout itself is deliberately NOT shared.
 
 import { useEffect } from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { CaretLeftIcon, CaretRightIcon } from "@/components/icons"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { initials } from "@/components/event-avatar-stack"
 import { cn } from "@/lib/utils"
@@ -153,7 +153,7 @@ export function PrototypeBar({
           aria-label="previous layout"
           className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-zinc-700"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <CaretLeftIcon className="h-4 w-4" />
         </button>
         <span className="truncate">
           {variant} — {VARIANTS[index].name}
@@ -164,7 +164,7 @@ export function PrototypeBar({
           aria-label="next layout"
           className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-zinc-700"
         >
-          <ChevronRight className="h-4 w-4" />
+          <CaretRightIcon className="h-4 w-4" />
         </button>
       </div>
       <div className="mt-1 flex items-center justify-between gap-2">

@@ -3,15 +3,15 @@
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
-  ArrowRight,
-  Clock3,
-  Flame,
-  Globe,
-  MapPin,
-  QrCode,
-  UserCheck,
-  Users,
-} from "lucide-react"
+  ArrowRightIcon,
+  ClockIcon,
+  FlameIcon,
+  GlobeIcon,
+  MapPinIcon,
+  QrCodeIcon,
+  UserCheckIcon,
+  UsersIcon,
+} from "@/components/icons"
 import { useAuth } from "@/components/auth-provider"
 import { ideaPrefill } from "@/components/map-view"
 import type { ComposerPrefill } from "@/components/new-event-drawer"
@@ -171,7 +171,7 @@ function IntroScreens({ onAddFriend }: { onAddFriend: () => void }) {
       <header className="flex shrink-0 items-center justify-between px-6 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-2">
           <span className="flex size-7 items-center justify-center rounded-full bg-accent/15 text-accent">
-            <Flame className="size-3.5" />
+            <FlameIcon className="size-3.5" />
           </span>
           <span className="text-sm font-semibold">sponti</span>
         </div>
@@ -240,12 +240,12 @@ function IntroScreens({ onAddFriend }: { onAddFriend: () => void }) {
             >
               {cta === "light-flare" ? (
                 <>
-                  <Flame className="size-4" />
+                  <FlameIcon className="size-4" />
                   light your first flare
                 </>
               ) : cta === "add-friend" ? (
                 <>
-                  <QrCode className="size-4" />
+                  <QrCodeIcon className="size-4" />
                   add your first friend
                 </>
               ) : (
@@ -259,7 +259,7 @@ function IntroScreens({ onAddFriend }: { onAddFriend: () => void }) {
               className="h-12 w-full rounded-full bg-foreground text-sm text-background hover:bg-foreground/90"
             >
               next
-              <ArrowRight className="size-4" />
+              <ArrowRightIcon className="size-4" />
             </Button>
           )}
         </div>
@@ -307,17 +307,17 @@ function MapIllustration() {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
         <span className="sponti-intro-ring absolute inset-0 rounded-full border-2 border-accent" />
         <span className="relative flex size-12 items-center justify-center rounded-full bg-accent/20 text-accent">
-          <Flame className="size-6" />
+          <FlameIcon className="size-6" />
         </span>
       </div>
       <span className="absolute top-[22%] left-[20%] flex size-8 items-center justify-center rounded-full border border-border bg-background text-muted-foreground">
-        <Flame className="size-4" />
+        <FlameIcon className="size-4" />
       </span>
       <span className="absolute right-[18%] bottom-[22%] flex size-8 items-center justify-center rounded-full border border-border bg-background text-muted-foreground">
-        <Flame className="size-4" />
+        <FlameIcon className="size-4" />
       </span>
       <div className="absolute inset-x-4 bottom-4 flex items-center gap-2 rounded-xl border-l-[3px] border-l-accent bg-background px-3 py-2 shadow-(--shadow-card)">
-        <MapPin className="size-4 text-muted-foreground" />
+        <MapPinIcon className="size-4 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">now · nearby</span>
       </div>
     </div>
@@ -352,7 +352,7 @@ function ComposeIllustration() {
         <span className="text-xs text-muted-foreground">light a flare</span>
         <div className="flex flex-wrap gap-1.5">
           <Chip selected>
-            <Users className="size-3" />
+            <UsersIcon className="size-3" />
             hang out
           </Chip>
           <Chip>drinks</Chip>
@@ -360,14 +360,14 @@ function ComposeIllustration() {
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Chip selected>
-            <Clock3 className="size-3" />
+            <ClockIcon className="size-3" />
             now
           </Chip>
           <Chip>in 1h</Chip>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Chip selected>
-            <MapPin className="size-3" />
+            <MapPinIcon className="size-3" />
             where you are
           </Chip>
         </div>
@@ -378,9 +378,9 @@ function ComposeIllustration() {
 
 function AudienceIllustration() {
   const rows = [
-    { icon: Users, label: "all friends", selected: false },
-    { icon: UserCheck, label: "one circle", selected: true },
-    { icon: Globe, label: "public", selected: false },
+    { icon: UsersIcon, label: "all friends", selected: false },
+    { icon: UserCheckIcon, label: "one circle", selected: true },
+    { icon: GlobeIcon, label: "public", selected: false },
   ]
   return (
     <div className="absolute inset-0" aria-hidden="true">

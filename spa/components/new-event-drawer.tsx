@@ -11,17 +11,17 @@ import {
 import { useSheetVisibleHeight } from "@/lib/use-sheet-visible-height"
 import { useFocusedFieldVisible } from "@/lib/use-focused-field-visible"
 import {
-  Check,
-  MapPin,
-  Minus,
-  Pencil,
-  Plus,
-  Search,
-  Share2,
-  Sparkles,
-  UserPlus,
-  X,
-} from "lucide-react"
+  CheckIcon,
+  MapPinIcon,
+  MinusIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  MagnifyingGlassIcon,
+  ShareNetworkIcon,
+  SparkleIcon,
+  UserPlusIcon,
+  XIcon,
+} from "@/components/icons"
 import { CircleStackIcon } from "@/components/circle-stack-icon"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
@@ -1524,10 +1524,10 @@ export function NewEventDrawer({
                 aria-label="Close"
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-secondary"
               >
-                <X className="h-4 w-4" />
+                <XIcon className="h-4 w-4" />
               </button>
               <div className="flex items-center gap-1.5 text-lg font-semibold">
-                <Sparkles className="h-4.5 w-4.5" />
+                <SparkleIcon className="h-4.5 w-4.5" />
                 <span>light a flare</span>
               </div>
               <div className="h-9 w-9" aria-hidden />
@@ -1791,7 +1791,7 @@ export function NewEventDrawer({
                     onClick={() => setAudiencePromptDismissed(true)}
                     className="absolute top-1 right-1 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <XIcon className="h-3.5 w-3.5" />
                   </button>
                   <p className="text-xs text-muted-foreground">
                     no friends on sponti yet? invite them or go public so anyone
@@ -1825,9 +1825,9 @@ export function NewEventDrawer({
                       }}
                     >
                       {inviteLinkCopied ? (
-                        <Check className="mr-1 inline h-3 w-3" />
+                        <CheckIcon className="mr-1 inline h-3 w-3" />
                       ) : (
-                        <Share2 className="mr-1 inline h-3 w-3" />
+                        <ShareNetworkIcon className="mr-1 inline h-3 w-3" />
                       )}
                       {inviteLinkCopied ? "copied!" : "share invite link"}
                     </button>
@@ -1836,7 +1836,7 @@ export function NewEventDrawer({
                       disabled
                       className="text-xs font-medium text-muted-foreground/50"
                     >
-                      <UserPlus className="mr-1 inline h-3 w-3" />
+                      <UserPlusIcon className="mr-1 inline h-3 w-3" />
                       import contacts (soon)
                     </button>
                   </div>
@@ -1904,7 +1904,7 @@ function SectionChip({
     >
       {label}
       {!active && tone !== "destructive" && (
-        <Pencil className="h-2.5 w-2.5 opacity-50" />
+        <PencilSimpleIcon className="h-2.5 w-2.5 opacity-50" />
       )}
     </button>
   )
@@ -2284,7 +2284,7 @@ function WherePicker({
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <Chip selected onClick={() => undefined}>
-              <MapPin className="h-3.5 w-3.5" />
+              <MapPinIcon className="h-3.5 w-3.5" />
               my location
             </Chip>
             <button
@@ -2293,7 +2293,7 @@ function WherePicker({
               aria-label="Search for a place"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-secondary"
             >
-              <Search className="h-3.5 w-3.5" />
+              <MagnifyingGlassIcon className="h-3.5 w-3.5" />
             </button>
           </div>
           {currentHint && (
@@ -2311,7 +2311,7 @@ function WherePicker({
       ) : (
         <div>
           <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               ref={inputRef}
               placeholder="search for a place"
@@ -2325,7 +2325,7 @@ function WherePicker({
               aria-label="Use my location instead"
               className="absolute top-1/2 right-2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
             >
-              <X className="h-3 w-3" />
+              <XIcon className="h-3 w-3" />
             </button>
           </div>
           {placesLoading && (
@@ -2359,7 +2359,7 @@ function WherePicker({
                       onClick={() => onPickSearch(r)}
                       className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
                     >
-                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <MapPinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm">{r.label}</div>
                         <div className="truncate text-xs text-muted-foreground">
@@ -2723,7 +2723,7 @@ function CircleEditor({
           aria-label="Done editing"
           className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-accent/10"
         >
-          <X className="h-3.5 w-3.5 text-accent" />
+          <XIcon className="h-3.5 w-3.5 text-accent" />
         </button>
       </div>
       <FriendList
@@ -2769,7 +2769,7 @@ function DirectInviteSearch({
         onClick={() => setExpanded(true)}
         className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-2.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
       >
-        <UserPlus className="h-3.5 w-3.5" />
+        <UserPlusIcon className="h-3.5 w-3.5" />
         also invite specific friends
       </button>
     )
@@ -2793,7 +2793,7 @@ function DirectInviteSearch({
             aria-label="Collapse direct invites"
             className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
           >
-            <X className="h-3 w-3" />
+            <XIcon className="h-3 w-3" />
           </button>
         )}
       </div>
@@ -2868,7 +2868,7 @@ export function FriendList({
                         : "border-border"
                     }`}
                   >
-                    {checked && <Check className="h-2.5 w-2.5" />}
+                    {checked && <CheckIcon className="h-2.5 w-2.5" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm">
@@ -2918,7 +2918,7 @@ function InviteToggles({
               : "border-border text-muted-foreground hover:bg-secondary"
           }`}
         >
-          <UserPlus className="h-3 w-3 shrink-0" />
+          <UserPlusIcon className="h-3 w-3 shrink-0" />
           +1 allowed
         </button>
       )}
@@ -2937,7 +2937,7 @@ function InviteToggles({
               : "border-border text-muted-foreground hover:bg-secondary"
           }`}
         >
-          <Share2 className="h-3 w-3 shrink-0" />
+          <ShareNetworkIcon className="h-3 w-3 shrink-0" />
           can re-share
         </button>
       )}
@@ -2977,7 +2977,7 @@ function Stepper({
         className="flex h-7 w-7 items-center justify-center rounded-full border border-border hover:bg-secondary disabled:opacity-40"
         disabled={disabled || value <= min}
       >
-        <Minus className="h-3 w-3" />
+        <MinusIcon className="h-3 w-3" />
       </button>
       <input
         type="text"
@@ -3000,7 +3000,7 @@ function Stepper({
         className="flex h-7 w-7 items-center justify-center rounded-full border border-border hover:bg-secondary disabled:opacity-40"
         disabled={disabled || value >= max}
       >
-        <Plus className="h-3 w-3" />
+        <PlusIcon className="h-3 w-3" />
       </button>
     </div>
   )

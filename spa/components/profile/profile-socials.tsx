@@ -1,4 +1,8 @@
-import { Camera, ExternalLink, Send } from "lucide-react"
+import {
+  CameraIcon,
+  ArrowSquareOutIcon,
+  PaperPlaneRightIcon,
+} from "@/components/icons"
 import type { ProfileSocials } from "@/lib/api/users"
 
 // Socials as pill buttons that open the app or site in a new tab (#289).
@@ -9,14 +13,14 @@ const NETWORKS = [
   {
     key: "instagram",
     label: "instagram",
-    Icon: Camera,
+    Icon: CameraIcon,
     url: (handle: string) =>
       `https://instagram.com/${encodeURIComponent(handle)}`,
   },
   {
     key: "telegram",
     label: "telegram",
-    Icon: Send,
+    Icon: PaperPlaneRightIcon,
     url: (handle: string) => `https://t.me/${encodeURIComponent(handle)}`,
   },
 ] as const
@@ -43,7 +47,10 @@ export function ProfileSocialPills({ socials }: { socials: ProfileSocials }) {
         >
           <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />@
           {handle}
-          <ExternalLink className="h-3 w-3 text-muted-foreground" aria-hidden />
+          <ArrowSquareOutIcon
+            className="h-3 w-3 text-muted-foreground"
+            aria-hidden
+          />
         </a>
       ))}
     </div>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Flame, X } from "lucide-react"
+import { CheckIcon, FlameIcon, XIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import type { CircleFlare } from "@/lib/api/circles"
 import { cn } from "@/lib/utils"
@@ -68,7 +68,7 @@ export function AddToFlaresDialog({
         <div className="flex items-start justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent">
-              <Flame className="h-4 w-4" />
+              <FlameIcon className="h-4 w-4" />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold">
@@ -88,7 +88,7 @@ export function AddToFlaresDialog({
             aria-label="Close"
             className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-secondary"
           >
-            <X className="h-3.5 w-3.5" />
+            <XIcon className="h-3.5 w-3.5" />
           </button>
         </div>
 
@@ -113,7 +113,7 @@ export function AddToFlaresDialog({
                         : "border-border"
                     )}
                   >
-                    {checked && <Check className="h-2.5 w-2.5" />}
+                    {checked && <CheckIcon className="h-2.5 w-2.5" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm">

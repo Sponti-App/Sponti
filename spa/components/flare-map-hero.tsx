@@ -13,7 +13,7 @@ import {
   useApiLoadingStatus,
 } from "@vis.gl/react-google-maps"
 import { useTheme } from "next-themes"
-import { MapPin } from "lucide-react"
+import { MapPinIcon } from "@/components/icons"
 import {
   FitBoundsOnce,
   GoogleMapPolyline,
@@ -191,7 +191,7 @@ function StaticHero({ type }: { type: EventType }) {
 }
 
 function FlarePin({ type }: { type: EventType }) {
-  const Icon = EVENT_TYPES.find((t) => t.value === type)?.icon ?? MapPin
+  const Icon = EVENT_TYPES.find((t) => t.value === type)?.icon ?? MapPinIcon
   return (
     <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-accent bg-background shadow-lg">
       <Icon className="h-5 w-5 text-accent" />

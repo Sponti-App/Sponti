@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
-  ArrowLeft,
-  MapPin,
-  Pencil,
-  RotateCcw,
-  Search,
-  Trash2,
-} from "lucide-react"
+  ArrowLeftIcon,
+  MapPinIcon,
+  PencilSimpleIcon,
+  ArrowCounterClockwiseIcon,
+  MagnifyingGlassIcon,
+  TrashIcon,
+} from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -416,10 +416,10 @@ export default function EventEditPage() {
           aria-label="back"
           className="h-10 w-10 rounded-full"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeftIcon className="h-4 w-4" />
         </Button>
         <div className="flex items-center gap-1.5 text-base font-semibold">
-          <Pencil className="h-4 w-4" />
+          <PencilSimpleIcon className="h-4 w-4" />
           <span>edit flare</span>
         </div>
         <div className="h-9 w-9" aria-hidden />
@@ -556,7 +556,7 @@ export default function EventEditPage() {
 
         <Section label="where">
           <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="search a place"
               value={locationLabel}
@@ -598,7 +598,7 @@ export default function EventEditPage() {
                       className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
                       disabled={saving}
                     >
-                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <MapPinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm">{result.label}</div>
                         <div className="truncate text-xs text-muted-foreground">
@@ -663,7 +663,7 @@ export default function EventEditPage() {
                 disabled={saving}
                 className="w-full rounded-full border-accent/30 text-accent hover:bg-accent/5"
               >
-                <RotateCcw className="mr-1.5 h-4 w-4" />
+                <ArrowCounterClockwiseIcon className="mr-1.5 h-4 w-4" />
                 reactivate this flare
               </Button>
             ) : (
@@ -673,7 +673,7 @@ export default function EventEditPage() {
                 disabled={saving}
                 className="w-full rounded-full border-destructive/30 text-destructive hover:bg-destructive/5"
               >
-                <Trash2 className="mr-1.5 h-4 w-4" />
+                <TrashIcon className="mr-1.5 h-4 w-4" />
                 cancel this flare
               </Button>
             )}

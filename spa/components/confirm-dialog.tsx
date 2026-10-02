@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { X } from "lucide-react"
+import { XIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 
 /**
@@ -62,7 +62,7 @@ export function ConfirmDialog({
             aria-label="Close"
             className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-secondary"
           >
-            <X className="h-3.5 w-3.5" />
+            <XIcon className="h-3.5 w-3.5" />
           </button>
         </div>
         <p className="px-4 pb-3 text-xs text-muted-foreground">{body}</p>
