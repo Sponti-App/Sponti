@@ -382,8 +382,8 @@ Table blocks {
   updatedAt datetime
 
   indexes {
-    (blockerId, blockedId) [unique]
-    (blockerId) // retrieve all the users the user has blocked
+    (blockerId, blockedId) [unique] // also serves "all the users the user has blocked"
+    (blockedId, blockerId) // "who has blocked this user"; created at startup by connectDB (autoIndex is off in production)
   }
 }
 ```
