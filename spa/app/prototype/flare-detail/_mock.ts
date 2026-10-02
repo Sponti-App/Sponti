@@ -131,7 +131,13 @@ export function buildFlare(
 
   const going: MockGuest[] = [
     { ...JONAS, rsvp: "going", willArriveAt: eta(-8), arrival: arr("on-time") },
-    { ...MAYA, rsvp: "going", willArriveAt: eta(5), plusOne: true, arrival: arr("on-time") },
+    {
+      ...MAYA,
+      rsvp: "going",
+      willArriveAt: eta(5),
+      plusOne: true,
+      arrival: arr("on-time"),
+    },
     { ...PRIYA, rsvp: "going", willArriveAt: eta(25), arrival: arr("late") },
     { ...TOM, rsvp: "going", willArriveAt: soon ? undefined : eta(50) },
   ]
@@ -144,7 +150,9 @@ export function buildFlare(
     })
   }
   const others: MockGuest[] = [
-    ...(viewer === "invited" ? [{ ...YOU_GUEST, rsvp: "invited" as const, isYou: true }] : []),
+    ...(viewer === "invited"
+      ? [{ ...YOU_GUEST, rsvp: "invited" as const, isYou: true }]
+      : []),
     { ...LEO, rsvp: "invited" },
     { ...ANA, rsvp: "declined" },
   ]
@@ -162,8 +170,18 @@ export function buildFlare(
         activity("a1", HOST, "lit this flare", now - 70 * MIN),
         activity("a2", JONAS, "joined", now - 55 * MIN),
         activity("a3", MAYA, "joined with a +1", now - 40 * MIN),
-        message("m1", HOST, "got the big table at the back, left of the bar", now - 20 * MIN),
-        message("m2", PRIYA, "running a bit late, save me a seat", now - 6 * MIN),
+        message(
+          "m1",
+          HOST,
+          "got the big table at the back, left of the bar",
+          now - 20 * MIN
+        ),
+        message(
+          "m2",
+          PRIYA,
+          "running a bit late, save me a seat",
+          now - 6 * MIN
+        ),
         message("m3", JONAS, "they've got the good ipa on tap", now - 2 * MIN),
       ]
     : soon
@@ -171,16 +189,31 @@ export function buildFlare(
           activity("a1", HOST, "lit this flare", now - 50 * MIN),
           activity("a2", JONAS, "joined", now - 35 * MIN),
           activity("a3", MAYA, "joined with a +1", now - 20 * MIN),
-          message("m1", HOST, "table's booked under sarah, see you there", now - 15 * MIN),
-          message("m2", MAYA, "running for the bus, 5 min behind", now - 10 * MIN),
+          message(
+            "m1",
+            HOST,
+            "table's booked under sarah, see you there",
+            now - 15 * MIN
+          ),
+          message(
+            "m2",
+            MAYA,
+            "running for the bus, 5 min behind",
+            now - 10 * MIN
+          ),
           message("m3", PRIYA, "might be 10 min late", now - 3 * MIN),
         ]
       : [
-        activity("a1", HOST, "lit this flare", now - 3 * 60 * MIN),
-        activity("a2", JONAS, "joined", now - 2 * 60 * MIN),
-        activity("a3", MAYA, "joined with a +1", now - 90 * MIN),
-        message("m1", HOST, "booked a table for 8, come whenever", now - 45 * MIN),
-      ]
+          activity("a1", HOST, "lit this flare", now - 3 * 60 * MIN),
+          activity("a2", JONAS, "joined", now - 2 * 60 * MIN),
+          activity("a3", MAYA, "joined with a +1", now - 90 * MIN),
+          message(
+            "m1",
+            HOST,
+            "booked a table for 8, come whenever",
+            now - 45 * MIN
+          ),
+        ]
 
   return {
     id: "proto-flare",
@@ -208,10 +241,20 @@ export function buildFlare(
   }
 }
 
-function activity(id: string, author: MockPerson, text: string, at: number): MockUpdate {
+function activity(
+  id: string,
+  author: MockPerson,
+  text: string,
+  at: number
+): MockUpdate {
   return { id, kind: "activity", author, text, at: iso(at) }
 }
-function message(id: string, author: MockPerson, text: string, at: number): MockUpdate {
+function message(
+  id: string,
+  author: MockPerson,
+  text: string,
+  at: number
+): MockUpdate {
   return { id, kind: "message", author, text, at: iso(at) }
 }
 
@@ -248,8 +291,12 @@ export function byArrival(guests: MockGuest[]): MockGuest[] {
   })
 }
 
-export function categoryOf(flare: MockFlare): { label: string; icon: LucideIcon } {
-  const t = EVENT_TYPES.find((x) => x.value === flare.category) ?? EVENT_TYPES[0]
+export function categoryOf(flare: MockFlare): {
+  label: string
+  icon: LucideIcon
+} {
+  const t =
+    EVENT_TYPES.find((x) => x.value === flare.category) ?? EVENT_TYPES[0]
   return { label: t.label, icon: t.icon }
 }
 
@@ -307,7 +354,8 @@ export function span(min: number): string {
 export function statusLine(flare: MockFlare, now: number): string {
   const start = new Date(flare.startAt).getTime()
   const end = new Date(flare.endAt).getTime()
-  if (start <= now && now < end) return `live · ends in ${span((end - now) / MIN)}`
+  if (start <= now && now < end)
+    return `live · ends in ${span((end - now) / MIN)}`
   return `${dayLabel(flare.startAt, now)} · ${clock(flare.startAt)}`
 }
 

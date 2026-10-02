@@ -36,9 +36,7 @@ describe("reverseGeocodeUrl", () => {
 })
 
 // Google Geocoding API result shape, trimmed to what these tests exercise.
-function resultWith(
-  components: { long_name: string; types: string[] }[]
-) {
+function resultWith(components: { long_name: string; types: string[] }[]) {
   return {
     status: "OK",
     results: [{ address_components: components }],
@@ -51,7 +49,10 @@ describe("normalizeReverseGeocodeResponse", () => {
       { long_name: "789 Valencia St", types: ["street_number"] },
       { long_name: "Valencia St", types: ["route"] },
       { long_name: "Mission District", types: ["neighborhood", "political"] },
-      { long_name: "SF Downtown", types: ["sublocality", "sublocality_level_1"] },
+      {
+        long_name: "SF Downtown",
+        types: ["sublocality", "sublocality_level_1"],
+      },
       { long_name: "San Francisco", types: ["locality", "political"] },
       { long_name: "94103", types: ["postal_code"] },
     ])
@@ -63,7 +64,10 @@ describe("normalizeReverseGeocodeResponse", () => {
 
   it("falls back to sublocality when there is no neighborhood", () => {
     const data = resultWith([
-      { long_name: "SF Downtown", types: ["sublocality", "sublocality_level_1"] },
+      {
+        long_name: "SF Downtown",
+        types: ["sublocality", "sublocality_level_1"],
+      },
       { long_name: "San Francisco", types: ["locality", "political"] },
     ])
     expect(normalizeReverseGeocodeResponse(data)).toEqual({
@@ -135,7 +139,8 @@ describe("getGoogleGeocodingApiKey", () => {
   })
 
   afterEach(() => {
-    if (originalPlacesKey === undefined) delete process.env.GOOGLE_PLACES_API_KEY
+    if (originalPlacesKey === undefined)
+      delete process.env.GOOGLE_PLACES_API_KEY
     else process.env.GOOGLE_PLACES_API_KEY = originalPlacesKey
     if (originalMapsKey === undefined) delete process.env.GOOGLE_MAPS_API_KEY
     else process.env.GOOGLE_MAPS_API_KEY = originalMapsKey

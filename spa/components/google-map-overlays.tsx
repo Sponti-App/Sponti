@@ -12,7 +12,11 @@ import type { GeoCoords } from "@/lib/geolocation"
 // globals.css.
 export const ACCENT_HEX = "#f8b187"
 
-export function GoogleMapPolyline({ path }: { path: google.maps.LatLngLiteral[] }) {
+export function GoogleMapPolyline({
+  path,
+}: {
+  path: google.maps.LatLngLiteral[]
+}) {
   const map = useMap()
   useEffect(() => {
     if (!map || path.length === 0) return

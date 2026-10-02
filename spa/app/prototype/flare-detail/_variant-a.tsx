@@ -60,7 +60,10 @@ export function VariantA(props: VariantProps) {
         </RoundButton>
         <div className="flex gap-2">
           {isHost ? (
-            <RoundButton label="edit flare" onClick={() => onStub("edit flare")}>
+            <RoundButton
+              label="edit flare"
+              onClick={() => onStub("edit flare")}
+            >
               <Pencil className="h-4 w-4" />
             </RoundButton>
           ) : (
@@ -93,7 +96,9 @@ export function VariantA(props: VariantProps) {
               {flare.title}
             </h1>
             <p className="mt-0.5 flex items-center gap-2 truncate text-xs text-muted-foreground">
-              {isHost ? "you're hosting" : `by ${flare.host.displayName.toLowerCase()}`}
+              {isHost
+                ? "you're hosting"
+                : `by ${flare.host.displayName.toLowerCase()}`}
               {viewer === "joined" && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 font-medium text-accent">
                   <Check className="h-3 w-3" /> going
@@ -104,11 +109,7 @@ export function VariantA(props: VariantProps) {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-1.5">
-          <FactChip
-            icon={Clock}
-            live={live}
-            href="#a-when"
-          >
+          <FactChip icon={Clock} live={live} href="#a-when">
             {statusLine(flare, now)}
           </FactChip>
           <FactChip icon={MapPin} href="#a-where">
@@ -118,7 +119,11 @@ export function VariantA(props: VariantProps) {
             href="#a-who"
             className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-card pr-3 pl-1.5 text-xs"
           >
-            <EventAvatarStack people={going} size="xs" count={goingCount(flare)} />
+            <EventAvatarStack
+              people={going}
+              size="xs"
+              count={goingCount(flare)}
+            />
             <span className="text-muted-foreground">going</span>
           </a>
         </div>
@@ -224,7 +229,8 @@ export function VariantA(props: VariantProps) {
         </div>
         {viewer === "invited" ? (
           <p className="text-xs text-muted-foreground">
-            join to see updates from {flare.host.displayName.split(" ")[0].toLowerCase()} and the group.
+            join to see updates from{" "}
+            {flare.host.displayName.split(" ")[0].toLowerCase()} and the group.
           </p>
         ) : (
           <div className="flex flex-col gap-3">
@@ -284,7 +290,11 @@ function ActionBarA({
             className="h-11 flex-1 rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
             onClick={() => onStub(live ? "post update" : "invite more")}
           >
-            {live ? <Send className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+            {live ? (
+              <Send className="h-4 w-4" />
+            ) : (
+              <UserPlus className="h-4 w-4" />
+            )}
             {live ? "post an update" : "invite more"}
           </Button>
           <Button
@@ -358,7 +368,11 @@ function ActionBarA({
               className="h-11 flex-1 rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
               onClick={() => onStub(live ? "directions" : "add to calendar")}
             >
-              {live ? <Navigation className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+              {live ? (
+                <Navigation className="h-4 w-4" />
+              ) : (
+                <Check className="h-4 w-4" />
+              )}
               {live ? "directions" : "add to calendar"}
             </Button>
           </div>
@@ -446,7 +460,12 @@ function FactChip({
         live && "border-l-[3px] border-l-accent font-medium"
       )}
     >
-      <Icon className={cn("h-3.5 w-3.5", live ? "text-accent" : "text-muted-foreground")} />
+      <Icon
+        className={cn(
+          "h-3.5 w-3.5",
+          live ? "text-accent" : "text-muted-foreground"
+        )}
+      />
       {children}
     </a>
   )
@@ -460,7 +479,12 @@ function SectionLabel({
   className?: string
 }) {
   return (
-    <p className={cn("mb-2 text-xs font-medium text-muted-foreground", className)}>
+    <p
+      className={cn(
+        "mb-2 text-xs font-medium text-muted-foreground",
+        className
+      )}
+    >
       {children}
     </p>
   )

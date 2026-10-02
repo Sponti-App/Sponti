@@ -47,7 +47,8 @@ vi.mock("@/lib/api/events", async (importOriginal) => {
   }
 })
 
-const at = (offsetMin: number) => new Date(Date.now() + offsetMin * MIN).toISOString()
+const at = (offsetMin: number) =>
+  new Date(Date.now() + offsetMin * MIN).toISOString()
 
 function hostedEvent(overrides: Partial<HostedEvent> = {}): HostedEvent {
   return {
@@ -103,38 +104,61 @@ describe("EventDetailPage layout (#139)", () => {
 
     render(<EventDetailPage />)
 
-    expect(await screen.findByRole("heading", { name: "rooftop party" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "open the annex in google maps" })).toHaveAttribute(
+    expect(
+      await screen.findByRole("heading", { name: "rooftop party" })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("link", { name: "open the annex in google maps" })
+    ).toHaveAttribute(
       "href",
       "https://www.google.com/maps/search/?api=1&query=53.55%2C9.99"
     )
     // "open in maps" is always there, whatever the distance.
-    expect(screen.getByRole("link", { name: /open in maps/ })).toBeInTheDocument()
+    expect(
+      screen.getByRole("link", { name: /open in maps/ })
+    ).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "join" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /share an update/ })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /share an update/ })
+    ).not.toBeInTheDocument()
   })
 
   it("gives a joined guest 'share an update', which opens the composer on the updates tab", async () => {
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ myRsvp: "going" }))
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ myRsvp: "going" })
+    )
     const user = userEvent.setup()
 
     render(<EventDetailPage />)
 
-    await user.click(await screen.findByRole("button", { name: /share an update/ }))
+    await user.click(
+      await screen.findByRole("button", { name: /share an update/ })
+    )
 
     expect(screen.getByRole("textbox", { name: "update" })).toHaveFocus()
-    expect(screen.getByRole("tab", { name: /updates/ })).toHaveAttribute("data-state", "active")
-    expect(screen.queryByRole("button", { name: "join" })).not.toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: /updates/ })).toHaveAttribute(
+      "data-state",
+      "active"
+    )
+    expect(
+      screen.queryByRole("button", { name: "join" })
+    ).not.toBeInTheDocument()
   })
 
   it("gives the host 'share an update' and an edit button", async () => {
     mocks.userId = "host-1"
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ myRsvp: "going" }))
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ myRsvp: "going" })
+    )
 
     render(<EventDetailPage />)
 
-    expect(await screen.findByRole("button", { name: /share an update/ })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "edit flare" })).toBeInTheDocument()
+    expect(
+      await screen.findByRole("button", { name: /share an update/ })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "edit flare" })
+    ).toBeInTheDocument()
     expect(screen.getByText("hosting")).toBeInTheDocument()
   })
 
@@ -174,8 +198,16 @@ describe("EventDetailPage layout (#139)", () => {
         endAt: at(160),
         attendingCount: 2,
         attendees: [
-          { id: "g-late", displayName: "Priya Shah", arrivalStatus: "running_late" },
-          { id: "g-ontime", displayName: "Tom Okafor", arrivalStatus: "on_time" },
+          {
+            id: "g-late",
+            displayName: "Priya Shah",
+            arrivalStatus: "running_late",
+          },
+          {
+            id: "g-ontime",
+            displayName: "Tom Okafor",
+            arrivalStatus: "on_time",
+          },
         ],
       })
     )
@@ -221,7 +253,9 @@ describe("EventDetailPage layout (#139)", () => {
 
     render(<EventDetailPage />)
 
-    expect(await screen.findByText("you're arriving in 15 min")).toBeInTheDocument()
+    expect(
+      await screen.findByText("you're arriving in 15 min")
+    ).toBeInTheDocument()
     expect(screen.getByText("only sarah sees this")).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "cancel" }))
@@ -239,7 +273,9 @@ describe("EventDetailPage layout (#139)", () => {
 
     render(<EventDetailPage />)
 
-    expect(await screen.findByText("when will you get there?")).toBeInTheDocument()
+    expect(
+      await screen.findByText("when will you get there?")
+    ).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "15m" }))
     await user.click(screen.getByRole("button", { name: "join" }))
 
@@ -248,7 +284,8 @@ describe("EventDetailPage layout (#139)", () => {
     // An api without #211 rejects unknown keys, so an unused arrivalStatus
     // must be absent from the body, not null.
     expect(body).not.toHaveProperty("arrivalStatus")
-    const minutes = (new Date(body.memberWillArriveAt).getTime() - Date.now()) / MIN
+    const minutes =
+      (new Date(body.memberWillArriveAt).getTime() - Date.now()) / MIN
     expect(minutes).toBeGreaterThan(14)
     expect(minutes).toBeLessThanOrEqual(15)
   })
@@ -261,14 +298,21 @@ describe("EventDetailPage layout (#139)", () => {
 
     render(<EventDetailPage />)
 
-    expect(await screen.findByText("when will you get there?")).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "15m" })).not.toBeInTheDocument()
+    expect(
+      await screen.findByText("when will you get there?")
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "15m" })
+    ).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "running late" }))
     await user.click(screen.getByRole("button", { name: "join" }))
 
     const body = mocks.updateMyRsvp.mock.calls[0]?.[1]
     expect(body).toEqual(
-      expect.objectContaining({ rsvpStatus: "going", arrivalStatus: "running_late" })
+      expect.objectContaining({
+        rsvpStatus: "going",
+        arrivalStatus: "running_late",
+      })
     )
     expect(body.memberWillArriveAt).toBeNull()
   })
@@ -322,9 +366,15 @@ describe("EventDetailPage layout (#139)", () => {
 
     render(<EventDetailPage />)
 
-    expect(await screen.findByRole("button", { name: "join" })).toBeInTheDocument()
-    expect(screen.queryByText("when will you get there?")).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "can't make it" })).toBeInTheDocument()
+    expect(
+      await screen.findByRole("button", { name: "join" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText("when will you get there?")
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "can't make it" })
+    ).toBeInTheDocument()
   })
 
   it("drops the action bar once the flare is cancelled", async () => {
@@ -335,15 +385,23 @@ describe("EventDetailPage layout (#139)", () => {
     render(<EventDetailPage />)
 
     expect(await screen.findByText("cancelled")).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /share an update/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "join" })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /share an update/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "join" })
+    ).not.toBeInTheDocument()
   })
 })
 
 describe("EventDetailPage guest limit (#181)", () => {
   it("shows an exact spots count when the limit is enforced", async () => {
     mocks.fetchHostedEventById.mockResolvedValue(
-      hostedEvent({ attendingCount: 1, guestLimit: 2, allowGuestInvites: "none" })
+      hostedEvent({
+        attendingCount: 1,
+        guestLimit: 2,
+        allowGuestInvites: "none",
+      })
     )
 
     render(<EventDetailPage />)
@@ -353,12 +411,18 @@ describe("EventDetailPage guest limit (#181)", () => {
 
   it("shows an approximate spots count once +1/re-share is on", async () => {
     mocks.fetchHostedEventById.mockResolvedValue(
-      hostedEvent({ attendingCount: 1, guestLimit: 2, allowGuestInvites: "single" })
+      hostedEvent({
+        attendingCount: 1,
+        guestLimit: 2,
+        allowGuestInvites: "single",
+      })
     )
 
     render(<EventDetailPage />)
 
-    expect(await screen.findByText("about 1 spot left · 2 max")).toBeInTheDocument()
+    expect(
+      await screen.findByText("about 1 spot left · 2 max")
+    ).toBeInTheDocument()
   })
 
   it("never shows the guest limit on a private flare", async () => {
@@ -368,7 +432,9 @@ describe("EventDetailPage guest limit (#181)", () => {
 
     render(<EventDetailPage />)
 
-    expect(await screen.findByRole("tab", { name: "1 going" })).toBeInTheDocument()
+    expect(
+      await screen.findByRole("tab", { name: "1 going" })
+    ).toBeInTheDocument()
     expect(screen.queryByText(/spots? left|max/)).not.toBeInTheDocument()
   })
 
@@ -385,12 +451,18 @@ describe("EventDetailPage guest limit (#181)", () => {
 
     await user.click(await screen.findByRole("button", { name: "join" }))
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("this flare is full")
-    expect(mocks.showActionFeedback).toHaveBeenCalledWith("full", { tone: "error" })
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "this flare is full"
+    )
+    expect(mocks.showActionFeedback).toHaveBeenCalledWith("full", {
+      tone: "error",
+    })
   })
 
   it("shows a generic error for any other RSVP failure", async () => {
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ attendingCount: 0 }))
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ attendingCount: 0 })
+    )
     mocks.updateMyRsvp.mockRejectedValue(new HttpError(500, "server exploded"))
     const user = userEvent.setup()
 
@@ -399,11 +471,16 @@ describe("EventDetailPage guest limit (#181)", () => {
     await user.click(await screen.findByRole("button", { name: "join" }))
 
     await waitFor(() =>
-      expect(mocks.showActionFeedback).toHaveBeenCalledWith("couldn't save that", {
-        tone: "error",
-      })
+      expect(mocks.showActionFeedback).toHaveBeenCalledWith(
+        "couldn't save that",
+        {
+          tone: "error",
+        }
+      )
     )
-    expect(await screen.findByRole("alert")).toHaveTextContent("server exploded")
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "server exploded"
+    )
   })
 })
 
@@ -412,27 +489,39 @@ describe("EventDetailPage guest limit (#181)", () => {
 // same shared mechanism the events hooks use (#197).
 describe("EventDetailPage refetch on focus", () => {
   it("refetches the event when the window regains focus", async () => {
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ attendingCount: 0 }))
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ attendingCount: 0 })
+    )
     render(<EventDetailPage />)
-    expect(await screen.findByRole("tab", { name: "0 going" })).toBeInTheDocument()
+    expect(
+      await screen.findByRole("tab", { name: "0 going" })
+    ).toBeInTheDocument()
     expect(mocks.fetchHostedEventById).toHaveBeenCalledTimes(1)
 
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ attendingCount: 1 }))
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ attendingCount: 1 })
+    )
     window.dispatchEvent(new Event("focus"))
 
-    expect(await screen.findByRole("tab", { name: "1 going" })).toBeInTheDocument()
+    expect(
+      await screen.findByRole("tab", { name: "1 going" })
+    ).toBeInTheDocument()
   })
 })
 
 describe("EventDetailPage thread (#140)", () => {
   it("shows an invited guest how many updates there are, but not the updates", async () => {
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ updateCount: 3 }))
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ updateCount: 3 })
+    )
     const user = userEvent.setup()
 
     render(<EventDetailPage />)
 
     await user.click(await screen.findByRole("tab", { name: /updates · 3/ }))
-    expect(await screen.findByText("3 updates · join to see")).toBeInTheDocument()
+    expect(
+      await screen.findByText("3 updates · join to see")
+    ).toBeInTheDocument()
     expect(mocks.fetchEventUpdates).not.toHaveBeenCalled()
   })
 
@@ -456,38 +545,60 @@ describe("EventDetailPage thread (#140)", () => {
 
     await user.click(await screen.findByRole("tab", { name: /updates/ }))
     // The host's update reads as an announcement.
-    expect(await screen.findByText("grabbing a table by the window")).toBeInTheDocument()
+    expect(
+      await screen.findByText("grabbing a table by the window")
+    ).toBeInTheDocument()
     expect(screen.getByText("announcement from sarah")).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "delete update" })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "delete update" })
+    ).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: /share an update/ }))
-    await user.type(screen.getByRole("textbox", { name: "update" }), "  running 10 late ")
+    await user.type(
+      screen.getByRole("textbox", { name: "update" }),
+      "  running 10 late "
+    )
     await user.click(screen.getByRole("button", { name: "post update" }))
 
     expect(await screen.findByText("running 10 late")).toBeInTheDocument()
-    expect(mocks.postEventUpdate).toHaveBeenCalledWith("event-1", "running 10 late")
-    expect(screen.getByRole("button", { name: "delete update" })).toBeInTheDocument()
+    expect(mocks.postEventUpdate).toHaveBeenCalledWith(
+      "event-1",
+      "running 10 late"
+    )
+    expect(
+      screen.getByRole("button", { name: "delete update" })
+    ).toBeInTheDocument()
     // Posting hands the bar back to the main button.
-    expect(screen.queryByRole("textbox", { name: "update" })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("textbox", { name: "update" })
+    ).not.toBeInTheDocument()
   })
 
   it("opens on the updates tab from a notification link", async () => {
     mocks.searchParams = new URLSearchParams("tab=updates")
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ myRsvp: "going" }))
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ myRsvp: "going" })
+    )
     mocks.fetchEventUpdates.mockResolvedValue([update()])
 
     render(<EventDetailPage />)
 
-    expect(await screen.findByText("grabbing a table by the window")).toBeInTheDocument()
+    expect(
+      await screen.findByText("grabbing a table by the window")
+    ).toBeInTheDocument()
   })
 
   it("opens straight into the composer from the map sheet's 'share an update'", async () => {
     mocks.searchParams = new URLSearchParams("tab=updates&compose=1")
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ myRsvp: "going" }))
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ myRsvp: "going" })
+    )
 
     render(<EventDetailPage />)
 
-    expect(await screen.findByRole("textbox", { name: "update" })).toBeInTheDocument()
+    expect(
+      await screen.findByRole("textbox", { name: "update" })
+    ).toBeInTheDocument()
   })
 
   it("keeps a cancelled flare's thread readable, with a read-only note", async () => {
@@ -499,36 +610,50 @@ describe("EventDetailPage thread (#140)", () => {
 
     render(<EventDetailPage />)
 
-    expect(await screen.findByText("grabbing a table by the window")).toBeInTheDocument()
+    expect(
+      await screen.findByText("grabbing a table by the window")
+    ).toBeInTheDocument()
     expect(
       screen.getByText("this flare was cancelled · the thread is read-only")
     ).toBeInTheDocument()
-    expect(screen.queryByRole("textbox", { name: "update" })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("textbox", { name: "update" })
+    ).not.toBeInTheDocument()
   })
 })
 
 describe("EventDetailPage host row (#199)", () => {
   it("links a guest to the host's profile", async () => {
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ hostUsername: "sarah" }))
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ hostUsername: "sarah" })
+    )
 
     render(<EventDetailPage />)
 
-    const link = await screen.findByRole("link", { name: /hosted by sarah kim/ })
+    const link = await screen.findByRole("link", {
+      name: /hosted by sarah kim/,
+    })
     expect(link).toHaveAttribute("href", "/profile/sarah")
   })
 
   it("leaves the row plain for the host, and for a host sent without a username", async () => {
     mocks.userId = "host-1"
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ hostUsername: "sarah" }))
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ hostUsername: "sarah" })
+    )
     const { unmount } = render(<EventDetailPage />)
     expect(await screen.findByText("hosted by you")).toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: /hosted by/ })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: /hosted by/ })
+    ).not.toBeInTheDocument()
     unmount()
 
     mocks.userId = "guest-1"
     mocks.fetchHostedEventById.mockResolvedValue(hostedEvent())
     render(<EventDetailPage />)
     expect(await screen.findByText("hosted by sarah kim")).toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: /hosted by/ })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: /hosted by/ })
+    ).not.toBeInTheDocument()
   })
 })

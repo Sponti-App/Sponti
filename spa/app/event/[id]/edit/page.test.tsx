@@ -232,7 +232,10 @@ describe("EventEditPage details", () => {
     const user = userEvent.setup()
     render(<EventEditPage />)
 
-    await user.type(await screen.findByRole("textbox", { name: "details" }), "bring a jumper")
+    await user.type(
+      await screen.findByRole("textbox", { name: "details" }),
+      "bring a jumper"
+    )
     await user.click(screen.getByRole("button", { name: "save changes" }))
 
     await waitFor(() =>
@@ -244,7 +247,9 @@ describe("EventEditPage details", () => {
   })
 
   it("clears the details when the host empties them", async () => {
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ description: "first round's on me" }))
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ description: "first round's on me" })
+    )
     const user = userEvent.setup()
     render(<EventEditPage />)
 
@@ -260,7 +265,9 @@ describe("EventEditPage details", () => {
   })
 
   it("leaves the details out of the update when they didn't change", async () => {
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent({ description: "first round's on me" }))
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ description: "first round's on me" })
+    )
     const user = userEvent.setup()
     render(<EventEditPage />)
 
@@ -269,7 +276,9 @@ describe("EventEditPage details", () => {
     await user.click(screen.getByRole("button", { name: "save changes" }))
 
     await waitFor(() => expect(mocks.updateEvent).toHaveBeenCalled())
-    expect(mocks.updateEvent.mock.calls[0]?.[1]).not.toHaveProperty("description")
+    expect(mocks.updateEvent.mock.calls[0]?.[1]).not.toHaveProperty(
+      "description"
+    )
   })
 })
 
@@ -412,14 +421,17 @@ describe("EventEditPage guest removal", () => {
         endAt: "2099-06-01T19:00:00.000Z",
       },
     ],
-  ])("lets the host remove a guest from an %s flare", async (_label, overrides) => {
-    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent(overrides))
-    render(<EventEditPage />)
+  ])(
+    "lets the host remove a guest from an %s flare",
+    async (_label, overrides) => {
+      mocks.fetchHostedEventById.mockResolvedValue(hostedEvent(overrides))
+      render(<EventEditPage />)
 
-    expect(
-      await screen.findByRole("button", { name: "remove sam" })
-    ).toBeInTheDocument()
-  })
+      expect(
+        await screen.findByRole("button", { name: "remove sam" })
+      ).toBeInTheDocument()
+    }
+  )
 
   it.each([
     [

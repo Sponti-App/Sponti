@@ -454,7 +454,9 @@ export default function EventEditPage() {
           <textarea
             aria-label="details"
             value={description}
-            onChange={(e) => setDescription(e.target.value.slice(0, descriptionMax))}
+            onChange={(e) =>
+              setDescription(e.target.value.slice(0, descriptionMax))
+            }
             placeholder="dress code, what to bring, vibe…"
             rows={3}
             disabled={isPast || isCancelled || saving}

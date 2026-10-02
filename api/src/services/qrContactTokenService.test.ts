@@ -32,9 +32,8 @@ vi.mock("#services/userDirectoryService", () => ({
   getUsersByIds: getUsersByIdsMock,
 }));
 
-const { createQrContactToken, resolveQrContactToken } = await import(
-  "#services/qrContactTokenService"
-);
+const { createQrContactToken, resolveQrContactToken } =
+  await import("#services/qrContactTokenService");
 
 const OWNER_ID = "507f1f77bcf86cd799439011";
 const VIEWER_ID = "507f1f77bcf86cd799439012";

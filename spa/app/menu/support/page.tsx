@@ -180,7 +180,9 @@ export default function SupportPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h3 className="text-xl font-semibold">help us understand it faster</h3>
+          <h3 className="text-xl font-semibold">
+            help us understand it faster
+          </h3>
           <p className="text-sm leading-6 text-muted-foreground">
             the more specific you are, the faster we can work out what happened.
             your build and device details are added to the email for you.

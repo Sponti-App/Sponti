@@ -221,7 +221,9 @@ function EventUpdateRow({
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Megaphone className="h-3.5 w-3.5 text-accent" />
             <span className="font-semibold text-foreground">
-              {byViewer ? "your announcement" : `announcement from ${firstName}`}
+              {byViewer
+                ? "your announcement"
+                : `announcement from ${firstName}`}
             </span>
             · {age}
           </p>

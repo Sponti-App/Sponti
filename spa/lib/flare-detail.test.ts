@@ -74,13 +74,21 @@ describe("etaControlKind (#211)", () => {
 
 describe("shouldDrawRoute", () => {
   it("draws the route within 2 km", () => {
-    expect(shouldDrawRoute({ viewer: "joined", distanceMeters: 1_999 })).toBe(true)
-    expect(shouldDrawRoute({ viewer: "invited", distanceMeters: 2_000 })).toBe(true)
+    expect(shouldDrawRoute({ viewer: "joined", distanceMeters: 1_999 })).toBe(
+      true
+    )
+    expect(shouldDrawRoute({ viewer: "invited", distanceMeters: 2_000 })).toBe(
+      true
+    )
   })
 
   it("doesn't draw it beyond 2 km or without a location", () => {
-    expect(shouldDrawRoute({ viewer: "joined", distanceMeters: 2_001 })).toBe(false)
-    expect(shouldDrawRoute({ viewer: "joined", distanceMeters: null })).toBe(false)
+    expect(shouldDrawRoute({ viewer: "joined", distanceMeters: 2_001 })).toBe(
+      false
+    )
+    expect(shouldDrawRoute({ viewer: "joined", distanceMeters: null })).toBe(
+      false
+    )
   })
 
   it("never draws it for the host", () => {
@@ -91,7 +99,10 @@ describe("shouldDrawRoute", () => {
 describe("googleMapsUrl", () => {
   it("opens Google Maps at the flare's coordinates", () => {
     expect(
-      googleMapsUrl({ coordinates: { lat: 53.55, lng: 9.99 }, name: "the harp" })
+      googleMapsUrl({
+        coordinates: { lat: 53.55, lng: 9.99 },
+        name: "the harp",
+      })
     ).toBe("https://www.google.com/maps/search/?api=1&query=53.55%2C9.99")
   })
 
@@ -114,7 +125,11 @@ describe("flareStatusLine", () => {
       flareStatusLine({ startAt: at(40), endAt: at(160) }, "soon", NOW)
     ).toBe("starts in 40 min")
     expect(
-      flareStatusLine({ startAt: at(3 * 24 * 60), endAt: at(3 * 24 * 60 + 60) }, "later", NOW)
+      flareStatusLine(
+        { startAt: at(3 * 24 * 60), endAt: at(3 * 24 * 60 + 60) },
+        "later",
+        NOW
+      )
     ).toBe("starts in 3 days")
   })
 })
@@ -122,25 +137,45 @@ describe("flareStatusLine", () => {
 describe("spotsLeftLabel (#181)", () => {
   it("is exact while the limit is enforced", () => {
     expect(
-      spotsLeftLabel({ visibility: "public", guestLimit: 8, headcount: 5, allowGuestInvites: "none" })
+      spotsLeftLabel({
+        visibility: "public",
+        guestLimit: 8,
+        headcount: 5,
+        allowGuestInvites: "none",
+      })
     ).toBe("3 spots left · 8 max")
   })
 
   it("is approximate once +1/re-share is on", () => {
     expect(
-      spotsLeftLabel({ visibility: "public", guestLimit: 8, headcount: 7, allowGuestInvites: "single" })
+      spotsLeftLabel({
+        visibility: "public",
+        guestLimit: 8,
+        headcount: 7,
+        allowGuestInvites: "single",
+      })
     ).toBe("about 1 spot left · 8 max")
   })
 
   it("says full at the limit", () => {
     expect(
-      spotsLeftLabel({ visibility: "public", guestLimit: 2, headcount: 2, allowGuestInvites: "none" })
+      spotsLeftLabel({
+        visibility: "public",
+        guestLimit: 2,
+        headcount: 2,
+        allowGuestInvites: "none",
+      })
     ).toBe("full · 2 max")
   })
 
   it("never shows a limit on a private flare", () => {
     expect(
-      spotsLeftLabel({ visibility: "private", guestLimit: 10, headcount: 1, allowGuestInvites: "none" })
+      spotsLeftLabel({
+        visibility: "private",
+        guestLimit: 10,
+        headcount: 1,
+        allowGuestInvites: "none",
+      })
     ).toBeNull()
   })
 })
@@ -161,18 +196,23 @@ describe("ownArrivalStatusLabel and ownArrivalSummary (#211)", () => {
 
   it("prefers the status over a timestamp when both are somehow present", () => {
     expect(
-      ownArrivalSummary({ willArriveAt: at(15), arrivalStatus: "running_late" }, NOW)
+      ownArrivalSummary(
+        { willArriveAt: at(15), arrivalStatus: "running_late" },
+        NOW
+      )
     ).toBe("you're running late")
   })
 
   it("falls back to the timestamp label when only a time is set", () => {
-    expect(ownArrivalSummary({ willArriveAt: at(15), arrivalStatus: null }, NOW)).toBe(
-      "you're arriving in 15 min"
-    )
+    expect(
+      ownArrivalSummary({ willArriveAt: at(15), arrivalStatus: null }, NOW)
+    ).toBe("you're arriving in 15 min")
   })
 
   it("is null when neither field is set", () => {
-    expect(ownArrivalSummary({ willArriveAt: null, arrivalStatus: null }, NOW)).toBeNull()
+    expect(
+      ownArrivalSummary({ willArriveAt: null, arrivalStatus: null }, NOW)
+    ).toBeNull()
     expect(ownArrivalSummary({}, NOW)).toBeNull()
   })
 })

@@ -74,9 +74,9 @@ describe("notificationService.markAllNotificationsRead (#176)", () => {
 
     expect(result.markedRead).toBe(15);
     expect(result.unreadCount).toBe(0);
-    expect(await Notification.countDocuments({ userId: new Types.ObjectId(USER_ID), readAt: null })).toBe(
-      0
-    );
+    expect(
+      await Notification.countDocuments({ userId: new Types.ObjectId(USER_ID), readAt: null })
+    ).toBe(0);
   });
 
   it("doesn't touch another user's notifications", async () => {

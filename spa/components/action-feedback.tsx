@@ -92,10 +92,7 @@ export function ActionFeedbackProvider({
     return () => window.clearTimeout(timeout)
   }, [current])
 
-  const value = useMemo(
-    () => ({ showActionFeedback }),
-    [showActionFeedback]
-  )
+  const value = useMemo(() => ({ showActionFeedback }), [showActionFeedback])
 
   return (
     <ActionFeedbackContext.Provider value={value}>

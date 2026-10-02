@@ -115,7 +115,10 @@ export function avatarText(bgColor: string): string {
 const EARTH_RADIUS_M = 6_371_000
 
 /** Straight-line distance between two points, in meters. */
-export function haversineMeters(a: EventCoordinates, b: EventCoordinates): number {
+export function haversineMeters(
+  a: EventCoordinates,
+  b: EventCoordinates
+): number {
   const toRad = (v: number) => (v * Math.PI) / 180
   const dLat = toRad(b.lat - a.lat)
   const dLng = toRad(b.lng - a.lng)

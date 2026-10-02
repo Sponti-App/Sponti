@@ -55,7 +55,10 @@ describe("resolveCurrentLocationLabel", () => {
 
   it("falls back to a ~1km label when only the locality is known", () => {
     expect(
-      resolveCurrentLocationLabel({ area: "San Francisco", locality: "San Francisco" })
+      resolveCurrentLocationLabel({
+        area: "San Francisco",
+        locality: "San Francisco",
+      })
     ).toEqual({ name: "within 1 km of San Francisco", address: null })
   })
 

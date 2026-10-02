@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
       title="reset password"
       subtitle="enter your email and we'll send you a reset link."
       footer={
-        <Link href="/login" className="text-accent font-medium">
+        <Link href="/login" className="font-medium text-accent">
           back to sign in
         </Link>
       }
@@ -47,9 +47,12 @@ export default function ForgotPasswordPage() {
       {sent ? (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-foreground">
-            check your inbox — if that email is registered you&apos;ll receive a reset link shortly.
+            check your inbox — if that email is registered you&apos;ll receive a
+            reset link shortly.
           </p>
-          <p className="text-xs text-muted-foreground">the link expires in 15 minutes.</p>
+          <p className="text-xs text-muted-foreground">
+            the link expires in 15 minutes.
+          </p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -76,7 +79,7 @@ export default function ForgotPasswordPage() {
           <Button
             type="submit"
             disabled={submitting || !email}
-            className="w-full rounded-full py-6 text-base bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-40 mt-2"
+            className="mt-2 w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
           >
             {submitting ? "sending…" : "send reset link"}
           </Button>
