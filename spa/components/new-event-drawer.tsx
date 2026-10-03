@@ -10,7 +10,10 @@ import {
   KEYBOARD_INSET_VAR,
 } from "@/lib/use-viewport-metrics"
 import { useSheetVisibleHeight } from "@/lib/use-sheet-visible-height"
-import { useFocusedFieldVisible } from "@/lib/use-focused-field-visible"
+import {
+  topAlignOffset,
+  useFocusedFieldVisible,
+} from "@/lib/use-focused-field-visible"
 import {
   CheckIcon,
   MapPinIcon,
@@ -664,6 +667,11 @@ export function NewEventDrawer({
   // The keyboard shrinks the card to whatever clears it; keep the field the
   // user is typing in inside that slot rather than above it.
   useFocusedFieldVisible(scrollRef, open)
+  // True while the location search input has focus, i.e. the software keyboard
+  // is up on a phone. The pinned CTA steps aside then (see the footer) and the
+  // field is lifted to the top of the scroll area so its suggestions get all
+  // the room the keyboard leaves (#367).
+  const [placeSearchFocused, setPlaceSearchFocused] = useState(false)
   const pendingPublicSubmit = useRef(false)
 
   const [mode, setMode] = useState<Mode>(initialEventDraftState.mode)
@@ -1207,6 +1215,38 @@ export function NewEventDrawer({
     }
   }
 
+  // Keep the search field at the top of the scroll area while it is focused, so
+  // the suggestions under it fill the slot above the keyboard instead of
+  // sitting below the fold. Re-aligns when suggestions arrive and when the
+  // keyboard changes the visual viewport. useFocusedFieldVisible alone only
+  // guarantees the input itself is on screen.
+  useEffect(() => {
+    if (!open || !placeSearchFocused) return
+    let frame = 0
+    const align = () => {
+      const scroll = scrollRef.current
+      const field = scroll?.querySelector<HTMLElement>("[data-place-search]")
+      if (!scroll || !field) return
+      scroll.scrollTop += topAlignOffset(
+        field.getBoundingClientRect(),
+        scroll.getBoundingClientRect()
+      )
+    }
+    const schedule = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(align)
+      })
+    }
+    schedule()
+    const viewport = window.visualViewport
+    viewport?.addEventListener("resize", schedule)
+    return () => {
+      cancelAnimationFrame(frame)
+      viewport?.removeEventListener("resize", schedule)
+    }
+  }, [open, placeSearchFocused, placeResults.length])
+
   const scheduledStartOptions = useMemo(() => {
     const out: { value: number; label: string }[] = []
     for (
@@ -1721,6 +1761,7 @@ export function NewEventDrawer({
                     placeDetailsError={placeDetailsError}
                     geoStatus={geoStatus}
                     geoErrorMessage={geoErrorMessage}
+                    onSearchFocusChange={setPlaceSearchFocused}
                   />
                 </div>
               )}
@@ -1774,8 +1815,15 @@ export function NewEventDrawer({
             </div>
 
             {/* CTA pinned at the bottom. The sheet now covers the bottom nav,
-                so it also owns the home-indicator inset. */}
-            <div className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                so it also owns the home-indicator inset. On a touch device it
+                steps aside while the location search has the keyboard up: the
+                slot above the keyboard is small, and the CTA took half of it
+                from the suggestions (#367). Tapping a suggestion, or dismissing
+                the keyboard, brings it back. */}
+            <div
+              data-place-searching={placeSearchFocused}
+              className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] data-[place-searching=true]:[@media(pointer:coarse)]:hidden"
+            >
               {submitError && (
                 <p
                   className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
@@ -2239,6 +2287,7 @@ function WherePicker({
   placeDetailsError,
   geoStatus,
   geoErrorMessage,
+  onSearchFocusChange,
 }: {
   whereType: WhereType
   onWhereType: (v: WhereType) => void
@@ -2253,9 +2302,17 @@ function WherePicker({
   placeDetailsError: string | null
   geoStatus: GeoStatus
   geoErrorMessage: string | null
+  onSearchFocusChange: (focused: boolean) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const expanded = whereType === "search"
+  // The input can leave the tree while focused (collapse, section change, the
+  // sheet closing) without a blur reaching React, which would strand the
+  // composer in its keyboard-up layout.
+  useEffect(() => {
+    if (!expanded) onSearchFocusChange(false)
+    return () => onSearchFocusChange(false)
+  }, [expanded, onSearchFocusChange])
   const currentHint =
     geoStatus === "requesting"
       ? "finding your location..."
@@ -2268,7 +2325,11 @@ function WherePicker({
   const expand = (): void => {
     onWhereType("search")
     // Focus the input on the next frame, after the input mounts.
-    requestAnimationFrame(() => inputRef.current?.focus())
+    // preventScroll: iOS otherwise pans the page to reveal the field, which
+    // dragged the fixed sheet's top off screen; the sheet reveals it itself.
+    requestAnimationFrame(() =>
+      inputRef.current?.focus({ preventScroll: true })
+    )
   }
   const collapse = (): void => {
     onWhereType("current")
@@ -2307,13 +2368,21 @@ function WherePicker({
         </div>
       ) : (
         <div>
-          <div className="relative">
+          <div className="relative" data-place-search>
             <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               ref={inputRef}
               placeholder="search for a place"
               value={searchQuery}
               onChange={(e) => onSearchQuery(e.target.value)}
+              onFocus={() => onSearchFocusChange(true)}
+              onBlur={() => onSearchFocusChange(false)}
+              // The keyboard's return key means "done": close it so the
+              // composer's CTA comes back.
+              enterKeyHint="search"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur()
+              }}
               className="pr-9 pl-9"
             />
             <button
@@ -2348,12 +2417,21 @@ function WherePicker({
             !pickedSearchAddress &&
             !selectedLocation &&
             placeResults.length > 0 && (
-              <ul className="mt-1.5 overflow-hidden rounded-lg border border-border bg-card">
+              <ul
+                className="mt-1.5 overflow-hidden rounded-lg border border-border bg-card"
+                // Keep focus in the input while a suggestion is pressed: a
+                // blur on press would bring the CTA back and shift the list
+                // out from under the finger before the tap lands.
+                onMouseDown={(e) => e.preventDefault()}
+              >
                 {placeResults.map((r) => (
                   <li key={r.placeId}>
                     <button
                       type="button"
-                      onClick={() => onPickSearch(r)}
+                      onClick={() => {
+                        onPickSearch(r)
+                        inputRef.current?.blur()
+                      }}
                       className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
                     >
                       <MapPinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
