@@ -92,6 +92,30 @@ export function makeStubFlare(
   }
 }
 
+/** Google's polyline format, the inverse of `decodePolyline` in routes-api.ts. */
+function encodePolyline(path: Array<{ lat: number; lng: number }>): string {
+  let out = ""
+  let prevLat = 0
+  let prevLng = 0
+  const push = (delta: number) => {
+    let v = delta < 0 ? ~(delta << 1) : delta << 1
+    while (v >= 0x20) {
+      out += String.fromCharCode((0x20 | (v & 0x1f)) + 63)
+      v >>= 5
+    }
+    out += String.fromCharCode(v + 63)
+  }
+  for (const { lat, lng } of path) {
+    const e5Lat = Math.round(lat * 1e5)
+    const e5Lng = Math.round(lng * 1e5)
+    push(e5Lat - prevLat)
+    push(e5Lng - prevLng)
+    prevLat = e5Lat
+    prevLng = e5Lng
+  }
+  return out
+}
+
 async function fulfillJson(
   route: Route,
   body: unknown,
@@ -327,15 +351,20 @@ export async function stubBackend(
       return
     }
     if (path === "/maps/route") {
-      // What the api answers with no Google key: the SPA falls back to a
-      // straight line instead of decoding a polyline that isn't there.
-      await fulfillJson(
-        route,
-        {
-          error: { message: "Routes unavailable", code: "ROUTES_UNAVAILABLE" },
+      // A fixed 10 min, 800 m walk, drawn from the origin through a bend to
+      // the destination the app asked for (spa/lib/routes-api.ts decodes it).
+      const { origin, destination } = route.request().postDataJSON() as {
+        origin: { lat: number; lng: number }
+        destination: { lat: number; lng: number }
+      }
+      const bend = { lat: destination.lat, lng: origin.lng + 0.001 }
+      await fulfillJson(route, {
+        data: {
+          encodedPolyline: encodePolyline([origin, bend, destination]),
+          durationSeconds: 600,
+          distanceMeters: 800,
         },
-        503
-      )
+      })
       return
     }
     const mutualMatch = path.match(
