@@ -1445,8 +1445,8 @@ function MapCameraPlaceholder({
   const title = blocked ? "location needed" : "finding your location"
   const message = blocked
     ? (errorMessage ??
-      "Turn on location access to show nearby flares in your area.")
-    : "Setting up the map around you."
+      "turn on location access to show nearby flares in your area")
+    : "setting up the map around you"
 
   return (
     <div className="relative flex h-full w-full items-center justify-center bg-muted">
@@ -1556,7 +1556,7 @@ function LocationSheetState({
       <p className="text-sm font-medium">location needed</p>
       <p className="mt-1 text-xs text-muted-foreground">
         {errorMessage ??
-          "Enable location access to show nearby flares around you."}
+          "enable location access to show nearby flares around you"}
       </p>
       <button
         onClick={onRetry}
