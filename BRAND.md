@@ -48,6 +48,8 @@ Do not use as: page backgrounds, large fills, body text.
 | `--muted-foreground` | `oklch(0.50 0.04 346)` | Secondary text |
 | `--border` | `oklch(0.88 0.025 346)` | Hairlines |
 | `--destructive` | `oklch(0.58 0.22 27)` | Delete, error |
+| `--flare-invite` / `--flare-invite-ink` | `oklch(0.87 0.07 315)` / `oklch(0.36 0.09 315)` | Map pin fill and icon: invite only (plum) |
+| `--flare-open` / `--flare-open-ink` | `oklch(0.87 0.07 185)` / `oklch(0.36 0.09 185)` | Map pin fill and icon: open to all (teal) |
 
 ### Dark mode
 
@@ -61,6 +63,8 @@ Do not use as: page backgrounds, large fills, body text.
 | `--muted-foreground` | `oklch(0.74 0.025 60)` | Secondary text |
 | `--border` | `oklch(0.35 0.025 266)` | Hairlines |
 | `--destructive` | `oklch(0.62 0.22 22)` | Delete, error |
+| `--flare-invite` / `--flare-invite-ink` | `oklch(0.45 0.08 315)` / `oklch(0.95 0.03 315)` | Map pin fill and icon: invite only (plum) |
+| `--flare-open` / `--flare-open-ink` | `oklch(0.45 0.08 185)` / `oklch(0.95 0.03 185)` | Map pin fill and icon: open to all (teal) |
 
 ---
 
@@ -124,9 +128,9 @@ Built on **shadcn (Nova preset)** + **Radix UI** + **Tailwind v4** + **Phosphor 
 ## 8. Imagery & iconography
 
 - **Icons:** Phosphor (`@phosphor-icons/react`), regular weight, colour `currentColor`, default 16–20 px in product chrome, 24 px for the flare button and FAB. The active bottom-nav tab uses the fill weight. Components import icons only from `spa/components/icons.tsx`, never from an icon package. The flare button is `Flame`, "my flares" is `Fire`.
-- **Avatars:** circular, generated initials over a host-color bg (used on map markers and event hosts).
+- **Avatars:** circular, generated initials over a host-color bg (used for event hosts, never on map markers).
 - **No stock photography in-product.** Marketing surfaces only.
-- **Map markers** use the host's color as a circle fill — distinct from the brand peach so brand and identity don't collide on the map.
+- **Map markers** are one circle with the category icon, tinted by who can join: plum for invite only, teal for open to all. The host's colour stays on avatars, not markers. Peach on a marker means live.
 
 ---
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -52,6 +52,7 @@ const flare = {
   type: "drinks",
   startAt: "2026-06-15T12:00:00.000Z",
   endAt: "2026-06-15T13:00:00.000Z",
+  visibility: "private",
   going: 2,
   host: { id: "h", name: "sarah kim", avatar: "s" },
   location: { name: "the usual spot", coordinates: [13.4, 52.5] },
@@ -70,6 +71,7 @@ describe("FlarePreviewMarker", () => {
       <FlarePreviewMarker
         event={flare}
         position={{ lat: 52.5, lng: 13.4 }}
+        now={Date.parse("2026-06-15T12:20:00.000Z")}
         onOpen={onOpen}
         onClose={onClose}
       />
@@ -82,7 +84,7 @@ describe("FlarePreviewMarker", () => {
   })
 
   it("opens the flare on the marker click alone, with no DOM click", () => {
-    fireEvent.pointerDown(screen.getByText("the usual spot"))
+    fireEvent.pointerDown(screen.getByText("drinks after work"))
     marker.props?.onClick?.({})
     expect(onOpen).toHaveBeenCalledTimes(1)
     expect(onClose).not.toHaveBeenCalled()
@@ -98,6 +100,24 @@ describe("FlarePreviewMarker", () => {
     await userEvent.click(screen.getByRole("button", { name: "close" }))
     expect(onClose).toHaveBeenCalled()
     expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  // #315: the band carries the category as an icon with an accessible name,
+  // never the word, plus who can join.
+  it("shows the category icon and who can join in the band", () => {
+    const band = document.querySelector("[data-popover-band]") as HTMLElement
+    expect(band).toHaveTextContent("invite only")
+    expect(band).not.toHaveTextContent("drinks")
+    expect(screen.getByRole("img", { name: "drinks" })).toBeInTheDocument()
+    expect(
+      within(band).getByRole("button", { name: "close" })
+    ).toBeInTheDocument()
+  })
+
+  it("shows the time left and the host line without a location", () => {
+    expect(screen.getByText("live · ends in 40 min")).toBeInTheDocument()
+    expect(screen.getByText("by sarah · 2 going")).toBeInTheDocument()
+    expect(screen.queryByText("the usual spot")).toBeNull()
   })
 
   it("only closes when a press on close arrives as the marker click", () => {

@@ -53,6 +53,8 @@ export type StubApiEvent = {
   guestInviteLimit: number
   status: "active" | "cancelled" | "completed"
   goingCount?: number
+  // The viewer's own answer; "going" marks a flare they joined.
+  myRsvp?: "invited" | "going" | "declined" | null
   // Going guests, as the api's `attachEventPeople` sends them (#265 links
   // each by username). ETA fields only ever reach the host.
   attendees?: Array<{
