@@ -43,7 +43,8 @@ _Current work (tracked as GitHub issues):_
 - **Map pins (#315):** one circle per flare with its category icon, plum for invite only and teal for open to all. Peach on a pin means live only.
 - **Icon set (#345):** Phosphor replaces Lucide. Every icon comes from `spa/components/icons.tsx`, and ESLint blocks importing an icon package anywhere else.
 - **Ideas on a quiet map (#240):** curated Berlin idea spots (`spa/lib/flare-ideas.data.ts`, owned by the team) offered as one-tap flares.
-- **Parked until testers give feedback:** first-friend onboarding (#124: QR connect and the 7-day invite link work, and still need a real-phone check) and the composer layout (#311).
+- **Flare moments (#370), the top priority:** watching testers showed they don't understand what Sponti is or how to use it. The fix explains Sponti before sign-up on a public `/welcome` page, reworks the existing first-run intro, and makes lighting a flare and a first join into moments (a fuse lights the flare's category icon once the api confirms it). Prototypes come first, and every surface ships behind a flag. This changes the flare UI's composition and personality, not its features. Decisions: `docs/decisions/flare-moments-direction.md`.
+- **Unparked by that finding:** first-friend onboarding (#124: QR connect and the 7-day invite link work, and still need a real-phone check) and the composer layout (#311), which now takes in the optional capture step for flare art.
 
 **Milestone 2 — Native distribution (store-prep, after the web round):**
 
