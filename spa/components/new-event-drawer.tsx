@@ -164,8 +164,8 @@ function isPlaceDetailsResponse(value: unknown): value is PlaceDetailsResponse {
 }
 
 function currentLocationError(status: GeoStatus): string {
-  if (status === "requesting") return "Still finding your location."
-  return "Enable location access or search for a place."
+  if (status === "requesting") return "still finding your location"
+  return "enable location access or search for a place"
 }
 
 function isReverseGeocodeArea(value: unknown): value is ReverseGeocodeArea {
