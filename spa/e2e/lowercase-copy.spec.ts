@@ -10,15 +10,15 @@ import {
 // and am/pm come from lib/format-date.ts, so the calendar must show no capital
 // letter outside the flare title the host typed.
 
-const DAY = 24 * 60 * 60_000
-
 test.describe("lowercase copy (#339)", () => {
   test("calendar month, day headings and times are lowercase", async ({
     page,
   }) => {
+    // A fixed Wednesday, so the flare two days out (Friday) is always in the week
+    // strip; "now + 2 days" fell into next week's strip on weekends.
+    await page.clock.setFixedTime(new Date(2026, 9, 7, 9, 0))
     await stubBackend(page)
-    const startAt = new Date(Date.now() + 2 * DAY)
-    startAt.setHours(13, 24, 0, 0)
+    const startAt = new Date(2026, 9, 9, 13, 24)
     // Registered after the backend stub, so it answers first.
     await page.route(`${API_BASE}/**/events/calendar/upcoming**`, (route) =>
       route.fulfill({
