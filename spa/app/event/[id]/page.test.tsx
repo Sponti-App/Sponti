@@ -123,6 +123,17 @@ describe("EventDetailPage layout (#139)", () => {
     ).not.toBeInTheDocument()
   })
 
+  it("reads as a page: no fake drawer handle or rounded sheet top (#352)", async () => {
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent())
+
+    const { container } = render(<EventDetailPage />)
+    await screen.findByRole("heading", { name: "rooftop party" })
+
+    // The map's flare sheet is a real drawer with a handle; this page is not.
+    expect(container.querySelector(".h-1\\.5.w-10")).toBeNull()
+    expect(container.querySelector(".rounded-t-3xl")).toBeNull()
+  })
+
   it("gives a joined guest 'share an update', which opens the composer on the updates tab", async () => {
     mocks.fetchHostedEventById.mockResolvedValue(
       hostedEvent({ myRsvp: "going" })
