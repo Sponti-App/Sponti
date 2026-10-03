@@ -28,6 +28,15 @@ export function revealOffset(field: Span, view: Span): number {
 }
 
 /**
+ * How far to scroll `view` so `field` sits at its top edge, with the same small
+ * gap `revealOffset` leaves. Positive scrolls down; the browser clamps the
+ * result when the content is too short to scroll that far.
+ */
+export function topAlignOffset(field: Span, view: Span): number {
+  return field.top - view.top - REVEAL_GAP_PX
+}
+
+/**
  * Keeps the focused field inside the sheet's scrollable area.
  *
  * vaul used to do this — its `usePreventScroll` scrolled the focused input into
