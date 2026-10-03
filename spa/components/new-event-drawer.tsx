@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Drawer } from "vaul"
 import { haptic } from "@/lib/haptics"
+import { formatWeekdayShort } from "@/lib/format-date"
 import {
   VIEWPORT_HEIGHT_VAR,
   useViewportMetrics,
@@ -124,16 +125,14 @@ function formatDayChip(d: Date): { weekday: string; date: string } {
   if (diffDays === 0) return { weekday: "today", date: String(d.getDate()) }
   if (diffDays === 1) return { weekday: "tmrw", date: String(d.getDate()) }
   return {
-    weekday: d
-      .toLocaleDateString(undefined, { weekday: "short" })
-      .toLowerCase(),
+    weekday: formatWeekdayShort(d),
     date: String(d.getDate()),
   }
 }
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
-  return "Something went wrong. Try again."
+  return "something went wrong, try again"
 }
 
 function isPlaceSuggestion(value: unknown): value is PlaceSuggestion {
@@ -1200,9 +1199,7 @@ export function NewEventDrawer({
       if (placeDetailsRequestRef.current !== requestId) return
       setSelectedLocation(null)
       setPickedSearchAddress("")
-      setPlaceDetailsError(
-        "That place could not be resolved. Try another result."
-      )
+      setPlaceDetailsError("couldn't find that place, try another")
     } finally {
       if (placeDetailsRequestRef.current === requestId) {
         setPlaceDetailsLoading(false)

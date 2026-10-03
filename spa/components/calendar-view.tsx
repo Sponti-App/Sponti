@@ -27,21 +27,11 @@ import {
   type EventItem,
 } from "@/lib/api/events"
 import { useCalendarEvents } from "@/lib/use-events"
-
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-]
+import {
+  formatDayLong,
+  formatMonthName,
+  formatWeekdayShort,
+} from "@/lib/format-date"
 
 // Match the event-creation date strip: short weekday + "today"/"tmrw" alias.
 function formatDayChip(
@@ -53,9 +43,7 @@ function formatDayChip(
   if (isSameDay(d, addDays(today, 1)))
     return { weekday: "tmrw", date: String(d.getDate()) }
   return {
-    weekday: d
-      .toLocaleDateString(undefined, { weekday: "short" })
-      .toLowerCase(),
+    weekday: formatWeekdayShort(d),
     date: String(d.getDate()),
   }
 }
@@ -88,11 +76,7 @@ function formatSectionLabel(day: Date, today: Date): string {
   if (isSameDay(day, today)) return "today"
   if (isSameDay(day, addDays(today, 1))) return "tomorrow"
   if (isSameDay(day, addDays(today, -1))) return "yesterday"
-  return day.toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  })
+  return formatDayLong(day)
 }
 
 export function CalendarView({
@@ -256,7 +240,7 @@ export function CalendarView({
             <h2 className="truncate text-base font-semibold">
               {anchor.getMonth() !== undefined && (
                 <>
-                  {MONTH_NAMES[anchor.getMonth()]}{" "}
+                  {formatMonthName(anchor)}{" "}
                   <span className="text-xs font-normal text-muted-foreground">
                     {anchor.getFullYear()}
                   </span>
@@ -331,11 +315,7 @@ export function CalendarView({
                   }}
                   disabled={beyondHorizon}
                   aria-pressed={isSelected}
-                  aria-label={day.toLocaleDateString(undefined, {
-                    weekday: "long",
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  aria-label={formatDayLong(day)}
                   className={`flex flex-col items-center justify-center rounded-lg py-1.5 transition-colors active:scale-[0.97] ${
                     beyondHorizon
                       ? "cursor-not-allowed opacity-30"

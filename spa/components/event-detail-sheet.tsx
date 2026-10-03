@@ -34,6 +34,7 @@ import {
 } from "@/lib/flare-detail"
 import { readLastKnownCoords } from "@/lib/geolocation"
 import { haptic } from "@/lib/haptics"
+import { formatDayShort } from "@/lib/format-date"
 
 interface Props {
   open: boolean
@@ -493,13 +494,7 @@ function formatWhen(startIso: string, live: boolean): string {
       ? "today"
       : start.toDateString() === tomorrow.toDateString()
         ? "tomorrow"
-        : start
-            .toLocaleDateString(undefined, {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-            })
-            .toLowerCase()
+        : formatDayShort(start)
   return `${day} · ${formatClock(startIso)}`
 }
 
