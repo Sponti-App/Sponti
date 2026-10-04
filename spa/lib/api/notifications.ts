@@ -20,6 +20,19 @@ export type ApiNotificationActor = {
   avatarUrl?: string | null
 }
 
+// #414: what the api stores in `metadata` on an `event_rsvp_change`. Every
+// field is optional on the wire: notifications written before #414 have no
+// `rsvpChange` or `firstJoin`, and older ones still may lack the arrival
+// fields. Parse it with `parseRsvpChange` in lib/notifications, never by hand.
+export type ApiRsvpChangeMetadata = {
+  eventTitle?: string
+  rsvpStatus?: "going" | "declined"
+  memberWillArriveAt?: string | null
+  arrivalStatus?: "on_time" | "running_late" | null
+  rsvpChange?: "joined" | "declined" | "arrival_updated"
+  firstJoin?: boolean
+}
+
 export type ApiNotification = {
   _id: string
   userId: string
