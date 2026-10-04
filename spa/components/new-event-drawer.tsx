@@ -2131,7 +2131,10 @@ function TimeWheel({
 
   return (
     <div
-      className="relative overflow-hidden rounded-lg bg-background"
+      // contain-paint + isolate: WebKit lets a composited scroller escape an
+      // overflow-hidden rounded parent while it bounces or snaps, which drew
+      // the wheel's rows over the "start"/"end" labels above it (#366).
+      className="relative isolate overflow-hidden rounded-lg bg-background contain-paint"
       style={{ height: VISIBLE * ITEM_H }}
     >
       <div
@@ -2143,7 +2146,7 @@ function TimeWheel({
         onScroll={handleScroll}
         role="listbox"
         aria-label={ariaLabel}
-        className="no-scrollbar h-full snap-y snap-mandatory overflow-y-scroll"
+        className="no-scrollbar h-full snap-y snap-mandatory overflow-y-scroll overscroll-contain"
         data-vaul-no-drag
       >
         <div style={{ height: PAD }} aria-hidden />
