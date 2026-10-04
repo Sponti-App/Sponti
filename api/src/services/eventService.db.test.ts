@@ -22,6 +22,7 @@ import {
   updateEvent,
   updateMyEventMembership,
 } from "#services/eventService";
+import { getNotifications } from "#services/notificationService";
 
 const HOST_ID = new Types.ObjectId().toString();
 const GOING_GUEST_ID = new Types.ObjectId().toString();
@@ -1395,5 +1396,160 @@ describe("eventService 'all friends' database behavior (#154)", () => {
       String(member.userId)
     );
     expect(memberUserIds).toEqual([HOST_ID]);
+  });
+});
+
+describe("eventService join notification data database behavior (#414)", () => {
+  // Oldest first, so index 0 is the first notice the host got.
+  const rsvpNotices = (eventId: string) =>
+    Notification.find({ targetId: eventId, type: "event_rsvp_change" })
+      .sort({ createdAt: 1, _id: 1 })
+      .lean();
+
+  // A public flare with only the host going, so strangers can join it.
+  const seedEmptyPublicFlare = async () => {
+    const event = await Event.create({
+      hostId: new Types.ObjectId(HOST_ID),
+      title: "sunset swim",
+      type: "drinks",
+      startAt: new Date(Date.now() + 60 * 60 * 1000),
+      endAt: new Date(Date.now() + 3 * 60 * 60 * 1000),
+      locationName: "the lake",
+      location: { type: "Point", coordinates: [13.4, 52.5] },
+      visibility: "public",
+      allowGuestInvites: "none",
+      guestInviteLimit: 0,
+      status: "active",
+    });
+    await EventMember.create({
+      eventId: event._id,
+      userId: new Types.ObjectId(HOST_ID),
+      role: "host",
+      rsvpStatus: "going",
+    });
+    return String(event._id);
+  };
+
+  afterEach(async () => {
+    await mongoose.connection.db?.collection("users").deleteMany({});
+  });
+
+  it("marks the first join on a flare, with what the spa needs to name the joiner", async () => {
+    const eventId = await seedEmptyPublicFlare();
+    await mongoose.connection.db?.collection("users").insertOne({
+      _id: new Types.ObjectId(STRANGER_ID),
+      username: "mia",
+      displayName: "mia",
+      avatarUrl: "https://example.com/mia.jpg",
+      bio: "connections only",
+      instagram: "mia.ig",
+    });
+    const arrival = new Date(Date.now() + 20 * 60 * 1000);
+
+    await updateMyEventMembership(STRANGER_ID, eventId, {
+      rsvpStatus: "going",
+      memberWillArriveAt: arrival,
+    });
+
+    const [notice] = await rsvpNotices(eventId);
+    expect(notice?.metadata).toMatchObject({
+      eventTitle: "sunset swim",
+      rsvpStatus: "going",
+      rsvpChange: "joined",
+      firstJoin: true,
+      memberWillArriveAt: arrival.toISOString(),
+    });
+
+    // The host's feed carries the joiner's name and photo, never bio or handles.
+    const { data } = await getNotifications(HOST_ID, { limit: 10 });
+    expect(data[0]?.actor).toMatchObject({
+      _id: STRANGER_ID,
+      displayName: "mia",
+      avatarUrl: "https://example.com/mia.jpg",
+    });
+    expect(data[0]?.actor).not.toHaveProperty("bio");
+    expect(data[0]?.actor).not.toHaveProperty("instagram");
+    expect(data[0]?.metadata).toMatchObject({ rsvpChange: "joined", firstJoin: true });
+  });
+
+  it("marks later joins as not first", async () => {
+    const eventId = await seedEmptyPublicFlare();
+
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" });
+    await updateMyEventMembership(OTHER_STRANGER_ID, eventId, { rsvpStatus: "going" });
+
+    const notices = await rsvpNotices(eventId);
+    expect(notices.map((n) => [String(n.actorId), n.metadata?.firstJoin])).toEqual([
+      [STRANGER_ID, true],
+      [OTHER_STRANGER_ID, false],
+    ]);
+  });
+
+  it("never gives a flare a second first join, after a leave and a re-join", async () => {
+    const eventId = await seedEmptyPublicFlare();
+
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" });
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "declined" });
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" });
+    // Nobody is going now except the host, but the host has already had a join.
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "declined" });
+    await updateMyEventMembership(OTHER_STRANGER_ID, eventId, { rsvpStatus: "going" });
+
+    const notices = await rsvpNotices(eventId);
+    expect(notices.map((n) => [n.metadata?.rsvpChange, n.metadata?.firstJoin])).toEqual([
+      ["joined", true],
+      ["declined", false],
+      ["joined", false],
+      ["declined", false],
+      ["joined", false],
+    ]);
+  });
+
+  it("doesn't call a join first when someone is already going", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("public");
+
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" });
+
+    const [notice] = await rsvpNotices(eventId);
+    expect(notice?.metadata).toMatchObject({ rsvpChange: "joined", firstJoin: false });
+  });
+
+  it("labels an arrival-time update, which is never a join", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("private");
+
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, { arrivalStatus: "on_time" });
+
+    const [notice] = await rsvpNotices(eventId);
+    expect(notice?.metadata).toMatchObject({
+      rsvpStatus: "going",
+      rsvpChange: "arrival_updated",
+      firstJoin: false,
+    });
+  });
+
+  it("counts a join notice written before #414 as an earlier join, and still serves it", async () => {
+    const eventId = await seedEmptyPublicFlare();
+    await Notification.create({
+      userId: new Types.ObjectId(HOST_ID),
+      actorId: new Types.ObjectId(OTHER_STRANGER_ID),
+      type: "event_rsvp_change",
+      targetType: "event",
+      targetId: new Types.ObjectId(eventId),
+      title: "someone updated their RSVP",
+      message: "someone is going to sunset swim.",
+      metadata: { eventTitle: "sunset swim", rsvpStatus: "going", memberWillArriveAt: null },
+    });
+
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" });
+
+    const { data } = await getNotifications(HOST_ID, { limit: 10 });
+    const fresh = data.find((n) => n.actorId === STRANGER_ID);
+    const legacy = data.find((n) => n.actorId === OTHER_STRANGER_ID);
+    expect(fresh?.metadata).toMatchObject({ rsvpChange: "joined", firstJoin: false });
+    expect(legacy?.metadata).toEqual({
+      eventTitle: "sunset swim",
+      rsvpStatus: "going",
+      memberWillArriveAt: null,
+    });
   });
 });
