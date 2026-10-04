@@ -227,11 +227,19 @@ test.describe("flare composer", () => {
     }).toPass()
 
     // Run each wheel to its last option, where the list has one empty slot
-    // below the selection by design, and check nothing else moves.
+    // below the selection by design, and check nothing else moves. One wheel
+    // at a time, waiting for it to settle on the last option: a new start
+    // time rebuilds the end list, and scrolling the end wheel inside the
+    // wheel's 90ms settle window made its pending callback read the old list
+    // and select a time outside the new one (#417, a race, not the clock).
     for (const { list } of wheels) {
       await list.evaluate((el) => {
         el.scrollTo({ top: el.scrollHeight })
       })
+      await expect(list.locator('[role="option"]').last()).toHaveAttribute(
+        "aria-selected",
+        "true"
+      )
     }
     await expect(async () => {
       await check()
