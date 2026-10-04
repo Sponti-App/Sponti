@@ -37,11 +37,11 @@ _Phase 1 — Gate for external testers: done (#93)._ The tester profile in `spa/
 
 _Profile rebuild: done (#166)._ Photo, one-line bio and Instagram/Telegram handles. Bio and handles are visible to connections only. Strangers see name, @username and photo, and a user who blocked you gets "not found". The fields live in `auth-server/`, and `api/` reads them. Open privacy calls: #268.
 
+_Map pins and icon set: done (#315, #345)._ Each flare pin is one circle with its category icon, plum for invite only and teal for open to all (`spa/components/map-flare-pin.tsx`); peach on a pin means live only. Phosphor replaced Lucide: every icon comes from `spa/components/icons.tsx`, and ESLint blocks importing an icon package anywhere else. Dates and times go through the lowercase formatters in `spa/lib/format-date.ts` (#339).
+
 _Current work (tracked as GitHub issues):_
 
 - **Pre-launch checklist (#274):** the living list of to-dos before sharing with testers. Add launch blockers there.
-- **Map pins (#315):** one circle per flare with its category icon, plum for invite only and teal for open to all. Peach on a pin means live only.
-- **Icon set (#345):** Phosphor replaces Lucide. Every icon comes from `spa/components/icons.tsx`, and ESLint blocks importing an icon package anywhere else.
 - **Ideas on a quiet map (#240):** curated Berlin idea spots (`spa/lib/flare-ideas.data.ts`, owned by the team) offered as one-tap flares.
 - **Parked until testers give feedback:** first-friend onboarding (#124: QR connect and the 7-day invite link work, and still need a real-phone check) and the composer layout (#311).
 
