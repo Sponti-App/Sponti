@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { revealOffset } from "./use-focused-field-visible"
+import { revealOffset, topAlignOffset } from "./use-focused-field-visible"
 
 // The scrollable compose area, as it ends up once the keyboard has taken most
 // of the sheet: a short slot with the pinned CTA immediately below it.
@@ -38,5 +38,21 @@ describe("revealOffset", () => {
     const offset = revealOffset(field, view)
     const settled = { top: field.top - offset, bottom: field.bottom - offset }
     expect(revealOffset(settled, view)).toBe(0)
+  })
+})
+
+describe("topAlignOffset", () => {
+  // The place search is lifted to the top of the slot so its suggestions get
+  // the whole slot above the keyboard (#367).
+  it("scrolls a field below the top edge up to it, leaving the gap", () => {
+    expect(topAlignOffset({ top: 260, bottom: 300 }, view)).toBe(148)
+  })
+
+  it("scrolls back up when the field is above the slot", () => {
+    expect(topAlignOffset({ top: 60, bottom: 100 }, view)).toBe(-52)
+  })
+
+  it("is a no-op for a field already at the top", () => {
+    expect(topAlignOffset({ top: 112, bottom: 152 }, view)).toBe(0)
   })
 })
