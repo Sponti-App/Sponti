@@ -11,7 +11,9 @@ This repo is **multi-context**: a single product split across `spa/` (frontend),
 - **`docs/decisions/`** — system-wide architectural decisions for this repo (this is where ADRs live; the repo predates the `docs/adr/` convention). In addition, check `<package>/docs/adr/` for any context-scoped decisions.
 - **`docs/architecture/`** and **`docs/flows/`** — system-level architecture write-ups and user-flow docs worth scanning when relevant.
 
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The producer skill (`/grill-with-docs`) creates them lazily when terms or decisions actually get resolved.
+If `CONTEXT-MAP.md`, `docs/decisions/`, `docs/architecture/`, `docs/flows/` or a package's `docs/adr/` don't exist, **proceed silently**. The producer skill (`/grill-with-docs`) creates them lazily when terms or decisions actually get resolved.
+
+If the `CONTEXT.md` of a package you're touching is missing, **flag it** (CLAUDE.md says to read it) and file an issue per [Issue Tracker](./issue-tracker.md) instead of skipping it silently.
 
 ## File structure
 
