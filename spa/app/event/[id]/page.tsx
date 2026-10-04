@@ -1,9 +1,10 @@
 "use client"
 
 // The flare detail page, layout D (#139, decided in #162): a map hero with
-// the sheet below it (header, when | where, host note, the viewer's own plan,
-// then going / updates tabs), and a pinned action bar above the bottom nav
-// that switches between "join" and "share an update".
+// the page content flush below it (header, when | where, host note, the
+// viewer's own plan, then going / updates tabs), and a pinned action bar above
+// the bottom nav that switches between "join" and "share an update". It is a
+// page, not a drawer, so no handle or rounded sheet top (#352).
 
 import { useEffect, useRef, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
@@ -395,7 +396,7 @@ function FlareDetail({
             href={mapsUrl}
             target="_blank"
             rel="noreferrer"
-            className="absolute right-4 bottom-9 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs shadow-sm"
+            className="absolute right-4 bottom-3 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs shadow-sm"
           >
             <NavigationArrowIcon className="h-3.5 w-3.5 text-primary" />
             <span className="font-medium">open in maps</span>
@@ -407,9 +408,7 @@ function FlareDetail({
           </a>
         </FlareMapHero>
 
-        <div className="relative -mt-6 rounded-t-3xl bg-background px-4 pt-3 shadow-(--shadow-sheet)">
-          <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-muted-foreground/30" />
-
+        <div className="bg-background px-4 pt-4">
           <FlareHeader
             type={event.type}
             title={event.title}
