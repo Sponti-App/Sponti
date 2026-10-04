@@ -108,28 +108,60 @@ export function mockFlares(now: number): EventItem[] {
   return FLARES.map((f) => f(now))
 }
 
-/** The visitor's own flare in the "try it" demo. */
-export function demoFlare(
-  now: number,
-  type: EventType,
-  startIn: number
-): EventItem {
+/** Upcoming flares for the "soon" fragments: a picked time, later today or
+ * this week. `day` is the calendar row's day label. */
+export const SOON = [
+  {
+    flare: flare({
+      id: "flea",
+      title: "flea market at mauerpark",
+      type: "hobby",
+      visibility: "public",
+      host: PEOPLE.sam,
+      startIn: 26 * 60,
+      lengthMin: 180,
+      place: "Mauerpark",
+      going: 5,
+      coordinates: [13.4024, 52.5435],
+    }),
+    day: "tomorrow",
+  },
+  {
+    flare: flare({
+      id: "film",
+      title: "open-air film at hasenheide",
+      type: "culture",
+      visibility: "private",
+      host: PEOPLE.lena,
+      startIn: 3 * 24 * 60,
+      lengthMin: 150,
+      place: "Freiluftkino Hasenheide",
+      going: 3,
+      coordinates: [13.4183, 52.4847],
+    }),
+    day: "fri",
+  },
+]
+
+/** The visitor's own flare, lit from an idea spot (or the plain draft). */
+export function ownFlare(now: number, idea: FlareIdea): EventItem {
   return flare({
     id: "yours",
-    title: "your flare",
-    type,
+    title: idea.title,
+    type: idea.category,
     visibility: "private",
     host: { name: YOU.name, color: "oklch(0.8 0.12 52)" },
-    startIn,
+    startIn: 0,
     lengthMin: 120,
-    place: "Admiralbrücke",
+    place: idea.place.name,
     going: 0,
-    coordinates: [13.4151, 52.4953],
+    coordinates: [idea.place.lng, idea.place.lat],
   })(now)
 }
 
-// "pick an area" fallback. The idea spots are berlin-only, so the areas are
-// too; what to offer outside berlin is a decision on the PR.
+// "pick an area" fallback. The idea spots are berlin-only, so the chips are
+// too. The search field finds anything; outside berlin the map starts empty
+// (no idea spots), which is a decision on the PR.
 export const AREAS: { id: string; name: string; center: GeoCoords }[] = [
   { id: "kreuzberg", name: "kreuzberg", center: { lat: 52.4986, lng: 13.403 } },
   { id: "neukoelln", name: "neukölln", center: { lat: 52.4811, lng: 13.435 } },
@@ -148,6 +180,15 @@ export const AREAS: { id: string; name: string; center: GeoCoords }[] = [
 ]
 
 export const DEFAULT_AREA = AREAS[0]
+
+/** Before the location ask the map has no position: it opens on berlin. */
+export const BERLIN = { lat: 52.515, lng: 13.41 }
+
+/** What the prototype's search finds for anything that isn't a berlin area. */
+export function awayArea(query: string) {
+  const name = query.trim().toLowerCase() || "hamburg"
+  return { id: "away", name, center: { lat: 53.55, lng: 9.99 } }
+}
 
 /** What `firstFlarePrefill` would pick: the nearest idea spot, via the real
  * pure `getIdeasNear`, with a fallback so the mock never renders empty. */

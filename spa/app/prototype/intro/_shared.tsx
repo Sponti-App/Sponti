@@ -1,25 +1,28 @@
 "use client"
 
-// PROTOTYPE (#373) — throwaway. Atoms shared by the intro variants: the
-// prototype bar, brand bits, the mock map screen with its nav, the small UI
-// fragments the intro cards show (composer, join, fuse) and the coach mark
-// overlay. Real components where cheap (FlarePin, NavFlareButton, Button,
-// VisibilityLegend); everything else is a look-alike on mock data.
+// PROTOTYPE (#373) — throwaway. Atoms shared by the round 2 flow: the
+// prototype bar, brand bits, the mock home map (header, pins, idea spots,
+// dock, FAB, nav), the small UI fragments the slides show and the coach mark
+// overlay. Real components where cheap (FlarePin, FlarePreviewCard,
+// NavFlareButton, VisibilityLegend, Tabs, Button, Avatar); everything else is
+// a look-alike on mock data.
 
 import { useEffect, useLayoutEffect, useState } from "react"
 import { useTheme } from "next-themes"
 import {
   BellIcon,
-  CaretLeftIcon,
-  CaretRightIcon,
+  CalendarBlankIcon,
   CheckIcon,
   ClockIcon,
   FireIcon,
   FlameIcon,
+  GearIcon,
   GlobeIcon,
   HouseIcon,
+  ListIcon,
   LockIcon,
   MapPinIcon,
+  MapTrifoldIcon,
   NavigationArrowIcon,
   UsersIcon,
   type Icon,
@@ -29,6 +32,7 @@ import { initials } from "@/components/event-avatar-stack"
 import { FlarePin, VisibilityLegend } from "@/components/map-flare-pin"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { EventItem, EventType } from "@/lib/api/events"
 import type { FlareIdea } from "@/lib/flare-ideas"
 import { cn } from "@/lib/utils"
@@ -37,54 +41,63 @@ import type { MockPerson } from "./_mock"
 
 // ---- Prototype state -------------------------------------------------------
 
-export const SECTIONS = [
-  { key: "welcome", name: "1 · /welcome" },
-  { key: "location", name: "2 · location ask" },
-  { key: "intro", name: "3 · after sign-up" },
-  { key: "coach", name: "4 · coach marks" },
-] as const
-export type Section = (typeof SECTIONS)[number]["key"]
+/** The takes and open calls the bar switches between. */
+export const TOGGLES = {
+  slides: [
+    { key: "A", label: "slides a · 3" },
+    { key: "B", label: "slides b · 4" },
+    { key: "C", label: "slides c · 1" },
+  ],
+  marks: [
+    { key: "A", label: "marks a" },
+    { key: "B", label: "marks b" },
+  ],
+  gate: [
+    { key: "sheet", label: "gate: sheet" },
+    { key: "page", label: "gate: page" },
+  ],
+  at: [
+    { key: "tap", label: "ask on tap" },
+    { key: "light", label: "ask on light" },
+  ],
+  friends: [
+    { key: "0", label: "0 friends" },
+    { key: "3", label: "3 friends" },
+  ],
+} as const
 
-export const VARIANTS: Record<
-  Section,
-  readonly { key: string; label: string }[]
-> = {
-  welcome: [
-    { key: "A", label: "a cards" },
-    { key: "B", label: "b story" },
-    { key: "C", label: "c try it" },
-  ],
-  location: [
-    { key: "A", label: "a own screen" },
-    { key: "B", label: "b on the map" },
-  ],
-  intro: [
-    { key: "now", label: "today" },
-    { key: "A", label: "a one screen" },
-    { key: "B", label: "b checklist" },
-  ],
-  coach: [
-    { key: "after", label: "after location" },
-    { key: "before", label: "before location" },
-  ],
-}
+type ToggleKey = keyof typeof TOGGLES
+type ToggleValue<K extends ToggleKey> = (typeof TOGGLES)[K][number]["key"]
 
 export type ProtoState = {
-  section: Section
-  v: string
-  s: number
-  cards: "3" | "4"
-  friends: "0" | "3"
-  spot: "idea" | "pin"
+  /** The current step's key (see `flowSteps`). */
+  s: string
+  slides: ToggleValue<"slides">
+  marks: ToggleValue<"marks">
+  gate: ToggleValue<"gate">
+  at: ToggleValue<"at">
+  friends: ToggleValue<"friends">
+  /** Where the map starts: "you", a berlin area id, or "away:<name>". */
+  loc: string
+  /** After sign-up: the kept draft was lit, or put off with "not now". */
+  flare: "lit" | "later"
+  /** The draft's idea spot id, "none" for a blank draft (FAB, nav), or ""
+   * for the nearest idea. */
+  idea: string
 }
+
+export type ParamPatch = Partial<Record<keyof ProtoState, string>>
 
 export type StepProps = {
   state: ProtoState
   now: number
-  go: (s: number) => void
+  /** Go to a step, optionally setting other params on the way. */
+  go: (step: string, patch?: ParamPatch) => void
   /** Stand-in for navigation the prototype doesn't do. */
   stub: (what: string) => void
 }
+
+export type Step = { key: string; label: string; stage: string }
 
 export function PrototypeBar({
   state,
@@ -92,108 +105,49 @@ export function PrototypeBar({
   onChange,
 }: {
   state: ProtoState
-  steps: number
-  onChange: (next: Partial<Record<keyof ProtoState, string>>) => void
+  steps: Step[]
+  onChange: (next: ParamPatch) => void
 }) {
   const { resolvedTheme, setTheme } = useTheme()
-  const variants = VARIANTS[state.section]
-  const vIndex = Math.max(
+  const index = Math.max(
     0,
-    variants.findIndex((v) => v.key === state.v)
+    steps.findIndex((s) => s.key === state.s)
   )
-  const cycle = (dir: 1 | -1) =>
-    onChange({
-      v: variants[(vIndex + dir + variants.length) % variants.length].key,
-      s: "0",
-    })
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null
       if (el?.closest("input, textarea, [contenteditable]")) return
       if (e.key === "ArrowLeft")
-        onChange({ s: String(Math.max(0, state.s - 1)) })
+        onChange({ s: steps[Math.max(0, index - 1)].key })
       if (e.key === "ArrowRight")
-        onChange({ s: String(Math.min(steps - 1, state.s + 1)) })
+        onChange({ s: steps[Math.min(steps.length - 1, index + 1)].key })
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   })
 
+  const stages = steps.reduce<{ stage: string; steps: Step[] }[]>(
+    (acc, step) => {
+      const last = acc[acc.length - 1]
+      if (last?.stage === step.stage) last.steps.push(step)
+      else acc.push({ stage: step.stage, steps: [step] })
+      return acc
+    },
+    []
+  )
+
   return (
-    <div className="space-y-1 bg-zinc-900 px-2 py-2 font-mono text-xs text-zinc-100">
-      <Seg
-        options={SECTIONS.map((s) => ({ key: s.key, label: s.name }))}
-        value={state.section}
-        onChange={(section) =>
-          onChange({ section, v: VARIANTS[section][0].key, s: "0" })
-        }
-      />
-      <div className="flex items-center justify-between gap-1">
-        <button
-          type="button"
-          onClick={() => cycle(-1)}
-          aria-label="previous variant"
-          className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-zinc-700"
-        >
-          <CaretLeftIcon className="h-4 w-4" />
-        </button>
-        <Seg
-          options={variants.map((v) => ({ key: v.key, label: v.label }))}
-          value={variants[vIndex].key}
-          onChange={(v) => onChange({ v, s: "0" })}
-        />
-        <button
-          type="button"
-          onClick={() => cycle(1)}
-          aria-label="next variant"
-          className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-zinc-700"
-        >
-          <CaretRightIcon className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-zinc-400">
-          step {state.s + 1}/{steps}
-        </span>
-        <Seg
-          options={Array.from({ length: steps }, (_, i) => ({
-            key: String(i),
-            label: String(i + 1),
-          }))}
-          value={String(state.s)}
-          onChange={(s) => onChange({ s })}
-        />
-        {state.section === "welcome" && state.v === "A" && (
+    <div className="space-y-1.5 bg-zinc-900 px-2 py-2 font-mono text-xs text-zinc-100">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {(Object.keys(TOGGLES) as ToggleKey[]).map((k) => (
           <Seg
-            options={[
-              { key: "3", label: "3 cards" },
-              { key: "4", label: "4 cards" },
-            ]}
-            value={state.cards}
-            onChange={(cards) => onChange({ cards, s: "0" })}
+            key={k}
+            options={TOGGLES[k].map((o) => ({ key: o.key, label: o.label }))}
+            value={state[k]}
+            onChange={(v) => onChange({ [k]: v })}
           />
-        )}
-        {state.section === "intro" && state.v !== "now" && (
-          <Seg
-            options={[
-              { key: "0", label: "0 friends" },
-              { key: "3", label: "3 friends" },
-            ]}
-            value={state.friends}
-            onChange={(friends) => onChange({ friends, s: "0" })}
-          />
-        )}
-        {state.section === "coach" && (
-          <Seg
-            options={[
-              { key: "idea", label: "idea spots" },
-              { key: "pin", label: "flares" },
-            ]}
-            value={state.spot}
-            onChange={(spot) => onChange({ spot })}
-          />
-        )}
+        ))}
         <button
           type="button"
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
@@ -202,18 +156,33 @@ export function PrototypeBar({
           {resolvedTheme === "dark" ? "dark" : "light"}
         </button>
       </div>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-zinc-400">
+          {index + 1}/{steps.length}
+        </span>
+        {stages.map((g) => (
+          <span key={g.stage} className="flex items-center gap-1">
+            <span className="text-zinc-500">{g.stage}</span>
+            <Seg
+              options={g.steps.map((s) => ({ key: s.key, label: s.label }))}
+              value={state.s}
+              onChange={(s) => onChange({ s })}
+            />
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
 
-function Seg<T extends string>({
+function Seg({
   options,
   value,
   onChange,
 }: {
-  options: { key: T; label: string }[]
-  value: T
-  onChange: (v: T) => void
+  options: { key: string; label: string }[]
+  value: string
+  onChange: (v: string) => void
 }) {
   return (
     <div className="flex flex-wrap rounded-2xl bg-zinc-800 p-0.5">
@@ -271,7 +240,7 @@ export function PeachButton({
   )
 }
 
-/** The neutral "next" button the current first-run intro uses. */
+/** The neutral button, for when peach is already on screen. */
 export function InkButton({
   children,
   onClick,
@@ -315,21 +284,6 @@ export function TextButton({
     >
       {children}
     </button>
-  )
-}
-
-/** The end of every /welcome variant: the real build links to /register and
- * /login. */
-export function AuthCtas({ stub }: { stub: (what: string) => void }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <PeachButton onClick={() => stub("→ /register")}>
-        create an account
-      </PeachButton>
-      <TextButton onClick={() => stub("→ /login")}>
-        i have an account
-      </TextButton>
-    </div>
   )
 }
 
@@ -377,6 +331,31 @@ export function PersonAvatar({
 
 export function categoryOf(type: EventType): { Icon: Icon } {
   return { Icon: EVENT_TYPES.find((t) => t.value === type)?.icon ?? MapPinIcon }
+}
+
+export function SheetHandle() {
+  return <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+}
+
+/** A bottom sheet over the map, as the app draws them. */
+export function Sheet({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "proto-up absolute inset-x-0 bottom-0 z-20 rounded-t-3xl bg-background px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-(--shadow-sheet)",
+        className
+      )}
+    >
+      <SheetHandle />
+      {children}
+    </div>
+  )
 }
 
 // ---- Map backdrop ----------------------------------------------------------
@@ -436,7 +415,7 @@ export function IdeaPin({
     <div className="flex items-center justify-center p-2">
       <div
         className={cn(
-          "flex h-7 w-7 items-center justify-center rounded-full border border-dashed bg-muted text-muted-foreground shadow-md",
+          "flex h-7 w-7 items-center justify-center rounded-full border border-dashed bg-muted text-muted-foreground shadow-md transition-transform",
           selected
             ? "scale-125 border-foreground/70 text-foreground"
             : "border-muted-foreground/70"
@@ -456,119 +435,269 @@ export function UserDot() {
 
 type Spot = { top: string; left: string }
 const PIN_SPOTS: Spot[] = [
-  { top: "30%", left: "58%" },
-  { top: "18%", left: "16%" },
-  { top: "46%", left: "12%" },
+  { top: "34%", left: "58%" },
+  { top: "22%", left: "16%" },
+  { top: "48%", left: "12%" },
 ]
 const IDEA_SPOTS: Spot[] = [
-  { top: "26%", left: "40%" },
+  { top: "30%", left: "36%" },
   { top: "44%", left: "70%" },
-  { top: "16%", left: "72%" },
+  { top: "22%", left: "72%" },
 ]
 
-/** The home map, as a static mock: header chip, legend, pins, idea spots and
- * a look-alike bottom nav. Elements carry `data-coach` so coach marks can find
- * them. */
+/** The home map, as a static mock: the real header's pills, an area chip,
+ * pins, idea spots, a dock, the FAB and a look-alike nav. Elements carry
+ * `data-coach` so coach marks can find them. */
 export function MapScreen({
   now,
   flares = [],
+  own,
   ideas = [],
   areaLabel,
   located = true,
+  signedIn = false,
   banner,
   dock,
+  fab = true,
+  selectedIdeaId,
+  onIdea,
+  onFlare,
+  onAccountOnly,
   children,
-  className,
 }: {
   now: number
   flares?: EventItem[]
+  /** The viewer's own flare, if lit. */
+  own?: EventItem
   ideas?: FlareIdea[]
-  /** The header chip: "kreuzberg", "near you"… */
+  /** The area chip: "near you", "kreuzberg", "berlin"… */
   areaLabel: string
   located?: boolean
+  signedIn?: boolean
   banner?: React.ReactNode
-  /** Replaces the default sheet peek at the bottom of the map. */
+  /** Replaces the default dock at the bottom of the map. */
   dock?: React.ReactNode
+  fab?: boolean
+  selectedIdeaId?: string
+  onIdea?: (idea: FlareIdea) => void
+  /** The FAB and the nav's flare button. */
+  onFlare?: () => void
+  /** Tabs and pills a signed-out visitor can't use yet. */
+  onAccountOnly?: (what: string) => void
   children?: React.ReactNode
-  className?: string
 }) {
+  const [view, setView] = useState<"map" | "calendar">("map")
+  const pins = [...(own ? [own] : []), ...flares]
   return (
     <div
-      className={cn(
-        "relative flex h-dvh min-h-[600px] flex-col overflow-hidden bg-background",
-        className
-      )}
+      data-coach-root
+      className="relative flex h-dvh min-h-[640px] flex-col overflow-hidden bg-background"
     >
       <div className="relative flex-1 overflow-hidden bg-muted">
-        <MapGrid className="opacity-30" />
-        <MapStreets />
-        <div className="absolute inset-x-0 top-0 flex flex-col gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-xs font-medium shadow">
-              {located ? (
-                <NavigationArrowIcon className="h-3.5 w-3.5 text-accent" />
-              ) : (
-                <MapPinIcon className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-              {areaLabel}
-            </span>
-            {flares.length > 0 && <VisibilityLegend />}
-          </div>
-          {banner}
-        </div>
-        {located && (
-          <div className="absolute top-[52%] left-1/2 -translate-x-1/2">
-            <UserDot />
+        {view === "map" ? (
+          <>
+            <MapGrid className="opacity-30" />
+            <MapStreets />
+            {located && (
+              <div className="absolute top-[56%] left-1/2 -translate-x-1/2">
+                <UserDot />
+              </div>
+            )}
+            {ideas.slice(0, IDEA_SPOTS.length).map((idea, i) => (
+              <button
+                key={idea.id}
+                type="button"
+                aria-label={`idea: ${idea.title}`}
+                onClick={() => onIdea?.(idea)}
+                className="absolute"
+                style={IDEA_SPOTS[i]}
+                data-coach={i === 0 ? "spot" : undefined}
+              >
+                <IdeaPin idea={idea} selected={selectedIdeaId === idea.id} />
+              </button>
+            ))}
+            {pins.slice(0, PIN_SPOTS.length).map((event, i) => (
+              <div key={event.id} className="absolute" style={PIN_SPOTS[i]}>
+                <FlarePin
+                  event={event}
+                  own={event.id === own?.id}
+                  joined={false}
+                  now={now}
+                />
+              </div>
+            ))}
+          </>
+        ) : (
+          <CalendarEmpty signedIn={signedIn} />
+        )}
+
+        <MapHeader
+          view={view}
+          onView={setView}
+          signedIn={signedIn}
+          onSignIn={() => onAccountOnly?.("sign in")}
+        />
+        {view === "map" && (
+          <div className="absolute inset-x-0 top-14 flex flex-col gap-2 px-3">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-xs font-medium shadow">
+                {located ? (
+                  <NavigationArrowIcon className="h-3.5 w-3.5 text-accent" />
+                ) : (
+                  <MapPinIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                {areaLabel}
+              </span>
+              {pins.length > 0 && <VisibilityLegend />}
+            </div>
+            {banner}
           </div>
         )}
-        {ideas.slice(0, IDEA_SPOTS.length).map((idea, i) => (
-          <div
-            key={idea.id}
-            className="absolute"
-            style={IDEA_SPOTS[i]}
-            data-coach={i === 0 && flares.length === 0 ? "spot" : undefined}
-          >
-            <IdeaPin idea={idea} />
+
+        {view === "map" && (
+          <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col">
+            {fab && (
+              <div className="flex justify-end px-4 pb-3">
+                <button
+                  type="button"
+                  data-coach="fab"
+                  onClick={onFlare}
+                  aria-label="light a flare"
+                  className="flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg active:scale-95"
+                >
+                  <FlameIcon className="h-6 w-6" />
+                </button>
+              </div>
+            )}
+            {dock ?? <MapDock count={flares.length} ideas={ideas.length > 0} />}
           </div>
-        ))}
-        {flares.slice(0, PIN_SPOTS.length).map((event, i) => (
-          <div
-            key={event.id}
-            className="absolute"
-            style={PIN_SPOTS[i]}
-            data-coach={i === 0 ? "spot" : undefined}
-          >
-            <FlarePin event={event} own={false} joined={false} now={now} />
-          </div>
-        ))}
-        {dock ?? <MapDock flares={flares} ideas={ideas} />}
+        )}
       </div>
-      <MockNav />
+      <MockNav
+        onFlare={onFlare}
+        onAccountOnly={signedIn ? undefined : onAccountOnly}
+      />
       {children}
     </div>
   )
 }
 
-function MapDock({
-  flares,
-  ideas,
+/** The real home header: menu, map/calendar, settings. A signed-out visitor
+ * gets "sign in" where settings sits. */
+function MapHeader({
+  view,
+  onView,
+  signedIn,
+  onSignIn,
 }: {
-  flares: EventItem[]
-  ideas: FlareIdea[]
+  view: "map" | "calendar"
+  onView: (v: "map" | "calendar") => void
+  signedIn: boolean
+  onSignIn: () => void
 }) {
+  const pill =
+    "flex h-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md dark:bg-background/90"
+  const tab = (v: "map" | "calendar", Icon: Icon, label: string) => (
+    <button
+      type="button"
+      onClick={() => onView(v)}
+      className={cn(
+        "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm",
+        view === v
+          ? "bg-card font-semibold text-foreground"
+          : "text-muted-foreground"
+      )}
+    >
+      <Icon className="h-4 w-4" />
+      <span>{label}</span>
+    </button>
+  )
   return (
-    <div className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-background px-4 pt-2 pb-4 shadow-(--shadow-sheet)">
-      <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+    <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 px-3 pt-3">
+      <span className={cn(pill, "w-9")} aria-label="menu">
+        <ListIcon className="h-4 w-4" />
+      </span>
+      <div
+        data-coach="calendar"
+        className="flex items-center rounded-full border border-border/60 bg-background/70 p-1 shadow-sm backdrop-blur-md"
+      >
+        {tab("map", MapTrifoldIcon, "map")}
+        {tab("calendar", CalendarBlankIcon, "calendar")}
+      </div>
+      {signedIn ? (
+        <span className={cn(pill, "w-9")} aria-label="settings">
+          <GearIcon className="h-4 w-4" />
+        </span>
+      ) : (
+        <button
+          type="button"
+          data-coach="signin"
+          onClick={onSignIn}
+          className={cn(pill, "px-3 text-sm font-medium")}
+        >
+          sign in
+        </button>
+      )}
+    </div>
+  )
+}
+
+function CalendarEmpty({ signedIn }: { signedIn: boolean }) {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center bg-background px-8 text-center">
+      <CalendarBlankIcon className="size-6 text-muted-foreground" />
+      <p className="mt-3 text-base font-semibold">nothing coming up yet</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {signedIn
+          ? "flares with a picked time land here."
+          : "flares with a picked time land here once you have friends on sponti."}
+      </p>
+    </div>
+  )
+}
+
+/** The dock's sheet: a title, the live / soon / all tabs (the real
+ * TimeTabs' labels) and one line. */
+export function MapDock({
+  count,
+  ideas,
+  title,
+  hint,
+}: {
+  count: number
+  ideas: boolean
+  title?: string
+  hint?: string
+}) {
+  const [tab, setTab] = useState("all")
+  return (
+    <div className="rounded-t-3xl bg-background px-4 pt-2 pb-4 shadow-(--shadow-sheet)">
+      <SheetHandle />
       <p className="text-base font-semibold">
-        {flares.length > 0 ? `${flares.length} flares near you` : "quiet map"}
+        {title ??
+          (count > 0 ? `${count} flares near you` : "quiet around here")}
       </p>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        {flares.length > 0
-          ? "live now and later today"
-          : ideas.length > 0
-            ? "no flares yet. the dashed spots are ideas, tap one to light it."
-            : "no flares yet"}
+        {hint ??
+          (count > 0
+            ? "live now and later today"
+            : ideas
+              ? "no flares yet. the dashed spots are ideas, tap one."
+              : "no flares yet")}
       </p>
+      <Tabs value={tab} onValueChange={setTab} data-coach="tabs">
+        <TabsList className="mt-3 h-8 w-full">
+          <TabsTrigger value="live" className="text-xs">
+            live
+          </TabsTrigger>
+          <TabsTrigger value="upcoming" className="text-xs">
+            soon
+          </TabsTrigger>
+          <TabsTrigger value="all" className="text-xs">
+            all
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
     </div>
   )
 }
@@ -576,10 +705,19 @@ function MapDock({
 /** Look-alike of BottomNav (which needs the app's providers). The centre is
  * the real NavFlareButton. Not labelled "Primary", so screenshot CSS that
  * hides the real nav leaves it alone. */
-export function MockNav() {
-  const item = (Icon: Icon, label: string, coach?: string, active = false) => (
-    <span
-      data-coach={coach}
+export function MockNav({
+  onFlare,
+  onAccountOnly,
+}: {
+  onFlare?: () => void
+  /** Set for a signed-out visitor: feed, circles and my flares need an
+   * account. */
+  onAccountOnly?: (what: string) => void
+}) {
+  const item = (Icon: Icon, label: string, active = false) => (
+    <button
+      type="button"
+      onClick={() => !active && onAccountOnly?.(label)}
       className={cn(
         "relative flex min-h-11 max-w-20 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-xs font-medium",
         active ? "text-accent" : "text-muted-foreground"
@@ -587,17 +725,17 @@ export function MockNav() {
     >
       <Icon className="h-5 w-5" weight={active ? "fill" : "regular"} />
       <span>{label}</span>
-    </span>
+    </button>
   )
   return (
     <div
       aria-label="prototype nav"
       className="relative z-10 flex items-end justify-around border-t border-border bg-background px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
     >
-      {item(HouseIcon, "home", undefined, true)}
-      {item(BellIcon, "feed", "bell")}
+      {item(HouseIcon, "home", true)}
+      {item(BellIcon, "feed")}
       <span data-coach="flare" className="flex flex-1 self-stretch">
-        <NavFlareButton onClick={() => {}} />
+        <NavFlareButton onClick={() => onFlare?.()} />
       </span>
       {item(UsersIcon, "circles")}
       {item(FireIcon, "my flares")}
@@ -605,22 +743,17 @@ export function MockNav() {
   )
 }
 
-// ---- Fragments shown on intro cards ---------------------------------------
+// ---- Fragments -------------------------------------------------------------
 
 function Chip({
   children,
   selected = false,
-  onClick,
 }: {
   children: React.ReactNode
   selected?: boolean
-  onClick?: () => void
 }) {
-  const Tag = onClick ? "button" : "span"
   return (
-    <Tag
-      type={onClick ? "button" : undefined}
-      onClick={onClick}
+    <span
       className={cn(
         "inline-flex min-h-8 items-center gap-1 rounded-full border px-3 text-xs",
         selected
@@ -629,40 +762,61 @@ function Chip({
       )}
     >
       {children}
-    </Tag>
+    </span>
   )
 }
 
-/** A compact look-alike of the composer: what, when, where, who. */
+/** The composer's mode tabs, with the real labels. */
+export function WhenTabs({
+  value,
+  onChange,
+  className,
+}: {
+  value: "now" | "scheduled"
+  onChange?: (v: "now" | "scheduled") => void
+  className?: string
+}) {
+  return (
+    <Tabs
+      value={value}
+      onValueChange={(v) => onChange?.(v as "now" | "scheduled")}
+      className={className}
+    >
+      <TabsList className="h-8 w-full">
+        <TabsTrigger value="now" className="text-xs">
+          right now
+        </TabsTrigger>
+        <TabsTrigger value="scheduled" className="text-xs">
+          pick a time
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+  )
+}
+
+/** A compact look-alike of the composer: what, the when / where / who chips
+ * and the right now / pick a time tabs. */
 export function MiniComposer({
   title,
   type,
-  when = "now · 2h",
   where = "my location",
   who = "all friends",
   open = false,
-  cta,
   className,
 }: {
   title?: string
   type: EventType
-  when?: string
   where?: string
   who?: string
   open?: boolean
-  cta?: React.ReactNode
   className?: string
 }) {
+  const [mode, setMode] = useState<"now" | "scheduled">("now")
   const { Icon } = categoryOf(type)
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-3 rounded-2xl border border-border bg-background p-4 shadow-(--shadow-card)",
-        className
-      )}
-    >
+    <div className={cn("flex flex-col gap-3", className)}>
       <div className="flex items-center gap-2">
-        <span className="flex size-9 items-center justify-center rounded-full bg-muted text-foreground">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
           <Icon className="size-4" />
         </span>
         <span
@@ -677,7 +831,7 @@ export function MiniComposer({
       <div className="flex flex-wrap gap-1.5">
         <Chip selected>
           <ClockIcon className="size-3.5" />
-          {when}
+          {mode === "now" ? "now · 2h" : "tomorrow 18:00 · 2h"}
         </Chip>
         <Chip selected>
           <MapPinIcon className="size-3.5" />
@@ -692,7 +846,41 @@ export function MiniComposer({
           {who}
         </Chip>
       </div>
-      {cta}
+      <WhenTabs value={mode} onChange={setMode} />
+    </div>
+  )
+}
+
+/** Look-alike of calendar-view's EventCard (not exported). */
+export function CalendarRow({
+  event,
+  day,
+  time,
+  className,
+}: {
+  event: EventItem
+  day: string
+  time: string
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-xl border border-border bg-card p-3",
+        className
+      )}
+    >
+      <span className="w-14 shrink-0 text-xs text-muted-foreground tabular-nums">
+        {day}
+        <br />
+        {time}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{event.title}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {event.location.name.toLowerCase()} · {event.going} going
+        </p>
+      </div>
     </div>
   )
 }
@@ -764,16 +952,11 @@ export function JoinCard({
           </Button>
         )}
       </div>
-      {joined && (
-        <p className="mt-3 border-t border-border/60 pt-3 text-xs text-muted-foreground">
-          {host.name.split(" ")[0].toLowerCase()} sees you&apos;re 12 min away
-        </p>
-      )}
     </div>
   )
 }
 
-/** A static pin on a little map patch, for intro cards. */
+/** A static pin on a little map patch, for slides. */
 export function PinPatch({
   event,
   now,
@@ -815,100 +998,18 @@ export function PinPatch({
   )
 }
 
-/**
- * The fuse, borrowed from #371 as plain CSS: a ring runs around the
- * category icon, then the flare bursts alight. `lit` false shows the unlit
- * icon; flipping it to true plays the fuse once. Reduced motion skips the
- * travel and just cross-fades.
- */
-export function Fuse({
-  type,
-  lit,
-  size = 112,
-}: {
-  type: EventType
-  lit: boolean
-  size?: number
-}) {
-  const { Icon } = categoryOf(type)
-  return (
-    <div
-      className="relative"
-      style={{ width: size, height: size }}
-      data-lit={lit ? "true" : "false"}
-    >
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 100 100"
-        className="absolute inset-0 h-full w-full -rotate-90"
-      >
-        <circle
-          cx="50"
-          cy="50"
-          r="46"
-          fill="none"
-          stroke="var(--border)"
-          strokeWidth="2"
-          strokeDasharray="2 4"
-        />
-        {lit && (
-          <circle
-            key="fuse"
-            className="proto-fuse"
-            cx="50"
-            cy="50"
-            r="46"
-            fill="none"
-            stroke="var(--primary)"
-            strokeWidth="3"
-            strokeLinecap="round"
-            pathLength={1}
-          />
-        )}
-      </svg>
-      {lit && (
-        <span
-          aria-hidden="true"
-          className="proto-spark absolute inset-0"
-          style={{ ["--r" as string]: `${size / 2 - 4}px` }}
-        >
-          <span className="absolute top-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-accent shadow-[0_0_12px_var(--primary)]" />
-        </span>
-      )}
-      <div
-        className={cn(
-          "absolute inset-3 flex items-center justify-center rounded-full",
-          lit
-            ? "proto-burst bg-accent text-accent-foreground"
-            : "bg-muted text-muted-foreground"
-        )}
-      >
-        <Icon className="h-1/2 w-1/2" />
-      </div>
-    </div>
-  )
-}
-
-/** Keyframes the fragments use. Rendered once by the page. */
+/** Keyframes the screens use. Rendered once by the page. */
 export function ProtoStyles() {
   return (
     <style>{`
-      .proto-fuse { stroke-dasharray: 1; stroke-dashoffset: 1; animation: proto-fuse 1.2s linear forwards; }
-      @keyframes proto-fuse { to { stroke-dashoffset: 0; } }
-      .proto-spark { animation: proto-spark 1.2s linear forwards; }
-      @keyframes proto-spark { from { transform: rotate(0deg); opacity: 1; } 95% { opacity: 1; } to { transform: rotate(360deg); opacity: 0; } }
-      .proto-burst { animation: proto-burst 420ms cubic-bezier(0.34, 1.56, 0.64, 1) 1.2s both; }
-      @keyframes proto-burst { from { transform: scale(0.85); background: var(--muted); color: var(--muted-foreground); } to { transform: none; } }
       .proto-in { animation: proto-in 280ms cubic-bezier(0.32, 0.72, 0, 1); }
       @keyframes proto-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+      .proto-up { animation: proto-up 320ms cubic-bezier(0.32, 0.72, 0, 1); }
+      @keyframes proto-up { from { transform: translateY(24px); opacity: 0.6; } to { transform: none; opacity: 1; } }
       .proto-coach-ring { animation: proto-coach-ring 1.8s ease-out infinite; }
       @keyframes proto-coach-ring { from { box-shadow: 0 0 0 0 var(--primary); } to { box-shadow: 0 0 0 12px transparent; } }
       @media (prefers-reduced-motion: reduce) {
-        .proto-fuse { animation: none; stroke-dashoffset: 0; }
-        .proto-spark { display: none; }
-        .proto-burst { animation: proto-fade 200ms both; }
-        .proto-in, .proto-coach-ring { animation: none; }
-        @keyframes proto-fade { from { opacity: 0; } to { opacity: 1; } }
+        .proto-in, .proto-up, .proto-coach-ring { animation: none; }
       }
     `}</style>
   )
@@ -921,7 +1022,7 @@ type Rect = { top: number; left: number; width: number; height: number }
 /**
  * Dims the screen except one element (found by `data-coach` inside the
  * nearest `[data-coach-root]`), with a card pointing at it. The spotlight is
- * a circle with a huge box-shadow; the card sits above or below the target.
+ * a rounded box with a huge box-shadow; the card sits above or below it.
  */
 export function CoachMark({
   target,
@@ -972,42 +1073,64 @@ export function CoachMark({
     }
   }, [host, target])
 
-  const size = rect ? Math.max(rect.width, rect.height) + 16 : 0
-  const cx = rect ? rect.left + rect.width / 2 : 0
-  const cy = rect ? rect.top + rect.height / 2 : 0
-  const below = rect ? cy < rootH / 2 : true
+  const pad = 8
+  const round = rect ? Math.abs(rect.width - rect.height) < 24 : true
+  const box = rect
+    ? round
+      ? (() => {
+          const size = Math.max(rect.width, rect.height) + pad * 2
+          return {
+            top: rect.top + rect.height / 2 - size / 2,
+            left: rect.left + rect.width / 2 - size / 2,
+            width: size,
+            height: size,
+          }
+        })()
+      : {
+          top: rect.top - pad,
+          left: rect.left - pad,
+          width: rect.width + pad * 2,
+          height: rect.height + pad * 2,
+        }
+    : null
+  const below = box ? box.top + box.height / 2 < rootH / 2 : true
   const last = index === count - 1
 
   return (
     <div
       ref={setHost}
-      className="absolute inset-0 z-20"
+      className="absolute inset-0 z-30"
       role="dialog"
       aria-label={title}
     >
-      {rect && (
+      {box && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute rounded-full"
+          className={cn(
+            "pointer-events-none absolute",
+            round ? "rounded-full" : "rounded-2xl"
+          )}
           style={{
-            top: cy - size / 2,
-            left: cx - size / 2,
-            width: size,
-            height: size,
+            ...box,
             boxShadow: "0 0 0 200vmax oklch(0.15 0.02 266 / 0.62)",
           }}
         >
-          <span className="proto-coach-ring absolute inset-0 rounded-full" />
+          <span
+            className={cn(
+              "proto-coach-ring absolute inset-0",
+              round ? "rounded-full" : "rounded-2xl"
+            )}
+          />
         </div>
       )}
-      {rect && (
+      {box && (
         <div
           key={target}
           className="proto-in absolute inset-x-4 rounded-2xl bg-card p-4 shadow-xl"
           style={
             below
-              ? { top: cy + size / 2 + 12 }
-              : { bottom: rootH - (cy - size / 2) + 12 }
+              ? { top: box.top + box.height + 12 }
+              : { bottom: rootH - box.top + 12 }
           }
         >
           <p className="text-xs text-muted-foreground">
