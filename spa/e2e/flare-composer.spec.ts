@@ -188,7 +188,10 @@ test.describe("flare composer", () => {
   // check for the iOS panning side of the issue.
   test("location search with the keyboard up keeps suggestions visible and tappable", async ({
     page,
+    hasTouch,
   }) => {
+    // The CTA only steps aside on a coarse pointer, i.e. a phone.
+    test.skip(!hasTouch, "keyboard layout is touch only")
     await page.addInitScript(() => {
       const listeners: Record<string, Array<() => void>> = {}
       const vv = {
@@ -284,5 +287,62 @@ test.describe("flare composer", () => {
     await first.click()
     await expect(input).not.toBeFocused()
     await expect(cta).toBeVisible()
+  })
+
+  // #366: on "pick a time" the wheels sat over their "start"/"end" labels, the
+  // selected row drifted off the highlight band and the end wheel showed a
+  // gap. Pin the geometry: label above wheel, three rows tall, selected row
+  // on the band, for both wheels, including at the end of a list.
+  test("pick a time keeps each wheel below its label with the selection centred", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "flare", exact: true }).click()
+    await page.getByRole("tab", { name: "pick a time" }).click()
+
+    const wheels = [
+      {
+        label: "start",
+        list: page.getByRole("listbox", { name: "start time" }),
+      },
+      { label: "end", list: page.getByRole("listbox", { name: "end time" }) },
+    ]
+    for (const { list } of wheels) await expect(list).toBeVisible()
+
+    const check = async (): Promise<void> => {
+      for (const { label, list } of wheels) {
+        const labelBox = await page
+          .getByText(label, { exact: true })
+          .first()
+          .boundingBox()
+        const wheel = await list.boundingBox()
+        const selected = await list
+          .locator('[role="option"][aria-selected="true"]')
+          .boundingBox()
+        expect(labelBox).not.toBeNull()
+        expect(wheel).not.toBeNull()
+        expect(selected).not.toBeNull()
+        // The label sits wholly above the wheel.
+        expect(labelBox!.y + labelBox!.height).toBeLessThanOrEqual(wheel!.y + 1)
+        // Three 36px rows, with the selected one on the middle row.
+        expect(wheel!.height).toBeCloseTo(108, 0)
+        const wheelMid = wheel!.y + wheel!.height / 2
+        expect(selected!.y + selected!.height / 2).toBeCloseTo(wheelMid, 0)
+      }
+    }
+
+    await expect(async () => {
+      await check()
+    }).toPass()
+
+    // Run each wheel to its last option, where the list has one empty slot
+    // below the selection by design, and check nothing else moves.
+    for (const { list } of wheels) {
+      await list.evaluate((el) => {
+        el.scrollTo({ top: el.scrollHeight })
+      })
+    }
+    await expect(async () => {
+      await check()
+    }).toPass()
   })
 })
