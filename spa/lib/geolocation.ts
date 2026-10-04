@@ -116,26 +116,26 @@ export function useGeolocation(options?: {
   const handleError = useCallback((err: GeolocationPositionError) => {
     if (err.code === err.PERMISSION_DENIED) {
       setStatus("denied")
-      setErrorMessage("Location permission denied")
+      setErrorMessage("location permission denied")
     } else if (err.code === err.POSITION_UNAVAILABLE) {
       setStatus("unavailable")
-      setErrorMessage("Location unavailable")
+      setErrorMessage("location unavailable")
     } else {
       setStatus("error")
-      setErrorMessage(err.message || "Unable to determine location")
+      setErrorMessage(err.message || "unable to determine location")
     }
   }, [])
 
   const request = useCallback(() => {
     if (typeof window === "undefined" || !navigator.geolocation) {
       setStatus("unavailable")
-      setErrorMessage("Geolocation not supported")
+      setErrorMessage("geolocation not supported")
       return
     }
     if (!isSecureGeolocationContext()) {
       setStatus("unavailable")
       setErrorMessage(
-        "Location needs a secure connection. Open this app on localhost or HTTPS."
+        "location needs a secure connection, open this app on localhost or https"
       )
       return
     }
@@ -156,7 +156,7 @@ export function useGeolocation(options?: {
       queueMicrotask(() => {
         setStatus("unavailable")
         setErrorMessage(
-          "Location needs a secure connection. Open this app on localhost or HTTPS."
+          "location needs a secure connection, open this app on localhost or https"
         )
       })
       return
