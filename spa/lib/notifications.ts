@@ -53,6 +53,20 @@ function hrefFor(notification: ApiNotification): string {
     return `/event/${notification.targetId}?tab=updates`
   }
 
+  // Everyone these notices go to can open the flare: the host (rsvp), invited
+  // guests, and going/maybe guests of a cancelled or reactivated flare (the
+  // detail page shows a cancelled state, it isn't hidden) (#430).
+  if (
+    type === "event_rsvp_change" ||
+    type === "event_invitation" ||
+    type === "event_cancelled" ||
+    type === "event_reactivated"
+  ) {
+    return `/event/${notification.targetId}`
+  }
+
+  // A removed guest can't see the flare any more (the API 404s it), so
+  // event_guest_removed stays on the list.
   return "/event"
 }
 

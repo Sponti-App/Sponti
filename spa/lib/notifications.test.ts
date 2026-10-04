@@ -31,11 +31,32 @@ describe("adaptApiNotification", () => {
     expect(notification.subtitle).toBe("grabbing a table")
   })
 
-  it("keeps other event notifications on the flares list", () => {
+  it.each([
+    "event_rsvp_change",
+    "event_invitation",
+    "event_cancelled",
+    "event_reactivated",
+  ] as const)("opens the flare itself for %s (#430)", (type) => {
+    const notification = adaptApiNotification(apiNotification({ type }))
+
+    expect(notification.href).toBe("/event/event-1")
+  })
+
+  it("keeps a removed guest's notice on the flares list (#430)", () => {
     const notification = adaptApiNotification(
-      apiNotification({ type: "event_invitation" })
+      apiNotification({ type: "event_guest_removed" })
     )
 
     expect(notification.href).toBe("/event")
+  })
+
+  it("opens the people tab for connection notices", () => {
+    for (const type of ["connection_request", "connection_accepted"] as const) {
+      const notification = adaptApiNotification(
+        apiNotification({ type, targetType: "connection" })
+      )
+
+      expect(notification.href).toBe("/circles?tab=people")
+    }
   })
 })
