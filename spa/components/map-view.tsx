@@ -1501,8 +1501,8 @@ function GeolocationBanner({
     return null
   const msg =
     status === "denied"
-      ? "showing last known area - enable location for nearby flares"
-      : "couldn't update your location - showing last known area"
+      ? "showing last known area, enable location for nearby flares"
+      : "couldn't update your location, showing last known area"
   return (
     <div
       className={`flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs ${
