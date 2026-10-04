@@ -65,6 +65,9 @@ export default defineConfig({
     reuseExistingServer: !isCI,
     timeout: 120_000,
     env: {
+      // Hide Next's dev-tools badge: it covers the bottom nav's home tab and
+      // blocks taps on it (#434). Read by next.config.mjs.
+      E2E_HIDE_DEV_INDICATOR: "1",
       // Fake, unresolvable hosts. Nothing here is ever meant to receive a
       // real network request — every call to either base is intercepted by
       // page.route in the tests (see e2e/support/stubs.ts). If a test hits
