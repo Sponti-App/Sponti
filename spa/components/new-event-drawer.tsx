@@ -2261,7 +2261,7 @@ function WherePicker({
   const expanded = whereType === "search"
   const currentHint =
     geoStatus === "requesting"
-      ? "finding your location..."
+      ? "finding your location"
       : geoStatus === "denied" ||
           geoStatus === "unavailable" ||
           geoStatus === "error"
