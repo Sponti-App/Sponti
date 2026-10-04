@@ -1,8 +1,10 @@
 "use client"
 
-// Thin wrapper around @capacitor/haptics with a silent web fallback.
-// Import `haptic` from here instead of calling Capacitor directly so the
-// web build never throws and the call sites stay clean.
+// Thin wrapper around @capacitor/haptics with a web fallback. In the native
+// app it uses Capacitor; in a browser it falls back to navigator.vibrate
+// (Android Chrome). iPhone Safari has no vibration API, so there it stays
+// silent. Import `haptic` from here instead of calling Capacitor directly so
+// the web build never throws and the call sites stay clean.
 //
 // Usage:
 //   haptic("selection")   — light tick (tab switch, snap point)
@@ -23,11 +25,32 @@ type HapticStyle =
   | "warning"
   | "error"
 
+// Short vibration patterns (ms) per style for the web fallback. Arrays are
+// vibrate/pause/vibrate; kept brief so they read as taps, not buzzes.
+const WEB_PATTERNS: Record<HapticStyle, number | number[]> = {
+  selection: 5,
+  light: 10,
+  medium: 20,
+  heavy: 35,
+  success: [15, 40, 15],
+  warning: [25, 50, 25],
+  error: [40, 40, 40, 40, 40],
+}
+
+function webVibrate(style: HapticStyle) {
+  try {
+    if (typeof navigator === "undefined") return
+    if (typeof navigator.vibrate !== "function") return
+    navigator.vibrate(WEB_PATTERNS[style])
+  } catch {
+    // Vibration may be blocked (no user activation, permissions policy) — fail silently.
+  }
+}
+
 let _haptics: typeof import("@capacitor/haptics") | null = null
 
 async function getHaptics() {
   if (_haptics) return _haptics
-  if (!Capacitor.isNativePlatform()) return null
   try {
     _haptics = await import("@capacitor/haptics")
     return _haptics
@@ -37,6 +60,11 @@ async function getHaptics() {
 }
 
 export async function haptic(style: HapticStyle = "selection"): Promise<void> {
+  if (!Capacitor.isNativePlatform()) {
+    webVibrate(style)
+    return
+  }
+
   const h = await getHaptics()
   if (!h) return
 
