@@ -178,6 +178,16 @@ type StubBackendOptions = {
    * (#289). All unset by default.
    */
   ownProfile?: Partial<StubOwnProfile>
+  /**
+   * Start signed out: no session is seeded, and POST /auth/register and
+   * /auth/login answer with the stub user's tokens, so a test can drive the
+   * real sign-in or sign-up form. Signed in by default.
+   */
+  signedOut?: boolean
+  /**
+   * How many accepted connections GET /connections lists. Zero by default.
+   */
+  friends?: number
 }
 
 /** The self-authored fields GET /auth/me and PATCH /auth/me/profile carry. */
@@ -242,12 +252,30 @@ export async function stubBackend(
     profileVisibility: options.profileVisibility ?? STUB_USER.profileVisibility,
   }
   const coords = options.coords ?? STUB_COORDS
+  const signedOut = options.signedOut ?? false
+  const connections = Array.from({ length: options.friends ?? 0 }, (_, i) => ({
+    _id: `conn-${i}`,
+    requesterId: user.id,
+    receiverId: `friend-${i}`,
+    status: "accepted",
+    otherUser: { _id: `friend-${i}`, username: `friend${i}` },
+  }))
 
   await page.addInitScript(
-    ({ accessTokenKey, refreshTokenKey, userKey, coordsKey, user, coords }) => {
-      window.localStorage.setItem(accessTokenKey, "e2e-access-token")
-      window.localStorage.setItem(refreshTokenKey, "e2e-refresh-token")
-      window.localStorage.setItem(userKey, JSON.stringify(user))
+    ({
+      accessTokenKey,
+      refreshTokenKey,
+      userKey,
+      coordsKey,
+      user,
+      coords,
+      signedOut,
+    }) => {
+      if (!signedOut) {
+        window.localStorage.setItem(accessTokenKey, "e2e-access-token")
+        window.localStorage.setItem(refreshTokenKey, "e2e-refresh-token")
+        window.localStorage.setItem(userKey, JSON.stringify(user))
+      }
       window.localStorage.setItem(coordsKey, JSON.stringify(coords))
     },
     {
@@ -257,12 +285,24 @@ export async function stubBackend(
       coordsKey: LAST_KNOWN_COORDS_KEY,
       user,
       coords,
+      signedOut,
     }
   )
 
   await page.route(`${AUTH_BASE}/**`, async (route) => {
     const url = new URL(route.request().url())
 
+    if (
+      route.request().method() === "POST" &&
+      (url.pathname === "/auth/register" || url.pathname === "/auth/login")
+    ) {
+      await fulfillJson(route, {
+        accessToken: "e2e-access-token",
+        refreshToken: "e2e-refresh-token",
+        user: { ...user, ...ownProfile },
+      })
+      return
+    }
     if (url.pathname === "/auth/me") {
       await fulfillJson(route, { user: { ...user, ...ownProfile } })
       return
@@ -315,6 +355,18 @@ export async function stubBackend(
 
     if (path === "/events/map/active") {
       await fulfillJson(route, { data: mapEvents })
+      return
+    }
+    if (path === "/connections" && route.request().method() === "GET") {
+      await fulfillJson(route, {
+        data: connections,
+        pagination: {
+          page: 1,
+          limit: 100,
+          total: connections.length,
+          totalPages: 1,
+        },
+      })
       return
     }
     if (path === "/events/calendar/upcoming") {
