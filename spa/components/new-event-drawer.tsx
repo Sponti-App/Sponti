@@ -2132,7 +2132,7 @@ function TimeRange({
   )
 }
 
-function TimeWheel({
+export function TimeWheel({
   options,
   value,
   onChange,
@@ -2148,6 +2148,14 @@ function TimeWheel({
   const PAD = Math.floor(VISIBLE / 2) * ITEM_H
   const ref = useRef<HTMLDivElement>(null)
   const timer = useRef<number | null>(null)
+  // The settle below fires 90 ms after the last scroll, so it must read what is
+  // current then, not what the render that scheduled it closed over: the other
+  // wheel can rebuild this wheel's list in between, and a stale list could
+  // settle on a value that is no longer an option (#436).
+  const latest = useRef({ options, value, onChange })
+  useEffect(() => {
+    latest.current = { options, value, onChange }
+  })
 
   useEffect(() => {
     const idx = options.findIndex((o) => o.value === value)
@@ -2163,6 +2171,7 @@ function TimeWheel({
     if (!el) return
     if (timer.current !== null) window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => {
+      const { options, value, onChange } = latest.current
       const idx = Math.round(el.scrollTop / ITEM_H)
       const clamped = Math.max(0, Math.min(idx, options.length - 1))
       const next = options[clamped]
