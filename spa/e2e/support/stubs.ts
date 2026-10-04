@@ -159,7 +159,8 @@ type StubBackendOptions = {
   mapEvents?: StubApiEvent[]
   /**
    * GET /events/:id answers with the map event of that id. Pass more here
-   * for flares that aren't on the map.
+   * for flares that aren't on the map. Any other id answers 404
+   * EVENT_NOT_FOUND, like the api.
    */
   events?: StubApiEvent[]
   /** Profiles by username; any other username answers 404 USER_NOT_FOUND. */
@@ -466,8 +467,16 @@ export async function stubBackend(
       const event = eventsById.get(eventMatch[1])
       if (event) {
         await fulfillJson(route, { data: event })
-        return
+      } else {
+        // The api's answer for a flare that doesn't exist or isn't visible
+        // (eventService.getEventById, through the error handler).
+        await fulfillJson(
+          route,
+          { error: { message: "Event not found", code: "EVENT_NOT_FOUND" } },
+          404
+        )
       }
+      return
     }
     if (route.request().method() === "POST" && path === "/events") {
       await fulfillJson(
