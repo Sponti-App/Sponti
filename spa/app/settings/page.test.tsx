@@ -183,9 +183,10 @@ describe("SettingsPage account tab", () => {
     )
   })
 
-  it("replay map tips resets the location choice, and says to sign out (#482)", async () => {
+  it("replay map tips resets the coach marks and the location choice, and says to sign out (#482)", async () => {
     const user = userEvent.setup()
     window.localStorage.setItem("sponti.intro-slides.v1", "seen")
+    window.localStorage.setItem("sponti.coach-marks.v1", "seen")
     window.localStorage.setItem(
       "sponti.location-choice.v1",
       '{"kind":"location"}'
@@ -195,6 +196,7 @@ describe("SettingsPage account tab", () => {
     await user.click(screen.getByRole("switch", { name: "new onboarding" }))
     await user.click(screen.getByRole("button", { name: "replay map tips" }))
 
+    expect(window.localStorage.getItem("sponti.coach-marks.v1")).toBeNull()
     expect(window.localStorage.getItem("sponti.location-choice.v1")).toBeNull()
     expect(window.localStorage.getItem("sponti.intro-slides.v1")).toBe("seen")
     expect(mocks.showActionFeedback).toHaveBeenCalledWith(
