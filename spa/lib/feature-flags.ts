@@ -80,6 +80,17 @@ export const featureFlags = {
   locationAsk: FEATURE_PROFILE === "full",
 
   /**
+   * Coach marks (#379, flare moments #370): three marks on the signed-out
+   * map, once per device, after the intro slides and before the location
+   * ask: the idea spot ("ideas nearby"), the flare button ("light a flare")
+   * and the map/calendar toggle ("soon lives here"). Each has "n of 3", skip
+   * and next; there is no replay. They sit on #389's signed-out home, so they
+   * need `browseBeforeSignup` too. Full profile only; off, nothing shows and
+   * the location ask doesn't wait.
+   */
+  coachMarks: FEATURE_PROFILE === "full",
+
+  /**
    * The mobile-only gate (#467): on a desktop-sized screen without touch,
    * a calm "sponti is made for your phone" notice with a QR code to open the
    * page on a phone, and "continue anyway" (remembered per device). It is for
