@@ -38,6 +38,7 @@ import { CheckIcon as PhCheck } from "@phosphor-icons/react/dist/ssr/Check"
 import { CircleNotchIcon as PhCircleNotch } from "@phosphor-icons/react/dist/ssr/CircleNotch"
 import { ClockIcon as PhClock } from "@phosphor-icons/react/dist/ssr/Clock"
 import { ConfettiIcon as PhConfetti } from "@phosphor-icons/react/dist/ssr/Confetti"
+import { CopyIcon as PhCopy } from "@phosphor-icons/react/dist/ssr/Copy"
 import { DotsThreeIcon as PhDotsThree } from "@phosphor-icons/react/dist/ssr/DotsThree"
 import { EnvelopeIcon as PhEnvelope } from "@phosphor-icons/react/dist/ssr/Envelope"
 import { EyeSlashIcon as PhEyeSlash } from "@phosphor-icons/react/dist/ssr/EyeSlash"
@@ -131,6 +132,7 @@ export const CheckIcon = appIcon(PhCheck, "check")
 export const CircleNotchIcon = appIcon(PhCircleNotch, "circle-notch")
 export const ClockIcon = appIcon(PhClock, "clock")
 export const ConfettiIcon = appIcon(PhConfetti, "confetti")
+export const CopyIcon = appIcon(PhCopy, "copy")
 export const DotsThreeIcon = appIcon(PhDotsThree, "dots-three")
 export const EnvelopeIcon = appIcon(PhEnvelope, "envelope")
 export const EyeSlashIcon = appIcon(PhEyeSlash, "eye-slash")
