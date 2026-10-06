@@ -36,12 +36,12 @@ import {
   type Step,
   type StepProps,
 } from "./_shared"
-import { Slides, slidesFor } from "./_slides"
+import { SLIDES, Slides } from "./_slides"
 
 // ---- steps -----------------------------------------------------------------
 
 export function flowSteps(state: ProtoState): Step[] {
-  const slides = slidesFor(state.slides).map((_, i) => ({
+  const slides = SLIDES.map((_, i) => ({
     key: `slide-${i + 1}`,
     label: String(i + 1),
     stage: "slides",
@@ -179,7 +179,7 @@ export function Flow({ state, now, go, stub }: StepProps) {
     const index = Number(s.slice(6)) - 1
     return (
       <Slides
-        take={state.slides}
+        art={state.art}
         index={index}
         now={now}
         go={(i) => go(`slide-${i + 1}`)}

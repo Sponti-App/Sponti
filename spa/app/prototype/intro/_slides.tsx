@@ -1,246 +1,200 @@
 "use client"
 
-// PROTOTYPE (#373) — the intro slides, round 2. They say what sponti is and
-// what it's for, and show the two kinds of flare: "right now" and "pick a
-// time" (soon). They end on the map, not on sign-up: a visitor looks around
-// first and is asked for an account when they light a flare.
+// PROTOTYPE (#373) — the intro slides, round 3. Three slides: what sponti is,
+// why it exists, how to light a flare. Calm and trustworthy: full-bleed grainy
+// gradients that drift slowly, abstract blurred figures, large quiet type, a
+// full-width pill button and progress dots. Still under prefers-reduced-motion.
 //
-// A: three slides. what it's for → now or soon (the composer's real tabs
-//    switch the fragment) → they join.
-// B: four slides. what it is → right now → soon → who sees it (the privacy
-//    slide, to compare against leaving privacy until the sign-up ask).
-// C: one screen. now and soon side by side, three goal lines, go.
+// ?art=A: code-drawn. Blurred SVG/CSS shapes plus an SVG feTurbulence grain,
+//         no image files.
+// ?art=B: image slots. Placeholder raster areas at the size a commissioned or
+//         generated illustration would be, with the gradient and grain on top.
 
-import { useRef, useState } from "react"
+import { useId, useRef } from "react"
 import {
   ArrowRightIcon,
+  AtIcon,
   BellIcon,
   CalendarBlankIcon,
-  GlobeIcon,
-  LockIcon,
-  MapTrifoldIcon,
-  UsersIcon,
+  ChatIcon,
+  ChatTextIcon,
+  EnvelopeIcon,
+  MegaphoneIcon,
+  type Icon,
 } from "@/components/icons"
-import { FlarePreviewCard, timeLeftLabel } from "@/components/map-flare-pin"
+import { timeLeftLabel } from "@/components/map-flare-pin"
 import { cn } from "@/lib/utils"
-import { BERLIN, PEOPLE, SOON, mockFlares } from "./_mock"
+import { SOON, mockFlares } from "./_mock"
 import {
   BrandMark,
   CalendarRow,
   InkButton,
-  JoinCard,
-  MapGrid,
   PeachButton,
-  PersonAvatar,
-  PinPatch,
-  Progress,
   TextButton,
-  WhenTabs,
 } from "./_shared"
 
-type Slide = {
-  id: string
-  title: string
-  body: string | ((mode: Mode) => string)
-  Fragment: (p: FragmentProps) => React.ReactNode
-}
-type Mode = "now" | "scheduled"
-type FragmentProps = {
-  now: number
-  mode: Mode
-  setMode: (m: Mode) => void
-}
+type Art = "A" | "B"
+type Kind = "what" | "why" | "how"
 
-// ---- fragments --------------------------------------------------------------
-
-function LivePatch({ now }: FragmentProps) {
-  const [canal, climb, pho] = mockFlares(now)
-  return (
-    <PinPatch
-      event={canal}
-      others={[climb, pho]}
-      now={now}
-      className="w-full"
-    />
-  )
-}
-
-/** "right now": the real preview card of a live flare. */
-function LiveCard({ now }: { now: number }) {
-  const [canal] = mockFlares(now)
-  return (
-    <div className="flex justify-center">
-      <FlarePreviewCard
-        event={canal}
-        own={false}
-        user={BERLIN}
-        now={now}
-        onClose={() => {}}
-      />
-    </div>
-  )
-}
-
-/** "pick a time": calendar rows. */
-function SoonRows({ now, className }: { now: number; className?: string }) {
-  return (
-    <div className={cn("flex w-full flex-col gap-2", className)}>
-      {SOON.map(({ flare, day }, i) => (
-        <CalendarRow
-          key={day}
-          event={flare(now)}
-          day={day}
-          time={i === 0 ? "14:00" : "20:30"}
-        />
-      ))}
-    </div>
-  )
-}
-
-function NowOrSoon(p: FragmentProps) {
-  return (
-    <div className="flex w-full flex-col gap-4">
-      <WhenTabs value={p.mode} onChange={p.setMode} />
-      <div key={p.mode} className="proto-in">
-        {p.mode === "now" ? <LiveCard now={p.now} /> : <SoonRows now={p.now} />}
-      </div>
-    </div>
-  )
-}
-
-function JoinFragment({ now }: FragmentProps) {
-  const [joined, setJoined] = useState(false)
-  const [canal] = mockFlares(now)
-  return (
-    <JoinCard
-      event={canal}
-      host={PEOPLE.mia}
-      joined={joined}
-      onJoin={() => setJoined(true)}
-      goingPeople={[PEOPLE.jonas, PEOPLE.lena, PEOPLE.sam]}
-      className="w-full"
-    />
-  )
-}
-
-function People() {
-  return (
-    <div className="flex flex-col items-center gap-4">
-      <div className="flex -space-x-3">
-        {Object.values(PEOPLE).map((p) => (
-          <PersonAvatar key={p.name} person={p} className="size-14" />
-        ))}
-      </div>
-      <span className="rounded-full bg-card px-3 py-1.5 text-xs text-muted-foreground shadow">
-        mia: drinks at the canal, who&apos;s in?
-      </span>
-    </div>
-  )
-}
-
-function WhoFragment() {
-  const rows = ["all friends", "climbing crew", "pick people"]
-  return (
-    <div className="flex w-full flex-col gap-3 rounded-2xl border border-border bg-background p-3 shadow-(--shadow-card)">
-      <div className="flex flex-col gap-1">
-        {rows.map((label, i) => (
-          <div
-            key={label}
-            className={cn(
-              "flex items-center gap-2 rounded-xl px-3 py-2 text-sm",
-              i === 1
-                ? "bg-card font-semibold text-primary"
-                : "text-muted-foreground"
-            )}
-          >
-            <UsersIcon className="size-4" />
-            {label}
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-2 border-t border-border/60 pt-3 text-xs">
-        <span className="flex flex-1 items-center gap-1.5 rounded-full bg-flare-invite px-3 py-1.5 text-flare-invite-ink">
-          <LockIcon className="size-3.5" />
-          invite only
-        </span>
-        <span className="flex flex-1 items-center gap-1.5 rounded-full bg-flare-open px-3 py-1.5 text-flare-open-ink">
-          <GlobeIcon className="size-3.5" />
-          open to all
-        </span>
-      </div>
-    </div>
-  )
-}
-
-// ---- takes -----------------------------------------------------------------
-
-const TAKE_A: Slide[] = [
-  {
-    id: "a-what",
-    title: "get your people out, today",
-    body: "sponti shows what your friends are up to, on a map. no group chat, no planning thread.",
-    Fragment: LivePatch,
-  },
-  {
-    id: "a-kinds",
-    title: "right now, or soon",
-    body: (mode) =>
-      mode === "now"
-        ? "right now: you're heading out within the hour. it's live on your friends' map."
-        : "pick a time: later today or this week. it waits in their calendar, then goes live.",
-    Fragment: NowOrSoon,
-  },
-  {
-    id: "a-join",
-    title: "they tap in",
-    body: "one tap to join. you see who's coming, and nobody else gets a ping.",
-    Fragment: JoinFragment,
-  },
+export const SLIDES: { id: Kind }[] = [
+  { id: "what" },
+  { id: "why" },
+  { id: "how" },
 ]
 
-const TAKE_B: Slide[] = [
-  {
-    id: "b-what",
-    title: "sponti is for getting out with friends",
-    body: "light a flare when you're up for something. friends who are free join you.",
-    Fragment: () => <People />,
-  },
-  {
-    id: "b-now",
-    title: "right now",
-    body: "heading out in the next hour? a right now flare is live on your friends' map until it ends.",
-    Fragment: ({ now }) => <LiveCard now={now} />,
-  },
-  {
-    id: "b-soon",
-    title: "soon",
-    body: "planning for later? pick a time and it sits in their calendar until it starts.",
-    Fragment: ({ now }) => <SoonRows now={now} />,
-  },
-  {
-    id: "b-who",
-    title: "only who you pick",
-    body: "all your friends, one circle or a few people. invite only, or open to all.",
-    Fragment: () => <WhoFragment />,
-  },
-]
+// ---- palette -----------------------------------------------------------------
 
-export function slidesFor(take: "A" | "B" | "C"): { id: string }[] {
-  if (take === "C") return [{ id: "c-one" }]
-  return take === "A" ? TAKE_A : TAKE_B
+// Sponti's tokens, so both themes come for free: peach (the accent), plum and
+// teal (the pin tints), cream / navy (the background).
+const PEACH = "var(--primary)"
+const PLUM = "var(--flare-invite)"
+const PLUM_INK = "var(--flare-invite-ink)"
+const TEAL = "var(--flare-open)"
+const TEAL_INK = "var(--flare-open-ink)"
+const BG = "var(--background)"
+const FG = "var(--foreground)"
+/** The lone figures: dark plum on cream, a plum shade on navy. */
+const SILHOUETTE = "var(--intro-silhouette)"
+const mix = (a: string, pct: number, b: string) =>
+  `color-mix(in oklch, ${a} ${pct}%, ${b})`
+
+type Blob = {
+  color: string
+  /** Position and size, in % of the screen. */
+  x: number
+  y: number
+  size: number
+  drift: "a" | "b" | "c"
+  seconds: number
 }
 
-// ---- screens ---------------------------------------------------------------
+const BLOBS: Record<Kind, Blob[]> = {
+  what: [
+    {
+      color: mix(PEACH, 70, BG),
+      x: -30,
+      y: -20,
+      size: 120,
+      drift: "a",
+      seconds: 26,
+    },
+    {
+      color: mix(PLUM, 85, BG),
+      x: 30,
+      y: 5,
+      size: 110,
+      drift: "b",
+      seconds: 32,
+    },
+    {
+      color: mix(TEAL, 70, BG),
+      x: -40,
+      y: 40,
+      size: 100,
+      drift: "c",
+      seconds: 29,
+    },
+  ],
+  why: [
+    {
+      color: mix(PLUM_INK, 30, BG),
+      x: -20,
+      y: -30,
+      size: 140,
+      drift: "b",
+      seconds: 34,
+    },
+    {
+      color: mix(PLUM, 70, BG),
+      x: 20,
+      y: 25,
+      size: 110,
+      drift: "a",
+      seconds: 30,
+    },
+    {
+      color: mix(TEAL_INK, 18, BG),
+      x: -50,
+      y: 10,
+      size: 100,
+      drift: "c",
+      seconds: 38,
+    },
+  ],
+  how: [
+    {
+      color: mix(PEACH, 85, BG),
+      x: -10,
+      y: 0,
+      size: 110,
+      drift: "a",
+      seconds: 24,
+    },
+    {
+      color: mix(TEAL, 90, BG),
+      x: -55,
+      y: -25,
+      size: 105,
+      drift: "c",
+      seconds: 28,
+    },
+    {
+      color: mix(PLUM, 90, BG),
+      x: 35,
+      y: -20,
+      size: 105,
+      drift: "b",
+      seconds: 31,
+    },
+    {
+      color: mix(PEACH, 50, PLUM),
+      x: 20,
+      y: 35,
+      size: 90,
+      drift: "c",
+      seconds: 27,
+    },
+  ],
+}
+
+/** What an image slot would hold, at 3x for a 390 pt wide phone. */
+const SLOT: Record<Kind, { size: string; brief: string }> = {
+  what: { size: "1170 × 1440", brief: "a head among small floating objects" },
+  why: { size: "1170 × 1440", brief: "one softly lit person on a phone" },
+  how: { size: "1170 × 1080", brief: "a blurred, colourful crowd" },
+}
+
+// ---- copy --------------------------------------------------------------------
+
+const COPY: Record<Kind, { eyebrow: string; title: string; body: string }> = {
+  what: {
+    eyebrow: "what sponti is",
+    title: "plans with friends, right now or soon",
+    body: "overwhelmed by messengers, group chats, event pages, calendars and email? sponti is for you. don't take our word for it: give it a try.",
+  },
+  why: {
+    eyebrow: "why it exists",
+    title: "we're more connected than ever, and more alone",
+    body: "messages everywhere, and still no time to catch up with your best friends. step back from the feed, and you miss the thing you wanted to go to.",
+  },
+  how: {
+    eyebrow: "how it works",
+    title: "light a flare",
+    body: "let the people you want to see know what you're up to, so they can join.",
+  },
+}
+
+// ---- screens -----------------------------------------------------------------
 
 export function Slides({
-  take,
+  art,
   index,
   now,
   go,
   onDone,
   onSignIn,
 }: {
-  take: "A" | "B" | "C"
+  art: Art
   index: number
   now: number
   go: (i: number) => void
@@ -248,45 +202,15 @@ export function Slides({
   onDone: () => void
   onSignIn: () => void
 }) {
-  if (take === "C")
-    return <OneScreen now={now} onDone={onDone} onSignIn={onSignIn} />
-  const slides = take === "A" ? TAKE_A : TAKE_B
-  return (
-    <Carousel
-      slides={slides}
-      index={Math.min(index, slides.length - 1)}
-      now={now}
-      go={go}
-      onDone={onDone}
-      onSignIn={onSignIn}
-    />
-  )
-}
-
-function Carousel({
-  slides,
-  index,
-  now,
-  go,
-  onDone,
-  onSignIn,
-}: {
-  slides: Slide[]
-  index: number
-  now: number
-  go: (i: number) => void
-  onDone: () => void
-  onSignIn: () => void
-}) {
-  const [mode, setMode] = useState<Mode>("now")
+  const i = Math.min(Math.max(index, 0), SLIDES.length - 1)
+  const kind = SLIDES[i].id
+  const last = i === SLIDES.length - 1
+  const copy = COPY[kind]
   const touchX = useRef<number | null>(null)
-  const slide = slides[index]
-  const last = index === slides.length - 1
-  const body = typeof slide.body === "function" ? slide.body(mode) : slide.body
 
   return (
     <div
-      className="flex min-h-dvh flex-col bg-background px-6"
+      className="relative isolate flex min-h-dvh flex-col overflow-hidden bg-background"
       onTouchStart={(e) => {
         touchX.current = e.touches[0].clientX
       }}
@@ -294,126 +218,618 @@ function Carousel({
         if (touchX.current === null) return
         const dx = e.changedTouches[0].clientX - touchX.current
         touchX.current = null
-        if (dx <= -48 && !last) go(index + 1)
-        else if (dx >= 48 && index > 0) go(index - 1)
+        if (dx <= -48 && !last) go(i + 1)
+        else if (dx >= 48 && i > 0) go(i - 1)
       }}
     >
-      <header className="flex items-center justify-between pt-3">
+      <IntroStyles />
+      <Backdrop kind={kind} art={art} />
+
+      <header className="relative flex items-center justify-between px-6 pt-3">
         <BrandMark />
-        <button
-          type="button"
-          onClick={onDone}
-          className="min-h-11 text-sm font-medium text-muted-foreground"
-        >
-          skip
-        </button>
-      </header>
-      <div className="pt-3">
-        <Progress count={slides.length} index={index} />
-      </div>
-
-      <div key={slide.id} className="proto-in flex flex-1 flex-col">
-        <div className="relative mt-6 flex max-h-[26rem] min-h-72 flex-1 items-center justify-center overflow-hidden rounded-2xl border border-border bg-card px-4 py-6">
-          <MapGrid />
-          <div className="relative w-full">
-            <slide.Fragment now={now} mode={mode} setMode={setMode} />
-          </div>
-        </div>
-        <div className="mt-6">
-          <h1 className="text-lg font-semibold">{slide.title}</h1>
-          <p className="mt-2 min-h-10 text-sm text-muted-foreground">{body}</p>
-        </div>
-      </div>
-
-      <div className="mt-6 flex flex-col gap-1 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-        {last ? (
-          <PeachButton onClick={onDone}>
-            look around
-            <ArrowRightIcon className="size-4" />
-          </PeachButton>
-        ) : (
-          <InkButton onClick={() => go(index + 1)}>
-            next
-            <ArrowRightIcon className="size-4" />
-          </InkButton>
+        {!last && (
+          <button
+            type="button"
+            onClick={onDone}
+            className="min-h-11 text-sm font-medium text-muted-foreground"
+          >
+            skip
+          </button>
         )}
-        <TextButton onClick={onSignIn}>i have an account</TextButton>
+      </header>
+
+      <div className="relative mt-auto flex flex-col px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div key={kind} className="proto-in">
+          <p className="text-sm font-medium text-muted-foreground">
+            {copy.eyebrow}
+          </p>
+          <h1 className="mt-2 text-3xl leading-tight font-medium tracking-tight text-balance">
+            {copy.title}
+          </h1>
+          <p className="mt-3 text-base text-muted-foreground">{copy.body}</p>
+          {kind === "why" && <Sources />}
+          {kind === "how" && <NowOrSoon now={now} />}
+        </div>
+
+        <Dots count={SLIDES.length} index={i} onPick={go} />
+
+        <div className="mt-5 flex flex-col gap-1">
+          {last ? (
+            <PeachButton onClick={onDone}>
+              look around
+              <ArrowRightIcon className="size-4" />
+            </PeachButton>
+          ) : (
+            <InkButton onClick={() => go(i + 1)}>
+              next
+              <ArrowRightIcon className="size-4" />
+            </InkButton>
+          )}
+          <TextButton onClick={onSignIn}>i have an account</TextButton>
+        </div>
       </div>
     </div>
   )
 }
 
-function OneScreen({
-  now,
-  onDone,
-  onSignIn,
+function Dots({
+  count,
+  index,
+  onPick,
 }: {
-  now: number
-  onDone: () => void
-  onSignIn: () => void
+  count: number
+  index: number
+  onPick: (i: number) => void
 }) {
+  return (
+    <div
+      className="mt-6 flex items-center justify-center gap-2"
+      role="tablist"
+      aria-label="intro progress"
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <button
+          key={i}
+          type="button"
+          role="tab"
+          aria-selected={i === index}
+          aria-label={`slide ${i + 1} of ${count}`}
+          onClick={() => onPick(i)}
+          className="flex h-6 items-center"
+        >
+          <span
+            className={cn(
+              "h-1.5 rounded-full transition-all duration-500",
+              i === index ? "w-6 bg-foreground" : "w-1.5 bg-foreground/25"
+            )}
+          />
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** The why slide's sources. The HHS link couldn't be checked from here (the
+ * site blocks scripted requests), so it's text until someone confirms it. */
+function Sources() {
+  return (
+    <p className="mt-3 text-xs text-muted-foreground/80">
+      sources: us surgeon general, &ldquo;our epidemic of loneliness and
+      isolation&rdquo; (2023) ·{" "}
+      <a
+        href="https://www.who.int/publications/i/item/978240112360"
+        target="_blank"
+        rel="noreferrer"
+        className="underline underline-offset-2"
+      >
+        who commission on social connection (2025)
+      </a>
+    </p>
+  )
+}
+
+/** Take C's two rows, restyled to sit on the art. */
+function NowOrSoon({ now }: { now: number }) {
   const [canal] = mockFlares(now)
   const [soon] = SOON
-  const goals = [
-    { Icon: MapTrifoldIcon, text: "see what friends are up to, on a map" },
-    { Icon: CalendarBlankIcon, text: "right now, or at a time you pick" },
-    { Icon: BellIcon, text: "one tap to join, no group-chat noise" },
-  ]
+  const glass =
+    "border-border/60 bg-card/70 backdrop-blur-md supports-[backdrop-filter]:bg-card/55"
   return (
-    <div className="flex min-h-dvh flex-col bg-background px-6">
-      <header className="flex items-center justify-between pt-3">
-        <BrandMark />
-      </header>
-      <div className="proto-in flex flex-1 flex-col justify-center py-6">
-        <h1 className="text-lg font-semibold">
-          light a flare, see who&apos;s in
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          sponti gets friends together with less planning. a flare says what
-          you&apos;re up to, and when.
+    <div className="mt-5 flex flex-col gap-3">
+      <div>
+        <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+          right now
         </p>
-        <div className="mt-6 flex flex-col gap-3">
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-              right now
+        <div
+          className={cn(
+            "flex items-center gap-3 rounded-xl border border-l-[3px] border-l-accent p-3",
+            glass
+          )}
+        >
+          <span className="flex w-14 shrink-0 items-center gap-1.5 text-xs font-medium">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+            live
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{canal.title}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              by mia · ends in{" "}
+              {timeLeftLabel(new Date(canal.endAt).getTime() - now)}
             </p>
-            <div className="flex items-center gap-3 rounded-xl border border-l-[3px] border-border border-l-accent bg-card p-3">
-              <span className="flex w-14 shrink-0 items-center gap-1.5 text-xs font-medium">
-                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                live
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{canal.title}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  by mia · ends in{" "}
-                  {timeLeftLabel(new Date(canal.endAt).getTime() - now)}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-              pick a time
-            </p>
-            <CalendarRow event={soon.flare(now)} day={soon.day} time="14:00" />
           </div>
         </div>
-        <ul className="mt-6 flex flex-col gap-2.5">
-          {goals.map(({ Icon, text }) => (
-            <li key={text} className="flex items-center gap-3 text-sm">
-              <Icon className="size-4 shrink-0 text-muted-foreground" />
-              {text}
-            </li>
-          ))}
-        </ul>
       </div>
-      <div className="flex flex-col gap-1 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-        <PeachButton onClick={onDone}>
-          look around
-          <ArrowRightIcon className="size-4" />
-        </PeachButton>
-        <TextButton onClick={onSignIn}>i have an account</TextButton>
+      <div>
+        <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+          pick a time
+        </p>
+        <CalendarRow
+          event={soon.flare(now)}
+          day={soon.day}
+          time="14:00"
+          className={glass}
+        />
       </div>
     </div>
+  )
+}
+
+// ---- the art -----------------------------------------------------------------
+
+function Backdrop({ kind, art }: { kind: Kind; art: Art }) {
+  const figureBox =
+    kind === "how" ? "aspect-[390/360] top-6" : "aspect-[390/480] top-4"
+  return (
+    <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
+      {art === "B" && (
+        <div
+          className={cn(
+            "absolute inset-x-0 mx-auto w-full max-w-md [mask-image:linear-gradient(to_bottom,black_75%,transparent)]",
+            figureBox
+          )}
+        >
+          <ImageSlot kind={kind} />
+        </div>
+      )}
+      <Gradient kind={kind} className={art === "B" ? "opacity-55" : ""} />
+      {art === "A" && (
+        <div
+          className={cn(
+            "absolute inset-x-0 mx-auto w-full max-w-md [mask-image:linear-gradient(to_bottom,black_60%,transparent_96%)]",
+            figureBox
+          )}
+        >
+          {kind === "what" && <WhatFigure />}
+          {kind === "why" && <WhyFigure />}
+          {kind === "how" && <HowFigure />}
+        </div>
+      )}
+      <Grain />
+      {/* Fades the art into the page under the type. */}
+      <div
+        className="absolute inset-x-0 bottom-0 h-[62%]"
+        style={{
+          background: `linear-gradient(to top, ${BG} 45%, ${mix(BG, 70, "transparent")} 75%, transparent)`,
+        }}
+      />
+    </div>
+  )
+}
+
+function Gradient({ kind, className }: { kind: Kind; className?: string }) {
+  return (
+    <div className={cn("absolute inset-0 overflow-hidden", className)}>
+      {BLOBS[kind].map((b, i) => (
+        <div
+          key={i}
+          className={`intro-drift-${b.drift} absolute rounded-full`}
+          style={{
+            left: `${b.x}%`,
+            top: `${b.y}%`,
+            width: `${b.size}%`,
+            aspectRatio: "1",
+            background: `radial-gradient(closest-side, ${b.color}, transparent)`,
+            animationDuration: `${b.seconds}s`,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+/** Static film grain: SVG fractal noise, blended into whatever is under it. */
+function Grain() {
+  const id = `grain-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`
+  return (
+    <svg
+      className="absolute inset-0 size-full opacity-45 mix-blend-overlay dark:opacity-35 dark:mix-blend-soft-light"
+      aria-hidden
+    >
+      <filter id={id}>
+        <feTurbulence
+          type="fractalNoise"
+          baseFrequency="0.85"
+          numOctaves="3"
+          stitchTiles="stitch"
+        />
+        <feColorMatrix type="saturate" values="0" />
+      </filter>
+      <rect width="100%" height="100%" filter={`url(#${id})`} />
+    </svg>
+  )
+}
+
+function ImageSlot({ kind }: { kind: Kind }) {
+  const slot = SLOT[kind]
+  return (
+    <div
+      className="flex size-full flex-col items-center justify-center gap-1 border-y border-dashed border-foreground/20 text-center"
+      style={{ background: mix(FG, 18, BG) }}
+    >
+      <span className="text-xs font-medium text-foreground/60">
+        image slot · {slot.size} px
+      </span>
+      <span className="text-xs text-foreground/45">{slot.brief}</span>
+    </div>
+  )
+}
+
+// ---- figures (art A) -----------------------------------------------------------
+
+/** One blurred head-and-shoulders, standing on (x, y). */
+function Bust({
+  x,
+  y,
+  scale = 1,
+  fill,
+  filter,
+  className,
+  delay,
+}: {
+  x: number
+  y: number
+  scale?: number
+  fill: string
+  filter?: string
+  className?: string
+  delay?: number
+}) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`}>
+      <g
+        className={className}
+        style={{ fill, animationDelay: delay ? `${delay}s` : undefined }}
+        filter={filter}
+      >
+        <ellipse cx="0" cy="-118" rx="40" ry="48" />
+        <rect x="-16" y="-80" width="32" height="30" rx="10" />
+        <path d="M -100 40 C -100 -24 -64 -58 0 -58 C 64 -58 100 -24 100 40 Z" />
+      </g>
+    </g>
+  )
+}
+
+function useBlurs(levels: number[]) {
+  const base = useId().replace(/[^a-zA-Z0-9_-]/g, "")
+  const ids = levels.map((_, i) => `blur-${base}-${i}`)
+  const defs = (
+    <defs>
+      {levels.map((sd, i) => (
+        <filter
+          key={sd}
+          id={ids[i]}
+          x="-50%"
+          y="-50%"
+          width="200%"
+          height="200%"
+        >
+          <feGaussianBlur stdDeviation={sd} />
+        </filter>
+      ))}
+    </defs>
+  )
+  return { defs, url: (i: number) => `url(#${ids[i]})` }
+}
+
+/** What: a head surrounded by little floating things, the noise. */
+function WhatFigure() {
+  const { defs, url } = useBlurs([6])
+  const things: {
+    Icon?: Icon
+    x: number
+    y: number
+    size: number
+    tone: string
+    ink: string
+    blur: number
+    s: number
+    d: number
+  }[] = [
+    {
+      Icon: ChatIcon,
+      x: 16,
+      y: 34,
+      size: 44,
+      tone: PLUM,
+      ink: PLUM_INK,
+      blur: 0,
+      s: 9,
+      d: 0,
+    },
+    {
+      Icon: EnvelopeIcon,
+      x: 78,
+      y: 26,
+      size: 48,
+      tone: TEAL,
+      ink: TEAL_INK,
+      blur: 0.5,
+      s: 11,
+      d: -3,
+    },
+    {
+      Icon: CalendarBlankIcon,
+      x: 60,
+      y: 9,
+      size: 40,
+      tone: mix(PEACH, 70, BG),
+      ink: PLUM_INK,
+      blur: 1,
+      s: 10,
+      d: -6,
+    },
+    {
+      Icon: BellIcon,
+      x: 88,
+      y: 54,
+      size: 36,
+      tone: PLUM,
+      ink: PLUM_INK,
+      blur: 1.5,
+      s: 8,
+      d: -2,
+    },
+    {
+      Icon: AtIcon,
+      x: 9,
+      y: 60,
+      size: 34,
+      tone: TEAL,
+      ink: TEAL_INK,
+      blur: 1.5,
+      s: 12,
+      d: -5,
+    },
+    {
+      Icon: ChatTextIcon,
+      x: 32,
+      y: 13,
+      size: 36,
+      tone: TEAL,
+      ink: TEAL_INK,
+      blur: 2,
+      s: 9,
+      d: -7,
+    },
+    {
+      Icon: MegaphoneIcon,
+      x: 74,
+      y: 44,
+      size: 30,
+      tone: mix(PEACH, 70, BG),
+      ink: PLUM_INK,
+      blur: 0.5,
+      s: 13,
+      d: -4,
+    },
+    { x: 46, y: 3, size: 14, tone: PLUM, ink: PLUM_INK, blur: 1, s: 7, d: -1 },
+    {
+      x: 26,
+      y: 46,
+      size: 12,
+      tone: mix(PEACH, 80, BG),
+      ink: PLUM_INK,
+      blur: 0.5,
+      s: 8,
+      d: -3,
+    },
+    { x: 92, y: 18, size: 10, tone: TEAL, ink: TEAL_INK, blur: 1, s: 9, d: -6 },
+    {
+      x: 6,
+      y: 20,
+      size: 16,
+      tone: mix(PEACH, 70, BG),
+      ink: PLUM_INK,
+      blur: 2.5,
+      s: 10,
+      d: -2,
+    },
+  ]
+  return (
+    <div className="relative size-full">
+      <svg viewBox="0 0 390 480" className="absolute inset-0 size-full">
+        {defs}
+        <Bust x={195} y={430} scale={1.15} fill={SILHOUETTE} filter={url(0)} />
+      </svg>
+      {things.map((t, i) => (
+        <span
+          key={i}
+          className="intro-float absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-2xl shadow-sm"
+          style={{
+            left: `${t.x}%`,
+            top: `${t.y}%`,
+            width: t.size,
+            height: t.size,
+            borderRadius: t.Icon ? undefined : "9999px",
+            background: t.tone,
+            color: t.ink,
+            filter: t.blur ? `blur(${t.blur}px)` : undefined,
+            animationDuration: `${t.s}s`,
+            animationDelay: `${t.d}s`,
+          }}
+        >
+          {t.Icon && <t.Icon className="size-1/2" />}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/** Why: one person, softly lit by a phone. */
+function WhyFigure() {
+  const { defs, url } = useBlurs([5, 14, 2])
+  const glow = `glow-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`
+  return (
+    <svg viewBox="0 0 390 480" className="absolute inset-0 size-full">
+      {defs}
+      <defs>
+        <radialGradient id={glow}>
+          <stop
+            offset="0%"
+            stopColor={mix(PEACH, 60, "white")}
+            stopOpacity="0.9"
+          />
+          <stop offset="100%" stopColor={PEACH} stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <Bust x={195} y={360} scale={1} fill={SILHOUETTE} filter={url(0)} />
+      {/* The light on the face, from below. */}
+      <ellipse
+        className="intro-breathe"
+        cx="195"
+        cy="285"
+        rx="110"
+        ry="120"
+        fill={`url(#${glow})`}
+        filter={url(1)}
+        style={{ mixBlendMode: "screen" }}
+      />
+      {/* The phone. */}
+      <rect
+        x="177"
+        y="318"
+        width="36"
+        height="56"
+        rx="7"
+        transform="rotate(-8 195 346)"
+        fill={mix(PEACH, 35, "white")}
+        filter={url(2)}
+      />
+    </svg>
+  )
+}
+
+/** How: a blurred, colourful crowd, gathered round a warm light. */
+function HowFigure() {
+  const { defs, url } = useBlurs([9, 6, 4])
+  const back = [
+    { x: 40, c: mix(TEAL, 70, BG) },
+    { x: 120, c: mix(PLUM, 80, BG) },
+    { x: 205, c: mix(PEACH, 60, BG) },
+    { x: 285, c: mix(TEAL, 80, BG) },
+    { x: 360, c: mix(PLUM, 70, BG) },
+  ]
+  const mid = [
+    { x: 0, c: PLUM },
+    { x: 90, c: mix(PEACH, 85, PLUM) },
+    { x: 180, c: TEAL },
+    { x: 270, c: mix(PLUM, 80, PLUM_INK) },
+    { x: 370, c: mix(PEACH, 80, BG) },
+  ]
+  const front = [
+    { x: 50, c: mix(TEAL_INK, 60, TEAL) },
+    { x: 195, c: mix(PEACH, 90, PLUM_INK) },
+    { x: 340, c: mix(PLUM_INK, 55, PLUM) },
+  ]
+  return (
+    <svg viewBox="0 0 390 360" className="absolute inset-0 size-full">
+      {defs}
+      <ellipse
+        cx="195"
+        cy="155"
+        rx="170"
+        ry="90"
+        fill={PEACH}
+        opacity="0.35"
+        filter={url(0)}
+      />
+      {back.map((p, i) => (
+        <Bust
+          key={`b${i}`}
+          x={p.x}
+          y={210}
+          scale={0.5}
+          fill={p.c}
+          filter={url(0)}
+          className="intro-sway"
+          delay={-i * 1.7}
+        />
+      ))}
+      {mid.map((p, i) => (
+        <Bust
+          key={`m${i}`}
+          x={p.x}
+          y={268}
+          scale={0.72}
+          fill={p.c}
+          filter={url(1)}
+          className="intro-sway"
+          delay={-i * 2.3 - 1}
+        />
+      ))}
+      {front.map((p, i) => (
+        <Bust
+          key={`f${i}`}
+          x={p.x}
+          y={340}
+          scale={0.98}
+          fill={p.c}
+          filter={url(2)}
+          className="intro-sway"
+          delay={-i * 3.1 - 2}
+        />
+      ))}
+    </svg>
+  )
+}
+
+// ---- motion --------------------------------------------------------------------
+
+/** Slow and calm. Nothing moves under prefers-reduced-motion. */
+function IntroStyles() {
+  return (
+    <style>{`
+      :root { --intro-silhouette: color-mix(in oklch, var(--foreground) 72%, var(--flare-invite-ink)); }
+      html.dark { --intro-silhouette: color-mix(in oklch, var(--flare-invite) 80%, var(--background)); }
+      .intro-drift-a, .intro-drift-b, .intro-drift-c {
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+        animation-direction: alternate;
+        will-change: transform;
+      }
+      .intro-drift-a { animation-name: intro-drift-a; }
+      .intro-drift-b { animation-name: intro-drift-b; }
+      .intro-drift-c { animation-name: intro-drift-c; }
+      @keyframes intro-drift-a { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(12%,8%,0) scale(1.15); } }
+      @keyframes intro-drift-b { from { transform: translate3d(0,0,0) scale(1.08); } to { transform: translate3d(-14%,6%,0) scale(0.94); } }
+      @keyframes intro-drift-c { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(10%,-10%,0) scale(1.12); } }
+
+      .intro-float { animation: intro-float 9s ease-in-out infinite alternate; }
+      @keyframes intro-float {
+        from { translate: -50% calc(-50% - 7px); rotate: -4deg; }
+        to { translate: -50% calc(-50% + 7px); rotate: 4deg; }
+      }
+
+      .intro-sway { animation: intro-sway 9s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
+      @keyframes intro-sway { from { transform: translateX(-4px) rotate(-1.2deg); } to { transform: translateX(4px) rotate(1.2deg); } }
+
+      .intro-breathe { animation: intro-breathe 7s ease-in-out infinite alternate; }
+      @keyframes intro-breathe { from { opacity: 0.7; } to { opacity: 1; } }
+
+      @media (prefers-reduced-motion: reduce) {
+        .intro-drift-a, .intro-drift-b, .intro-drift-c,
+        .intro-float, .intro-sway, .intro-breathe { animation: none; }
+      }
+    `}</style>
   )
 }

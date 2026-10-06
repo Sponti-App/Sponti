@@ -43,10 +43,9 @@ import type { MockPerson } from "./_mock"
 
 /** The takes and open calls the bar switches between. */
 export const TOGGLES = {
-  slides: [
-    { key: "A", label: "slides a · 3" },
-    { key: "B", label: "slides b · 4" },
-    { key: "C", label: "slides c · 1" },
+  art: [
+    { key: "A", label: "art a · drawn" },
+    { key: "B", label: "art b · image slots" },
   ],
   marks: [
     { key: "A", label: "marks a" },
@@ -72,7 +71,7 @@ type ToggleValue<K extends ToggleKey> = (typeof TOGGLES)[K][number]["key"]
 export type ProtoState = {
   /** The current step's key (see `flowSteps`). */
   s: string
-  slides: ToggleValue<"slides">
+  art: ToggleValue<"art">
   marks: ToggleValue<"marks">
   gate: ToggleValue<"gate">
   at: ToggleValue<"at">
