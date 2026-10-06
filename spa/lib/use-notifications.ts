@@ -49,6 +49,15 @@ const pendingReadIds = new Set<string>()
 // started before it lands afterwards.
 const dismissedIds = new Set<string>()
 
+// #414: who's told which notifications just arrived (the first-join moment,
+// #380). Only fetched while someone listens, so with no listener the poll
+// costs what it always did.
+type ArrivalsListener = (arrivals: Notification[]) => void
+const arrivalListeners = new Set<ArrivalsListener>()
+// Every notification already handed to a listener, so a double refresh (focus
+// and visibilitychange together) never announces one twice.
+const announcedIds = new Set<string>()
+
 function withoutDismissed(notifications: Notification[]): Notification[] {
   return notifications.filter(
     (notification) => !dismissedIds.has(notification.id)
@@ -180,6 +189,51 @@ function scheduleReadBatch(batch: Notification[]): void {
   }, READ_AFTER_SHOWN_MS)
 }
 
+/**
+ * Fetches the newest page and hands the `rise` newest unread notifications
+ * nobody has been told about to the arrival listeners, oldest first. Never
+ * marks anything read and never touches the feed. If the user read or
+ * dismissed something between two polls the rise undercounts, so at worst an
+ * arrival goes unannounced; it's never announced twice.
+ */
+async function announceArrivals(rise: number): Promise<void> {
+  if (arrivalListeners.size === 0 || rise <= 0) return
+
+  try {
+    const { notifications } = await fetchNotifications({ limit: PAGE_SIZE })
+    const arrivals = notifications
+      .filter(
+        (notification) =>
+          !notification.read &&
+          !dismissedIds.has(notification.id) &&
+          !announcedIds.has(notification.id)
+      )
+      .slice(0, rise)
+      .reverse()
+
+    if (arrivals.length === 0) return
+    arrivals.forEach((notification) => announcedIds.add(notification.id))
+    for (const listener of arrivalListeners) listener(arrivals)
+  } catch (err) {
+    console.warn("[Sponti] failed to load newly arrived notifications", err)
+  }
+}
+
+/**
+ * #414: calls `listener` with the notifications that arrived whenever the
+ * unread poll sees the count rise (not on the first load). One call per poll,
+ * so joins that land together arrive as one batch. Use `isJoinNotification`
+ * and `notification.rsvp` to pick out joins. Returns an unsubscribe.
+ */
+export function subscribeToNotificationArrivals(
+  listener: ArrivalsListener
+): () => void {
+  arrivalListeners.add(listener)
+  return () => {
+    arrivalListeners.delete(listener)
+  }
+}
+
 export async function refreshUnreadCount(): Promise<void> {
   if (!apiEnabled()) return
 
@@ -189,8 +243,10 @@ export async function refreshUnreadCount(): Promise<void> {
     // last checked — often about something another account did (an
     // accepted request, an rsvp). Nudge the events store so lists and
     // counts catch up without waiting for a remount (#197).
-    if (state.unreadCountLoaded && count > state.unreadCount) {
+    const rise = state.unreadCountLoaded ? count - state.unreadCount : 0
+    if (rise > 0) {
       emitEventsChanged()
+      void announceArrivals(rise)
     }
     setState((current) => ({
       ...current,

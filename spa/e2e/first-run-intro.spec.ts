@@ -1,5 +1,5 @@
-import { expect, test, type Page, type Route } from "@playwright/test"
-import { API_BASE, AUTH_BASE, BERLIN_COORDS, STUB_USER } from "./support/stubs"
+import { expect, test, type Page } from "@playwright/test"
+import { BERLIN_COORDS, stubBackend } from "./support/stubs"
 
 // #313: a new account gets a three-screen intro once, over the first map,
 // ending in "add your first friend" (no friends yet) or "light your first
@@ -13,79 +13,13 @@ const intro = (page: Page) =>
   page.getByRole("dialog", { name: "welcome to sponti" })
 const nav = (page: Page) => page.getByRole("navigation", { name: "Primary" })
 
-function json(route: Route, body: unknown, status = 200) {
-  return route.fulfill({
-    status,
-    contentType: "application/json",
-    body: JSON.stringify(body),
-  })
-}
-
-async function stubSignedOut(page: Page, options: { friends: number }) {
-  await page.addInitScript((coords) => {
-    window.localStorage.setItem(
-      "sponti.geo.last-known-coords.v1",
-      JSON.stringify(coords)
-    )
-  }, BERLIN_COORDS)
-
-  const session = {
-    accessToken: "e2e-access-token",
-    refreshToken: "e2e-refresh-token",
-    user: STUB_USER,
-  }
-  await page.route(`${AUTH_BASE}/**`, async (route) => {
-    const path = new URL(route.request().url()).pathname
-    if (path === "/auth/register" || path === "/auth/login") {
-      await json(route, session)
-      return
-    }
-    if (path === "/auth/me") {
-      await json(route, { user: STUB_USER })
-      return
-    }
-    await json(route, { status: "ok" })
-  })
-
-  const connections = Array.from({ length: options.friends }, (_, i) => ({
-    _id: `conn-${i}`,
-    requesterId: STUB_USER.id,
-    receiverId: `friend-${i}`,
-    status: "accepted",
-    otherUser: { _id: `friend-${i}`, username: `friend${i}` },
-  }))
-  await page.route(`${API_BASE}/**`, async (route) => {
-    const path = new URL(route.request().url()).pathname.replace(
-      /^\/api\/v1/,
-      ""
-    )
-    if (path === "/connections") {
-      await json(route, {
-        data: connections,
-        pagination: { page: 1, limit: 100, total: 0, totalPages: 1 },
-      })
-      return
-    }
-    if (path === "/notifications/unread-count") {
-      await json(route, { data: { count: 0 } })
-      return
-    }
-    if (path === "/notifications") {
-      await json(route, { data: [], pagination: { nextCursor: null } })
-      return
-    }
-    if (path === "/events/mine/upcoming") {
-      await json(route, { data: { hostedByMe: [], invited: [] } })
-      return
-    }
-    if (path === "/events/calendar/upcoming") {
-      await json(route, {
-        data: [],
-        pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
-      })
-      return
-    }
-    await json(route, { data: [] })
+// A signed-out stub: the register and login forms get a session back. `friends`
+// picks the intro's final call to action.
+function stubSignedOut(page: Page, options: { friends: number }) {
+  return stubBackend(page, {
+    signedOut: true,
+    friends: options.friends,
+    coords: BERLIN_COORDS,
   })
 }
 

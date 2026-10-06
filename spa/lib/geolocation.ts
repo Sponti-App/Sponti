@@ -23,6 +23,16 @@ export type GeoState = {
   recenter: () => void
 }
 
+export const GEO_MESSAGES = {
+  denied: "location permission denied",
+  unavailable: "location unavailable",
+  timeout: "location timed out",
+  unknown: "unable to determine location",
+  unsupported: "geolocation not supported",
+  insecure:
+    "location needs a secure connection, open this app on localhost or https",
+} as const
+
 const LAST_KNOWN_COORDS_KEY = "sponti.geo.last-known-coords.v1"
 
 let memoryLastKnownCoords: GeoCoords | null | undefined
@@ -114,29 +124,33 @@ export function useGeolocation(options?: {
   }, [])
 
   const handleError = useCallback((err: GeolocationPositionError) => {
+    // The browser's own text is English and not ours to show: log it, and
+    // always surface Sponti's copy for the error code.
+    if (err.message) console.warn("[Sponti] geolocation error:", err.message)
     if (err.code === err.PERMISSION_DENIED) {
       setStatus("denied")
-      setErrorMessage("location permission denied")
+      setErrorMessage(GEO_MESSAGES.denied)
     } else if (err.code === err.POSITION_UNAVAILABLE) {
       setStatus("unavailable")
-      setErrorMessage("location unavailable")
+      setErrorMessage(GEO_MESSAGES.unavailable)
+    } else if (err.code === err.TIMEOUT) {
+      setStatus("error")
+      setErrorMessage(GEO_MESSAGES.timeout)
     } else {
       setStatus("error")
-      setErrorMessage(err.message || "unable to determine location")
+      setErrorMessage(GEO_MESSAGES.unknown)
     }
   }, [])
 
   const request = useCallback(() => {
     if (typeof window === "undefined" || !navigator.geolocation) {
       setStatus("unavailable")
-      setErrorMessage("geolocation not supported")
+      setErrorMessage(GEO_MESSAGES.unsupported)
       return
     }
     if (!isSecureGeolocationContext()) {
       setStatus("unavailable")
-      setErrorMessage(
-        "location needs a secure connection, open this app on localhost or https"
-      )
+      setErrorMessage(GEO_MESSAGES.insecure)
       return
     }
     setStatus("requesting")
@@ -155,9 +169,7 @@ export function useGeolocation(options?: {
     if (!isSecureGeolocationContext()) {
       queueMicrotask(() => {
         setStatus("unavailable")
-        setErrorMessage(
-          "location needs a secure connection, open this app on localhost or https"
-        )
+        setErrorMessage(GEO_MESSAGES.insecure)
       })
       return
     }

@@ -1,6 +1,7 @@
 import type {
   ApiNotification,
   ApiNotificationType,
+  ApiRsvpChangeMetadata,
 } from "@/lib/api/notifications"
 
 export type NotificationIntent =
@@ -9,6 +10,20 @@ export type NotificationIntent =
   | "success"
   | "warning"
   | "rsvp"
+
+// #414: an `event_rsvp_change`, read from its metadata so nothing has to
+// parse the copy. `change` is null for a notification written before #414:
+// it might be a join or only an arrival update, so never treat it as a join.
+export type RsvpChange = {
+  change: "joined" | "declined" | "arrival_updated" | null
+  status: "going" | "declined" | null
+  // The first join the host ever heard about on this flare (server-side).
+  firstJoin: boolean
+  eventTitle: string | null
+  // A minute-based arrival time (ISO) or a near-term answer, never both.
+  willArriveAt: string | null
+  arrivalStatus: "on_time" | "running_late" | null
+}
 
 export type Notification = {
   id: string
@@ -26,6 +41,11 @@ export type Notification = {
   // The user who caused it. For a connection_request that's the requester,
   // who the feed's circle chips add to a circle after accepting (#226).
   actorId?: string | null
+  // The actor's photo, when they have one (#414). Name and photo are visible
+  // to anyone, so this is safe on every notification.
+  actorAvatarUrl?: string | null
+  // Set on `event_rsvp_change` only (#414).
+  rsvp?: RsvpChange
 }
 
 const EVENT_NOTIFICATION_TYPES: ApiNotificationType[] = [
@@ -42,6 +62,56 @@ function actorName(notification: ApiNotification): string | null {
   return actor?.displayName || actor?.username || null
 }
 
+const RSVP_CHANGES = ["joined", "declined", "arrival_updated"] as const
+const RSVP_STATUSES = ["going", "declined"] as const
+const ARRIVAL_STATUSES = ["on_time", "running_late"] as const
+
+function oneOf<T extends string>(
+  value: unknown,
+  allowed: readonly T[]
+): T | null {
+  return typeof value === "string" &&
+    (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : null
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null
+}
+
+/**
+ * Reads an `event_rsvp_change`'s metadata (#414). Defensive about every
+ * field, so a notification from before #414, or from an api that's ahead of
+ * or behind this build, still parses: anything missing or unknown comes back
+ * null (or false for `firstJoin`).
+ */
+export function parseRsvpChange(
+  notification: ApiNotification
+): RsvpChange | undefined {
+  if (notification.type !== "event_rsvp_change") return undefined
+
+  // Typed by key, but every value unchecked until read below.
+  const metadata = (notification.metadata ?? {}) as Partial<
+    Record<keyof ApiRsvpChangeMetadata, unknown>
+  >
+  const change = oneOf(metadata.rsvpChange, RSVP_CHANGES)
+
+  return {
+    change,
+    status: oneOf(metadata.rsvpStatus, RSVP_STATUSES),
+    firstJoin: change === "joined" && metadata.firstJoin === true,
+    eventTitle: stringOrNull(metadata.eventTitle),
+    willArriveAt: stringOrNull(metadata.memberWillArriveAt),
+    arrivalStatus: oneOf(metadata.arrivalStatus, ARRIVAL_STATUSES),
+  }
+}
+
+/** A notification telling the host that someone joined their flare (#414). */
+export function isJoinNotification(notification: Notification): boolean {
+  return notification.rsvp?.change === "joined"
+}
+
 function hrefFor(notification: ApiNotification): string {
   const { type } = notification
   if (type === "connection_request" || type === "connection_accepted") {
@@ -53,6 +123,20 @@ function hrefFor(notification: ApiNotification): string {
     return `/event/${notification.targetId}?tab=updates`
   }
 
+  // Everyone these notices go to can open the flare: the host (rsvp), invited
+  // guests, and going/maybe guests of a cancelled or reactivated flare (the
+  // detail page shows a cancelled state, it isn't hidden) (#430).
+  if (
+    type === "event_rsvp_change" ||
+    type === "event_invitation" ||
+    type === "event_cancelled" ||
+    type === "event_reactivated"
+  ) {
+    return `/event/${notification.targetId}`
+  }
+
+  // A removed guest can't see the flare any more (the API 404s it), so
+  // event_guest_removed stays on the list.
   return "/event"
 }
 
@@ -96,6 +180,8 @@ export function adaptApiNotification(
     intent: intentFor(notification.type),
     actorName: actorName(notification),
     actorId: notification.actorId,
+    actorAvatarUrl: notification.actor?.avatarUrl ?? null,
+    rsvp: parseRsvpChange(notification),
   }
 }
 
