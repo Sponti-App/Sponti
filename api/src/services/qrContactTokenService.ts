@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { QrContactToken } from "#models/index";
 import type { ResolveQrContactTokenBody } from "#schemas/qrContactTokenSchemas";
-import { connectInPerson } from "#services/connectionService";
+import { connectInPerson, sendConnectionRequest } from "#services/connectionService";
 import {
   getRelationship,
   publicContactProfile,
@@ -16,6 +16,12 @@ const TOKEN_BYTES = 32;
 // that is what makes connecting instantly on scan safe (#124). Anything meant
 // to be pasted into a group chat is an invite link instead.
 const TOKEN_TTL_MS = 15 * 60 * 1000;
+// #441: signing up or in on a phone can take longer than the code lives. For
+// this long after expiry the code still names its owner to a signed-in viewer
+// and lets them send a friend REQUEST (the invite-link path), never an instant
+// connection: only a live code proves the two people are together. Past it the
+// code is dead for good.
+export const QR_EXPIRED_REQUEST_GRACE_MS = 24 * 60 * 60 * 1000;
 
 export const hashQrContactToken = (token: string) =>
   createHash("sha256").update(token).digest("hex");
@@ -26,10 +32,11 @@ const notFound = () =>
   new AppError("QR contact token not found", 404, "QR_CONTACT_TOKEN_NOT_FOUND");
 
 // Scanning in person resolves any pending request, in either direction.
-const canConnect = (relationship: Relationship) =>
+// An expired code only sends a request, so a request already sent is final.
+const canConnect = (relationship: Relationship, expired: boolean) =>
   relationship === "none" ||
   relationship === "pending_incoming" ||
-  relationship === "pending_outgoing";
+  (relationship === "pending_outgoing" && !expired);
 
 export const createQrContactToken = async (userId: string) => {
   const token = randomBytes(TOKEN_BYTES).toString("base64url");
@@ -63,7 +70,9 @@ export const resolveQrContactToken = async (viewerId: string, input: ResolveQrCo
   const ownerId = token.userId.toString();
   const now = new Date();
 
-  if (token.expiresAt <= now) {
+  const expired = token.expiresAt <= now;
+
+  if (expired && now.getTime() - token.expiresAt.getTime() > QR_EXPIRED_REQUEST_GRACE_MS) {
     await QrContactToken.updateOne({ _id: token._id }, { $set: { isActive: false } });
     throw new AppError("QR contact token expired", 410, "QR_CONTACT_TOKEN_EXPIRED");
   }
@@ -83,17 +92,28 @@ export const resolveQrContactToken = async (viewerId: string, input: ResolveQrCo
   }
 
   let connectionResult: Awaited<ReturnType<typeof connectInPerson>> | null = null;
+  let requestResult: Awaited<ReturnType<typeof sendConnectionRequest>> | null = null;
 
-  if (input.connect && canConnect(relationship)) {
-    connectionResult = await connectInPerson(viewerId, ownerId);
+  if (input.connect && canConnect(relationship, expired)) {
+    if (expired) {
+      requestResult = await sendConnectionRequest(viewerId, {
+        receiverId: ownerId,
+        type: "shared_invitation",
+      });
+    } else {
+      connectionResult = await connectInPerson(viewerId, ownerId);
+    }
     ({ relationship } = await getRelationship(viewerId, ownerId));
   }
 
   return {
     profile: publicContactProfile(user),
     relationship,
-    canConnect: canConnect(relationship),
+    canConnect: canConnect(relationship, expired),
     expiresAt: token.expiresAt,
+    // True when the code has run out but is still inside the grace window:
+    // the viewer can send a request, not connect on the spot.
+    expired,
     connection: connectionResult
       ? {
           processed: connectionResult.processed,
@@ -102,6 +122,13 @@ export const resolveQrContactToken = async (viewerId: string, input: ResolveQrCo
           // a request pending, so this is true whenever it connected.
           autoAccepted: connectionResult.connected,
         }
-      : null,
+      : requestResult
+        ? {
+            processed: requestResult.processed,
+            delivered: requestResult.delivered,
+            autoAccepted:
+              "autoAccepted" in requestResult ? Boolean(requestResult.autoAccepted) : false,
+          }
+        : null,
   };
 };

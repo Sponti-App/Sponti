@@ -12,23 +12,21 @@ import {
 } from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
+import { ContactLinkSignedOut } from "@/components/contact-link-signed-out"
 import { Button } from "@/components/ui/button"
 import { resolveInviteLink } from "@/lib/api/invite-links"
 import {
   resolveQrContactToken,
   type QrContactResolveResult,
 } from "@/lib/api/qr-contact-tokens"
-import {
-  buildRegisterPath,
-  contactPath,
-  type ContactLinkKind,
-} from "@/lib/contact-links"
+import { type ContactLinkKind } from "@/lib/contact-links"
 import { HttpError } from "@/lib/http"
 
 // One screen for both ways to add someone (#124):
 //   qr     — scanned in person; "connect" makes you friends right away
 //   invite — opened from a group chat; "send request" asks the owner
-// A signed-out visitor is sent straight to sign-up and comes back here.
+// A signed-out visitor sees who wants to connect, with sign in and create
+// account as equal choices, and comes back here afterwards (#441).
 
 type Copy = {
   resolve: typeof resolveQrContactToken
@@ -66,19 +64,26 @@ function relationshipLabel(
   result: QrContactResolveResult
 ): string {
   const name = result.profile.displayName
+  // #441: a code that ran out during sign-up still reaches its owner, as a
+  // request instead of an instant connection.
+  if (result.expired && result.canConnect) {
+    return result.relationship === "pending_incoming"
+      ? `${name} already sent you a request. this code expired, but you can accept it.`
+      : `this code expired, but you can still send ${name} a friend request.`
+  }
   switch (result.relationship) {
     case "self":
       return COPY[kind].selfMessage
     case "connected":
       return `you and ${name} are friends on sponti.`
     case "pending_outgoing":
-      return kind === "qr"
+      return kind === "qr" && !result.expired
         ? `your request to ${name} is pending. connect now instead.`
         : `your request to ${name} is pending.`
     case "pending_incoming":
       return `${name} already sent you a request.`
     case "none":
-      return kind === "qr"
+      return kind === "qr" && !result.expired
         ? `you're with ${name}. connect to be friends right away.`
         : `send ${name} a friend request.`
   }
@@ -88,19 +93,35 @@ function actionLabel(
   kind: ContactLinkKind,
   result: QrContactResolveResult
 ): string {
-  if (kind === "qr") return "connect"
+  if (kind === "qr" && !result.expired) return "connect"
   return result.relationship === "pending_incoming"
     ? "accept request"
     : "send request"
 }
 
 export function ContactLinkScreen({ kind }: { kind: ContactLinkKind }) {
-  const router = useRouter()
-  const params = useParams<{ token: string }>()
   const { status } = useAuth()
+  const params = useParams<{ token: string }>()
+  const token = useMemo(() => decodeURIComponent(params.token), [params.token])
+
+  if (status === "unauthenticated") {
+    return <ContactLinkSignedOut kind={kind} token={token} />
+  }
+  return <ContactLinkSignedIn kind={kind} token={token} status={status} />
+}
+
+function ContactLinkSignedIn({
+  kind,
+  token,
+  status,
+}: {
+  kind: ContactLinkKind
+  token: string
+  status: ReturnType<typeof useAuth>["status"]
+}) {
+  const router = useRouter()
   const { showActionFeedback } = useActionFeedback()
   const copy = COPY[kind]
-  const token = useMemo(() => decodeURIComponent(params.token), [params.token])
   const [resolved, setResolved] = useState<{
     token: string
     result: QrContactResolveResult
@@ -114,12 +135,6 @@ export function ContactLinkScreen({ kind }: { kind: ContactLinkKind }) {
 
   const result = resolved?.token === token ? resolved.result : null
   const error = resolveError?.token === token ? resolveError.message : null
-
-  // #124: no account yet → straight to sign-up, then back here.
-  useEffect(() => {
-    if (status !== "unauthenticated") return
-    router.replace(buildRegisterPath(contactPath(kind, token)))
-  }, [status, kind, token, router])
 
   useEffect(() => {
     if (status !== "authenticated") {

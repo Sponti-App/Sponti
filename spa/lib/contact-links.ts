@@ -71,8 +71,8 @@ export function parseContactPath(
 }
 
 /**
- * Where a signed-out visitor to a contact link goes: straight to sign-up,
- * returning to the link afterwards (the sign-in link on that page keeps it).
+ * The sign-up page for a signed-out visitor to a contact link, returning to
+ * the link afterwards. The sign-in side is `buildLoginPath` (#441).
  */
 export function buildRegisterPath(path: string): string {
   const safe = getSafeRedirectPath(path)

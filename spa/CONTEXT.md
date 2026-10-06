@@ -33,7 +33,7 @@ A user-owned grouping of connections, used as the audience when lighting a flare
 _Avoid_: List, friend list, group.
 
 **Connection**:
-An accepted, mutual friend relationship, as the api defines it. Added in person by **QR code** (15 min, connects instantly) or by **invite link** (7 days, sends a request), both in `lib/contact-links.ts`. Signed-out visitors may open both link paths; they land on sign-up first.
+An accepted, mutual friend relationship, as the api defines it. Added in person by **QR code** (15 min, connects instantly) or by **invite link** (7 days, sends a request), both in `lib/contact-links.ts`. Signed-out visitors may open both link paths; they see who wants to connect with sign in and create account as equal choices, both keeping the way back (#441).
 _Avoid_: Friend (as a stored entity), follower, contact.
 
 **Idea spot**:

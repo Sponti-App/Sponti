@@ -19,7 +19,7 @@ An accepted, mutual friend relationship between two users, stored as an accepted
 _Avoid_: Friend (as a stored entity), follower, contact.
 
 **QR code (in-person connect)**:
-A short-lived (15 min) code a user shows on their phone. Scanning it connects both people at once — showing it is the consent, so there is no request to accept.
+A short-lived (15 min) code a user shows on their phone. Scanning it connects both people at once — showing it is the consent, so there is no request to accept. For 24 hours after it expires it still names its owner and lets a signed-in viewer send a friend request (never an instant connection), so a slow sign-up does not strand the scan (#441).
 _Avoid_: QR link (when you mean the invite link).
 
 **Invite link**:
