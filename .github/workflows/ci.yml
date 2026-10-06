@@ -2,8 +2,8 @@ name: CI
 
 # Runs the same checks a developer runs before opening a PR, so a red X on the
 # PR means something broke — no one has to remember to run them locally.
-#   spa: prettier, typecheck, lint, unit tests, and the Playwright browser
-#     smoke tests
+#   spa: prettier, typecheck, lint, unit tests, a production build in both
+#     feature profiles, and the Playwright browser smoke tests
 #   api: prettier, typecheck, lint, tests (in-memory Mongo, no shared database)
 #   auth-server: build (tsc) and tests (node:test, every model call mocked, no
 #     database); it has no lint yet. A broken build here means nobody can sign in
@@ -28,7 +28,7 @@ jobs:
   spa:
     name: spa (typecheck, lint, unit)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: spa
@@ -44,6 +44,17 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      # Production compile (server/client boundaries, route config) that
+      # typecheck and the dev-server smoke tests never exercise (#357). The
+      # build needs no env: every NEXT_PUBLIC_* read has a fallback.
+      - run: npm run build
+      # The tester profile above leaves flagged code (the full-profile
+      # surfaces in spa/lib/feature-flags.ts) behind dead branches. Build the
+      # full app too so that code gets a production compile as well.
+      - name: build (full feature profile)
+        run: npm run build
+        env:
+          NEXT_PUBLIC_FEATURE_PROFILE: full
 
   spa-e2e:
     name: spa (browser smoke tests)
