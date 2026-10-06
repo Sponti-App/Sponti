@@ -25,6 +25,7 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-ink: var(--accent-ink);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
@@ -66,6 +67,8 @@
   --muted-foreground: oklch(0.5 0.04 346);
   --accent: oklch(0.8041 0.126 52.09);
   --accent-foreground: oklch(0.25 0.06 50);
+  /* Text on an accent tint (bg-accent/5..20): peach on its own tint is ~1.5:1 in light mode (#406). */
+  --accent-ink: oklch(0.45 0.1 50);
   --destructive: oklch(0.58 0.22 27);
   --border: oklch(0.88 0.025 346);
   --input: oklch(0.92 0.02 346);
@@ -114,6 +117,7 @@
   --muted-foreground: oklch(0.74 0.025 60);
   --accent: oklch(0.8041 0.126 52.09);
   --accent-foreground: oklch(0.25 0.06 50);
+  --accent-ink: oklch(0.8041 0.126 52.09);
   --destructive: oklch(0.62 0.22 22);
   --border: oklch(0.35 0.025 266);
   --input: oklch(0.28 0.025 266);

@@ -369,7 +369,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                     src={avatarPreview || undefined}
                     alt={account.displayName}
                   />
-                  <AvatarFallback className="bg-accent/10 text-base font-semibold text-accent">
+                  <AvatarFallback className="bg-accent/10 text-base font-semibold text-accent-ink">
                     {avatarInitials}
                   </AvatarFallback>
                 </Avatar>

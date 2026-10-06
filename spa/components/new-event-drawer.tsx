@@ -1939,7 +1939,7 @@ function SectionChip({
   onClick: () => void
 }) {
   const toneClasses = active
-    ? "border-accent bg-accent/10 text-accent"
+    ? "border-accent bg-accent/10 text-accent-ink"
     : "border-muted-foreground/30 bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground"
   return (
     <button
@@ -2051,7 +2051,7 @@ function EventTypePills({
               onClick={() => onChange(selected ? null : t.value)}
               className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 transition-colors ${
                 selected
-                  ? "border-accent bg-accent/10 text-accent"
+                  ? "border-accent bg-accent/10 text-accent-ink"
                   : "border-border text-muted-foreground hover:bg-secondary"
               }`}
             >
@@ -2252,12 +2252,12 @@ function DateStrip({
               }`}
             >
               <span
-                className={`text-xs ${selected ? "text-accent" : "text-muted-foreground"}`}
+                className={`text-xs ${selected ? "text-accent-ink" : "text-muted-foreground"}`}
               >
                 {chip.weekday}
               </span>
               <span
-                className={`text-base font-medium ${selected ? "text-accent" : "text-foreground"}`}
+                className={`text-base font-medium ${selected ? "text-accent-ink" : "text-foreground"}`}
               >
                 {chip.date}
               </span>
@@ -2762,12 +2762,12 @@ function CircleChip({
       <CircleStackIcon
         type={circle.type}
         className={`h-3.5 w-3.5 shrink-0 ${
-          selected ? "text-accent" : "text-muted-foreground"
+          selected ? "text-accent-ink" : "text-muted-foreground"
         }`}
       />
       <span
         className={`min-w-0 text-left text-xs break-words ${
-          selected ? "font-medium text-accent" : "text-foreground"
+          selected ? "font-medium text-accent-ink" : "text-foreground"
         }`}
       >
         {circle.name}
@@ -2797,7 +2797,7 @@ function CircleEditor({
   return (
     <div className="flex min-h-0 flex-col gap-2 rounded-xl border border-accent bg-accent/5 p-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-accent">
+        <span className="text-xs font-medium text-accent-ink">
           editing {circle.name}
         </span>
         <button
@@ -2806,7 +2806,7 @@ function CircleEditor({
           aria-label="Done editing"
           className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-accent/10"
         >
-          <XIcon className="h-3.5 w-3.5 text-accent" />
+          <XIcon className="h-3.5 w-3.5 text-accent-ink" />
         </button>
       </div>
       <FriendList
@@ -2997,7 +2997,7 @@ function InviteToggles({
           onClick={() => onPlusOne(!allowPlusOne)}
           className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors ${
             allowPlusOne
-              ? "border-accent bg-accent/10 text-accent"
+              ? "border-accent bg-accent/10 text-accent-ink"
               : "border-border text-muted-foreground hover:bg-secondary"
           }`}
         >
@@ -3016,7 +3016,7 @@ function InviteToggles({
           onClick={() => onForward(!allowForward)}
           className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors ${
             allowForward
-              ? "border-accent bg-accent/10 text-accent"
+              ? "border-accent bg-accent/10 text-accent-ink"
               : "border-border text-muted-foreground hover:bg-secondary"
           }`}
         >
@@ -3106,7 +3106,7 @@ function Chip({
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm transition-colors ${
         selected
-          ? "border-accent bg-accent/10 text-accent"
+          ? "border-accent bg-accent/10 text-accent-ink"
           : "border-border bg-background text-foreground hover:bg-secondary"
       }`}
     >

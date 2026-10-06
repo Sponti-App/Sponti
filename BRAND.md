@@ -36,6 +36,16 @@ A neutral base lets one warm accent carry all the brand weight. The CTA color is
 Use on: primary CTAs (light a flare, join), the live/active indicator strip, the "going" badge, focus rings.
 Do not use as: page backgrounds, large fills, body text.
 
+### Text on an accent tint
+
+Peach text on a peach tint (`bg-accent/5` to `/20`) fails WCAG AA in light mode (1.4 to 1.8:1, #406), so text and icons on a tint use `text-accent-ink` instead of `text-accent`:
+
+| Token | Light | Dark |
+|---|---|---|
+| `--accent-ink` | `oklch(0.45 0.1 50)` (warm brown) | `oklch(0.8041 0.126 52.09)` (the peach itself) |
+
+Contrast against every tint (5 to 20%) on `--background`, `--card` and `--muted`: light 5.7:1 or better, dark 4.6:1 or better, so AA for normal text. Plain peach text with no tint behind it (links, nav labels) is a separate case and is not covered by this recipe.
+
 ### Light mode
 
 | Token | oklch | Role |
@@ -102,7 +112,7 @@ Built on **shadcn (Nova preset)** + **Radix UI** + **Tailwind v4** + **Phosphor 
 |---|---|
 | Primary CTA | `bg-accent text-accent-foreground` (peach) |
 | Live / active indicator | `border-l-[3px] border-l-accent` on the card |
-| "Going" badge | Small `bg-accent/15 text-accent` pill |
+| Live / "going" chip, selected chip, avatar initials | Small `bg-accent/15 text-accent-ink` pill (`bg-accent/10` for chips and avatars). Never `text-accent` on an accent tint |
 | Segmented control | Radix `Tabs` with `h-8`/`h-9` `TabsList` — active = `bg-card text-primary` |
 | Selected day / tab | `bg-card text-primary` (subtle, not full accent) |
 | Ended / past | `bg-muted/30` surface, `text-muted-foreground` text, no border strip |
