@@ -121,15 +121,20 @@ test.describe("post-sign-up checklist (#459)", () => {
     await expect(row(page, "friend")).toHaveAttribute("data-done", "false")
     await expect(row(page, "friend")).toContainText("flares only go to friends")
 
-    // The first-friend step: the QR and the invite link, with "later".
+    // The first-friend step: the invite link and the QR as two tabs (#369),
+    // opening on the link, with "later".
     await checklist(page)
       .getByRole("button", { name: "add your first friend" })
       .click()
     await expect(firstFriend(page)).toBeVisible()
-    await expect(firstFriend(page).getByAltText(/^QR code for @/)).toBeVisible()
     await expect(
-      firstFriend(page).getByRole("button", { name: "share sponti link" })
+      firstFriend(page).getByRole("tab", { name: "invite link" })
+    ).toHaveAttribute("aria-selected", "true")
+    await expect(
+      firstFriend(page).getByRole("button", { name: "share link" })
     ).toBeEnabled()
+    await firstFriend(page).getByRole("tab", { name: "qr code" }).click()
+    await expect(firstFriend(page).getByAltText(/^QR code for @/)).toBeVisible()
     await firstFriend(page).getByRole("button", { name: "later" }).click()
     await expect(firstFriend(page)).toHaveCount(0)
     await expect(checklist(page)).toBeVisible()

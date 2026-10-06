@@ -60,9 +60,9 @@ test.describe("first-run intro (#313)", () => {
       .click()
 
     await expect(intro(page)).toHaveCount(0)
-    await expect(page.getByText("your qr")).toBeVisible()
+    await expect(page.getByText("invite a friend")).toBeVisible()
     await page.getByRole("button", { name: "Close", exact: true }).click()
-    await expect(page.getByText("your qr")).toHaveCount(0)
+    await expect(page.getByText("invite a friend")).toHaveCount(0)
     await expect(nav(page)).toBeVisible()
 
     await page.reload()

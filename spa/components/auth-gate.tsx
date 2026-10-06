@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { isContactPath } from "@/lib/contact-links"
 import { LEGAL_PATHS } from "@/lib/legal-paths"
-import { featureFlags } from "@/lib/feature-flags"
+import { useOnboardingFlags } from "@/lib/onboarding-flags"
 import {
   AUTH_PATHS,
   buildLoginPath,
@@ -23,6 +23,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   // backend — swap the bare spinner for the same "waking up…" hint used
   // elsewhere once it's run long enough to plausibly be paying that cost.
   const wakingUp = useSlowRequestHint(status === "loading")
+  // #482: "new onboarding" can be switched on per device, which the server
+  // and the hydration render can't see. Until `decided`, the gate stays on its
+  // spinner and doesn't redirect, so "/" never flashes the login page.
+  const { browseBeforeSignup, decided } = useOnboardingFlags()
 
   // #124: QR and invite links open for signed-out visitors, who are sent
   // on to sign-up from there. #389: with `browseBeforeSignup`, so does the
@@ -30,11 +34,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const isPublic =
     PUBLIC_PATHS.includes(pathname) ||
     isContactPath(pathname) ||
-    (featureFlags.browseBeforeSignup && pathname === "/")
+    (browseBeforeSignup && pathname === "/")
   const isAuthPage = AUTH_PATHS.includes(pathname)
 
   useEffect(() => {
-    if (status === "loading") return
+    if (status === "loading" || !decided) return
     if (status === "unauthenticated" && !isPublic) {
       // #219: remember where the user was heading so signing in returns
       // them there instead of dropping them on the home map.
@@ -42,9 +46,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     } else if (status === "authenticated" && isAuthPage) {
       router.replace(getRedirectTarget())
     }
-  }, [status, pathname, isPublic, isAuthPage, router])
+  }, [status, decided, pathname, isPublic, isAuthPage, router])
 
-  if (status === "loading") {
+  if (status === "loading" || !decided) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />

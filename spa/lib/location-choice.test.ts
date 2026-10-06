@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   BERLIN_AREAS,
+  clearLocationChoice,
   LOCATION_CHOICE_KEY,
   parseLocationChoice,
   readLocationChoice,
@@ -109,5 +110,28 @@ describe("the stored choice (#408)", () => {
     expect(readLocationChoice()).toBeNull()
     rememberLocationChoice({ kind: "location" })
     expect(readLocationChoice()).toEqual({ kind: "location" })
+  })
+})
+
+describe("clearLocationChoice (#482)", () => {
+  it("forgets the choice, so the ask shows again", () => {
+    rememberLocationChoice({ kind: "area", area: KREUZBERG })
+
+    clearLocationChoice()
+
+    expect(readLocationChoice()).toBeNull()
+    expect(window.localStorage.getItem(LOCATION_CHOICE_KEY)).toBeNull()
+  })
+
+  it("still forgets it for the session when storage throws", () => {
+    rememberLocationChoice({ kind: "location" })
+    const boom = () => {
+      throw new Error("SecurityError")
+    }
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(boom)
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(boom)
+
+    expect(() => clearLocationChoice()).not.toThrow()
+    expect(readLocationChoice()).toBeNull()
   })
 })

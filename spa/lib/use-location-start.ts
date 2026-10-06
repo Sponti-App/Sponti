@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { featureFlags } from "@/lib/feature-flags"
 import {
   useGeolocation,
   type GeoCoords,
@@ -20,6 +19,7 @@ import {
   useLocationChoice,
   type StartArea,
 } from "@/lib/location-choice"
+import { useOnboardingFlags } from "@/lib/onboarding-flags"
 
 // #408: where a map starts, and the location ask that decides it. Both home
 // maps use it: the signed-in `MapView` and the signed-out `SignedOutMap`
@@ -101,7 +101,7 @@ export function useLocationStart({
   /** Keep the sheet away for now (the intro slides, a sheet on top). */
   hold?: boolean
 }): LocationStart {
-  const enabled = featureFlags.locationAsk
+  const enabled = useOnboardingFlags().locationAsk
   const choice = useLocationChoice()
   const permission = useGeoPermission(enabled)
   const [requested, setRequested] = useState(false)

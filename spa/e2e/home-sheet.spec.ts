@@ -124,11 +124,11 @@ test.describe("home map dock geometry (#223)", () => {
     await expect
       .poll(async () => Math.abs(await gapAboveNav(page, list)))
       .toBeLessThanOrEqual(1)
-    const [listBox, settingsBox] = await Promise.all([
+    const [listBox, inviteBox] = await Promise.all([
       box(list),
-      box(page.getByRole("button", { name: "Settings" })),
+      box(page.getByRole("button", { name: "invite", exact: true })),
     ])
-    expect(listBox.y).toBeGreaterThanOrEqual(settingsBox.y + settingsBox.height)
+    expect(listBox.y).toBeGreaterThanOrEqual(inviteBox.y + inviteBox.height)
     expect(await navIsOnTop(page)).toBe(true)
     await expect(list.getByText("gallery late opening")).toBeVisible()
 

@@ -25,7 +25,6 @@ import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { FirstFriendStep } from "@/components/onboarding-checklist"
 import { WelcomeBackSheet } from "@/components/sign-up-sheet"
 import { fetchAcceptedConnections } from "@/lib/api/connections"
-import { featureFlags } from "@/lib/feature-flags"
 import {
   clearKeptFlareDraft,
   isResumeSearch,
@@ -33,9 +32,11 @@ import {
 } from "@/lib/kept-flare-draft"
 import { completeOnboarding } from "@/lib/onboarding"
 import { needsFirstFriendFirst } from "@/lib/onboarding-checklist"
+import { useOnboardingFlags } from "@/lib/onboarding-flags"
 
 export function KeptDraftWelcome() {
   const router = useRouter()
+  const { introV2 } = useOnboardingFlags()
   const { openDrawer } = useNewEventDrawer()
   const searchParams = useSearchParams()
   const resuming = isResumeSearch(searchParams.toString())
@@ -51,18 +52,18 @@ export function KeptDraftWelcome() {
     if (!resuming) return
     clearKeptFlareDraft()
     // #459: the checklist replaces the intro and still shows after this.
-    if (draft && !featureFlags.introV2) completeOnboarding()
+    if (draft && !introV2) completeOnboarding()
     router.replace("/")
-  }, [resuming, draft, router])
+  }, [resuming, draft, introV2, router])
 
   useEffect(() => {
-    if (!draft || !featureFlags.introV2 || friendCount.current) return
+    if (!draft || !introV2 || friendCount.current) return
     friendCount.current = fetchAcceptedConnections()
       .then((connections) => connections.length)
       .catch(() => null)
-  }, [draft])
+  }, [draft, introV2])
 
-  if (!draft) return featureFlags.introV2 ? null : <FirstRunIntro />
+  if (!draft) return introV2 ? null : <FirstRunIntro />
 
   const light = () =>
     openDrawer(draft.idea ? ideaPrefill(draft.idea) : undefined)
@@ -77,7 +78,7 @@ export function KeptDraftWelcome() {
           // #124 before the kept draft is lit: an account with no friends
           // adds its first friend here.
           if (
-            featureFlags.introV2 &&
+            introV2 &&
             needsFirstFriendFirst(await (friendCount.current ?? null))
           ) {
             setAddingFriend(true)

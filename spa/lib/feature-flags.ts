@@ -45,6 +45,12 @@ export const featureFlags = {
    */
   plusOne: FEATURE_PROFILE === "full",
 
+  // #482: `browseBeforeSignup`, `introV2` and `locationAsk` below are the new
+  // onboarding. A device can switch them all on at runtime ("new onboarding" in
+  // settings), whatever the build profile. Read them through
+  // `useOnboardingFlags` / `getOnboardingFlags` (lib/onboarding-flags.ts), never
+  // off `featureFlags` directly, or that switch won't reach the reader.
+
   /**
    * Browse before sign-up (#389, flare moments #370): a signed-out visitor
    * lands on the home map instead of /login. They see the idea spots and the
@@ -78,6 +84,17 @@ export const featureFlags = {
    * before and the signed-out map stays on berlin.
    */
   locationAsk: FEATURE_PROFILE === "full",
+
+  /**
+   * Coach marks (#379, flare moments #370): three marks on the signed-out
+   * map, once per device, after the intro slides and before the location
+   * ask: the idea spot ("ideas nearby"), the flare button ("light a flare")
+   * and the map/calendar toggle ("soon lives here"). Each has "n of 3", skip
+   * and next; there is no replay. They sit on #389's signed-out home, so they
+   * need `browseBeforeSignup` too. Full profile only; off, nothing shows and
+   * the location ask doesn't wait.
+   */
+  coachMarks: FEATURE_PROFILE === "full",
 
   /**
    * The mobile-only gate (#467): on a desktop-sized screen without touch,

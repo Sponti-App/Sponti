@@ -4,6 +4,7 @@ import {
   dropPendingOnboarding,
   markOnboardingPending,
   ONBOARDING_KEY,
+  replayOnboarding,
   resetOnboardingMemory,
   shouldShowOnboarding,
 } from "./onboarding"
@@ -78,5 +79,27 @@ describe("first-run intro seen state (#313)", () => {
     expect(shouldShowOnboarding()).toBe(true)
     expect(() => completeOnboarding()).not.toThrow()
     expect(shouldShowOnboarding()).toBe(false)
+  })
+})
+
+describe("replaying the first-run intro (#482)", () => {
+  it("shows it again on a device that finished it", () => {
+    completeOnboarding()
+
+    replayOnboarding()
+
+    expect(shouldShowOnboarding()).toBe(true)
+    expect(window.localStorage.getItem(ONBOARDING_KEY)).toBe("pending")
+  })
+
+  it("still shows it for the session when storage throws", () => {
+    const boom = () => {
+      throw new Error("SecurityError")
+    }
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(boom)
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(boom)
+
+    expect(() => replayOnboarding()).not.toThrow()
+    expect(shouldShowOnboarding()).toBe(true)
   })
 })

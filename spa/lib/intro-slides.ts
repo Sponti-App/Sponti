@@ -1,7 +1,7 @@
 "use client"
 
 import { useSyncExternalStore } from "react"
-import { featureFlags } from "@/lib/feature-flags"
+import { getOnboardingFlags, useOnboardingFlags } from "@/lib/onboarding-flags"
 
 // #377 (behind `introV2`): the intro slides show once per device, on a
 // signed-out visitor's first open of the home map. Device-only: one
@@ -42,9 +42,20 @@ export function markIntroSlidesSeen(): void {
   for (const listener of listeners) listener()
 }
 
+/** #482: forget that the slides were seen, so this device sees them again. */
+export function resetIntroSlides(): void {
+  memory = false
+  try {
+    window.localStorage.removeItem(INTRO_SLIDES_KEY)
+  } catch {
+    // Not stored: `memory` carries it until the page is reloaded.
+  }
+  for (const listener of listeners) listener()
+}
+
 /** With `introV2` on, whether this device still has to see the slides. */
 export function shouldShowIntroSlides(): boolean {
-  return featureFlags.introV2 && !readSeen()
+  return getOnboardingFlags().introV2 && !readSeen()
 }
 
 function subscribe(listener: () => void): () => void {
@@ -63,7 +74,13 @@ function subscribe(listener: () => void): () => void {
 
 /** True while the intro slides are waiting to be shown on this device. */
 export function useShowIntroSlides(): boolean {
-  return useSyncExternalStore(subscribe, shouldShowIntroSlides, () => false)
+  const { introV2 } = useOnboardingFlags()
+  const unseen = useSyncExternalStore(
+    subscribe,
+    () => !readSeen(),
+    () => false
+  )
+  return introV2 && unseen
 }
 
 /** Test seam: forget the in-memory state so storage is read again. */

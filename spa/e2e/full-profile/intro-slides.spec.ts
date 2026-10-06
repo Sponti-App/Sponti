@@ -124,7 +124,9 @@ test.describe("intro slides (#377)", () => {
     await stubBackend(page, { introSlides: true })
     await page.goto("/")
     await expect(nav(page)).toBeVisible()
-    await expect(page.getByRole("button", { name: "Settings" })).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "invite", exact: true })
+    ).toBeVisible()
     await expect(slides(page)).toHaveCount(0)
   })
 })
