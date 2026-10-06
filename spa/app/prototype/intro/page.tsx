@@ -1,8 +1,8 @@
 "use client"
 
 // PROTOTYPE (#373, part of #370), round 3 — throwaway route, NOT production.
-// Round 3 reworks only the intro slides (what / why / how, with ?art=A|B for
-// drawn art or image slots); everything after them is round 2, decided.
+// Round 3 reworks only the intro slides (what / why / how, code-drawn art);
+// everything after them is round 2, decided.
 // Question: how does a first-time visitor learn what sponti is, look around
 // before signing up, and get going after? One clickable flow on mock data
 // only (no api, no auth, no geolocation):
@@ -10,9 +10,8 @@
 //   slides → map + coach marks → location ask in the map sheet → browse →
 //   sign-up ask when lighting a flare → back in the composer → checklist
 //
-// The bar switches the open calls: ?art=A|B (the slides' art),
-// ?marks=A|B (which three coach marks), ?gate=sheet|page and ?at=tap|light
-// (how and when sign-up is asked), ?friends=0|3 (after sign-up). ?s is the
+// The bar switches the open calls: ?marks=A|B (which three coach marks),
+// ?gate=sheet|page and ?at=tap|light (how and when sign-up is asked), ?friends=0|3 (after sign-up). ?s is the
 // step (← / → keys), ?bar=0 hides the bar for screenshots. Once a direction
 // is picked: record it in docs/decisions/, close the PR, delete this folder.
 
@@ -72,7 +71,6 @@ function Prototype() {
 
   const base: ProtoState = {
     s: params.get("s") ?? "",
-    art: pick(params.get("art"), TOGGLES.art),
     marks: pick(params.get("marks"), TOGGLES.marks),
     gate: pick(params.get("gate"), TOGGLES.gate),
     at: pick(params.get("at"), TOGGLES.at),

@@ -5,10 +5,8 @@
 // gradients that drift slowly, abstract blurred figures, large quiet type, a
 // full-width pill button and progress dots. Still under prefers-reduced-motion.
 //
-// ?art=A: code-drawn. Blurred SVG/CSS shapes plus an SVG feTurbulence grain,
-//         no image files.
-// ?art=B: image slots. Placeholder raster areas at the size a commissioned or
-//         generated illustration would be, with the gradient and grain on top.
+// The art is code-drawn (Patrick's pick, art A): blurred SVG/CSS shapes plus
+// an SVG feTurbulence grain, no image files.
 
 import { useId, useRef } from "react"
 import {
@@ -33,7 +31,6 @@ import {
   TextButton,
 } from "./_shared"
 
-type Art = "A" | "B"
 type Kind = "what" | "why" | "how"
 
 export const SLIDES: { id: Kind }[] = [
@@ -52,7 +49,6 @@ const PLUM_INK = "var(--flare-invite-ink)"
 const TEAL = "var(--flare-open)"
 const TEAL_INK = "var(--flare-open-ink)"
 const BG = "var(--background)"
-const FG = "var(--foreground)"
 /** The lone figures: dark plum on cream, a plum shade on navy. */
 const SILHOUETTE = "var(--intro-silhouette)"
 const mix = (a: string, pct: number, b: string) =>
@@ -157,13 +153,6 @@ const BLOBS: Record<Kind, Blob[]> = {
   ],
 }
 
-/** What an image slot would hold, at 3x for a 390 pt wide phone. */
-const SLOT: Record<Kind, { size: string; brief: string }> = {
-  what: { size: "1170 × 1440", brief: "a head among small floating objects" },
-  why: { size: "1170 × 1440", brief: "one softly lit person on a phone" },
-  how: { size: "1170 × 1080", brief: "a blurred, colourful crowd" },
-}
-
 // ---- copy --------------------------------------------------------------------
 
 const COPY: Record<Kind, { eyebrow: string; title: string; body: string }> = {
@@ -187,14 +176,12 @@ const COPY: Record<Kind, { eyebrow: string; title: string; body: string }> = {
 // ---- screens -----------------------------------------------------------------
 
 export function Slides({
-  art,
   index,
   now,
   go,
   onDone,
   onSignIn,
 }: {
-  art: Art
   index: number
   now: number
   go: (i: number) => void
@@ -223,7 +210,7 @@ export function Slides({
       }}
     >
       <IntroStyles />
-      <Backdrop kind={kind} art={art} />
+      <Backdrop kind={kind} />
 
       <header className="relative flex items-center justify-between px-6 pt-3">
         <BrandMark />
@@ -309,13 +296,11 @@ function Dots({
   )
 }
 
-/** The why slide's sources. The HHS link couldn't be checked from here (the
- * site blocks scripted requests), so it's text until someone confirms it. */
+/** The why slide's source. */
 function Sources() {
   return (
     <p className="mt-3 text-xs text-muted-foreground/80">
-      sources: us surgeon general, &ldquo;our epidemic of loneliness and
-      isolation&rdquo; (2023) ·{" "}
+      source:{" "}
       <a
         href="https://www.who.int/publications/i/item/978240112360"
         target="_blank"
@@ -376,34 +361,22 @@ function NowOrSoon({ now }: { now: number }) {
 
 // ---- the art -----------------------------------------------------------------
 
-function Backdrop({ kind, art }: { kind: Kind; art: Art }) {
+function Backdrop({ kind }: { kind: Kind }) {
   const figureBox =
     kind === "how" ? "aspect-[390/360] top-6" : "aspect-[390/480] top-4"
   return (
     <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
-      {art === "B" && (
-        <div
-          className={cn(
-            "absolute inset-x-0 mx-auto w-full max-w-md [mask-image:linear-gradient(to_bottom,black_75%,transparent)]",
-            figureBox
-          )}
-        >
-          <ImageSlot kind={kind} />
-        </div>
-      )}
-      <Gradient kind={kind} className={art === "B" ? "opacity-55" : ""} />
-      {art === "A" && (
-        <div
-          className={cn(
-            "absolute inset-x-0 mx-auto w-full max-w-md [mask-image:linear-gradient(to_bottom,black_60%,transparent_96%)]",
-            figureBox
-          )}
-        >
-          {kind === "what" && <WhatFigure />}
-          {kind === "why" && <WhyFigure />}
-          {kind === "how" && <HowFigure />}
-        </div>
-      )}
+      <Gradient kind={kind} />
+      <div
+        className={cn(
+          "absolute inset-x-0 mx-auto w-full max-w-md [mask-image:linear-gradient(to_bottom,black_60%,transparent_96%)]",
+          figureBox
+        )}
+      >
+        {kind === "what" && <WhatFigure />}
+        {kind === "why" && <WhyFigure />}
+        {kind === "how" && <HowFigure />}
+      </div>
       <Grain />
       {/* Fades the art into the page under the type. */}
       <div
@@ -437,44 +410,31 @@ function Gradient({ kind, className }: { kind: Kind; className?: string }) {
   )
 }
 
-/** Static film grain: SVG fractal noise, blended into whatever is under it. */
+/** Film grain: SVG fractal noise, blended into whatever is under it. The
+ * noise renders once into a layer a little bigger than the screen, and only
+ * that layer's transform moves, so the phone composites it instead of
+ * re-running feTurbulence every frame. */
 function Grain() {
   const id = `grain-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`
   return (
-    <svg
-      className="absolute inset-0 size-full opacity-45 mix-blend-overlay dark:opacity-35 dark:mix-blend-soft-light"
-      aria-hidden
-    >
-      <filter id={id}>
-        <feTurbulence
-          type="fractalNoise"
-          baseFrequency="0.85"
-          numOctaves="3"
-          stitchTiles="stitch"
-        />
-        <feColorMatrix type="saturate" values="0" />
-      </filter>
-      <rect width="100%" height="100%" filter={`url(#${id})`} />
-    </svg>
-  )
-}
-
-function ImageSlot({ kind }: { kind: Kind }) {
-  const slot = SLOT[kind]
-  return (
-    <div
-      className="flex size-full flex-col items-center justify-center gap-1 border-y border-dashed border-foreground/20 text-center"
-      style={{ background: mix(FG, 18, BG) }}
-    >
-      <span className="text-xs font-medium text-foreground/60">
-        image slot · {slot.size} px
-      </span>
-      <span className="text-xs text-foreground/45">{slot.brief}</span>
+    <div className="absolute inset-0 overflow-hidden opacity-45 mix-blend-overlay dark:opacity-35 dark:mix-blend-soft-light">
+      <svg className="intro-grain absolute -inset-[6%] size-[112%]" aria-hidden>
+        <filter id={id}>
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.85"
+            numOctaves="3"
+            stitchTiles="stitch"
+          />
+          <feColorMatrix type="saturate" values="0" />
+        </filter>
+        <rect width="100%" height="100%" filter={`url(#${id})`} />
+      </svg>
     </div>
   )
 }
 
-// ---- figures (art A) -----------------------------------------------------------
+// ---- figures -----------------------------------------------------------------
 
 /** One blurred head-and-shoulders, standing on (x, y). */
 function Bust({
@@ -719,9 +679,10 @@ function WhyFigure() {
   )
 }
 
-/** How: a blurred, colourful crowd, gathered round a warm light. */
+/** How: a blurred, colourful crowd, gathered round a flare. */
 function HowFigure() {
-  const { defs, url } = useBlurs([9, 6, 4])
+  const { defs, url } = useBlurs([9, 6, 4, 7])
+  const flame = `flame-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`
   const back = [
     { x: 40, c: mix(TEAL, 70, BG) },
     { x: 120, c: mix(PLUM, 80, BG) },
@@ -744,15 +705,31 @@ function HowFigure() {
   return (
     <svg viewBox="0 0 390 360" className="absolute inset-0 size-full">
       {defs}
-      <ellipse
-        cx="195"
-        cy="155"
-        rx="170"
-        ry="90"
-        fill={PEACH}
-        opacity="0.35"
-        filter={url(0)}
-      />
+      <defs>
+        <linearGradient id={flame} x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stopColor={PEACH} />
+          <stop offset="55%" stopColor={mix(PEACH, 75, PLUM)} />
+          <stop
+            offset="100%"
+            stopColor={mix(PEACH, 50, PLUM)}
+            stopOpacity="0.8"
+          />
+        </linearGradient>
+      </defs>
+      {/* The flare: a soft flame behind the crowd, drifting with the
+          gradient. */}
+      <g className="intro-flame" filter={url(3)}>
+        <path
+          d="M195 14 C222 66 270 104 268 166 C266 218 234 248 195 248 C156 248 124 218 122 170 C120 128 148 104 158 70 C168 96 178 104 184 112 C184 80 182 50 195 14 Z"
+          fill={`url(#${flame})`}
+          opacity="0.95"
+        />
+        <path
+          d="M196 92 C212 124 236 148 234 186 C232 216 216 236 196 236 C176 236 160 216 160 190 C160 160 182 140 196 92 Z"
+          fill={mix(PEACH, 45, "white")}
+          opacity="0.85"
+        />
+      </g>
       {back.map((p, i) => (
         <Bust
           key={`b${i}`}
@@ -814,6 +791,16 @@ function IntroStyles() {
       @keyframes intro-drift-b { from { transform: translate3d(0,0,0) scale(1.08); } to { transform: translate3d(-14%,6%,0) scale(0.94); } }
       @keyframes intro-drift-c { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(10%,-10%,0) scale(1.12); } }
 
+      .intro-flame { animation: intro-flame 14s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
+      @keyframes intro-flame {
+        0% { transform: translate(-6px, 0) scale(0.97, 0.95) rotate(-2deg); }
+        50% { transform: translate(2px, -4px) scale(1.02, 1.04) rotate(1deg); }
+        100% { transform: translate(6px, -2px) scale(0.99, 1.01) rotate(2.5deg); }
+      }
+
+      .intro-grain { animation: intro-grain 40s linear infinite alternate; will-change: transform; }
+      @keyframes intro-grain { from { transform: translate3d(-2%, -1.5%, 0); } to { transform: translate3d(2%, 1.5%, 0); } }
+
       .intro-float { animation: intro-float 9s ease-in-out infinite alternate; }
       @keyframes intro-float {
         from { translate: -50% calc(-50% - 7px); rotate: -4deg; }
@@ -828,7 +815,8 @@ function IntroStyles() {
 
       @media (prefers-reduced-motion: reduce) {
         .intro-drift-a, .intro-drift-b, .intro-drift-c,
-        .intro-float, .intro-sway, .intro-breathe { animation: none; }
+        .intro-float, .intro-sway, .intro-breathe, .intro-flame,
+        .intro-grain { animation: none; }
       }
     `}</style>
   )

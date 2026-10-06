@@ -179,7 +179,6 @@ export function Flow({ state, now, go, stub }: StepProps) {
     const index = Number(s.slice(6)) - 1
     return (
       <Slides
-        art={state.art}
         index={index}
         now={now}
         go={(i) => go(`slide-${i + 1}`)}
