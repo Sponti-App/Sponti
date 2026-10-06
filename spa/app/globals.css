@@ -195,6 +195,27 @@
   animation: pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
 }
 
+/* #379: the ring around a coach mark's spotlight. A box-shadow, not a scale,
+   so it hugs a wide pill (the map/calendar toggle) as closely as a circle. */
+@keyframes coach-ring {
+  from {
+    box-shadow: 0 0 0 0 var(--primary);
+  }
+  to {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+
+.animate-coach-ring {
+  animation: coach-ring 1.8s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-coach-ring {
+    animation: none;
+  }
+}
+
 @keyframes scale-in {
   from {
     transform: scale(0.85);

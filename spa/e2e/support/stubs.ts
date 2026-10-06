@@ -17,6 +17,8 @@ const LAST_KNOWN_COORDS_KEY = "sponti.geo.last-known-coords.v1"
 const INTRO_SLIDES_KEY = "sponti.intro-slides.v1"
 // Mirrors spa/lib/location-choice.ts's LOCATION_CHOICE_KEY (#408).
 const LOCATION_CHOICE_KEY = "sponti.location-choice.v1"
+// Mirrors spa/lib/coach-marks.ts's COACH_MARKS_KEY (#379).
+const COACH_MARKS_KEY = "sponti.coach-marks.v1"
 
 export const STUB_USER = {
   id: "user-e2e-1",
@@ -229,6 +231,12 @@ type StubBackendOptions = {
    * them, so specs about the signed-out map land straight on it.
    */
   introSlides?: boolean
+  /**
+   * Show the coach marks (#379, full profile only) on the signed-out map.
+   * Off by default: the device counts as having seen them, so specs about
+   * the signed-out map (and the location ask after them) aren't covered.
+   */
+  coachMarks?: boolean
   /** Leave this device's location choice undecided, so the location ask
    * (#408, full profile) shows. By default the device has chosen "use my
    * location", which keeps the map as it was before the ask. */
@@ -324,6 +332,7 @@ export async function stubBackend(
   const signedOut = options.signedOut ?? false
   const introSlides = options.introSlides ?? false
   const locationAsk = options.locationAsk ?? false
+  const coachMarks = options.coachMarks ?? false
   const makeConnections = (count: number) =>
     Array.from({ length: count }, (_, i) => ({
       _id: `conn-${i}`,
@@ -350,10 +359,13 @@ export async function stubBackend(
       signedOut,
       introSlidesKey,
       introSlides,
+      coachMarksKey,
+      coachMarks,
       locationChoiceKey,
       locationAsk,
     }) => {
       if (!introSlides) window.localStorage.setItem(introSlidesKey, "seen")
+      if (!coachMarks) window.localStorage.setItem(coachMarksKey, "seen")
       if (
         !locationAsk &&
         window.localStorage.getItem(locationChoiceKey) === null
@@ -379,6 +391,8 @@ export async function stubBackend(
       signedOut,
       introSlidesKey: INTRO_SLIDES_KEY,
       introSlides,
+      coachMarksKey: COACH_MARKS_KEY,
+      coachMarks,
       locationChoiceKey: LOCATION_CHOICE_KEY,
       locationAsk,
     }
