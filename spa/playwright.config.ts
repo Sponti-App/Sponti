@@ -35,6 +35,11 @@ const SERVER_ENV = {
   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: "",
   NEXT_PUBLIC_GOOGLE_MAPS_ID: "",
   NEXT_PUBLIC_SEED_DEMO_DATA: "",
+  // #467: host routing for the landing page (proxy.ts). Only a request whose
+  // Host is sponti.test is routed; the tests' own 127.0.0.1 is untouched.
+  // APP_ORIGIN is also where the landing's "open sponti" goes.
+  LANDING_HOSTS: "sponti.test",
+  APP_ORIGIN: "http://app.sponti.test",
 }
 
 const MOBILE = {

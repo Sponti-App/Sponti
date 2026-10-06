@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { isContactPath } from "@/lib/contact-links"
+import { LEGAL_PATHS } from "@/lib/legal-paths"
 import { featureFlags } from "@/lib/feature-flags"
 import {
   AUTH_PATHS,
@@ -12,8 +13,6 @@ import {
 } from "@/lib/redirect-path"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 
-// Also read by mobile-gate: the legal pages are never gated either.
-export const LEGAL_PATHS = ["/menu/terms", "/menu/privacy", "/menu/impressum"]
 const PUBLIC_PATHS = [...AUTH_PATHS, ...LEGAL_PATHS]
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
