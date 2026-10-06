@@ -36,7 +36,10 @@ export function isImminent(
   return now >= start - 30 * MIN && now <= end
 }
 
-export function isLive(event: EventItem, now: number = Date.now()): boolean {
+export function isLive(
+  event: Pick<EventItem, "startAt" | "endAt">,
+  now: number = Date.now()
+): boolean {
   const start = new Date(event.startAt).getTime()
   const end = new Date(event.endAt).getTime()
   return now >= start && now <= end

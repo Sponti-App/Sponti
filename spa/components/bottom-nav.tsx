@@ -87,6 +87,62 @@ export function BottomNav({
     },
   ]
 
+  return <NavBar items={items} />
+}
+
+/**
+ * The nav a signed-out visitor sees on the home map (#389, behind
+ * `browseBeforeSignup`): the same bar, with nothing that needs an account.
+ * Feed, circles and my flares ask them to sign up instead of navigating, and
+ * the flare button asks them to sign up to light one. Nothing here loads
+ * data: no badges, no suggested type.
+ */
+export function SignedOutBottomNav({
+  onAccountOnly,
+  onFlare,
+}: {
+  /** A tab that needs an account was tapped: "feed", "circles" or
+   * "my flares". */
+  onAccountOnly: (tab: AccountOnlyTab) => void
+  onFlare: () => void
+}) {
+  const items: NavItem[] = [
+    { kind: "route", icon: HouseIcon, label: "Home", href: "/" },
+    {
+      kind: "action",
+      icon: BellIcon,
+      label: "Feed",
+      onClick: () => onAccountOnly("feed"),
+    },
+    {
+      kind: "action",
+      icon: FlameIcon,
+      label: "flare",
+      onClick: onFlare,
+      center: true,
+    },
+    {
+      kind: "action",
+      icon: UsersIcon,
+      label: "Circles",
+      onClick: () => onAccountOnly("circles"),
+    },
+    {
+      kind: "action",
+      icon: FireIcon,
+      label: "my flares",
+      onClick: () => onAccountOnly("my flares"),
+    },
+  ]
+  return <NavBar items={items} />
+}
+
+export type AccountOnlyTab = "feed" | "circles" | "my flares"
+
+function NavBar({ items }: { items: NavItem[] }) {
+  const router = useRouter()
+  const pathname = usePathname()
+
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href)
 

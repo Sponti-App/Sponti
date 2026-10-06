@@ -44,4 +44,14 @@ export const featureFlags = {
    * `guestInviteModeFromDraft` always yields `"none"`.
    */
   plusOne: FEATURE_PROFILE === "full",
+
+  /**
+   * Browse before sign-up (#389, flare moments #370): a signed-out visitor
+   * lands on the home map instead of /login. They see the idea spots and the
+   * open-to-all pins from the public map endpoint (#425), and lighting a
+   * flare, tapping a pin or an account-only nav tab asks them to sign up in a
+   * sheet that keeps their draft. Full profile only until the rest of the
+   * signed-out onboarding (coach marks #379, the location ask #408) lands.
+   */
+  browseBeforeSignup: FEATURE_PROFILE === "full",
 } as const

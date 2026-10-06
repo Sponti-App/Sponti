@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { Suspense, useRef, useState } from "react"
 import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
@@ -8,6 +8,8 @@ import { MenuDrawer } from "@/components/menu-drawer"
 import { FirstRunIntro } from "@/components/first-run-intro"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
+import { KeptDraftWelcome } from "@/components/kept-draft-welcome"
+import { SignedOutHome } from "@/components/signed-out-home"
 import {
   ListIcon,
   GearIcon,
@@ -25,11 +27,21 @@ import {
   type ArrivalStatus,
   type EventItem,
 } from "@/lib/api/events"
+import { featureFlags } from "@/lib/feature-flags"
 import { etaControlKind, flareTiming } from "@/lib/flare-detail"
 import { haptic } from "@/lib/haptics"
 import { HttpError } from "@/lib/http"
 
 export default function Home() {
+  const { status } = useAuth()
+  // #389: AuthGate only lets a signed-out visitor this far with the flag on.
+  if (featureFlags.browseBeforeSignup && status === "unauthenticated") {
+    return <SignedOutHome />
+  }
+  return <SignedInHome />
+}
+
+function SignedInHome() {
   const router = useRouter()
   const { showActionFeedback } = useActionFeedback()
   const [view, setView] = useState<"map" | "calendar">("map")
@@ -284,8 +296,15 @@ export default function Home() {
 
       <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
 
-      {/* #313: once, after a new account is made on this device. */}
-      <FirstRunIntro />
+      {/* #313: once, after a new account is made on this device. #389: an
+          account made to light a kept draft gets the welcome back instead. */}
+      {featureFlags.browseBeforeSignup ? (
+        <Suspense fallback={null}>
+          <KeptDraftWelcome />
+        </Suspense>
+      ) : (
+        <FirstRunIntro />
+      )}
     </div>
   )
 }

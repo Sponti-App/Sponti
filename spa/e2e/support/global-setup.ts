@@ -50,8 +50,8 @@ const ROUTES = [
 // so the routes are touched again well inside that window until teardown.
 const KEEP_WARM_MS = 20_000
 
-async function warm(baseURL: string) {
-  for (const route of ROUTES) {
+async function warm(baseURL: string, routes: readonly string[]) {
+  for (const route of routes) {
     try {
       const res = await fetch(new URL(route, baseURL))
       // Draining the body ensures Next has actually finished rendering the
@@ -65,18 +65,43 @@ async function warm(baseURL: string) {
   }
 }
 
-export default async function globalSetup(config: FullConfig) {
-  const baseURL = config.projects[0]?.use?.baseURL
-  if (!baseURL) return
+/** Each server once: the routes its first project lists in
+ * `metadata.warmRoutes` (the full-profile server, #389), or all of ROUTES. */
+function serversToWarm(config: FullConfig): Map<string, readonly string[]> {
+  const servers = new Map<string, readonly string[]>()
+  for (const project of config.projects) {
+    const baseURL = project.use?.baseURL
+    if (!baseURL || servers.has(baseURL)) continue
+    const listed = (project.metadata as { warmRoutes?: unknown } | undefined)
+      ?.warmRoutes
+    servers.set(
+      baseURL,
+      Array.isArray(listed)
+        ? listed.filter((r) => typeof r === "string")
+        : ROUTES
+    )
+  }
+  return servers
+}
 
-  await warm(baseURL)
+async function warmAll(servers: Map<string, readonly string[]>) {
+  await Promise.all(
+    [...servers].map(([baseURL, routes]) => warm(baseURL, routes))
+  )
+}
+
+export default async function globalSetup(config: FullConfig) {
+  const servers = serversToWarm(config)
+  if (servers.size === 0) return
+
+  await warmAll(servers)
 
   let running = false
   const timer = setInterval(async () => {
     if (running) return
     running = true
     try {
-      await warm(baseURL)
+      await warmAll(servers)
     } finally {
       running = false
     }
