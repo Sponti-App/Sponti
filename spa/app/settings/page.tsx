@@ -40,6 +40,7 @@ import {
 import { HttpError } from "@/lib/http"
 import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
 import { resetIntroSlides } from "@/lib/intro-slides"
+import { resetCoachMarks } from "@/lib/coach-marks"
 import { clearLocationChoice } from "@/lib/location-choice"
 import { replayOnboarding } from "@/lib/onboarding"
 import { setNewOnboarding, useNewOnboarding } from "@/lib/onboarding-flags"
@@ -533,6 +534,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                     variant="outline"
                     className="rounded-full"
                     onClick={() => {
+                      resetCoachMarks()
                       clearLocationChoice()
                       showActionFeedback(
                         newOnboarding

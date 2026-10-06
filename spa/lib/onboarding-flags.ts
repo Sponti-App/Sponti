@@ -30,6 +30,7 @@ const ONBOARDING_FLAG_NAMES = [
   "browseBeforeSignup",
   "introV2",
   "locationAsk",
+  "coachMarks",
 ] as const
 
 export type OnboardingFlags = Record<

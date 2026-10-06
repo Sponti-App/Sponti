@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     browseBeforeSignup: false,
     introV2: false,
     locationAsk: false,
+    coachMarks: false,
   },
 }))
 
@@ -28,8 +29,14 @@ const TESTER = {
   browseBeforeSignup: false,
   introV2: false,
   locationAsk: false,
+  coachMarks: false,
 }
-const ALL_ON = { browseBeforeSignup: true, introV2: true, locationAsk: true }
+const ALL_ON = {
+  browseBeforeSignup: true,
+  introV2: true,
+  locationAsk: true,
+  coachMarks: true,
+}
 
 function buildProfile(flags: typeof TESTER) {
   Object.assign(mocks.flags, flags)

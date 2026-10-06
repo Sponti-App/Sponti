@@ -5,10 +5,15 @@ import {
   coachMarksVisible,
   firstBoxInside,
   markCoachMarksSeen,
+  resetCoachMarks,
   resetCoachMarksMemory,
   shouldShowCoachMarks,
 } from "./coach-marks"
 import { INTRO_SLIDES_KEY } from "./intro-slides"
+import {
+  NEW_ONBOARDING_KEY,
+  resetNewOnboardingMemory,
+} from "./onboarding-flags"
 
 // #379: the coach marks show once per device on the signed-out map, after
 // the intro slides and before the location ask, only with `coachMarks` on
@@ -22,6 +27,7 @@ beforeEach(() => {
   mocks.flags.coachMarks = true
   window.localStorage.clear()
   resetCoachMarksMemory()
+  resetNewOnboardingMemory()
 })
 
 afterEach(() => {
@@ -78,6 +84,23 @@ describe("coach marks seen state (#379)", () => {
     mocks.flags.coachMarks = false
 
     expect(shouldShowCoachMarks()).toBe(false)
+  })
+
+  it("shows in the tester build when the device's new onboarding switch is on (#482)", () => {
+    mocks.flags.coachMarks = false
+    window.localStorage.setItem(NEW_ONBOARDING_KEY, "on")
+
+    expect(shouldShowCoachMarks()).toBe(true)
+  })
+
+  it("shows again after settings replays them (#482)", () => {
+    markCoachMarksSeen()
+    expect(shouldShowCoachMarks()).toBe(false)
+
+    resetCoachMarks()
+
+    expect(shouldShowCoachMarks()).toBe(true)
+    expect(window.localStorage.getItem(COACH_MARKS_KEY)).toBeNull()
   })
 })
 

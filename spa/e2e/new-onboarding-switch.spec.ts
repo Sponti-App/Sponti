@@ -10,8 +10,10 @@ const SWITCH_KEY = "sponti.new-onboarding.v1"
 const INTRO_SLIDES_KEY = "sponti.intro-slides.v1"
 const ONBOARDING_KEY = "sponti.onboarding.v1"
 const LOCATION_CHOICE_KEY = "sponti.location-choice.v1"
+const COACH_MARKS_KEY = "sponti.coach-marks.v1"
 
 const slides = (page: Page) => page.locator("[data-intro-slide]")
+const mark = (page: Page) => page.locator("[data-coach-mark]")
 const nav = (page: Page) => page.getByRole("navigation", { name: "Primary" })
 const newOnboarding = (page: Page) =>
   page.getByRole("switch", { name: "new onboarding" })
@@ -45,7 +47,11 @@ test.describe("new onboarding switch (#482)", () => {
   test("on, then signing out shows the intro slides in the tester build", async ({
     page,
   }) => {
-    await stubBackend(page, { introSlides: true, locationAsk: true })
+    await stubBackend(page, {
+      introSlides: true,
+      coachMarks: true,
+      locationAsk: true,
+    })
     await staySignedOutAfterSignOut(page)
     await page.goto("/settings")
 
@@ -60,7 +66,10 @@ test.describe("new onboarding switch (#482)", () => {
     await expect(page).toHaveURL(/\/$/)
     await expect(slides(page)).toBeVisible()
     await slides(page).getByRole("button", { name: "skip" }).click()
-    // The location ask follows the slides: the flags are on together.
+    // Then the coach marks (#379), then the location ask: the flags are on
+    // together.
+    await expect(mark(page)).toBeVisible()
+    await mark(page).getByRole("button", { name: "skip" }).click()
     await expect(
       page.getByRole("dialog", { name: "where should the map start?" })
     ).toBeVisible()
@@ -115,12 +124,13 @@ test.describe("new onboarding switch (#482)", () => {
     expect(await stored(page, LOCATION_CHOICE_KEY)).not.toBeNull()
   })
 
-  test("replay map tips resets the location choice, and says to sign out", async ({
+  test("replay map tips resets the coach marks and the location choice, and says to sign out", async ({
     page,
   }) => {
     await stubBackend(page)
     await page.goto("/settings")
     await newOnboarding(page).click()
+    expect(await stored(page, COACH_MARKS_KEY)).toBe("seen")
     expect(await stored(page, LOCATION_CHOICE_KEY)).not.toBeNull()
 
     await page.getByRole("button", { name: "replay map tips" }).click()
@@ -128,6 +138,7 @@ test.describe("new onboarding switch (#482)", () => {
     await expect(
       page.getByText("map tips reset. sign out to see them again")
     ).toBeVisible()
+    expect(await stored(page, COACH_MARKS_KEY)).toBeNull()
     expect(await stored(page, LOCATION_CHOICE_KEY)).toBeNull()
     expect(await stored(page, INTRO_SLIDES_KEY)).toBe("seen")
   })

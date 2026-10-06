@@ -1,13 +1,13 @@
 "use client"
 
 import { useSyncExternalStore } from "react"
-import { featureFlags } from "@/lib/feature-flags"
+import { getOnboardingFlags, useOnboardingFlags } from "@/lib/onboarding-flags"
 
 // #379 (behind `coachMarks`, flare moments #370): up to three coach marks on
 // the signed-out map, once per device. They run after the intro slides (#377)
 // and before the location ask (#408), which waits for them. Set A from the
 // intro prototype (#373, PR #407 section 2): the idea spot, the flare button,
-// then the map/calendar toggle. There is no replay.
+// then the map/calendar toggle. Settings can replay them (#482).
 //
 // Storage follows `intro-slides.ts`: one device-only localStorage key, every
 // call wrapped (private windows, blocked site data), and `memory` carrying the
@@ -42,9 +42,20 @@ export function markCoachMarksSeen(): void {
   for (const listener of listeners) listener()
 }
 
+/** #482: forget that the marks were seen, so this device sees them again. */
+export function resetCoachMarks(): void {
+  memory = false
+  try {
+    window.localStorage.removeItem(COACH_MARKS_KEY)
+  } catch {
+    // Not stored: `memory` carries it until the page is reloaded.
+  }
+  for (const listener of listeners) listener()
+}
+
 /** With `coachMarks` on, whether this device still has to see the marks. */
 export function shouldShowCoachMarks(): boolean {
-  return featureFlags.coachMarks && !readSeen()
+  return getOnboardingFlags().coachMarks && !readSeen()
 }
 
 function subscribe(listener: () => void): () => void {
@@ -66,7 +77,13 @@ function subscribe(listener: () => void): () => void {
  * for the slides or a sheet, or showing. The location ask holds while it is.
  */
 export function useCoachMarksPending(): boolean {
-  return useSyncExternalStore(subscribe, shouldShowCoachMarks, () => false)
+  const { coachMarks } = useOnboardingFlags()
+  const unseen = useSyncExternalStore(
+    subscribe,
+    () => !readSeen(),
+    () => false
+  )
+  return coachMarks && unseen
 }
 
 /** Test seam: forget the in-memory state so storage is read again. */
