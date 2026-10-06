@@ -1313,7 +1313,6 @@ export function NewEventDrawer({
     return circleMembers.length + extras
   }, [selectedAudienceCircle, isOpen, directlyInvitedIds])
 
-  const isOverLimit = !isOpen && inviteeCount > guestLimit
   const hasPrivateInvitees = isOpen || inviteeCount > 0
   const needsAudience =
     !isOpen && !audienceLoading && !audienceError && !hasPrivateInvitees
@@ -1584,7 +1583,7 @@ export function NewEventDrawer({
                 reachable (issue #94). */}
             <div
               ref={scrollRef}
-              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4"
+              className="min-h-0 flex-1 scroll-pt-3 overflow-y-auto overscroll-contain px-4 pt-1 pb-4"
               data-vaul-no-drag
             >
               {/* Title input — hero of the compose card */}
@@ -1650,7 +1649,6 @@ export function NewEventDrawer({
                 <SectionChip
                   label={whoLabel}
                   active={expandedSection === "who"}
-                  tone={isOverLimit ? "destructive" : "default"}
                   onClick={() => toggleSection("who")}
                 />
               </div>
@@ -1935,19 +1933,14 @@ function SectionChip({
   label,
   active,
   onClick,
-  tone = "default",
 }: {
   label: string
   active: boolean
   onClick: () => void
-  tone?: "default" | "destructive"
 }) {
-  const toneClasses =
-    tone === "destructive"
-      ? "border-destructive/40 bg-destructive/10 text-destructive"
-      : active
-        ? "border-accent bg-accent/10 text-accent"
-        : "border-muted-foreground/30 bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground"
+  const toneClasses = active
+    ? "border-accent bg-accent/10 text-accent"
+    : "border-muted-foreground/30 bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground"
   return (
     <button
       type="button"
@@ -1955,9 +1948,7 @@ function SectionChip({
       className={`inline-flex shrink-0 items-center gap-1 truncate rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${toneClasses}`}
     >
       {label}
-      {!active && tone !== "destructive" && (
-        <PencilSimpleIcon className="h-2.5 w-2.5 opacity-50" />
-      )}
+      {!active && <PencilSimpleIcon className="h-2.5 w-2.5 opacity-50" />}
     </button>
   )
 }
@@ -2660,7 +2651,8 @@ function useLongPress({
   }
 }
 
-// Three compact chips for the system circles, plus a wrapped row of custom
+// Compact chips for the system circles, which wrap so a name is never cut
+// short (#368), plus a wrapped row of custom
 // circles the user has created on the Circles page (#172 — custom circles
 // used to be silently dropped here even though the API already accepts
 // them as an audience). Inner/Close are editable — tap selects the
@@ -2696,7 +2688,7 @@ export function CircleCards({
   return (
     <div className="flex flex-col gap-2">
       {systemCircles.length > 0 && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="flex flex-wrap gap-2">
           {systemCircles.map((c) => (
             <CircleChip
               key={c.id}
@@ -2770,7 +2762,7 @@ function CircleChip({
         }`}
       />
       <span
-        className={`min-w-0 flex-1 truncate text-left text-xs ${
+        className={`min-w-0 text-left text-xs break-words ${
           selected ? "font-medium text-accent" : "text-foreground"
         }`}
       >
