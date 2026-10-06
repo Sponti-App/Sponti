@@ -392,4 +392,19 @@ describe("unauthenticated contact preview (#124)", () => {
     expect(response.body.data.token).toEqual(expect.any(String));
     expect(response.body.data).not.toHaveProperty("userId");
   });
+
+  // Keep this last: the limiter counts per address for the whole test file.
+  it("is rate-limited (#450)", async () => {
+    let limited: request.Response | undefined;
+
+    for (let i = 0; i < 70 && !limited; i += 1) {
+      const response = await request(app)
+        .post("/api/v1/public/contact-preview")
+        .send({ kind: "invite", token: "does-not-exist" });
+      if (response.status === 429) limited = response;
+    }
+
+    expect(limited?.body.error.code).toBe("RATE_LIMITED");
+    expect(limited?.headers["retry-after"]).toBeDefined();
+  });
 });

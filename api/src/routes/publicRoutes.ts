@@ -10,9 +10,12 @@ import { contactPreviewBodySchema, publicMapEventsQuerySchema } from "#schemas/i
 export const publicRoutes = Router();
 
 // POST (not GET) so the token travels in the body and stays out of URLs and
-// access logs.
+// access logs. Rate-limited per client (60 a minute, #450) because anyone can
+// call it and each request reads the database. The limiter runs before
+// validation so malformed bodies count too.
 publicRoutes.post(
   "/contact-preview",
+  createRateLimiter({ windowMs: 60_000, max: 60 }),
   validateRequest({ body: contactPreviewBodySchema }),
   publicController.getContactPreview
 );
