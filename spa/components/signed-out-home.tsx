@@ -14,6 +14,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { SignedOutBottomNav } from "@/components/bottom-nav"
 import { CalendarBlankIcon, MapTrifoldIcon } from "@/components/icons"
+import { IntroSlidesGate } from "@/components/intro-slides-gate"
 import { SignUpSheet, type SignUpAsk } from "@/components/sign-up-sheet"
 import { SignedOutMap } from "@/components/signed-out-map"
 import { haptic } from "@/lib/haptics"
@@ -94,6 +95,9 @@ export function SignedOutHome() {
       </div>
 
       <SignUpSheet open={askOpen} ask={ask} onClose={() => setAskOpen(false)} />
+
+      {/* #377 (behind `introV2`): the intro slides, once per device. */}
+      <IntroSlidesGate />
     </div>
   )
 }

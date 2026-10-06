@@ -13,6 +13,8 @@ const USER_KEY = "sponti.auth.user.v1"
 // permission so the map has a camera center immediately, without needing to
 // drive the browser's real permission prompt in a headless run.
 const LAST_KNOWN_COORDS_KEY = "sponti.geo.last-known-coords.v1"
+// Mirrors spa/lib/intro-slides.ts's INTRO_SLIDES_KEY (#377).
+const INTRO_SLIDES_KEY = "sponti.intro-slides.v1"
 
 export const STUB_USER = {
   id: "user-e2e-1",
@@ -217,6 +219,12 @@ type StubBackendOptions = {
    */
   signedOut?: boolean
   /**
+   * Show the intro slides (#377, full profile only) on a signed-out
+   * visitor's first open. Off by default: the device counts as having seen
+   * them, so specs about the signed-out map land straight on it.
+   */
+  introSlides?: boolean
+  /**
    * How many accepted connections GET /connections lists. Zero by default.
    */
   friends?: number
@@ -296,6 +304,7 @@ export async function stubBackend(
   }
   const coords = options.coords ?? STUB_COORDS
   const signedOut = options.signedOut ?? false
+  const introSlides = options.introSlides ?? false
   const connections = Array.from({ length: options.friends ?? 0 }, (_, i) => ({
     _id: `conn-${i}`,
     requesterId: user.id,
@@ -313,7 +322,10 @@ export async function stubBackend(
       user,
       coords,
       signedOut,
+      introSlidesKey,
+      introSlides,
     }) => {
+      if (!introSlides) window.localStorage.setItem(introSlidesKey, "seen")
       if (!signedOut) {
         window.localStorage.setItem(accessTokenKey, "e2e-access-token")
         window.localStorage.setItem(refreshTokenKey, "e2e-refresh-token")
@@ -329,6 +341,8 @@ export async function stubBackend(
       user,
       coords,
       signedOut,
+      introSlidesKey: INTRO_SLIDES_KEY,
+      introSlides,
     }
   )
 

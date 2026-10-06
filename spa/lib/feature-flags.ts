@@ -54,4 +54,13 @@ export const featureFlags = {
    * signed-out onboarding (coach marks #379, the location ask #408) lands.
    */
   browseBeforeSignup: FEATURE_PROFILE === "full",
+
+  /**
+   * The intro slides (#377, flare moments #370): three slides (what sponti
+   * is, why it exists, how lighting a flare works) on a signed-out visitor's
+   * first open of the home map, once per device. They sit on #389's
+   * signed-out home, so they need `browseBeforeSignup` too. The post-sign-up
+   * first-run intro (#313) is separate and unchanged. Full profile only.
+   */
+  introV2: FEATURE_PROFILE === "full",
 } as const
