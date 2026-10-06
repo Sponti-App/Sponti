@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils"
 // a signed-out visitor is: the signed-out map's dock, the sign-up sheet and
 // the sign-in page. (Registration has its own "by signing up you agree"
 // sentence with the same three links.) Signed in, it is the foot of the menu
-// (#369). The pages are public paths in
-// auth-gate (LEGAL_PATHS).
+// (#369). The pages are public paths in auth-gate (LEGAL_PATHS,
+// lib/legal-paths).
 const LEGAL_LINKS = [
   { href: "/menu/impressum", label: "impressum" },
   { href: "/menu/privacy", label: "privacy" },

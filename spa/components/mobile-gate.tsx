@@ -1,57 +1,21 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
-import QRCode from "qrcode"
-import { LEGAL_PATHS } from "@/components/auth-gate"
 import { LegalLinks } from "@/components/legal-links"
+import { PhoneQr } from "@/components/phone-qr"
 import { Button } from "@/components/ui/button"
 import {
   MOBILE_GATE_MODE,
   rememberContinueAnyway,
   useMobileGate,
 } from "@/lib/mobile-gate"
+import { LEGAL_PATHS } from "@/lib/legal-paths"
 
 // #467 part 2: the "sponti is made for your phone" notice. See lib/mobile-gate
 // for the rule (desktop-sized, no touch) and the warn-or-block constant.
 //
 // The legal pages are never gated: the impressum has to be reachable from
 // every page. They render straight away, with no waiting on the client.
-
-function PhoneQr() {
-  const [dataUrl, setDataUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    QRCode.toDataURL(window.location.href, {
-      width: 240,
-      margin: 2,
-      color: { dark: "#171717", light: "#ffffff" },
-    })
-      .then((url) => {
-        if (!cancelled) setDataUrl(url)
-      })
-      .catch(() => {
-        // No code: the heading and line still say what to do.
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  return (
-    <div className="flex h-60 w-60 items-center justify-center rounded-2xl border border-border bg-card p-4">
-      {dataUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={dataUrl}
-          alt="qr code of this page"
-          className="h-full w-full rounded-lg"
-        />
-      )}
-    </div>
-  )
-}
 
 function MobileNotice() {
   return (

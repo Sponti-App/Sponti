@@ -40,6 +40,7 @@ const ROUTES = [
   "/invite/warm-up",
   "/profile/warm-up",
   "/qr/warm-up",
+  "/landing",
 ]
 
 // Next dev also *disposes* a compiled route that nobody has requested for
