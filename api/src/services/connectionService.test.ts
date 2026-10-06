@@ -6,6 +6,7 @@ const connectionUpdateOneMock = vi.hoisted(() => vi.fn());
 const hasAnyBlockBetweenUsersMock = vi.hoisted(() => vi.fn());
 const createConnectionAcceptedNotificationMock = vi.hoisted(() => vi.fn());
 const createConnectionRequestNotificationMock = vi.hoisted(() => vi.fn());
+const addNewFriendsToAllFriendsFlaresMock = vi.hoisted(() => vi.fn());
 
 vi.mock("#models/index", () => ({
   Connection: {
@@ -13,6 +14,10 @@ vi.mock("#models/index", () => ({
     findOne: connectionFindOneMock,
     updateOne: connectionUpdateOneMock,
   },
+}));
+
+vi.mock("#services/allFriendsFlareService", () => ({
+  addNewFriendsToAllFriendsFlares: addNewFriendsToAllFriendsFlaresMock,
 }));
 
 vi.mock("#services/blockService", () => ({
@@ -128,6 +133,11 @@ describe("connectionService.sendConnectionRequest", () => {
       connectionId: CONNECTION_ID,
       session: undefined,
     });
+    expect(addNewFriendsToAllFriendsFlaresMock).toHaveBeenCalledWith(
+      REQUESTER_ID,
+      RECEIVER_ID,
+      undefined
+    );
   });
 });
 
@@ -149,6 +159,11 @@ describe("connectionService.respondToConnectionRequest", () => {
       connectionId: CONNECTION_ID,
       session: undefined,
     });
+    expect(addNewFriendsToAllFriendsFlaresMock).toHaveBeenCalledWith(
+      RECEIVER_ID,
+      REQUESTER_ID,
+      undefined
+    );
   });
 
   it("does not create connection_accepted when a pending request is rejected", async () => {
@@ -162,5 +177,6 @@ describe("connectionService.respondToConnectionRequest", () => {
     expect(pending.save).toHaveBeenCalledOnce();
     expect(connectionUpdateOneMock).not.toHaveBeenCalled();
     expect(createConnectionAcceptedNotificationMock).not.toHaveBeenCalled();
+    expect(addNewFriendsToAllFriendsFlaresMock).not.toHaveBeenCalled();
   });
 });

@@ -189,6 +189,17 @@ type StubBackendOptions = {
    * How many accepted connections GET /connections lists. Zero by default.
    */
   friends?: number
+  /**
+   * The circles GET /circles lists, as the api returns them. Empty by
+   * default. `memberCount` members are generated as `friend-0..n`, matching
+   * the ids GET /connections uses.
+   */
+  circles?: Array<{
+    _id: string
+    name: string
+    type: "inner" | "close" | "all" | "custom"
+    memberCount: number
+  }>
 }
 
 /** The self-authored fields GET /auth/me and PATCH /auth/me/profile carry. */
@@ -367,6 +378,23 @@ export async function stubBackend(
           total: connections.length,
           totalPages: 1,
         },
+      })
+      return
+    }
+    if (path === "/circles" && route.request().method() === "GET") {
+      await fulfillJson(route, {
+        data: (options.circles ?? []).map((circle) => ({
+          _id: circle._id,
+          ownerId: user.id,
+          name: circle.name,
+          type: circle.type,
+          members: Array.from({ length: circle.memberCount }, (_, i) => ({
+            _id: `${circle._id}-m${i}`,
+            circleId: circle._id,
+            ownerId: user.id,
+            userId: `friend-${i}`,
+          })),
+        })),
       })
       return
     }
