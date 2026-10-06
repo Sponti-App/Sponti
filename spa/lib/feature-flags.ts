@@ -45,6 +45,12 @@ export const featureFlags = {
    */
   plusOne: FEATURE_PROFILE === "full",
 
+  // #482: `browseBeforeSignup`, `introV2` and `locationAsk` below are the new
+  // onboarding. A device can switch them all on at runtime ("new onboarding" in
+  // settings), whatever the build profile. Read them through
+  // `useOnboardingFlags` / `getOnboardingFlags` (lib/onboarding-flags.ts), never
+  // off `featureFlags` directly, or that switch won't reach the reader.
+
   /**
    * Browse before sign-up (#389, flare moments #370): a signed-out visitor
    * lands on the home map instead of /login. They see the idea spots and the

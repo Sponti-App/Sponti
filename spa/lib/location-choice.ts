@@ -135,6 +135,17 @@ export function rememberLocationChoice(choice: LocationChoice): void {
   for (const listener of listeners) listener()
 }
 
+/** #482: forget where the map starts, so the ask shows again. */
+export function clearLocationChoice(): void {
+  memoryRaw = null
+  try {
+    window.localStorage.removeItem(LOCATION_CHOICE_KEY)
+  } catch {
+    // Not stored: `memoryRaw` carries it until the page is reloaded.
+  }
+  for (const listener of listeners) listener()
+}
+
 function subscribe(listener: () => void): () => void {
   const onStorage = (event: StorageEvent) => {
     if (event.key !== null && event.key !== LOCATION_CHOICE_KEY) return

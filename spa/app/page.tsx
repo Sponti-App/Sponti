@@ -28,15 +28,16 @@ import {
   type ArrivalStatus,
   type EventItem,
 } from "@/lib/api/events"
-import { featureFlags } from "@/lib/feature-flags"
+import { useOnboardingFlags } from "@/lib/onboarding-flags"
 import { etaControlKind, flareTiming } from "@/lib/flare-detail"
 import { haptic } from "@/lib/haptics"
 import { HttpError } from "@/lib/http"
 
 export default function Home() {
   const { status } = useAuth()
+  const { browseBeforeSignup } = useOnboardingFlags()
   // #389: AuthGate only lets a signed-out visitor this far with the flag on.
-  if (featureFlags.browseBeforeSignup && status === "unauthenticated") {
+  if (browseBeforeSignup && status === "unauthenticated") {
     return <SignedOutHome />
   }
   return <SignedInHome />
@@ -54,7 +55,8 @@ function SignedInHome() {
   const { user } = useAuth()
   // #459: after sign-up, a checklist in the map's sheet (in place of #313's
   // intro, with `introV2`).
-  const checklist = useOnboardingChecklist(featureFlags.introV2)
+  const { browseBeforeSignup, introV2 } = useOnboardingFlags()
+  const checklist = useOnboardingChecklist(introV2)
 
   // Left-edge swipe to open MenuDrawer
   const swipeStartX = useRef<number | null>(null)
@@ -304,11 +306,11 @@ function SignedInHome() {
       {/* #313: once, after a new account is made on this device. #389: an
           account made to light a kept draft gets the welcome back instead.
           #459: with `introV2` the checklist above replaces the intro. */}
-      {featureFlags.browseBeforeSignup ? (
+      {browseBeforeSignup ? (
         <Suspense fallback={null}>
           <KeptDraftWelcome />
         </Suspense>
-      ) : featureFlags.introV2 ? null : (
+      ) : introV2 ? null : (
         <FirstRunIntro />
       )}
     </div>

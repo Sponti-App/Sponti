@@ -2,6 +2,10 @@ import { act, render, screen, waitFor } from "@testing-library/react"
 import { renderToString } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { AuthUser } from "@/lib/auth-store"
+import {
+  NEW_ONBOARDING_KEY,
+  resetNewOnboardingMemory,
+} from "@/lib/onboarding-flags"
 
 // #219: a signed-in user who cold-loads or refreshes a protected page must
 // stay on it, and a signed-out one must be sent to /login with a way back.
@@ -204,6 +208,55 @@ describe("AuthGate with browseBeforeSignup (#389)", () => {
       )
     )
     expect(screen.queryByText("flare page")).not.toBeInTheDocument()
+  })
+})
+
+describe("AuthGate with the new onboarding switched on (#482)", () => {
+  // The build is the tester build (browseBeforeSignup off); the device says on.
+  it("lets a signed-out visitor stay on the home map, with no redirect while it hydrates", async () => {
+    window.localStorage.setItem(NEW_ONBOARDING_KEY, "on")
+    resetNewOnboardingMemory()
+    setUrl("/")
+
+    await hydrateApp(<p>home map</p>)
+
+    expect(await screen.findByText("home map")).toBeInTheDocument()
+    expect(mocks.replace).not.toHaveBeenCalled()
+  })
+
+  it("keeps the spinner, not the page, until the device is read", async () => {
+    window.localStorage.setItem(NEW_ONBOARDING_KEY, "on")
+    resetNewOnboardingMemory()
+    setUrl("/")
+    const { AuthProvider, AuthGate } = await loadGate()
+
+    // Server render: the device isn't known, so nothing but the spinner.
+    const html = renderToString(
+      <AuthProvider>
+        <AuthGate>
+          <p>home map</p>
+        </AuthGate>
+      </AuthProvider>
+    )
+
+    expect(html).not.toContain("home map")
+  })
+
+  it("still sends a signed-out visitor on any other page to /login", async () => {
+    window.localStorage.setItem(NEW_ONBOARDING_KEY, "on")
+    resetNewOnboardingMemory()
+
+    await hydrateApp()
+
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalled())
+  })
+
+  it("switched off, the tester build sends a signed-out visitor on / to /login", async () => {
+    setUrl("/")
+
+    await hydrateApp(<p>home map</p>)
+
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/login"))
   })
 })
 

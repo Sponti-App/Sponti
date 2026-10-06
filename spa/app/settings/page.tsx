@@ -15,6 +15,7 @@ import {
   MapPinIcon,
   MoonIcon,
   ShieldIcon,
+  SparkleIcon,
   SunIcon,
   UploadSimpleIcon,
   UserIcon,
@@ -38,6 +39,10 @@ import {
 } from "@/lib/api/notification-settings"
 import { HttpError } from "@/lib/http"
 import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
+import { resetIntroSlides } from "@/lib/intro-slides"
+import { clearLocationChoice } from "@/lib/location-choice"
+import { replayOnboarding } from "@/lib/onboarding"
+import { setNewOnboarding, useNewOnboarding } from "@/lib/onboarding-flags"
 import {
   getRefreshToken,
   getToken,
@@ -136,6 +141,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
   const { resolvedTheme, setTheme } = useTheme()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const ideasHidden = useIdeasHidden()
+  const newOnboarding = useNewOnboarding()
   const isDark = resolvedTheme === "dark"
 
   // Account draft — seeded from the auth session (already fresh: AuthProvider
@@ -492,6 +498,53 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 checked={!ideasHidden}
                 onCheckedChange={(v) => setIdeasHidden(!v)}
               />
+            </Section>
+
+            {/* Onboarding — device-only, applies at once (#482): the switch
+                turns the new onboarding on whatever the build profile, and
+                the buttons reset what it remembers so it shows again. */}
+            <Section icon={SparkleIcon} label="onboarding">
+              <div className="space-y-3">
+                <ToggleRow
+                  label="new onboarding"
+                  sublabel="intro slides, browse before sign-up, the location ask · kept on this device"
+                  checked={newOnboarding}
+                  onCheckedChange={setNewOnboarding}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-full"
+                    onClick={() => {
+                      resetIntroSlides()
+                      replayOnboarding()
+                      showActionFeedback(
+                        newOnboarding
+                          ? "intro reset. sign out to see the slides again"
+                          : "intro reset. it shows on the home map"
+                      )
+                    }}
+                  >
+                    replay intro
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-full"
+                    onClick={() => {
+                      clearLocationChoice()
+                      showActionFeedback(
+                        newOnboarding
+                          ? "map tips reset. sign out to see them again"
+                          : "map tips reset. turn on new onboarding to see them"
+                      )
+                    }}
+                  >
+                    replay map tips
+                  </Button>
+                </div>
+              </div>
             </Section>
 
             <Button

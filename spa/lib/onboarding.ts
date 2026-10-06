@@ -68,6 +68,14 @@ export function completeOnboarding(): void {
   writeState("done")
 }
 
+/**
+ * #482: show the intro again on this device, for the account that is signed
+ * in now: the first-run intro, or the checklist with `introV2`.
+ */
+export function replayOnboarding(): void {
+  writeState("pending")
+}
+
 export function shouldShowOnboarding(): boolean {
   return readState() === "pending"
 }
