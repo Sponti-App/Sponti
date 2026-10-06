@@ -613,12 +613,19 @@ export function MapView({
   joinedIds,
   onRouteReady,
   onSeeCalendar,
+  dockCard,
 }: {
   onEventSelect: (event: EventItem) => void
   activeRoute: EventItem | null
   joinedIds: Set<string>
   onRouteReady?: (event: EventItem, etaLabel: string) => void
   onSeeCalendar?: () => void
+  /**
+   * A card that takes the place of the rail and the quiet card at mid (the
+   * post-sign-up checklist, #459). A tapped idea spot's card still wins, and
+   * "hide" folds it away with the rail.
+   */
+  dockCard?: React.ReactNode
 }) {
   const { open: composeOpen, openDrawer } = useNewEventDrawer()
   const router = useRouter()
@@ -839,7 +846,8 @@ export function MapView({
   // The pin of the idea on screen grows: the tapped one, else the quiet card's.
   const selectedIdeaId = tappedIdea?.id ?? idea?.id ?? null
 
-  const showRail = dock === "mid" && !quietType && !tappedIdea
+  const showDockCard = !!dockCard && dock === "mid" && !tappedIdea
+  const showRail = dock === "mid" && !quietType && !tappedIdea && !showDockCard
   const highlightId = showRail
     ? visibleEvents.some((e) => e.id === railFocusId)
       ? railFocusId
@@ -1151,6 +1159,8 @@ export function MapView({
             onDismiss={() => setTappedIdeaId(null)}
             onHideIdeas={hideIdeas}
           />
+        ) : showDockCard ? (
+          dockCard
         ) : quietTypeInfo ? (
           <QuietFlareCard
             type={quietTypeInfo}

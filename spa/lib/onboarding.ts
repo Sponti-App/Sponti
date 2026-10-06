@@ -11,6 +11,9 @@ import { useSyncExternalStore } from "react"
 //   "done"    — the intro was finished or skipped; it never shows again here,
 //               even for another new account.
 //
+// With `introV2`, the post-sign-up checklist (#459,
+// lib/onboarding-checklist.ts) reads the same state in place of the intro.
+//
 // Signing in on an existing account drops a leftover "pending" (an intro that
 // was never finished before signing out), so it never shows on sign-in.
 // Every storage call is wrapped, because localStorage can be missing or throw

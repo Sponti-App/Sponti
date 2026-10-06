@@ -51,10 +51,19 @@ export function QrShareSheet({
   displayName,
   handle,
   onClose,
+  heading = "your qr",
+  closeLabel,
+  onShared,
 }: {
   displayName: string
   handle: string
   onClose: () => void
+  /** The small label at the top. */
+  heading?: string
+  /** A text button ("later", #459's first-friend step) in place of the X. */
+  closeLabel?: string
+  /** After the invite link was shared or copied. */
+  onShared?: () => void
 }) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [qrError, setQrError] = useState<string | null>(null)
@@ -140,11 +149,13 @@ export function QrShareSheet({
           url: inviteUrl,
         })
         showActionFeedback("link shared")
+        onShared?.()
       } else {
         await navigator.clipboard.writeText(inviteUrl)
         setCopied(true)
         showActionFeedback("link copied")
         window.setTimeout(() => setCopied(false), 1600)
+        onShared?.()
       }
     } catch (error) {
       // Share cancellation should not surface as an error.
@@ -181,15 +192,25 @@ export function QrShareSheet({
       />
       <div className="relative mt-auto flex flex-col rounded-t-3xl border-t border-border bg-card shadow-2xl">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <span className="text-xs text-muted-foreground">your qr</span>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary"
-          >
-            <XIcon className="h-4 w-4" />
-          </button>
+          <span className="text-xs text-muted-foreground">{heading}</span>
+          {closeLabel ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-11 px-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              {closeLabel}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary"
+            >
+              <XIcon className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         <div className="flex flex-col items-center gap-4 px-6 pt-2 pb-6">

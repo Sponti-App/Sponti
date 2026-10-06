@@ -72,9 +72,16 @@ function watchForAccountCalls(page: Page): string[] {
   return offending
 }
 
-async function openSignedOutMap(page: Page) {
+async function openSignedOutMap(
+  page: Page,
+  options: { friends?: number } = {}
+) {
   await page.clock.setFixedTime(JUNE)
-  await stubBackend(page, { signedOut: true, publicPins: PUBLIC_PINS })
+  await stubBackend(page, {
+    signedOut: true,
+    publicPins: PUBLIC_PINS,
+    friends: options.friends,
+  })
   const offending = watchForAccountCalls(page)
   await page.goto("/")
   await expect(nav(page)).toBeVisible()
@@ -199,7 +206,10 @@ test.describe("browse before sign-up (#389)", () => {
   test("an idea, then sign-up, lands back in the composer with the idea", async ({
     page,
   }) => {
-    const offending = await openSignedOutMap(page)
+    // With a friend already, so "let's light it up" goes straight to the
+    // composer (#459 puts a first-friend step first for 0 friends; see
+    // post-signup-checklist.spec.ts).
+    const offending = await openSignedOutMap(page, { friends: 1 })
 
     await page.getByRole("button", { name: `idea: ${MAYBACH}` }).click()
     const card = page.locator("[data-quiet-card]")
