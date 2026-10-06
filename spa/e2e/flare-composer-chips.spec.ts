@@ -79,4 +79,23 @@ test.describe("flare composer chips (#368)", () => {
       expect(clipped, `${name} is truncated`).toBe(false)
     }
   })
+
+  // #447: the limit caps open-to-all flares; on invite-only it does nothing.
+  test("the guest-limit stepper shows only when public is on", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "all friends · 12" }).click()
+    const publicSwitch = page.getByRole("switch").first()
+    const increase = page.getByRole("button", { name: "increase" })
+    await expect(publicSwitch).not.toBeChecked()
+    await expect(increase).toHaveCount(0)
+
+    await publicSwitch.click()
+    await expect(publicSwitch).toBeChecked()
+    await expect(increase).toBeVisible()
+    await expect(page.getByText("limit", { exact: true })).toBeVisible()
+
+    await publicSwitch.click()
+    await expect(increase).toHaveCount(0)
+  })
 })
