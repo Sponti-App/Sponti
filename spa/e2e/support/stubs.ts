@@ -15,6 +15,8 @@ const USER_KEY = "sponti.auth.user.v1"
 const LAST_KNOWN_COORDS_KEY = "sponti.geo.last-known-coords.v1"
 // Mirrors spa/lib/intro-slides.ts's INTRO_SLIDES_KEY (#377).
 const INTRO_SLIDES_KEY = "sponti.intro-slides.v1"
+// Mirrors spa/lib/location-choice.ts's LOCATION_CHOICE_KEY (#408).
+const LOCATION_CHOICE_KEY = "sponti.location-choice.v1"
 
 export const STUB_USER = {
   id: "user-e2e-1",
@@ -227,6 +229,10 @@ type StubBackendOptions = {
    * them, so specs about the signed-out map land straight on it.
    */
   introSlides?: boolean
+  /** Leave this device's location choice undecided, so the location ask
+   * (#408, full profile) shows. By default the device has chosen "use my
+   * location", which keeps the map as it was before the ask. */
+  locationAsk?: boolean
   /**
    * How many accepted connections GET /connections lists. Zero by default.
    * `setFriends` on the returned handle changes it mid-test.
@@ -317,6 +323,7 @@ export async function stubBackend(
   const coords = options.coords ?? STUB_COORDS
   const signedOut = options.signedOut ?? false
   const introSlides = options.introSlides ?? false
+  const locationAsk = options.locationAsk ?? false
   const makeConnections = (count: number) =>
     Array.from({ length: count }, (_, i) => ({
       _id: `conn-${i}`,
@@ -343,8 +350,18 @@ export async function stubBackend(
       signedOut,
       introSlidesKey,
       introSlides,
+      locationChoiceKey,
+      locationAsk,
     }) => {
       if (!introSlides) window.localStorage.setItem(introSlidesKey, "seen")
+      if (
+        !locationAsk &&
+        window.localStorage.getItem(locationChoiceKey) === null
+      )
+        window.localStorage.setItem(
+          locationChoiceKey,
+          JSON.stringify({ kind: "location" })
+        )
       if (!signedOut) {
         window.localStorage.setItem(accessTokenKey, "e2e-access-token")
         window.localStorage.setItem(refreshTokenKey, "e2e-refresh-token")
@@ -362,6 +379,8 @@ export async function stubBackend(
       signedOut,
       introSlidesKey: INTRO_SLIDES_KEY,
       introSlides,
+      locationChoiceKey: LOCATION_CHOICE_KEY,
+      locationAsk,
     }
   )
 

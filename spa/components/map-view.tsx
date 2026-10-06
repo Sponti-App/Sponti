@@ -39,11 +39,10 @@ import {
   isLive,
   type EventItem,
 } from "@/lib/api/events"
-import {
-  useGeolocation,
-  type GeoCoords,
-  type GeoStatus,
-} from "@/lib/geolocation"
+import { type GeoCoords, type GeoStatus } from "@/lib/geolocation"
+import { AreaBanner, LocationAskSheet } from "@/components/location-ask"
+import { BERLIN_START } from "@/lib/location-choice"
+import { useLocationStart } from "@/lib/use-location-start"
 import { useMapEvents } from "@/lib/use-events"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 import { setSuggestedFlareType } from "@/lib/suggested-flare-type"
@@ -688,11 +687,20 @@ export function MapView({
   warnIfMissingMapId(apiKey, mapId)
   const [recenterTick, setRecenterTick] = useState(0)
 
-  const geo = useGeolocation()
-  const cameraCenter = geo.coords ?? geo.lastKnownCoords
+  // #408: with `locationAsk` on, the map asks where to start (in a sheet)
+  // instead of prompting on mount, and sits on berlin behind the ask. Off,
+  // this is today's `useGeolocation()` and `coords ?? lastKnownCoords`.
+  const start = useLocationStart({
+    fallback: BERLIN_START,
+    useLastKnown: true,
+    alwaysFallback: false,
+    requestByDefault: true,
+    hold: composeOpen,
+  })
+  const geo = start.geo
+  const cameraCenter = start.camera
   const hasCurrentLocation = geo.coords != null
-  const isUsingCachedLocation =
-    !hasCurrentLocation && geo.lastKnownCoords != null
+  const isUsingCachedLocation = start.usingLastKnown
   // The recenter button only makes sense on a real interactive map.
   const hasInteractiveMap = !!apiKey && cameraCenter != null
 
@@ -1043,7 +1051,8 @@ export function MapView({
         ? "updating..."
         : `${activeCount} active`
 
-  const dockHidden = dock === "full" || composeOpen
+  // #408: the location ask's sheet has the only peach button while it's open.
+  const dockHidden = dock === "full" || composeOpen || start.mode !== "hidden"
   const listOpen = dock === "full" && !composeOpen
 
   return (
@@ -1063,6 +1072,8 @@ export function MapView({
       ) : apiKey ? (
         <APIProvider apiKey={apiKey}>
           <GoogleMapContent
+            // A picked area remounts the map on its centre (#408).
+            key={start.cameraKey}
             events={pinEvents}
             onEventSelect={onEventSelect}
             previewEvent={shownPreview}
@@ -1104,6 +1115,14 @@ export function MapView({
           list's header instead, and the legend has no pins to explain. */}
       {!listOpen && (
         <div className="pointer-events-none absolute inset-x-3 top-16 z-30 flex flex-col items-center gap-2">
+          {start.area && (
+            <AreaBanner
+              area={start.area}
+              requesting={start.requesting}
+              blocked={start.blocked}
+              onUseLocation={start.requestLocation}
+            />
+          )}
           <GeolocationBanner
             status={geo.status}
             showingCachedLocation={isUsingCachedLocation}
@@ -1144,7 +1163,7 @@ export function MapView({
                 type="button"
                 onClick={() => {
                   haptic("light")
-                  if (!hasCurrentLocation) geo.request()
+                  if (!hasCurrentLocation) start.requestLocation()
                   else setRecenterTick((n) => n + 1)
                 }}
                 aria-label="Recenter on my location"
@@ -1453,6 +1472,14 @@ export function MapView({
           )}
         </div>
       </div>
+
+      {/* #408: where the map starts, asked once per device. */}
+      <LocationAskSheet
+        mode={start.mode}
+        requesting={start.requesting}
+        onUseLocation={start.requestLocation}
+        onPick={start.pickArea}
+      />
     </div>
   )
 }
