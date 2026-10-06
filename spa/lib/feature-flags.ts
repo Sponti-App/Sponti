@@ -66,4 +66,16 @@ export const featureFlags = {
    * only.
    */
   introV2: FEATURE_PROFILE === "full",
+
+  /**
+   * The location ask (#408, flare moments #370): instead of the browser's
+   * prompt on mount, the map's sheet asks "where should the map start?" with
+   * "use my location" (the prompt comes only after that tap) or the berlin
+   * area chips. Denied or blocked turns it into "pick an area to start", with
+   * a place search. The choice is remembered per device. It covers signed-out
+   * visitors (after the intro slides) and signed-in users who haven't
+   * decided. Full profile only; off, the map asks the browser on mount as
+   * before and the signed-out map stays on berlin.
+   */
+  locationAsk: FEATURE_PROFILE === "full",
 } as const

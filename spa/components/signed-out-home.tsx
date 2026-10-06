@@ -7,23 +7,44 @@
 // sheet over the map.
 //
 // Seams for what comes next on #370: the coach marks (#379) run over this
-// screen, the location ask (#408) replaces SignedOutMap's berlin centre, and
-// the top bar rework (#369) replaces the header row.
+// screen, the location ask (#408, behind `locationAsk`) sets SignedOutMap's
+// centre once the intro slides are gone, and the top bar rework (#369) replaces the header row.
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { SignedOutBottomNav } from "@/components/bottom-nav"
 import { CalendarBlankIcon, MapTrifoldIcon } from "@/components/icons"
 import { IntroSlidesGate } from "@/components/intro-slides-gate"
+import { AreaBanner, LocationAskSheet } from "@/components/location-ask"
 import { SignUpSheet, type SignUpAsk } from "@/components/sign-up-sheet"
-import { SignedOutMap } from "@/components/signed-out-map"
+import {
+  SIGNED_OUT_AREA_LABEL,
+  SIGNED_OUT_CENTER,
+  SignedOutMap,
+} from "@/components/signed-out-map"
 import { haptic } from "@/lib/haptics"
+import { useShowIntroSlides } from "@/lib/intro-slides"
+import { useLocationStart } from "@/lib/use-location-start"
 
 export function SignedOutHome() {
   const router = useRouter()
   const [view, setView] = useState<"map" | "calendar">("map")
   const [ask, setAsk] = useState<SignUpAsk | null>(null)
   const [askOpen, setAskOpen] = useState(false)
+  const slidesShowing = useShowIntroSlides()
+
+  // #408: where the map starts. The ask waits for the intro slides and for
+  // the sign-up sheet. With `locationAsk` off the map never asks the browser
+  // and stays on berlin, as before. A last known position isn't used: it may
+  // be from whoever was signed in on this device before.
+  const start = useLocationStart({
+    fallback: SIGNED_OUT_CENTER,
+    useLastKnown: false,
+    alwaysFallback: true,
+    requestByDefault: false,
+    hold: slidesShowing || askOpen || view !== "map",
+  })
+  const located = start.geo.coords != null
 
   const openAsk = (next: SignUpAsk) => {
     setAsk(next)
@@ -35,6 +56,21 @@ export function SignedOutHome() {
       <div className="absolute inset-0 overflow-hidden">
         {view === "map" ? (
           <SignedOutMap
+            key={`${start.cameraKey}:${located ? "located" : "start"}`}
+            center={start.camera ?? SIGNED_OUT_CENTER}
+            areaLabel={start.area?.name ?? SIGNED_OUT_AREA_LABEL}
+            located={located}
+            dockHidden={start.mode !== "hidden"}
+            banner={
+              start.area ? (
+                <AreaBanner
+                  area={start.area}
+                  requesting={start.requesting}
+                  blocked={start.blocked}
+                  onUseLocation={start.requestLocation}
+                />
+              ) : undefined
+            }
             onPin={() => openAsk({ kind: "pin" })}
             onLightIdea={(idea) => openAsk({ kind: "light", draft: { idea } })}
             onLight={() => openAsk({ kind: "light", draft: { idea: null } })}
@@ -95,6 +131,13 @@ export function SignedOutHome() {
       </div>
 
       <SignUpSheet open={askOpen} ask={ask} onClose={() => setAskOpen(false)} />
+
+      <LocationAskSheet
+        mode={start.mode}
+        requesting={start.requesting}
+        onUseLocation={start.requestLocation}
+        onPick={start.pickArea}
+      />
 
       {/* #377 (behind `introV2`): the intro slides, once per device. */}
       <IntroSlidesGate />
