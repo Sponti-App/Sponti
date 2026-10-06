@@ -285,6 +285,18 @@ export const respondToConnectionRequest = async (
       throw new AppError("Connection request not found", 404, "CONNECTION_REQUEST_NOT_FOUND");
     }
 
+    // Blocking deletes pending requests (#260), so a pending row between a
+    // blocked pair is a leftover (a request that raced the block, or old
+    // data). Accepting it would connect people who blocked each other (#444).
+    // Answer exactly like a missing request so the accepter learns nothing
+    // about who blocked whom. Declining stays allowed: it only closes the row.
+    if (
+      input.status === "accepted" &&
+      (await hasAnyBlockBetweenUsers(userId, String(connection.requesterId)))
+    ) {
+      throw new AppError("Connection request not found", 404, "CONNECTION_REQUEST_NOT_FOUND");
+    }
+
     connection.status = input.status;
     await connection.save({ session });
 

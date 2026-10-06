@@ -264,7 +264,7 @@ describe("addNewFriendsToAllFriendsFlares rules (#426)", () => {
     await seedUsers();
     const { allId } = await seedCircles(HOST_ID);
     const flare = await seedFlare({ circleIds: [allId] });
-    // respondToConnectionRequest doesn't check blocks itself, so the flare rule must.
+    // Accepting a blocked pair's request fails (#444); the flare rule holds on its own too.
     await Block.create({ blockerId: oid(blockerId), blockedId: oid(blockedId) });
     const pending = await Connection.create({
       requesterId: oid(FRIEND_ID),
@@ -273,7 +273,9 @@ describe("addNewFriendsToAllFriendsFlares rules (#426)", () => {
       type: "shared_invitation",
     });
 
-    await respondToConnectionRequest(HOST_ID, String(pending._id), { status: "accepted" });
+    await expect(
+      respondToConnectionRequest(HOST_ID, String(pending._id), { status: "accepted" })
+    ).rejects.toMatchObject({ statusCode: 404, code: "CONNECTION_REQUEST_NOT_FOUND" });
 
     expect(await friendRow(flare)).toBeNull();
     expect(await invitationsFor(FRIEND_ID)).toHaveLength(0);
