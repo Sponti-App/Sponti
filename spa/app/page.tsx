@@ -5,6 +5,7 @@ import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
 import { MenuDrawer } from "@/components/menu-drawer"
+import { InviteDialog } from "@/components/qr-share-sheet"
 import { FirstRunIntro } from "@/components/first-run-intro"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
@@ -13,13 +14,12 @@ import { useOnboardingChecklist } from "@/components/onboarding-checklist"
 import { SignedOutHome } from "@/components/signed-out-home"
 import {
   ListIcon,
-  GearIcon,
   MapTrifoldIcon,
   CalendarBlankIcon,
   NavigationArrowIcon,
+  UserPlusIcon,
   XIcon,
 } from "@/components/icons"
-import { useRouter } from "next/navigation"
 import {
   etaToIso,
   isImminent,
@@ -44,7 +44,6 @@ export default function Home() {
 }
 
 function SignedInHome() {
-  const router = useRouter()
   const { showActionFeedback } = useActionFeedback()
   const [view, setView] = useState<"map" | "calendar">("map")
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
@@ -52,6 +51,7 @@ function SignedInHome() {
   const [routeEta, setRouteEta] = useState<string | null>(null)
   const [joinedIds, setJoinedIds] = useState<Set<string>>(() => new Set())
   const [menuOpen, setMenuOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
   const { user } = useAuth()
   // #459: after sign-up, a checklist in the map's sheet (in place of #313's
   // intro, with `introV2`).
@@ -251,16 +251,21 @@ function SignedInHome() {
             </button>
           </div>
 
-          {/* Settings pill */}
+          {/* #369: the invite pill, where the settings cog was (settings
+              moved into the menu). Not peach: the nav's flare button is the
+              screen's one peach call to action. Same shape as the signed-out
+              "sign in". */}
           <button
+            type="button"
             onClick={() => {
               haptic("selection")
-              router.push("/settings")
+              setInviteOpen(true)
             }}
-            aria-label="Settings"
-            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md active:scale-95 dark:bg-background/90"
+            aria-haspopup="dialog"
+            className="pointer-events-auto flex h-9 items-center justify-center gap-1.5 rounded-full border border-border/60 bg-background/80 px-3 text-sm font-medium shadow-sm backdrop-blur-md active:scale-95 dark:bg-background/90"
           >
-            <GearIcon className="h-4 w-4" />
+            <UserPlusIcon className="h-4 w-4" />
+            invite
           </button>
         </div>
 
@@ -302,6 +307,14 @@ function SignedInHome() {
       />
 
       <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
+
+      {inviteOpen && (
+        <InviteDialog
+          displayName={user?.displayName ?? "you"}
+          handle={user?.username ?? "you"}
+          onClose={() => setInviteOpen(false)}
+        />
+      )}
 
       {/* #313: once, after a new account is made on this device. #389: an
           account made to light a kept draft gets the welcome back instead.

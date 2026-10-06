@@ -55,11 +55,9 @@ async function clickShare(): Promise<void> {
   )
 
   await waitFor(() =>
-    expect(
-      screen.getByRole("button", { name: /share sponti link/i })
-    ).toBeEnabled()
+    expect(screen.getByRole("button", { name: /^share link$/i })).toBeEnabled()
   )
-  await user.click(screen.getByRole("button", { name: /share sponti link/i }))
+  await user.click(screen.getByRole("button", { name: /^share link$/i }))
 }
 
 describe("QrShareSheet action feedback", () => {
@@ -168,7 +166,7 @@ describe("QrShareSheet action feedback", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: /share sponti link/i })
+        screen.getByRole("button", { name: /^share link$/i })
       ).toBeEnabled()
     )
     await user.click(screen.getByRole("button", { name: /reset link/i }))
@@ -177,10 +175,69 @@ describe("QrShareSheet action feedback", () => {
         "new link ready. the old one no longer works."
       )
     )
-    await user.click(screen.getByRole("button", { name: /share sponti link/i }))
+    await user.click(screen.getByRole("button", { name: /^share link$/i }))
 
     await waitFor(() => expect(mocks.share).toHaveBeenCalled())
     const shared = mocks.share.mock.calls[0]?.[0] as { url: string }
     expect(shared.url).toBe(`${window.location.origin}/invite/fresh-token`)
+  })
+
+  it("opens on the invite link tab, and the qr is one tab away (#369)", async () => {
+    setNativeShare(mocks.share)
+    const user = userEvent.setup()
+    render(
+      <QrShareSheet displayName="Martin" handle="martin" onClose={vi.fn()} />
+    )
+
+    expect(screen.getByRole("tab", { name: "invite link" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    )
+    expect(screen.queryByAltText("QR code for @martin")).toBeNull()
+
+    await user.click(screen.getByRole("tab", { name: "qr code" }))
+
+    expect(await screen.findByAltText("QR code for @martin")).toBeVisible()
+    expect(screen.queryByRole("button", { name: /^share link$/i })).toBeNull()
+  })
+
+  it("opens on the qr tab when asked", async () => {
+    render(
+      <QrShareSheet
+        displayName="Martin"
+        handle="martin"
+        onClose={vi.fn()}
+        initialTab="qr"
+      />
+    )
+
+    expect(await screen.findByAltText("QR code for @martin")).toBeVisible()
+  })
+
+  it("copy puts the invite link on the clipboard", async () => {
+    const onShared = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <QrShareSheet
+        displayName="Martin"
+        handle="martin"
+        onClose={vi.fn()}
+        onShared={onShared}
+      />
+    )
+    // userEvent.setup() installs its own clipboard; use ours.
+    setClipboardWriteText()
+
+    const copy = screen.getByRole("button", { name: "copy link" })
+    await waitFor(() => expect(copy).toBeEnabled())
+    await user.click(copy)
+
+    await waitFor(() =>
+      expect(mocks.writeText).toHaveBeenCalledWith(
+        `${window.location.origin}/invite/invite-token`
+      )
+    )
+    expect(mocks.showActionFeedback).toHaveBeenCalledWith("link copied")
+    expect(onShared).toHaveBeenCalled()
   })
 })

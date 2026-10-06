@@ -1,8 +1,9 @@
 "use client"
 
-import Link from "next/link"
-import { menuItems } from "@/components/menu-items"
-import { MenuProfile } from "@/components/menu-profile"
+import { MenuContents } from "@/components/menu-contents"
+
+// #369: the home drawer holds profile and settings too (menu B of the #480
+// prototype). /menu is the same contents as a page.
 
 export function MenuDrawer({
   open,
@@ -34,30 +35,11 @@ export function MenuDrawer({
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="pt-16">
-          <MenuProfile />
+        {/* Bottom padding clears the nav, which sits over the drawer, so the
+            legal row at the foot stays visible. */}
+        <div className="flex min-h-0 flex-1 flex-col pt-16 pb-[var(--sponti-nav-h,4.5rem)]">
+          <MenuContents tabIndex={open ? 0 : -1} onNavigate={onClose} />
         </div>
-
-        <div className="h-px bg-border" />
-
-        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto py-6">
-          {menuItems.map((item) => {
-            const Icon = item.icon
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-3 rounded-xl px-1 py-3 text-base font-medium transition-colors hover:bg-secondary active:bg-muted"
-                tabIndex={open ? 0 : -1}
-                onClick={onClose}
-              >
-                <Icon className="size-4 shrink-0 text-muted-foreground" />
-                <span>{item.label}</span>
-              </Link>
-            )
-          })}
-        </nav>
       </aside>
     </div>
   )
