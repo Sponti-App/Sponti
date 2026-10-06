@@ -95,7 +95,7 @@ npm run test:e2e      # Playwright e2e against stubbed backends (e2e/support/stu
 
 Design questions get a throwaway route under `spa/app/prototype/<name>/` (dev-only, nothing links to it) with committed screenshots, opened as a draft "prototype:" PR that is closed once a direction is picked.
 
-Playwright starts its own dev server on port 4415. Set `PLAYWRIGHT_WEB_SERVER_PORT` to run several copies side by side (e.g. one per git worktree). UI checks use the stubbed e2e setup, not real data: the local `.env` points at the shared database.
+Playwright starts its own dev server on port 4415, plus a second one with the full feature profile on that port + 1000 (5415, for the `mobile-full-profile` project in `e2e/full-profile/`). Set `PLAYWRIGHT_WEB_SERVER_PORT` to run several copies side by side (e.g. one per git worktree); both ports move with it (or set `PLAYWRIGHT_FULL_WEB_SERVER_PORT`). UI checks use the stubbed e2e setup, not real data: the local `.env` points at the shared database.
 
 ### Capacitor dev workflow
 

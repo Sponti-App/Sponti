@@ -52,6 +52,10 @@ const nextConfig = {
   ...(process.env.E2E_HIDE_DEV_INDICATOR === "1"
     ? { devIndicators: false }
     : {}),
+  // The e2e suite runs a second dev server built with the full feature
+  // profile (playwright.config.ts). Next locks its build folder per server,
+  // so that one builds into its own folder under .next.
+  ...(process.env.E2E_DIST_DIR ? { distDir: process.env.E2E_DIST_DIR } : {}),
   turbopack: {
     root: appDir,
   },

@@ -45,7 +45,14 @@ export function flareTitle(event: EventItem): string {
   return event.title.split("·", 2)[0].trim()
 }
 
-function categoryOf(event: EventItem) {
+/** What a pin needs to draw: the signed-out map's public pins (#389) carry
+ * no more than this. */
+export type FlarePinEvent = Pick<
+  EventItem,
+  "id" | "type" | "visibility" | "startAt" | "endAt"
+>
+
+function categoryOf(event: Pick<EventItem, "type">) {
   const match = EVENT_TYPES.find((t) => t.value === event.type)
   return { label: match?.label ?? event.type, Icon: match?.icon ?? MapPinIcon }
 }
@@ -73,14 +80,17 @@ export function timeLeftLabel(ms: number): string {
 
 type Timing = "live" | "soon" | "ended"
 
-function timingOf(event: EventItem, now: number): Timing {
+function timingOf(
+  event: Pick<EventItem, "startAt" | "endAt">,
+  now: number
+): Timing {
   if (isLive(event, now)) return "live"
   return new Date(event.startAt).getTime() > now ? "soon" : "ended"
 }
 
 /** The chip under a pin: "live", "7pm", with "you · " on your own flare. */
 export function pinChipLabel(
-  event: EventItem,
+  event: Pick<EventItem, "startAt" | "endAt">,
   own: boolean,
   now: number = Date.now()
 ): string {
@@ -129,7 +139,7 @@ export function FlarePin({
   highlighted = false,
   now,
 }: {
-  event: EventItem
+  event: FlarePinEvent
   own: boolean
   joined: boolean
   /** The flare whose rail card is centred; its pin grows. */

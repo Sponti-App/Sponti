@@ -74,7 +74,7 @@ import { useTheme } from "next-themes"
 // icon, and no peach anywhere (peach is the CTA colour and means "a real
 // flare"). The dashed outline reads as "a suggestion, nothing planned here" in
 // both light and dark. The padding is only a bigger touch target.
-function IdeaPinMark({
+export function IdeaPinMark({
   idea,
   selected,
 }: {
@@ -101,7 +101,7 @@ function IdeaPinMark({
 // Where idea pins sit on the static fallback, which has no real projection
 // (its flare pins are pseudo-positioned too): percent from the top-left, chosen
 // to stay clear of the flare slots, the header chips and the dock.
-const IDEA_PIN_SLOTS = [
+export const IDEA_PIN_SLOTS = [
   { top: "24%", left: "46%" },
   { top: "40%", left: "9%" },
   { top: "40%", left: "62%" },
@@ -112,7 +112,7 @@ const IDEA_PIN_SLOTS = [
 // Where the fallback's flare pins sit: pseudo positions around the centre
 // (there is no real projection), percent from the top-left. All four stay
 // above the dock at mid, so every pin can be tapped.
-const FLARE_PIN_SLOTS: Array<{
+export const FLARE_PIN_SLOTS: Array<{
   top: string
   left?: string
   right?: string

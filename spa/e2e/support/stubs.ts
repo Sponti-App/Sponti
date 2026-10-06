@@ -154,9 +154,40 @@ export type StubUserProfile = {
   connectionId: string | null
 }
 
+/** One pin from GET /public/events/map (#425): nothing but what a pin needs. */
+export type StubPublicPin = {
+  _id: string
+  type: string
+  location: { type: "Point"; coordinates: [number, number] }
+  startAt: string
+  endAt: string
+}
+
+export function makeStubPublicPin(
+  overrides: Partial<StubPublicPin> = {}
+): StubPublicPin {
+  const now = Date.now()
+  return {
+    _id: "public-e2e-1",
+    type: "drinks",
+    location: {
+      type: "Point",
+      coordinates: [STUB_COORDS.lng, STUB_COORDS.lat],
+    },
+    startAt: new Date(now - 10 * 60_000).toISOString(),
+    endAt: new Date(now + 90 * 60_000).toISOString(),
+    ...overrides,
+  }
+}
+
 type StubBackendOptions = {
   /** Events returned by GET /events/map/active. Empty by default. */
   mapEvents?: StubApiEvent[]
+  /**
+   * Pins returned by the unauthenticated GET /public/events/map (#425), the
+   * signed-out map's only flare data. Empty by default.
+   */
+  publicPins?: StubPublicPin[]
   /**
    * GET /events/:id answers with the map event of that id. Pass more here
    * for flares that aren't on the map. Any other id answers 404
@@ -367,6 +398,10 @@ export async function stubBackend(
 
     if (path === "/events/map/active") {
       await fulfillJson(route, { data: mapEvents })
+      return
+    }
+    if (path === "/public/events/map" && route.request().method() === "GET") {
+      await fulfillJson(route, { data: options.publicPins ?? [] })
       return
     }
     if (path === "/connections" && route.request().method() === "GET") {
