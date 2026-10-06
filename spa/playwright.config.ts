@@ -49,6 +49,20 @@ const MOBILE = {
   ...(isCI ? {} : { channel: "chrome" }),
 }
 
+// #467: the mobile gate shows a notice on a desktop-sized screen without touch,
+// which is this config's "desktop" project. Seeding "continue anyway" (spa/lib/
+// mobile-gate.ts) lets every existing desktop spec reach the app; the gate's
+// own spec clears it with `test.use({ storageState: ... })`.
+const DESKTOP_STORAGE_STATE = {
+  cookies: [],
+  origins: [
+    {
+      origin: BASE_URL,
+      localStorage: [{ name: "sponti.mobile-gate.v1", value: "continue" }],
+    },
+  ],
+}
+
 export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/support/global-setup.ts",
@@ -82,6 +96,7 @@ export default defineConfig({
         viewport: { width: 1280, height: 800 },
         isMobile: false,
         hasTouch: false,
+        storageState: DESKTOP_STORAGE_STATE,
         ...(isCI ? {} : { channel: "chrome" }),
       },
     },

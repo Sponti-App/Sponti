@@ -3,6 +3,7 @@ import { Bricolage_Grotesque } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "@/components/auth-provider"
 import { AuthGate } from "@/components/auth-gate"
+import { MobileGate } from "@/components/mobile-gate"
 import { ActionFeedbackProvider } from "@/components/action-feedback"
 import { NewEventDrawerProvider } from "@/components/new-event-drawer-provider"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -92,15 +93,17 @@ export default function RootLayout({
       <body className="font-sans antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <InAppHistoryTracker />
-          <AuthProvider>
-            <AuthGate>
-              <ActionFeedbackProvider>
-                <NewEventDrawerProvider>
-                  <AuthenticatedAppShell>{children}</AuthenticatedAppShell>
-                </NewEventDrawerProvider>
-              </ActionFeedbackProvider>
-            </AuthGate>
-          </AuthProvider>
+          <MobileGate>
+            <AuthProvider>
+              <AuthGate>
+                <ActionFeedbackProvider>
+                  <NewEventDrawerProvider>
+                    <AuthenticatedAppShell>{children}</AuthenticatedAppShell>
+                  </NewEventDrawerProvider>
+                </ActionFeedbackProvider>
+              </AuthGate>
+            </AuthProvider>
+          </MobileGate>
         </ThemeProvider>
       </body>
     </html>
