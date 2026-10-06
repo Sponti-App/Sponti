@@ -1,16 +1,19 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import QRCode from "qrcode"
 import {
   CheckIcon,
   CircleNotchIcon,
+  CopyIcon,
   ArrowCounterClockwiseIcon,
   ShareNetworkIcon,
   XIcon,
 } from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getMyInviteLink, resetMyInviteLink } from "@/lib/api/invite-links"
 import { createQrContactToken } from "@/lib/api/qr-contact-tokens"
 import { buildContactUrl } from "@/lib/contact-links"
@@ -19,8 +22,14 @@ import { buildContactUrl } from "@/lib/contact-links"
 //   - The QR code is a 15-minute token: someone scanning it in person is
 //     connected with you straight away. It is re-issued before it expires
 //     while the sheet stays open.
-//   - "share sponti link" shares your 7-day invite link for group chats;
-//     opening it only sends you a request. "reset link" revokes it.
+//   - The invite link is your 7-day link for group chats; opening it only
+//     sends you a request. "reset link" revokes it.
+// #369: the two are tabs, "invite link" and "qr code", opening on the link
+// (most first invites go to someone who isn't next to you). The QR is still
+// fetched and refreshed while the link tab shows, so switching is instant.
+// Only the link tab has a peach button.
+
+export type ShareTab = "link" | "qr"
 
 // Re-issue the QR this long before it expires, so a scan never lands on a
 // code that died while the sheet was open.
@@ -51,9 +60,10 @@ export function QrShareSheet({
   displayName,
   handle,
   onClose,
-  heading = "your qr",
+  heading = "invite a friend",
   closeLabel,
   onShared,
+  initialTab = "link",
 }: {
   displayName: string
   handle: string
@@ -64,7 +74,11 @@ export function QrShareSheet({
   closeLabel?: string
   /** After the invite link was shared or copied. */
   onShared?: () => void
+  /** The tab it opens on. */
+  initialTab?: ShareTab
 }) {
+  const [tab, setTab] = useState<ShareTab>(initialTab)
+  const [linkCopied, setLinkCopied] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [qrError, setQrError] = useState<string | null>(null)
   const [qrRefreshTick, setQrRefreshTick] = useState(0)
@@ -182,6 +196,21 @@ export function QrShareSheet({
     }
   }
 
+  const copyInvite = async () => {
+    if (!inviteUrl) return
+    try {
+      await navigator.clipboard.writeText(inviteUrl)
+      setLinkCopied(true)
+      showActionFeedback("link copied")
+      window.setTimeout(() => setLinkCopied(false), 1600)
+      onShared?.()
+    } catch {
+      showActionFeedback("couldn't copy link", { tone: "error" })
+    }
+  }
+
+  const linkBusy = !inviteUrl || inviteLoading || resetting
+
   return (
     <div className="absolute inset-0 z-50 flex flex-col">
       <button
@@ -192,7 +221,7 @@ export function QrShareSheet({
       />
       <div className="relative mt-auto flex flex-col rounded-t-3xl border-t border-border bg-card shadow-2xl">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <span className="text-xs text-muted-foreground">{heading}</span>
+          <span className="text-base font-semibold">{heading}</span>
           {closeLabel ? (
             <button
               type="button"
@@ -213,64 +242,159 @@ export function QrShareSheet({
           )}
         </div>
 
-        <div className="flex flex-col items-center gap-4 px-6 pt-2 pb-6">
-          <div className="text-lg font-semibold">{displayName}</div>
-          <div className="text-sm font-medium text-accent">@{handle}</div>
+        <Tabs
+          value={tab}
+          onValueChange={(value) => setTab(value as ShareTab)}
+          className="gap-0"
+        >
+          <div className="px-4">
+            <TabsList className="h-9 w-full">
+              <TabsTrigger value="link">invite link</TabsTrigger>
+              <TabsTrigger value="qr">qr code</TabsTrigger>
+            </TabsList>
+          </div>
 
-          <div className="flex h-60 w-60 items-center justify-center rounded-2xl border border-border bg-background p-4">
-            {qrDataUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={qrDataUrl}
-                alt={`QR code for @${handle}`}
-                className="h-full w-full"
-              />
-            ) : qrError ? (
-              <p className="max-w-36 text-center text-sm text-muted-foreground">
-                {qrError}
+          {/* Both tabs hold the same height, so switching doesn't jump. */}
+          <div className="flex min-h-[25.5rem] flex-col px-6 pt-5 pb-8">
+            <TabsContent
+              value="link"
+              className="m-0 flex flex-1 flex-col"
+              data-share-tab="link"
+            >
+              <p className="text-sm">
+                send this to a friend or a group chat. whoever opens it can send
+                you a friend request.
               </p>
-            ) : (
-              <CircleNotchIcon className="h-6 w-6 animate-spin text-muted-foreground" />
-            )}
-          </div>
 
-          <p className="max-w-[260px] text-center text-xs text-muted-foreground">
-            scan in person to be friends right away. the code refreshes every 15
-            min.
-          </p>
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-border bg-background py-1 pr-1 pl-3">
+                <span
+                  data-invite-url
+                  className="min-w-0 flex-1 truncate text-sm text-muted-foreground"
+                >
+                  {inviteUrl
+                    ? inviteUrl.replace(/^https?:\/\//, "")
+                    : inviteLoading
+                      ? "getting your link…"
+                      : "the link is unavailable right now."}
+                </span>
+                <Button
+                  variant="ghost"
+                  onClick={copyInvite}
+                  disabled={linkBusy}
+                  aria-label={linkCopied ? "copied" : "copy link"}
+                  className="h-9 rounded-lg px-3"
+                >
+                  {linkCopied ? (
+                    <CheckIcon className="h-4 w-4" />
+                  ) : (
+                    <CopyIcon className="h-4 w-4" />
+                  )}
+                  {linkCopied ? "copied" : "copy"}
+                </Button>
+              </div>
 
-          <div className="flex flex-col items-center gap-2">
-            <Button
-              onClick={shareInvite}
-              disabled={!inviteUrl || inviteLoading || resetting}
-              className="rounded-full bg-accent px-5 text-accent-foreground hover:bg-accent/90 disabled:opacity-60"
+              <Button
+                onClick={shareInvite}
+                disabled={linkBusy}
+                className="mt-4 h-12 w-full rounded-full bg-accent text-base text-accent-foreground hover:bg-accent/90 disabled:opacity-60"
+              >
+                {copied ? (
+                  <CheckIcon className="mr-1 h-4 w-4" />
+                ) : (
+                  <ShareNetworkIcon className="mr-1 h-4 w-4" />
+                )}
+                {copied ? "copied link" : "share link"}
+              </Button>
+
+              <p className="mt-3 text-center text-xs text-muted-foreground">
+                works for 7 days. you&apos;ll see each request before
+                you&apos;re friends.
+              </p>
+
+              <button
+                type="button"
+                onClick={resetInvite}
+                disabled={inviteLoading || resetting}
+                className="mx-auto mt-2 inline-flex min-h-11 items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-60"
+              >
+                {resetting ? (
+                  <CircleNotchIcon className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ArrowCounterClockwiseIcon className="h-3.5 w-3.5" />
+                )}
+                reset link
+              </button>
+            </TabsContent>
+
+            <TabsContent
+              value="qr"
+              className="m-0 flex flex-col items-center gap-3"
+              data-share-tab="qr"
             >
-              {copied ? (
-                <CheckIcon className="mr-2 h-4 w-4" />
-              ) : (
-                <ShareNetworkIcon className="mr-2 h-4 w-4" />
-              )}
-              {copied ? "copied link" : "share sponti link"}
-            </Button>
-            <p className="max-w-[260px] text-center text-xs text-muted-foreground">
-              for group chats. works for 7 days and sends you a friend request.
-            </p>
-            <button
-              type="button"
-              onClick={resetInvite}
-              disabled={inviteLoading || resetting}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-60"
-            >
-              {resetting ? (
-                <CircleNotchIcon className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <ArrowCounterClockwiseIcon className="h-3.5 w-3.5" />
-              )}
-              reset link
-            </button>
+              <div className="text-center">
+                <p className="text-base font-semibold">{displayName}</p>
+                <p className="text-sm text-muted-foreground">@{handle}</p>
+              </div>
+              <div className="flex h-60 w-60 items-center justify-center rounded-2xl border border-border bg-background p-4">
+                {qrDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={qrDataUrl}
+                    alt={`QR code for @${handle}`}
+                    className="h-full w-full"
+                  />
+                ) : qrError ? (
+                  <p className="max-w-36 text-center text-sm text-muted-foreground">
+                    {qrError}
+                  </p>
+                ) : (
+                  <CircleNotchIcon className="h-6 w-6 animate-spin text-muted-foreground" />
+                )}
+              </div>
+              <p className="max-w-[260px] text-center text-xs text-muted-foreground">
+                for when you&apos;re together. they scan it and you&apos;re
+                friends right away. the code refreshes every 15 min.
+              </p>
+            </TabsContent>
           </div>
-        </div>
+        </Tabs>
       </div>
     </div>
+  )
+}
+
+/**
+ * #369: the sheet as its own dialog over the whole screen, above the nav, for
+ * the home header's "invite" pill.
+ */
+export function InviteDialog({
+  displayName,
+  handle,
+  onClose,
+  initialTab,
+}: {
+  displayName: string
+  handle: string
+  onClose: () => void
+  initialTab?: ShareTab
+}) {
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="invite a friend"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onClose()
+      }}
+      className="fixed inset-0 z-[55]"
+    >
+      <QrShareSheet
+        displayName={displayName}
+        handle={handle}
+        onClose={onClose}
+        initialTab={initialTab}
+      />
+    </div>,
+    document.body
   )
 }

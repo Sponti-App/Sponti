@@ -103,7 +103,9 @@ test.describe("browse before sign-up (#389)", () => {
     // No redirect to /login.
     await expect(page).toHaveURL(/\/$/)
     await expect(page.getByRole("button", { name: "sign in" })).toBeVisible()
-    await expect(page.getByRole("button", { name: "Settings" })).toHaveCount(0)
+    await expect(
+      page.getByRole("button", { name: "invite", exact: true })
+    ).toHaveCount(0)
 
     await expect(ideaPins(page)).toHaveCount(5)
     await expect(
