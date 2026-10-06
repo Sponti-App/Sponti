@@ -267,3 +267,89 @@ test.describe("the pin popover (#315)", () => {
     await expect(page.getByRole("dialog")).toBeVisible()
   })
 })
+
+// #364: the pins are the flares the rail and list show. Same chips, same
+// live / soon / all tab. The static fallback draws at most 4 pins, so every
+// case here stays within 4 flares (the ended one only shows when unfolded).
+test.describe("pins follow the filters (#364)", () => {
+  const ENDED = makeStubFlare({
+    _id: "e-ended",
+    hostId: MIA,
+    title: "lunch at the market",
+    type: "food",
+    visibility: "public",
+    startAt: at("2026-06-15T09:00:00.000Z"),
+    endAt: at("2026-06-15T10:00:00.000Z"),
+    location: point(13.3877, 52.5421),
+  })
+  const ALL = [INVITE_LIVE, JOINED, OPEN_SOON, OWN]
+  const dock = (page: Page) => page.locator("[data-map-dock]")
+  const typeChip = (page: Page, name: string) =>
+    dock(page).getByRole("button", { name, exact: true })
+  const pins = (page: Page) => page.locator("[data-flare-pin]")
+
+  test("a category chip takes the other categories' pins off the map", async ({
+    page,
+  }) => {
+    await openMap(page, ALL)
+    await expect(pins(page)).toHaveCount(4)
+
+    await typeChip(page, "drinks").click()
+    await expect(pins(page)).toHaveCount(1)
+    await expect(pin(page, INVITE_LIVE._id)).toBeVisible()
+
+    // A second chip adds its category back; clearing the chips shows all.
+    await typeChip(page, "culture").click()
+    await expect(pins(page)).toHaveCount(2)
+    await expect(pin(page, OPEN_SOON._id)).toBeVisible()
+    await typeChip(page, "culture").click()
+    await typeChip(page, "drinks").click()
+    await expect(pins(page)).toHaveCount(4)
+  })
+
+  test("the live and soon tabs narrow the pins", async ({ page }) => {
+    await openMap(page, ALL)
+
+    await dock(page).getByRole("tab", { name: "soon" }).click()
+    await expect(pins(page)).toHaveCount(1)
+    await expect(pin(page, OPEN_SOON._id)).toBeVisible()
+
+    await dock(page).getByRole("tab", { name: "live" }).click()
+    await expect(pins(page)).toHaveCount(3)
+    await expect(pin(page, OPEN_SOON._id)).toHaveCount(0)
+
+    await dock(page).getByRole("tab", { name: "all" }).click()
+    await expect(pins(page)).toHaveCount(4)
+  })
+
+  test("an ended flare has a pin only while the list shows it", async ({
+    page,
+  }) => {
+    await openMap(page, [INVITE_LIVE, OPEN_SOON, ENDED])
+    await expect(pins(page)).toHaveCount(2)
+    await expect(pin(page, ENDED._id)).toHaveCount(0)
+
+    // Unfold the ended flares in the list, then come back to the map.
+    await dock(page).getByRole("button", { name: "list", exact: true }).click()
+    const list = page.locator("[data-map-list]")
+    await list.getByRole("button", { name: /show 1 ended/ }).click()
+    await list.getByRole("button", { name: "map", exact: true }).click()
+    await expect(pin(page, ENDED._id)).toBeVisible()
+
+    await dock(page).getByRole("tab", { name: "live" }).click()
+    await expect(pin(page, ENDED._id)).toHaveCount(0)
+  })
+
+  test("a popover closes when a chip takes its pin away", async ({ page }) => {
+    await openMap(page, ALL)
+    await pin(page, OPEN_SOON._id).click()
+    await expect(popover(page)).toBeVisible()
+
+    await typeChip(page, "drinks").click()
+    await expect(pin(page, OPEN_SOON._id)).toHaveCount(0)
+    await expect(popover(page)).toBeHidden()
+    // It does not come back with the chip off.
+    await typeChip(page, "drinks").click()
+    await expect(popover(page)).toBeHidden()
+  })
+})
