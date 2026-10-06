@@ -21,6 +21,7 @@ describe("featureFlags profile", () => {
     expect(featureFlags.reshare).toBe(false)
     expect(featureFlags.plusOne).toBe(false)
     expect(featureFlags.browseBeforeSignup).toBe(false)
+    expect(featureFlags.introV2).toBe(false)
   })
 
   it("stays on the tester profile for any value other than 'full'", async () => {
@@ -34,6 +35,7 @@ describe("featureFlags profile", () => {
     expect(garbage.reshare).toBe(false)
     expect(garbage.plusOne).toBe(false)
     expect(garbage.browseBeforeSignup).toBe(false)
+    expect(garbage.introV2).toBe(false)
   })
 
   it("turns on full-app flags when set to 'full'", async () => {
@@ -42,6 +44,7 @@ describe("featureFlags profile", () => {
     expect(featureFlags.reshare).toBe(true)
     expect(featureFlags.plusOne).toBe(true)
     expect(featureFlags.browseBeforeSignup).toBe(true)
+    expect(featureFlags.introV2).toBe(true)
   })
 
   it("keeps seedDemoData reading its own env var, independent of the profile", async () => {
