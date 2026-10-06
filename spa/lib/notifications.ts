@@ -158,6 +158,29 @@ function intentFor(type: ApiNotificationType): NotificationIntent {
   }
 }
 
+/**
+ * The feed's own lowercase title for an `event_rsvp_change` (#415), written
+ * from `metadata.rsvpChange` so it doesn't depend on the server's copy. Null
+ * when the change is unknown (a notification from before #414): the caller
+ * falls back to the server title, which says the same thing in older words.
+ */
+export function rsvpTitle(
+  change: RsvpChange["change"],
+  name: string | null
+): string | null {
+  const who = name ?? "someone"
+  switch (change) {
+    case "joined":
+      return `${who} joined your flare`
+    case "declined":
+      return `${who} can't make it`
+    case "arrival_updated":
+      return `${who} changed their reply`
+    case null:
+      return null
+  }
+}
+
 export function adaptApiNotification(
   notification: ApiNotification
 ): Notification {
@@ -165,12 +188,16 @@ export function adaptApiNotification(
     notification.type
   )
 
+  const rsvp = parseRsvpChange(notification)
+
   return {
     id: notification._id,
     type: notification.type,
     targetType: notification.targetType,
     targetId: notification.targetId,
-    title: notification.title,
+    title:
+      (rsvp && rsvpTitle(rsvp.change, actorName(notification))) ||
+      notification.title,
     subtitle:
       notification.message || (isEventNotification ? "tap to view" : ""),
     createdAt: notification.createdAt,
@@ -181,7 +208,7 @@ export function adaptApiNotification(
     actorName: actorName(notification),
     actorId: notification.actorId,
     actorAvatarUrl: notification.actor?.avatarUrl ?? null,
-    rsvp: parseRsvpChange(notification),
+    rsvp,
   }
 }
 
