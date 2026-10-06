@@ -5,6 +5,7 @@ import type {
   RespondToConnectionRequestBody,
   SendConnectionRequestBody,
 } from "#schemas/connectionSchemas";
+import { addNewFriendsToAllFriendsFlares } from "#services/allFriendsFlareService";
 import { hasAnyBlockBetweenUsers } from "#services/blockService";
 import {
   createConnectionAcceptedNotification,
@@ -90,6 +91,8 @@ export const sendConnectionRequest = async (
         connectionId: String(reversePending._id),
         session,
       });
+
+      await addNewFriendsToAllFriendsFlares(requesterId, input.receiverId, session);
 
       return {
         connection,
@@ -205,6 +208,8 @@ export const connectInPerson = async (scannerId: string, ownerId: string) => {
       via: "qr",
     });
 
+    await addNewFriendsToAllFriendsFlares(scannerId, ownerId, session);
+
     return { connected: true, created: true };
   });
 
@@ -308,6 +313,8 @@ export const respondToConnectionRequest = async (
         connectionId: String(connection._id),
         session,
       });
+
+      await addNewFriendsToAllFriendsFlares(userId, String(connection.requesterId), session);
     }
 
     return connection;

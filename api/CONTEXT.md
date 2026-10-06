@@ -12,6 +12,8 @@ _Avoid_: Meetup, hangout, post, plan (when referring to the object).
 A user-owned grouping of connections used as an audience target when lighting a flare (e.g. "close", "inner", "all", or a custom one). The canonical word for this concept in both UI and code.
 _Avoid_: List, friend list, group.
 
+A flare sent to a host's "all friends" circle also picks up anyone who connects while it is active and not ended (added as an invited guest and notified, unless removed or blocked); custom circles never auto-add, and flares are not backfilled (#426).
+
 **Connection**:
 An accepted, mutual friend relationship between two users, stored as an accepted row in each direction. Both rows are needed: a one-sided row is not a connection. A pending request is not yet a connection. See "Connections" in `API_RULES.md`.
 _Avoid_: Friend (as a stored entity), follower, contact.
