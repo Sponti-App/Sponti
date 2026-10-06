@@ -9,6 +9,7 @@ import Link from "next/link"
 import { Drawer } from "vaul"
 import type { AccountOnlyTab } from "@/components/bottom-nav"
 import { MapPinIcon } from "@/components/icons"
+import { LegalLinks } from "@/components/legal-links"
 import { Button } from "@/components/ui/button"
 import { haptic } from "@/lib/haptics"
 import {
@@ -183,6 +184,7 @@ export function SignUpSheet({
       <Link href={`/login${query}`} onClick={keep} className={TEXT_BUTTON}>
         i have an account
       </Link>
+      <LegalLinks className="-mb-2" />
     </Sheet>
   )
 }

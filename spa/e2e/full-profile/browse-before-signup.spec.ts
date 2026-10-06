@@ -277,3 +277,86 @@ test.describe("browse before sign-up (#389)", () => {
     await expect(page).toHaveURL(/\/login$/)
   })
 })
+
+// #457: the Impressum has to be directly reachable from the signed-out map
+// (§ 5 DDG), and the back arrow returns to where the visitor was (#295).
+test.describe("legal links before sign-up (#457)", () => {
+  const legal = (page: Page) => page.getByRole("navigation", { name: "legal" })
+  const back = (page: Page) => page.getByRole("link", { name: "back" })
+
+  test("the map reaches the impressum in one tap, and back returns to the map", async ({
+    page,
+  }) => {
+    const offending = await openSignedOutMap(page)
+    await expect(flarePins(page)).toHaveCount(2)
+
+    await legal(page).getByRole("link", { name: "impressum" }).click()
+    await expect(page).toHaveURL(/\/menu\/impressum$/)
+    await expect(
+      page.getByRole("heading", { name: "Legal notice" })
+    ).toBeVisible()
+
+    await back(page).click()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(flarePins(page)).toHaveCount(2)
+    expect(offending).toEqual([])
+  })
+
+  test("the map also links the privacy note and the terms", async ({
+    page,
+  }) => {
+    await openSignedOutMap(page)
+    await expect(
+      legal(page).getByRole("link", { name: "privacy" })
+    ).toHaveAttribute("href", "/menu/privacy")
+    await expect(
+      legal(page).getByRole("link", { name: "terms" })
+    ).toHaveAttribute("href", "/menu/terms")
+  })
+
+  test("the sign-up sheet links them too, and back returns to the map", async ({
+    page,
+  }) => {
+    await openSignedOutMap(page)
+    await page.getByRole("button", { name: "Light a flare" }).click()
+    await expect(sheet(page)).toBeVisible()
+
+    await sheet(page).getByRole("link", { name: "impressum" }).click()
+    await expect(page).toHaveURL(/\/menu\/impressum$/)
+
+    await back(page).click()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(nav(page)).toBeVisible()
+  })
+
+  test("the sign-in page links them, and back returns to it", async ({
+    page,
+  }) => {
+    await openSignedOutMap(page)
+    await page.getByRole("button", { name: "sign in" }).click()
+    await expect(page).toHaveURL(/\/login$/)
+
+    await legal(page).getByRole("link", { name: "impressum" }).click()
+    await expect(page).toHaveURL(/\/menu\/impressum$/)
+    await back(page).click()
+    await expect(page).toHaveURL(/\/login$/)
+
+    await expect(
+      legal(page).getByRole("link", { name: "privacy" })
+    ).toHaveAttribute("href", "/menu/privacy")
+    await expect(
+      legal(page).getByRole("link", { name: "terms" })
+    ).toHaveAttribute("href", "/menu/terms")
+  })
+
+  test("the register page still links them, and back returns to it", async ({
+    page,
+  }) => {
+    await openSignedOutMap(page)
+    await page.goto("/register")
+    await page.getByRole("link", { name: "impressum" }).click()
+    await expect(page).toHaveURL(/\/menu\/impressum$/)
+    await back(page).click()
+    await expect(page).toHaveURL(/\/register$/)
+  })
+})
