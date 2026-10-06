@@ -209,8 +209,8 @@ describe("qrContactTokenService.resolveQrContactToken", () => {
     expect(connectInPersonMock).not.toHaveBeenCalled();
   });
 
-  it("deactivates expired tokens and returns a gone error", async () => {
-    mockToken("raw-token", new Date("2026-05-18T11:59:59.000Z"));
+  it("deactivates tokens expired past the grace window and returns a gone error", async () => {
+    mockToken("raw-token", new Date("2026-05-17T11:59:59.000Z"));
 
     await expect(
       resolveQrContactToken(VIEWER_ID, {
