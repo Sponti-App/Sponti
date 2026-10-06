@@ -11,7 +11,6 @@ import { hasInAppHistory } from "@/lib/in-app-history"
 // reach the legal pages (/menu/terms, /menu/privacy and /menu/impressum, see
 // LEGAL_PATHS in auth-gate), and those are linked from /register ("by signing
 // up you agree to the terms"), so that's where they most likely came from.
-// /login doesn't link them.
 const SIGNED_IN_FALLBACK = "/menu"
 const SIGNED_OUT_FALLBACK = "/register"
 

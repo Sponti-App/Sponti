@@ -22,6 +22,7 @@ import {
 } from "@vis.gl/react-google-maps"
 import { useTheme } from "next-themes"
 import { FlameIcon, MapPinIcon } from "@/components/icons"
+import { LegalLinks } from "@/components/legal-links"
 import { FlarePin, VisibilityLegend } from "@/components/map-flare-pin"
 import {
   FLARE_PIN_SLOTS,
@@ -229,6 +230,9 @@ export function SignedOutMap({
             </Tabs>
           </div>
         )}
+
+        {/* #457: the Impressum is one tap away from the map. */}
+        <LegalLinks className="pointer-events-auto mx-auto -my-1.5 w-fit rounded-full bg-background/80 px-1 backdrop-blur-md" />
       </div>
     </div>
   )
