@@ -37,3 +37,13 @@ _Avoid_: Push, alert (when you mean the feed entry).
 **Push notification**:
 A device-level APNs/FCM delivery. Distinct from the in-app feed, requires the native shell, and is **not yet built**. Reserve this term strictly for device push so it never gets conflated with the in-app feed.
 _Avoid_: Notification (unqualified), alert.
+
+## Who sees open-to-all flares
+
+A flare's `visibility` is `"public"` (shown in the product as "open to all") or `"private"` (invite only).
+
+- **Signed-in users:** "open to all" means every Sponti user. `buildAccessibleEventFilter` lets anyone read a public flare, minus people the host removed and people in a block relationship with the host. Private flares reach only the host and invited members.
+- **Signed-out visitors (#425):** they see open-to-all flares as map pins, nothing more. The only endpoint is `GET /api/v1/public/events/map?lng&lat&radiusKm` (radius up to 100 km, default 25). It needs no token, is rate-limited (60 requests a minute per client address, `middleware/rateLimit.ts`) and is the only unauthenticated read of flare data. Every signed-in `/events` route stays behind `requireAuth`, and the signed-out map must never call them.
+- **What it returns:** active, not-ended, `visibility: "public"` flares that are live or start within `MAP_SOON_WINDOW_MS` (the same window as the signed-in map), from hosts whose user still exists and has no `suspendedAt` or `deletedAt`. Soonest first, at most 200.
+- **Signed-out projection:** `_id`, `type` (the category), `location` (exact `[lng, lat]`), `startAt`, `endAt`. No title, description, location name or address, host, guests, counts, circles or RSVP. `services/publicMapService.ts` builds it field by field from an allowlist, and `publicMapService.db.test.ts` pins the exact key set. Adding a field here is a product decision about what a stranger may learn, not a convenience.
+- **Open calls (defaults used):** the position is exact, as signed-in users see it, because an open-to-all flare is meant to be found; the title is not shown on a signed-out pin. Users have no suspended or deleted state yet; the host check reads `suspendedAt` and `deletedAt` so it works the day auth-server starts writing them.

@@ -74,5 +74,7 @@ flare art never replaces the map pin (#315).
 
 The auth gate opens the map to signed-out visitors, so everything the map
 loads for them has to work without a token and show no private flares.
-Open-to-all flares reach them only through the public map endpoint's minimal
-projection (#425); the signed-in events endpoints stay behind auth.
+Open-to-all flares reach them only through the public map endpoint
+(`GET /api/v1/public/events/map`, #425), which returns pins only: id,
+position, category, start and end. The signed-in events endpoints stay behind
+auth. See "Open-to-all flares on the signed-out map" in `api/CONTEXT.md`.
