@@ -744,9 +744,22 @@ export function MapView({
   const activeCount = groupedEvents.live.length + groupedEvents.upcoming.length
   const endedVisible = timeFilter === "all" && groupedEvents.ended.length > 0
   const mapFailedEmpty = !!map.error && mapEvents.length === 0
+  // The pins are the flares the rail and list show (#364): same chips, same
+  // live/soon/all tab, plus the ended ones while the list has them unfolded.
   // A pin's chip and ring depend on the clock, so flare pins wait for it
   // (it is 0 until the first effect) instead of drawing every flare as "soon".
-  const pinEvents = nowMs > 0 ? mapEvents : NO_EVENTS
+  const pinEvents = useMemo(() => {
+    if (nowMs <= 0) return NO_EVENTS
+    return endedVisible && showEnded
+      ? [...visibleEvents, ...groupedEvents.ended]
+      : visibleEvents
+  }, [nowMs, visibleEvents, endedVisible, showEnded, groupedEvents.ended])
+  // A popover goes with its pin: one whose flare left the map (a refetch, the
+  // clock) is not drawn. A chip or tab change closes it outright.
+  const shownPreview =
+    previewEvent && pinEvents.some((e) => e.id === previewEvent.id)
+      ? previewEvent
+      : null
 
   // Quiet state: only once the results are real (location known, loaded, no
   // failed first fetch), so the card never flashes during a load.
@@ -786,11 +799,11 @@ export function MapView({
   // vanishes under a flare that arrives a moment later.
   const flarePositions = useMemo(
     () =>
-      mapEvents.flatMap((e) => {
+      pinEvents.flatMap((e) => {
         const coords = eventCoords(e)
         return coords ? [coords] : []
       }),
-    [mapEvents]
+    [pinEvents]
   )
   const ideaPins = useMemo(
     () =>
@@ -850,6 +863,7 @@ export function MapView({
     haptic("selection")
     setRailFocusId(null)
     setTappedIdeaId(null)
+    setPreviewEvent(null)
     setTypeFilters((prev) => {
       const next = new Set(prev)
       if (next.has(type)) next.delete(type)
@@ -861,11 +875,13 @@ export function MapView({
     haptic("selection")
     setRailFocusId(null)
     setTappedIdeaId(null)
+    setPreviewEvent(null)
     setTypeFilters(new Set())
   }
   const changeTimeFilter = (next: TimeFilter) => {
     haptic("selection")
     setRailFocusId(null)
+    setPreviewEvent(null)
     setTimeFilter(next)
   }
   const lightFlare = (prefill?: ComposerPrefill) => {
@@ -1041,7 +1057,7 @@ export function MapView({
           <GoogleMapContent
             events={pinEvents}
             onEventSelect={onEventSelect}
-            previewEvent={previewEvent}
+            previewEvent={shownPreview}
             setPreviewEvent={setPreviewEvent}
             routeResult={routeResult}
             routeDestination={routeDestination}
@@ -1065,7 +1081,7 @@ export function MapView({
           user={cameraCenter}
           viewerId={viewerId}
           now={nowMs}
-          previewEvent={previewEvent}
+          previewEvent={shownPreview}
           setPreviewEvent={setPreviewEvent}
           highlightId={highlightId}
           ideas={ideaPins}
