@@ -60,3 +60,9 @@ flare art never replaces the map pin (#315).
 
 The auth gate opens the map to signed-out visitors, so everything the map
 loads for them has to work without a token and show no private flares.
+
+Decided 2026-10-06 (#425): signed-out visitors do see "open to all" flares on
+the map, as pins only (id, position, category, start and end). Details need an
+account: a signed-out tap on a pin opens the sign-up sheet. The api serves this
+from `GET /api/v1/public/events/map`; see "Open-to-all flares on the signed-out
+map" in `api/CONTEXT.md`.

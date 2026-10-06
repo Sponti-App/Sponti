@@ -35,6 +35,10 @@ export function getAllowedCorsOrigins(): string[] {
 export const createApp = () => {
   const app = express();
 
+  // The api sits behind one proxy hop (Caddy, deploy/netcup). Trusting it makes
+  // req.ip the real client address, which the public-route rate limiter keys on.
+  app.set("trust proxy", 1);
+
   if (env.NODE_ENV === "development") {
     app.use(morgan("dev"));
   }

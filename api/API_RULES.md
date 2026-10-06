@@ -47,7 +47,7 @@ Error:
 
 - Event updates and cancellations are host-only.
 - Private events are visible only to the host and invited members.
-- Public events still require login. Anyone who can see a public event can join it by answering going or declined; people the host removed or who are blocked either way can't. Private events can only be answered by people on the guest list.
+- Public events still require login to see their details; signed-out visitors get only the minimal map projection (see Public Routes). Anyone who can see a public event can join it by answering going or declined; people the host removed or who are blocked either way can't. Private events can only be answered by people on the guest list.
 - When a host switches an event from public to private, guests who joined on their own and are `going` keep their spot; joiners who aren't going are dropped. Invited guests are never touched. Switching private to public keeps the invite list.
 - Only the host can list, add and remove event guests. A removed guest can't see or rejoin the event, even a public one, until the host invites them again.
 - A flare's guest limit (`guestInviteLimit`) is a hard cap on `going` members — invited or self-joined, host excluded — only while `allowGuestInvites` is `"none"`. Once +1 or re-share is on, the limit is approximate and isn't enforced. The host can still invite past the limit; an invitee who tries to answer `going` once it's full gets `409 EVENT_FULL` and their invite is left untouched. Enforced atomically (`PATCH /events/:id/me`), so two people can't take the last spot.
@@ -118,8 +118,18 @@ When A blocks B:
   expired, revoked, cross-kind or owner-missing tokens all return the same
   `404 CONTACT_PREVIEW_NOT_FOUND`. It has no viewer, so no block check; the authenticated
   resolve endpoints enforce blocks before anything else is shown or changed.
-- There is no in-app rate limit yet; tokens are 256-bit random values, so guessing one is
-  not practical.
+- `GET /api/v1/public/events/map?lng&lat&radiusKm` (#425) is the signed-out map. It returns
+  `{ data: [{ _id, type, location: { type, coordinates }, startAt, endAt }] }` for public,
+  active, not-ended flares that are live or start within 24 hours, from hosts who are not
+  suspended or deleted, soonest first, at most 200, with `Cache-Control: no-store`. `radiusKm`
+  is at most 100 (default 25); unknown or invalid query fields are `400 VALIDATION_ERROR`. It
+  carries no title, description, host, guests or counts. See "Who sees open-to-all flares" in
+  `CONTEXT.md`.
+- This route is rate-limited to 60 requests a minute per client address
+  (`middleware/rateLimit.ts`, in memory, one process); over the limit is `429 RATE_LIMITED`
+  with `Retry-After`. `app.ts` trusts one proxy hop (Caddy) so the address is the real client.
+  `contact-preview` is not rate-limited; its tokens are 256-bit random values, so guessing
+  one is not practical.
 
 ## Profile
 
