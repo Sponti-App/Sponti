@@ -2506,9 +2506,9 @@ function WhoBlock({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Public toggle + (conditional) guest-limit stepper. Limit only
-          renders when it's meaningful: public events or "all friends" — for
-          inner/close, the audience IS the cap. */}
+      {/* Public toggle + (conditional) guest-limit stepper. The limit caps
+          open-to-all flares only (#447); on invite-only flares the audience
+          IS the cap, so the stepper stays hidden. */}
       <div
         className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${
           isOpen ? "border-accent bg-accent/5" : "border-border"
@@ -2518,16 +2518,20 @@ function WhoBlock({
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           public
         </span>
-        <>
-          <div className="h-7 w-px shrink-0 bg-border" />
-          <span className="shrink-0 text-xs text-muted-foreground">limit</span>
-          <Stepper
-            value={guestLimit}
-            onChange={onGuestLimit}
-            min={1}
-            max={200}
-          />
-        </>
+        {isOpen && (
+          <>
+            <div className="h-7 w-px shrink-0 bg-border" />
+            <span className="shrink-0 text-xs text-muted-foreground">
+              limit
+            </span>
+            <Stepper
+              value={guestLimit}
+              onChange={onGuestLimit}
+              min={1}
+              max={200}
+            />
+          </>
+        )}
       </div>
 
       {!isOpen && editingCircle && (
