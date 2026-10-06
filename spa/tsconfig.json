@@ -1,4 +1,11 @@
 {
+  // Next rewrites this file unless it finds its exact include strings
+  // ("<distDir>/types/**/*.ts" and "<distDir>/dev/types/**/*.ts") or a config
+  // that extends or references another. A glob can't satisfy the exact-string
+  // check, and the e2e suite builds into a second distDir (E2E_DIST_DIR), so
+  // the empty `references` makes Next leave the file alone and the glob below
+  // covers every distDir under .next (#471).
+  "references": [],
   "compilerOptions": {
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
@@ -24,14 +31,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    ".next/e2e-full/types/**/*.ts",
-    ".next/e2e-full/dev/types/**/*.ts"
-  ],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/**/types/**/*.ts"],
   "exclude": ["node_modules", "auth-server"]
 }
