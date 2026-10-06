@@ -68,7 +68,7 @@ export function NowChipRow({
               disabled={isDisabled?.(p.value)}
               className={`shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-40 ${
                 selected
-                  ? "border-accent bg-accent/10 font-medium text-accent"
+                  ? "border-accent bg-accent/10 font-medium text-accent-ink"
                   : "border-border text-foreground hover:bg-secondary"
               }`}
             >

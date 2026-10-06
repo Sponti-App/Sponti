@@ -578,7 +578,7 @@ function EventCard({
         <div className="flex items-center gap-1.5">
           <p className="truncate text-sm font-medium">{event.title}</p>
           {joined && (
-            <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
+            <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent-ink">
               <CheckIcon className="h-2.5 w-2.5" /> going
             </span>
           )}

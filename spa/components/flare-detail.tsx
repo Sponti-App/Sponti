@@ -45,7 +45,7 @@ export function CategoryTile({
       role="img"
       aria-label={match?.label ?? "flare"}
       className={cn(
-        "flex shrink-0 items-center justify-center bg-accent/15 text-accent",
+        "flex shrink-0 items-center justify-center bg-accent/15 text-accent-ink",
         size === "lg" ? "h-14 w-14 rounded-2xl" : "h-12 w-12 rounded-xl"
       )}
     >
@@ -94,7 +94,7 @@ export function FlareHeader({
         </p>
       </div>
       {viewer === "joined" && !over && (
-        <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent/15 px-2 py-1 text-xs font-medium text-accent">
+        <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent/15 px-2 py-1 text-xs font-medium text-accent-ink">
           <CheckIcon className="h-3 w-3" /> going
         </span>
       )}

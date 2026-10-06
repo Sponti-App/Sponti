@@ -1804,7 +1804,7 @@ function FlareCard({
               {event.title.split("·", 2)[0]}
             </p>
             {joined && !isEnded && (
-              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
+              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent-ink">
                 <CheckIcon className="h-2.5 w-2.5" /> going
               </span>
             )}
@@ -2090,7 +2090,7 @@ function RailCard({
           <span />
         )}
         {joined ? (
-          <span className="flex items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 font-medium text-accent">
+          <span className="flex items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 font-medium text-accent-ink">
             <CheckIcon className="h-2.5 w-2.5" /> going
           </span>
         ) : (
