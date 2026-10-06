@@ -27,6 +27,9 @@ export const STUB_USER = {
   updatedAt: "2026-01-01T00:00:00.000Z",
 }
 
+// Display names for the stubbed connections, in order.
+const FRIEND_NAMES = ["lena", "mia", "sam"]
+
 const STUB_COORDS = { lat: 37.7749, lng: -122.4194 } // San Francisco
 // Humboldthain, for the berlin-only idea list (#243).
 export const BERLIN_COORDS = { lat: 52.5474, lng: 13.3873 }
@@ -226,8 +229,15 @@ type StubBackendOptions = {
   introSlides?: boolean
   /**
    * How many accepted connections GET /connections lists. Zero by default.
+   * `setFriends` on the returned handle changes it mid-test.
    */
   friends?: number
+  /**
+   * The flares GET /events/mine/upcoming lists as hosted by the user (#459's
+   * "light your first flare" row). When set, even to [], a flare made with
+   * POST /events joins the list. Unset, the list stays empty.
+   */
+  hostedFlares?: StubApiEvent[]
   /**
    * The circles GET /circles lists, as the api returns them. Empty by
    * default. `memberCount` members are generated as `friend-0..n`, matching
@@ -252,6 +262,8 @@ export type StubOwnProfile = {
 export type StubBackendHandle = {
   /** Body of every PATCH /auth/me/profile the app sent, in order. */
   profilePatches: Array<Record<string, unknown>>
+  /** Changes how many accepted connections GET /connections lists. */
+  setFriends: (count: number) => void
 }
 
 // A light stand-in for auth-server's profile field rules (profileFields.ts):
@@ -305,13 +317,20 @@ export async function stubBackend(
   const coords = options.coords ?? STUB_COORDS
   const signedOut = options.signedOut ?? false
   const introSlides = options.introSlides ?? false
-  const connections = Array.from({ length: options.friends ?? 0 }, (_, i) => ({
-    _id: `conn-${i}`,
-    requesterId: user.id,
-    receiverId: `friend-${i}`,
-    status: "accepted",
-    otherUser: { _id: `friend-${i}`, username: `friend${i}` },
-  }))
+  const makeConnections = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      _id: `conn-${i}`,
+      requesterId: user.id,
+      receiverId: `friend-${i}`,
+      status: "accepted",
+      otherUser: {
+        _id: `friend-${i}`,
+        username: `friend${i}`,
+        displayName: FRIEND_NAMES[i] ?? `friend ${i}`,
+      },
+    }))
+  let connections = makeConnections(options.friends ?? 0)
+  const hostedFlares = options.hostedFlares ? [...options.hostedFlares] : null
 
   await page.addInitScript(
     ({
@@ -455,7 +474,29 @@ export async function stubBackend(
       return
     }
     if (path === "/events/mine/upcoming") {
-      await fulfillJson(route, { data: { hostedByMe: [], invited: [] } })
+      await fulfillJson(route, {
+        data: { hostedByMe: hostedFlares ?? [], invited: [] },
+      })
+      return
+    }
+    if (path === "/invite-links/me" && route.request().method() === "GET") {
+      await fulfillJson(route, {
+        data: {
+          token: "e2e-invite",
+          expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+          expiresInSeconds: 7 * 86_400,
+        },
+      })
+      return
+    }
+    if (path === "/qr-contact-tokens" && route.request().method() === "POST") {
+      await fulfillJson(route, {
+        data: {
+          token: "e2e-qr",
+          expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+          expiresInSeconds: 15 * 60,
+        },
+      })
       return
     }
     if (path === "/notifications/unread-count") {
@@ -556,11 +597,19 @@ export async function stubBackend(
       return
     }
     if (route.request().method() === "POST" && path === "/events") {
-      await fulfillJson(
-        route,
-        { data: makeStubFlare({ title: "new flare" }) },
-        201
-      )
+      const created = makeStubFlare({ title: "new flare" })
+      if (hostedFlares) {
+        const body = route.request().postDataJSON() as Partial<StubApiEvent>
+        hostedFlares.push({
+          ...created,
+          _id: `event-e2e-hosted-${hostedFlares.length}`,
+          hostId: user.id,
+          title: body.title ?? created.title,
+          startAt: body.startAt ?? created.startAt,
+          endAt: body.endAt ?? created.endAt,
+        })
+      }
+      await fulfillJson(route, { data: created }, 201)
       return
     }
 
@@ -570,5 +619,10 @@ export async function stubBackend(
     await fulfillJson(route, { data: [] })
   })
 
-  return { profilePatches }
+  return {
+    profilePatches,
+    setFriends: (count) => {
+      connections = makeConnections(count)
+    },
+  }
 }

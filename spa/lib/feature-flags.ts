@@ -59,8 +59,11 @@ export const featureFlags = {
    * The intro slides (#377, flare moments #370): three slides (what sponti
    * is, why it exists, how lighting a flare works) on a signed-out visitor's
    * first open of the home map, once per device. They sit on #389's
-   * signed-out home, so they need `browseBeforeSignup` too. The post-sign-up
-   * first-run intro (#313) is separate and unchanged. Full profile only.
+   * signed-out home, so they need `browseBeforeSignup` too. It also swaps
+   * the post-sign-up first-run intro (#313) for a checklist in the map's
+   * sheet (#459), and has a 0-friend account add its first friend before a
+   * kept draft is lit. Off, the first-run intro is unchanged. Full profile
+   * only.
    */
   introV2: FEATURE_PROFILE === "full",
 } as const

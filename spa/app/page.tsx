@@ -9,6 +9,7 @@ import { FirstRunIntro } from "@/components/first-run-intro"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { KeptDraftWelcome } from "@/components/kept-draft-welcome"
+import { useOnboardingChecklist } from "@/components/onboarding-checklist"
 import { SignedOutHome } from "@/components/signed-out-home"
 import {
   ListIcon,
@@ -51,6 +52,9 @@ function SignedInHome() {
   const [joinedIds, setJoinedIds] = useState<Set<string>>(() => new Set())
   const [menuOpen, setMenuOpen] = useState(false)
   const { user } = useAuth()
+  // #459: after sign-up, a checklist in the map's sheet (in place of #313's
+  // intro, with `introV2`).
+  const checklist = useOnboardingChecklist(featureFlags.introV2)
 
   // Left-edge swipe to open MenuDrawer
   const swipeStartX = useRef<number | null>(null)
@@ -188,6 +192,7 @@ function SignedInHome() {
             joinedIds={joinedIds}
             onRouteReady={handleRouteReady}
             onSeeCalendar={() => setView("calendar")}
+            dockCard={checklist}
           />
         ) : (
           <CalendarView
@@ -297,12 +302,13 @@ function SignedInHome() {
       <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
 
       {/* #313: once, after a new account is made on this device. #389: an
-          account made to light a kept draft gets the welcome back instead. */}
+          account made to light a kept draft gets the welcome back instead.
+          #459: with `introV2` the checklist above replaces the intro. */}
       {featureFlags.browseBeforeSignup ? (
         <Suspense fallback={null}>
           <KeptDraftWelcome />
         </Suspense>
-      ) : (
+      ) : featureFlags.introV2 ? null : (
         <FirstRunIntro />
       )}
     </div>
