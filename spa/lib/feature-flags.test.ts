@@ -58,4 +58,21 @@ describe("featureFlags profile", () => {
     const { featureFlags: tester } = await loadFlags()
     expect(tester.seedDemoData).toBe(true)
   })
+
+  it("keeps the mobile gate on in both profiles, off only with NEXT_PUBLIC_MOBILE_GATE=off (#467)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_MOBILE_GATE", undefined)
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", undefined)
+    expect((await loadFlags()).featureFlags.mobileGate).toBe(true)
+
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "full")
+    expect((await loadFlags()).featureFlags.mobileGate).toBe(true)
+
+    vi.stubEnv("NEXT_PUBLIC_MOBILE_GATE", "on")
+    expect((await loadFlags()).featureFlags.mobileGate).toBe(true)
+
+    vi.stubEnv("NEXT_PUBLIC_MOBILE_GATE", "off")
+    expect((await loadFlags()).featureFlags.mobileGate).toBe(false)
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "tester")
+    expect((await loadFlags()).featureFlags.mobileGate).toBe(false)
+  })
 })

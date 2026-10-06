@@ -66,4 +66,15 @@ export const featureFlags = {
    * only.
    */
   introV2: FEATURE_PROFILE === "full",
+
+  /**
+   * The mobile-only gate (#467): on a desktop-sized screen without touch,
+   * a calm "sponti is made for your phone" notice with a QR code to open the
+   * page on a phone, and "continue anyway" (remembered per device). It is for
+   * the testers, so it is on in BOTH profiles. The opt-out is for local
+   * desktop development: set NEXT_PUBLIC_MOBILE_GATE=off. Anything else,
+   * including unset, leaves it on. Whether the notice warns or blocks is
+   * `MOBILE_GATE_MODE` in lib/mobile-gate.ts.
+   */
+  mobileGate: process.env.NEXT_PUBLIC_MOBILE_GATE !== "off",
 } as const

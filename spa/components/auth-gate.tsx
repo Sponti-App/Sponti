@@ -12,7 +12,8 @@ import {
 } from "@/lib/redirect-path"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 
-const LEGAL_PATHS = ["/menu/terms", "/menu/privacy", "/menu/impressum"]
+// Also read by mobile-gate: the legal pages are never gated either.
+export const LEGAL_PATHS = ["/menu/terms", "/menu/privacy", "/menu/impressum"]
 const PUBLIC_PATHS = [...AUTH_PATHS, ...LEGAL_PATHS]
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
