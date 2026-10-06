@@ -554,8 +554,8 @@ export const createEventRsvpChangeNotification = async ({
   memberWillArriveAt,
   arrivalStatus,
   // Set when the RSVP status itself didn't change and this is only reporting
-  // a going member moving their arrival time or status (#90, #211) — distinct
-  // copy so the host isn't told someone "RSVP'd" when they didn't.
+  // a going member moving their arrival time or status (#90, #211), so the
+  // host isn't told someone joined when they didn't.
   etaOnly = false,
   session,
 }: {
@@ -575,16 +575,20 @@ export const createEventRsvpChangeNotification = async ({
 
   const users = await getUsersByIds([attendeeId]);
   const attendee = users.get(attendeeId);
-  const attendeeName = actorDisplayName(attendee, "Someone");
+  const attendeeName = actorDisplayName(attendee, "someone");
   const rsvpLabel = rsvpStatus === "going" ? "is going to" : "can't make it to";
   const eta = rsvpStatus === "going" && memberWillArriveAt ? new Date(memberWillArriveAt) : null;
   const etaLabel = eta ? formatEtaLabel(eta) : null;
   const statusLabel =
     rsvpStatus === "going" && arrivalStatus ? formatArrivalStatusLabel(arrivalStatus) : null;
 
+  // Lowercase, no "RSVP" (#415). The spa writes the same words itself from
+  // `metadata.rsvpChange`; this title is what older spa builds still show.
   const title = etaOnly
-    ? `${attendeeName} updated their arrival time`
-    : `${attendeeName} updated their RSVP`;
+    ? `${attendeeName} changed their reply`
+    : rsvpStatus === "going"
+      ? `${attendeeName} joined your flare`
+      : `${attendeeName} can't make it`;
   const message = etaOnly
     ? statusLabel
       ? `${attendeeName} is now ${statusLabel} for ${eventTitle}.`

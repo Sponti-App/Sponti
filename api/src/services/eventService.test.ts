@@ -974,7 +974,7 @@ describe("eventService.updateMyEventMembership", () => {
     }>;
     expect(String(etaDocs[0]?.userId)).toBe(USER_ID);
     expect(String(etaDocs[0]?.actorId)).toBe(GUEST_ID);
-    expect(etaDocs[0]?.title).toMatch(/arrival time/);
+    expect(etaDocs[0]?.title).toMatch(/ changed their reply$/);
     expect(etaDocs[0]?.metadata).toEqual(
       expect.objectContaining({
         rsvpStatus: "going",
@@ -1030,7 +1030,7 @@ describe("eventService.updateMyEventMembership", () => {
     }>;
     expect(String(docs[0]?.userId)).toBe(USER_ID);
     expect(String(docs[0]?.actorId)).toBe(GUEST_ID);
-    expect(docs[0]?.title).toMatch(/arrival time/);
+    expect(docs[0]?.title).toMatch(/ changed their reply$/);
     expect(docs[0]?.message).toMatch(/running late/);
     expect(docs[0]?.metadata).toEqual(
       expect.objectContaining({ arrivalStatus: "running_late", memberWillArriveAt: null })

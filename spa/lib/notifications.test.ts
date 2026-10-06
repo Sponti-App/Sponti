@@ -103,6 +103,42 @@ describe("adaptApiNotification for rsvp changes", () => {
     expect(isJoinNotification(notification)).toBe(true)
   })
 
+  // #415: the feed writes its own lowercase copy, whatever the server titled it.
+  it.each([
+    ["joined", "mia joined your flare"],
+    ["declined", "mia can't make it"],
+    ["arrival_updated", "mia changed their reply"],
+  ])("titles a %s change as %j", (rsvpChange, title) => {
+    const notification = adaptApiNotification(
+      rsvpNotification({ rsvpStatus: "going", rsvpChange })
+    )
+
+    expect(notification.title).toBe(title)
+  })
+
+  it("names an unknown actor 'someone' in the feed's own copy", () => {
+    const notification = adaptApiNotification({
+      ...rsvpNotification({ rsvpStatus: "going", rsvpChange: "joined" }),
+      actor: null,
+    })
+
+    expect(notification.title).toBe("someone joined your flare")
+  })
+
+  it("falls back to the server title when there is no rsvp change to read", () => {
+    const legacy = adaptApiNotification(
+      rsvpNotification({ eventTitle: "sunset swim", rsvpStatus: "going" })
+    )
+    const bare = adaptApiNotification(rsvpNotification(undefined))
+    const unknown = adaptApiNotification(
+      rsvpNotification({ rsvpChange: "teleported" })
+    )
+
+    expect(legacy.title).toBe("mia updated their RSVP")
+    expect(bare.title).toBe("mia updated their RSVP")
+    expect(unknown.title).toBe("mia updated their RSVP")
+  })
+
   it("never calls an arrival update or a decline a join", () => {
     const update = adaptApiNotification(
       rsvpNotification({

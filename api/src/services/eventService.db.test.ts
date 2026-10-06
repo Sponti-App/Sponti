@@ -479,7 +479,7 @@ describe("eventService attendee ETA visibility database behavior (#90)", () => {
     expect(notices).toHaveLength(1);
     expect(String(notices[0]?.userId)).toBe(HOST_ID);
     expect(String(notices[0]?.actorId)).toBe(GOING_GUEST_ID);
-    expect(notices[0]?.title).toMatch(/arrival time/);
+    expect(notices[0]?.title).toMatch(/ changed their reply$/);
 
     const hostView = await getEventById(HOST_ID, eventId);
     expect(hostView.attendees.find((a) => a._id === GOING_GUEST_ID)?.willArriveAt).toBe(
@@ -584,7 +584,7 @@ describe("eventService near-term arrival status database behavior (#211)", () =>
     expect(notices).toHaveLength(1);
     expect(String(notices[0]?.userId)).toBe(HOST_ID);
     expect(String(notices[0]?.actorId)).toBe(GOING_GUEST_ID);
-    expect(notices[0]?.title).toMatch(/arrival time/);
+    expect(notices[0]?.title).toMatch(/ changed their reply$/);
     expect(notices[0]?.message).toMatch(/running late/);
     expect(notices[0]?.metadata?.arrivalStatus).toBe("running_late");
   });
@@ -1512,6 +1512,26 @@ describe("eventService join notification data database behavior (#414)", () => {
 
     const [notice] = await rsvpNotices(eventId);
     expect(notice?.metadata).toMatchObject({ rsvpChange: "joined", firstJoin: false });
+  });
+
+  it("writes lowercase titles with no RSVP in them (#415)", async () => {
+    const { eventId } = await seedFlareWithGoingGuest("public");
+    await mongoose.connection.db?.collection("users").insertOne({
+      _id: new Types.ObjectId(STRANGER_ID),
+      username: "mia",
+      displayName: "mia",
+    });
+
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "going" });
+    await updateMyEventMembership(STRANGER_ID, eventId, { rsvpStatus: "declined" });
+    await updateMyEventMembership(GOING_GUEST_ID, eventId, { arrivalStatus: "on_time" });
+
+    const notices = await rsvpNotices(eventId);
+    expect(notices.map((n) => [n.metadata?.rsvpChange, n.title])).toEqual([
+      ["joined", "mia joined your flare"],
+      ["declined", "mia can't make it"],
+      ["arrival_updated", expect.stringMatching(/ changed their reply$/)],
+    ]);
   });
 
   it("labels an arrival-time update, which is never a join", async () => {
