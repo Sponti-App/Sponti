@@ -5,6 +5,7 @@ import type {
   RespondToConnectionRequestBody,
   SendConnectionRequestBody,
 } from "#schemas/connectionSchemas";
+import { addNewFriendsToAllFriendsFlares } from "#services/allFriendsFlareService";
 import { hasAnyBlockBetweenUsers } from "#services/blockService";
 import {
   createConnectionAcceptedNotification,
@@ -90,6 +91,8 @@ export const sendConnectionRequest = async (
         connectionId: String(reversePending._id),
         session,
       });
+
+      await addNewFriendsToAllFriendsFlares(requesterId, input.receiverId, session);
 
       return {
         connection,
@@ -205,6 +208,8 @@ export const connectInPerson = async (scannerId: string, ownerId: string) => {
       via: "qr",
     });
 
+    await addNewFriendsToAllFriendsFlares(scannerId, ownerId, session);
+
     return { connected: true, created: true };
   });
 
@@ -280,6 +285,18 @@ export const respondToConnectionRequest = async (
       throw new AppError("Connection request not found", 404, "CONNECTION_REQUEST_NOT_FOUND");
     }
 
+    // Blocking deletes pending requests (#260), so a pending row between a
+    // blocked pair is a leftover (a request that raced the block, or old
+    // data). Accepting it would connect people who blocked each other (#444).
+    // Answer exactly like a missing request so the accepter learns nothing
+    // about who blocked whom. Declining stays allowed: it only closes the row.
+    if (
+      input.status === "accepted" &&
+      (await hasAnyBlockBetweenUsers(userId, String(connection.requesterId)))
+    ) {
+      throw new AppError("Connection request not found", 404, "CONNECTION_REQUEST_NOT_FOUND");
+    }
+
     connection.status = input.status;
     await connection.save({ session });
 
@@ -308,6 +325,8 @@ export const respondToConnectionRequest = async (
         connectionId: String(connection._id),
         session,
       });
+
+      await addNewFriendsToAllFriendsFlares(userId, String(connection.requesterId), session);
     }
 
     return connection;

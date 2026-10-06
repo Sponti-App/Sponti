@@ -15,6 +15,7 @@ import { type EventStatus, type HostedEvent } from "@/lib/api/events"
 import { EventAvatarStack, initials } from "@/components/event-avatar-stack"
 import { EVENT_TYPES } from "@/types/utils"
 import { cn } from "@/lib/utils"
+import { formatDayShort } from "@/lib/format-date"
 
 function formatStartParts(iso: string): { day: string; time: string } {
   const d = new Date(iso)
@@ -33,13 +34,7 @@ function formatStartParts(iso: string): { day: string; time: string } {
   if (sameDay) return { day: "today", time }
   if (isTomorrow) return { day: "tomorrow", time }
   return {
-    day: d
-      .toLocaleDateString(undefined, {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      })
-      .toLowerCase(),
+    day: formatDayShort(d),
     time,
   }
 }

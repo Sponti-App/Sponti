@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   replace: vi.fn(),
   resolveInviteLink: vi.fn(),
+  fetchContactPreviewName: vi.fn(),
   showActionFeedback: vi.fn(),
   status: "authenticated" as "authenticated" | "unauthenticated",
 }))
@@ -32,6 +33,15 @@ vi.mock("@/components/action-feedback", () => ({
 vi.mock("@/components/auth-provider", () => ({
   useAuth: () => ({ status: mocks.status }),
 }))
+
+vi.mock("@/lib/api/contact-preview", () => ({
+  fetchContactPreviewName: mocks.fetchContactPreviewName,
+}))
+
+vi.mock("@/lib/http", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/http")>()
+  return { ...actual, warmBackends: vi.fn() }
+})
 
 vi.mock("@/lib/api/invite-links", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/invite-links")>()
@@ -113,15 +123,29 @@ describe("InviteLinkPage (#124)", () => {
     ).toBeInTheDocument()
   })
 
-  it("sends a signed-out visitor straight to sign-up, returning here", async () => {
+  it("shows a signed-out visitor who wants to connect, with sign in and create account", async () => {
     mocks.status = "unauthenticated"
+    mocks.fetchContactPreviewName.mockResolvedValue("Lena")
     render(<InviteLinkPage />)
 
-    await waitFor(() =>
-      expect(mocks.replace).toHaveBeenCalledWith(
-        "/register?redirectTo=%2Finvite%2Finvite-token"
-      )
+    expect(
+      await screen.findByRole("heading", {
+        name: "Lena wants to connect on sponti",
+      })
+    ).toBeInTheDocument()
+    expect(mocks.fetchContactPreviewName).toHaveBeenCalledWith(
+      "invite",
+      "invite-token",
+      expect.any(AbortSignal)
     )
+    expect(screen.getByRole("link", { name: "sign in" })).toHaveAttribute(
+      "href",
+      "/login?redirectTo=%2Finvite%2Finvite-token"
+    )
+    expect(
+      screen.getByRole("link", { name: "create account" })
+    ).toHaveAttribute("href", "/register?redirectTo=%2Finvite%2Finvite-token")
+    expect(mocks.replace).not.toHaveBeenCalled()
     expect(mocks.resolveInviteLink).not.toHaveBeenCalled()
   })
 })

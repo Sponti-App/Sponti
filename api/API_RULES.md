@@ -47,7 +47,7 @@ Error:
 
 - Event updates and cancellations are host-only.
 - Private events are visible only to the host and invited members.
-- Public events still require login. Anyone who can see a public event can join it by answering going or declined; people the host removed or who are blocked either way can't. Private events can only be answered by people on the guest list.
+- Public events still require login to see their details; signed-out visitors get only the minimal map projection (see Public Routes). Anyone who can see a public event can join it by answering going or declined; people the host removed or who are blocked either way can't. Private events can only be answered by people on the guest list.
 - When a host switches an event from public to private, guests who joined on their own and are `going` keep their spot; joiners who aren't going are dropped. Invited guests are never touched. Switching private to public keeps the invite list.
 - Only the host can list, add and remove event guests. A removed guest can't see or rejoin the event, even a public one, until the host invites them again.
 - A flare's guest limit (`guestInviteLimit`) is a hard cap on `going` members — invited or self-joined, host excluded — only while `allowGuestInvites` is `"none"`. Once +1 or re-share is on, the limit is approximate and isn't enforced. The host can still invite past the limit; an invitee who tries to answer `going` once it's full gets `409 EVENT_FULL` and their invite is left untouched. Enforced atomically (`PATCH /events/:id/me`), so two people can't take the last spot.
@@ -56,6 +56,7 @@ Error:
 - An update can be deleted (soft, idempotent) by its author or the flare's host. There is no editing.
 - `GET /events/:id` returns `myWillArriveAt`, the caller's own arrival time (or `null`). Other guests' arrival times are only ever sent to the host, on `attendees[].willArriveAt`.
 - `PATCH /notifications/read-batch` marks up to 10 caller-owned notification ids read at once. `PATCH /notifications/read-all` ("I'm caught up") marks every one of the caller's unread notifications read in one call, not just a loaded page — scoped to `createdAt` at or before the moment the request is handled, so a notification created mid-request isn't swallowed before the caller ever saw it. Both return the caller's resulting `unreadCount`.
+- An `event_rsvp_change` notification goes only to the flare's host. Its `metadata` carries `eventTitle`, `rsvpStatus` (`going` or `declined`), the arrival answer (`memberWillArriveAt`, `arrivalStatus`), and since #414 `rsvpChange` (`joined`, `declined` or `arrival_updated`) and `firstJoin`. `firstJoin` is true only for the first join the host ever hears about on that flare: nobody else is going and the host has never had a join notice for it, so a leave and a re-join never make a second one. Notifications written before #414 have no `rsvpChange` or `firstJoin`, and clients must treat them as unknown, never as a join. The joiner's name and photo come from `actor`, which never carries bio or handles.
 - A going member's arrival answer is either a minute-based time (`memberWillArriveAt`) or, for a flare that hasn't started but starts within the hour, a near-term status (`arrivalStatus`: `"on_time"` or `"running_late"`). The two are mutually exclusive — sending a real value for both on `PATCH /events/:id/me` is `400 VALIDATION_ERROR`, and setting one (to a real value) clears the other, whether or not the request mentions it. `GET /events/:id` returns the caller's own as `myArrivalStatus`; the host also gets `attendees[].arrivalStatus`, on the same host-only terms as `willArriveAt`. Declining nulls out both.
 - `GET /users/by-username/:username` (someone's profile, #199, #288) and its mutual friends list: see Profile below.
 - Circles can only be managed by their owner.
@@ -69,6 +70,7 @@ Error:
 - **Connected** means an accepted row in **both** directions and no block either way. A one-sided accepted row grants nothing: it reads as `none`, doesn't count as a friend, and doesn't unlock anything that is for connections only (#260). Data should always be symmetric; requiring both rows means a leftover or buggy one-sided row can't give someone access.
 - There is one definition in code: `relationshipService` (#267). `getRelationship(viewer, other)` answers `self`, `blocked`, `connected`, `pending_outgoing`, `pending_incoming` or `none`, in that order of precedence (plus who placed a block, and the pending request's id). `getConnectedUserIds(user, candidates?)` answers "who is this user connected to". The QR code and invite link screens, someone's profile, user search, circle membership, "all friends" and flare invites all use these. Don't write another "are these two connected?" query.
 - A rejected request reads as `none`; the requester is never told they were turned down.
+- Accepting a pending request between a blocked pair (a block either way) fails with `404 CONNECTION_REQUEST_NOT_FOUND`, the same as a missing request, so the accepter learns nothing about who blocked whom (#444). Declining is still allowed.
 - `DELETE /connections/:id` deletes one of the caller's own rows. For an accepted row the mirrored row goes too, so a pair never ends up one-sided.
 - `npm run cleanup:connections` (in `api/`) is the one-off #260 cleanup: it finds one-sided accepted rows and rows a block would remove today (pending or accepted rows between blocked users). It never deletes rejected rows. Dry run by default, printing counts and ids only; `-- --apply` deletes. It uses `MONGO_URI` and `DB_NAME` from `api/.env`, so check where that points first.
 
@@ -117,8 +119,18 @@ When A blocks B:
   expired, revoked, cross-kind or owner-missing tokens all return the same
   `404 CONTACT_PREVIEW_NOT_FOUND`. It has no viewer, so no block check; the authenticated
   resolve endpoints enforce blocks before anything else is shown or changed.
-- There is no in-app rate limit yet; tokens are 256-bit random values, so guessing one is
-  not practical.
+- `GET /api/v1/public/events/map?lng&lat&radiusKm` (#425) is the signed-out map. It returns
+  `{ data: [{ _id, type, location: { type, coordinates }, startAt, endAt }] }` for public,
+  active, not-ended flares that are live or start within 24 hours, from hosts who are not
+  suspended or deleted, soonest first, at most 200, with `Cache-Control: no-store`. `radiusKm`
+  is at most 100 (default 25); unknown or invalid query fields are `400 VALIDATION_ERROR`. It
+  carries no title, description, host, guests or counts. See "Who sees open-to-all flares" in
+  `CONTEXT.md`.
+- This route is rate-limited to 60 requests a minute per client address
+  (`middleware/rateLimit.ts`, in memory, one process); over the limit is `429 RATE_LIMITED`
+  with `Retry-After`. `app.ts` trusts one proxy hop (Caddy) so the address is the real client.
+  `contact-preview` is not rate-limited; its tokens are 256-bit random values, so guessing
+  one is not practical.
 
 ## Profile
 

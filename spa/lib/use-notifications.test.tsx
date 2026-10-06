@@ -27,9 +27,11 @@ vi.mock("@/lib/use-events", () => ({
   emitEventsChanged: mocks.emitEventsChanged,
 }))
 
+import type { Notification } from "@/lib/notifications"
 import {
   markAllRead,
   refreshUnreadCount,
+  subscribeToNotificationArrivals,
   useNotifications,
   useUnreadCountRefresh,
 } from "./use-notifications"
@@ -207,5 +209,95 @@ describe("markAllRead", () => {
     expect(result.current.notifications[0]?.read).toBe(false)
     expect(result.current.caughtUpAt).toBe(caughtUpAtBefore)
     expect(result.current.error).toBe("couldn't mark as read, try again")
+  })
+})
+
+// #414: the first-join moment (#380) needs to know which notifications the
+// poll just brought in, not only that the count went up.
+describe("subscribeToNotificationArrivals", () => {
+  const joinNotice = (id: string, read = false): Notification => ({
+    id,
+    type: "event_rsvp_change",
+    targetType: "event",
+    targetId: "e1",
+    title: "mia updated their RSVP",
+    subtitle: "mia is going to sunset swim.",
+    createdAt: new Date().toISOString(),
+    readAt: read ? new Date().toISOString() : null,
+    read,
+    href: "/event",
+    intent: "rsvp",
+    actorName: "mia",
+    rsvp: {
+      change: "joined",
+      status: "going",
+      firstJoin: false,
+      eventTitle: "sunset swim",
+      willArriveAt: null,
+      arrivalStatus: null,
+    },
+  })
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    // The store is a module singleton: seed a known baseline count.
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(0)
+    await refreshUnreadCount()
+    mocks.fetchNotifications.mockClear()
+  })
+
+  it("hands over the newly arrived unread notifications, oldest first, once", async () => {
+    const listener = vi.fn()
+    const unsubscribe = subscribeToNotificationArrivals(listener)
+    // Newest first, as the api returns them. a0 is older and already read.
+    mocks.fetchNotifications.mockResolvedValue({
+      notifications: [
+        joinNotice("a2"),
+        joinNotice("a1"),
+        joinNotice("a0", true),
+      ],
+      pagination: { nextCursor: null },
+    })
+
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(2)
+    await refreshUnreadCount()
+    await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(1))
+    expect(listener.mock.calls[0]?.[0].map((n: Notification) => n.id)).toEqual([
+      "a1",
+      "a2",
+    ])
+
+    // A later rise with nothing new to announce doesn't repeat them.
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(3)
+    await refreshUnreadCount()
+    await vi.waitFor(() =>
+      expect(mocks.fetchNotifications).toHaveBeenCalledTimes(2)
+    )
+    expect(listener).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
+
+  it("only announces as many as the count rose by", async () => {
+    const listener = vi.fn()
+    const unsubscribe = subscribeToNotificationArrivals(listener)
+    mocks.fetchNotifications.mockResolvedValue({
+      notifications: [joinNotice("b2"), joinNotice("b1")],
+      pagination: { nextCursor: null },
+    })
+
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(1)
+    await refreshUnreadCount()
+    await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(1))
+    expect(listener.mock.calls[0]?.[0].map((n: Notification) => n.id)).toEqual([
+      "b2",
+    ])
+    unsubscribe()
+  })
+
+  it("doesn't fetch anything when nobody listens", async () => {
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(4)
+    await refreshUnreadCount()
+
+    expect(mocks.fetchNotifications).not.toHaveBeenCalled()
   })
 })

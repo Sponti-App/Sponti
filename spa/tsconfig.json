@@ -29,7 +29,9 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    ".next/e2e-full/types/**/*.ts",
+    ".next/e2e-full/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules", "auth-server"]
 }

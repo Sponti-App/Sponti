@@ -3,13 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Drawer } from "vaul"
 import { haptic } from "@/lib/haptics"
+import { formatWeekdayShort } from "@/lib/format-date"
 import {
   VIEWPORT_HEIGHT_VAR,
   useViewportMetrics,
   KEYBOARD_INSET_VAR,
 } from "@/lib/use-viewport-metrics"
 import { useSheetVisibleHeight } from "@/lib/use-sheet-visible-height"
-import { useFocusedFieldVisible } from "@/lib/use-focused-field-visible"
+import {
+  topAlignOffset,
+  useFocusedFieldVisible,
+} from "@/lib/use-focused-field-visible"
 import {
   CheckIcon,
   MapPinIcon,
@@ -124,16 +128,14 @@ function formatDayChip(d: Date): { weekday: string; date: string } {
   if (diffDays === 0) return { weekday: "today", date: String(d.getDate()) }
   if (diffDays === 1) return { weekday: "tmrw", date: String(d.getDate()) }
   return {
-    weekday: d
-      .toLocaleDateString(undefined, { weekday: "short" })
-      .toLowerCase(),
+    weekday: formatWeekdayShort(d),
     date: String(d.getDate()),
   }
 }
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
-  return "Something went wrong. Try again."
+  return "something went wrong, try again"
 }
 
 function isPlaceSuggestion(value: unknown): value is PlaceSuggestion {
@@ -165,8 +167,8 @@ function isPlaceDetailsResponse(value: unknown): value is PlaceDetailsResponse {
 }
 
 function currentLocationError(status: GeoStatus): string {
-  if (status === "requesting") return "Still finding your location."
-  return "Enable location access or search for a place."
+  if (status === "requesting") return "still finding your location"
+  return "enable location access or search for a place"
 }
 
 function isReverseGeocodeArea(value: unknown): value is ReverseGeocodeArea {
@@ -665,6 +667,11 @@ export function NewEventDrawer({
   // The keyboard shrinks the card to whatever clears it; keep the field the
   // user is typing in inside that slot rather than above it.
   useFocusedFieldVisible(scrollRef, open)
+  // True while the location search input has focus, i.e. the software keyboard
+  // is up on a phone. The pinned CTA steps aside then (see the footer) and the
+  // field is lifted to the top of the scroll area so its suggestions get all
+  // the room the keyboard leaves (#367).
+  const [placeSearchFocused, setPlaceSearchFocused] = useState(false)
   const pendingPublicSubmit = useRef(false)
 
   const [mode, setMode] = useState<Mode>(initialEventDraftState.mode)
@@ -1200,15 +1207,45 @@ export function NewEventDrawer({
       if (placeDetailsRequestRef.current !== requestId) return
       setSelectedLocation(null)
       setPickedSearchAddress("")
-      setPlaceDetailsError(
-        "That place could not be resolved. Try another result."
-      )
+      setPlaceDetailsError("couldn't find that place, try another")
     } finally {
       if (placeDetailsRequestRef.current === requestId) {
         setPlaceDetailsLoading(false)
       }
     }
   }
+
+  // Keep the search field at the top of the scroll area while it is focused, so
+  // the suggestions under it fill the slot above the keyboard instead of
+  // sitting below the fold. Re-aligns when suggestions arrive and when the
+  // keyboard changes the visual viewport. useFocusedFieldVisible alone only
+  // guarantees the input itself is on screen.
+  useEffect(() => {
+    if (!open || !placeSearchFocused) return
+    let frame = 0
+    const align = () => {
+      const scroll = scrollRef.current
+      const field = scroll?.querySelector<HTMLElement>("[data-place-search]")
+      if (!scroll || !field) return
+      scroll.scrollTop += topAlignOffset(
+        field.getBoundingClientRect(),
+        scroll.getBoundingClientRect()
+      )
+    }
+    const schedule = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(align)
+      })
+    }
+    schedule()
+    const viewport = window.visualViewport
+    viewport?.addEventListener("resize", schedule)
+    return () => {
+      cancelAnimationFrame(frame)
+      viewport?.removeEventListener("resize", schedule)
+    }
+  }, [open, placeSearchFocused, placeResults.length])
 
   const scheduledStartOptions = useMemo(() => {
     const out: { value: number; label: string }[] = []
@@ -1276,7 +1313,6 @@ export function NewEventDrawer({
     return circleMembers.length + extras
   }, [selectedAudienceCircle, isOpen, directlyInvitedIds])
 
-  const isOverLimit = !isOpen && inviteeCount > guestLimit
   const hasPrivateInvitees = isOpen || inviteeCount > 0
   const needsAudience =
     !isOpen && !audienceLoading && !audienceError && !hasPrivateInvitees
@@ -1547,7 +1583,7 @@ export function NewEventDrawer({
                 reachable (issue #94). */}
             <div
               ref={scrollRef}
-              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4"
+              className="min-h-0 flex-1 scroll-pt-3 overflow-y-auto overscroll-contain px-4 pt-1 pb-4"
               data-vaul-no-drag
             >
               {/* Title input — hero of the compose card */}
@@ -1613,7 +1649,6 @@ export function NewEventDrawer({
                 <SectionChip
                   label={whoLabel}
                   active={expandedSection === "who"}
-                  tone={isOverLimit ? "destructive" : "default"}
                   onClick={() => toggleSection("who")}
                 />
               </div>
@@ -1724,6 +1759,7 @@ export function NewEventDrawer({
                     placeDetailsError={placeDetailsError}
                     geoStatus={geoStatus}
                     geoErrorMessage={geoErrorMessage}
+                    onSearchFocusChange={setPlaceSearchFocused}
                   />
                 </div>
               )}
@@ -1777,8 +1813,15 @@ export function NewEventDrawer({
             </div>
 
             {/* CTA pinned at the bottom. The sheet now covers the bottom nav,
-                so it also owns the home-indicator inset. */}
-            <div className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                so it also owns the home-indicator inset. On a touch device it
+                steps aside while the location search has the keyboard up: the
+                slot above the keyboard is small, and the CTA took half of it
+                from the suggestions (#367). Tapping a suggestion, or dismissing
+                the keyboard, brings it back. */}
+            <div
+              data-place-searching={placeSearchFocused}
+              className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] data-[place-searching=true]:[@media(pointer:coarse)]:hidden"
+            >
               {submitError && (
                 <p
                   className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
@@ -1890,19 +1933,14 @@ function SectionChip({
   label,
   active,
   onClick,
-  tone = "default",
 }: {
   label: string
   active: boolean
   onClick: () => void
-  tone?: "default" | "destructive"
 }) {
-  const toneClasses =
-    tone === "destructive"
-      ? "border-destructive/40 bg-destructive/10 text-destructive"
-      : active
-        ? "border-accent bg-accent/10 text-accent"
-        : "border-muted-foreground/30 bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground"
+  const toneClasses = active
+    ? "border-accent bg-accent/10 text-accent-ink"
+    : "border-muted-foreground/30 bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground"
   return (
     <button
       type="button"
@@ -1910,9 +1948,7 @@ function SectionChip({
       className={`inline-flex shrink-0 items-center gap-1 truncate rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${toneClasses}`}
     >
       {label}
-      {!active && tone !== "destructive" && (
-        <PencilSimpleIcon className="h-2.5 w-2.5 opacity-50" />
-      )}
+      {!active && <PencilSimpleIcon className="h-2.5 w-2.5 opacity-50" />}
     </button>
   )
 }
@@ -2015,7 +2051,7 @@ function EventTypePills({
               onClick={() => onChange(selected ? null : t.value)}
               className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 transition-colors ${
                 selected
-                  ? "border-accent bg-accent/10 text-accent"
+                  ? "border-accent bg-accent/10 text-accent-ink"
                   : "border-border text-muted-foreground hover:bg-secondary"
               }`}
             >
@@ -2087,7 +2123,7 @@ function TimeRange({
   )
 }
 
-function TimeWheel({
+export function TimeWheel({
   options,
   value,
   onChange,
@@ -2103,6 +2139,14 @@ function TimeWheel({
   const PAD = Math.floor(VISIBLE / 2) * ITEM_H
   const ref = useRef<HTMLDivElement>(null)
   const timer = useRef<number | null>(null)
+  // The settle below fires 90 ms after the last scroll, so it must read what is
+  // current then, not what the render that scheduled it closed over: the other
+  // wheel can rebuild this wheel's list in between, and a stale list could
+  // settle on a value that is no longer an option (#436).
+  const latest = useRef({ options, value, onChange })
+  useEffect(() => {
+    latest.current = { options, value, onChange }
+  })
 
   useEffect(() => {
     const idx = options.findIndex((o) => o.value === value)
@@ -2118,6 +2162,7 @@ function TimeWheel({
     if (!el) return
     if (timer.current !== null) window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => {
+      const { options, value, onChange } = latest.current
       const idx = Math.round(el.scrollTop / ITEM_H)
       const clamped = Math.max(0, Math.min(idx, options.length - 1))
       const next = options[clamped]
@@ -2134,7 +2179,10 @@ function TimeWheel({
 
   return (
     <div
-      className="relative overflow-hidden rounded-lg bg-background"
+      // contain-paint + isolate: WebKit lets a composited scroller escape an
+      // overflow-hidden rounded parent while it bounces or snaps, which drew
+      // the wheel's rows over the "start"/"end" labels above it (#366).
+      className="relative isolate overflow-hidden rounded-lg bg-background contain-paint"
       style={{ height: VISIBLE * ITEM_H }}
     >
       <div
@@ -2146,7 +2194,7 @@ function TimeWheel({
         onScroll={handleScroll}
         role="listbox"
         aria-label={ariaLabel}
-        className="no-scrollbar h-full snap-y snap-mandatory overflow-y-scroll"
+        className="no-scrollbar h-full snap-y snap-mandatory overflow-y-scroll overscroll-contain"
         data-vaul-no-drag
       >
         <div style={{ height: PAD }} aria-hidden />
@@ -2204,12 +2252,12 @@ function DateStrip({
               }`}
             >
               <span
-                className={`text-xs ${selected ? "text-accent" : "text-muted-foreground"}`}
+                className={`text-xs ${selected ? "text-accent-ink" : "text-muted-foreground"}`}
               >
                 {chip.weekday}
               </span>
               <span
-                className={`text-base font-medium ${selected ? "text-accent" : "text-foreground"}`}
+                className={`text-base font-medium ${selected ? "text-accent-ink" : "text-foreground"}`}
               >
                 {chip.date}
               </span>
@@ -2228,6 +2276,12 @@ function DateStrip({
 // and focuses it; tapping the X collapses back to "current loc". Picking a
 // place from the autocomplete list keeps the field open so the user can see
 // what was picked.
+//
+// The input is always mounted: visually hidden (sr-only, so it takes no
+// layout) while collapsed. iOS Safari only raises the keyboard when focus()
+// runs synchronously inside the tap, and the input has to exist at that
+// moment (#402). It stays the same element when it expands, so it keeps its
+// focus.
 function WherePicker({
   whereType,
   onWhereType,
@@ -2242,6 +2296,7 @@ function WherePicker({
   placeDetailsError,
   geoStatus,
   geoErrorMessage,
+  onSearchFocusChange,
 }: {
   whereType: WhereType
   onWhereType: (v: WhereType) => void
@@ -2256,12 +2311,24 @@ function WherePicker({
   placeDetailsError: string | null
   geoStatus: GeoStatus
   geoErrorMessage: string | null
+  onSearchFocusChange: (focused: boolean) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const expanded = whereType === "search"
+  // The input can leave the tree while focused (section change, the sheet
+  // closing) without a blur reaching React, which would strand the composer
+  // in its keyboard-up layout.
+  useEffect(() => () => onSearchFocusChange(false), [onSearchFocusChange])
+  // Collapsing keeps the input mounted, so let go of its focus (and the
+  // keyboard) explicitly.
+  useEffect(() => {
+    if (expanded) return
+    inputRef.current?.blur()
+    onSearchFocusChange(false)
+  }, [expanded, onSearchFocusChange])
   const currentHint =
     geoStatus === "requesting"
-      ? "finding your location..."
+      ? "finding your location"
       : geoStatus === "denied" ||
           geoStatus === "unavailable" ||
           geoStatus === "error"
@@ -2269,9 +2336,12 @@ function WherePicker({
         : null
 
   const expand = (): void => {
+    // Focus synchronously, inside the tap: iOS Safari ignores a focus() from
+    // a later frame and leaves the keyboard down (#402).
+    // preventScroll: iOS otherwise pans the page to reveal the field, which
+    // dragged the fixed sheet's top off screen; the sheet reveals it itself.
+    inputRef.current?.focus({ preventScroll: true })
     onWhereType("search")
-    // Focus the input on the next frame, after the input mounts.
-    requestAnimationFrame(() => inputRef.current?.focus())
   }
   const collapse = (): void => {
     onWhereType("current")
@@ -2308,17 +2378,32 @@ function WherePicker({
             </p>
           )}
         </div>
-      ) : (
-        <div>
-          <div className="relative">
+      ) : null}
+      <div
+        className={expanded ? undefined : "sr-only"}
+        aria-hidden={expanded ? undefined : true}
+      >
+        <div className="relative" data-place-search={expanded ? "" : undefined}>
+          {expanded && (
             <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              ref={inputRef}
-              placeholder="search for a place"
-              value={searchQuery}
-              onChange={(e) => onSearchQuery(e.target.value)}
-              className="pr-9 pl-9"
-            />
+          )}
+          <Input
+            tabIndex={expanded ? undefined : -1}
+            ref={inputRef}
+            placeholder="search for a place"
+            value={searchQuery}
+            onChange={(e) => onSearchQuery(e.target.value)}
+            onFocus={() => onSearchFocusChange(true)}
+            onBlur={() => onSearchFocusChange(false)}
+            // The keyboard's return key means "done": close it so the
+            // composer's CTA comes back.
+            enterKeyHint="search"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur()
+            }}
+            className="pr-9 pl-9"
+          />
+          {expanded && (
             <button
               type="button"
               onClick={collapse}
@@ -2327,52 +2412,65 @@ function WherePicker({
             >
               <XIcon className="h-3 w-3" />
             </button>
-          </div>
-          {placesLoading && (
-            <p className="mt-1.5 text-xs text-muted-foreground">searching…</p>
           )}
-          {placeDetailsLoading && (
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              checking place...
-            </p>
-          )}
-          {placeDetailsError && (
-            <p className="mt-1.5 text-xs text-destructive" role="alert">
-              {placeDetailsError}
-            </p>
-          )}
-          {selectedLocation && !placeDetailsLoading && (
-            <p className="mt-1.5 truncate text-xs text-muted-foreground">
-              selected - {selectedLocation.address ?? selectedLocation.name}
-            </p>
-          )}
-          {!placesLoading &&
-            !placeDetailsLoading &&
-            !pickedSearchAddress &&
-            !selectedLocation &&
-            placeResults.length > 0 && (
-              <ul className="mt-1.5 overflow-hidden rounded-lg border border-border bg-card">
-                {placeResults.map((r) => (
-                  <li key={r.placeId}>
-                    <button
-                      type="button"
-                      onClick={() => onPickSearch(r)}
-                      className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
-                    >
-                      <MapPinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm">{r.label}</div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          {r.address}
-                        </div>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
         </div>
-      )}
+        {expanded && (
+          <>
+            {placesLoading && (
+              <p className="mt-1.5 text-xs text-muted-foreground">searching…</p>
+            )}
+            {placeDetailsLoading && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                checking place...
+              </p>
+            )}
+            {placeDetailsError && (
+              <p className="mt-1.5 text-xs text-destructive" role="alert">
+                {placeDetailsError}
+              </p>
+            )}
+            {selectedLocation && !placeDetailsLoading && (
+              <p className="mt-1.5 truncate text-xs text-muted-foreground">
+                selected - {selectedLocation.address ?? selectedLocation.name}
+              </p>
+            )}
+            {!placesLoading &&
+              !placeDetailsLoading &&
+              !pickedSearchAddress &&
+              !selectedLocation &&
+              placeResults.length > 0 && (
+                <ul
+                  className="mt-1.5 overflow-hidden rounded-lg border border-border bg-card"
+                  // Keep focus in the input while a suggestion is pressed: a
+                  // blur on press would bring the CTA back and shift the list
+                  // out from under the finger before the tap lands.
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  {placeResults.map((r) => (
+                    <li key={r.placeId}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onPickSearch(r)
+                          inputRef.current?.blur()
+                        }}
+                        className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
+                      >
+                        <MapPinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm">{r.label}</div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {r.address}
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -2428,9 +2526,9 @@ function WhoBlock({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Public toggle + (conditional) guest-limit stepper. Limit only
-          renders when it's meaningful: public events or "all friends" — for
-          inner/close, the audience IS the cap. */}
+      {/* Public toggle + (conditional) guest-limit stepper. The limit caps
+          open-to-all flares only (#447); on invite-only flares the audience
+          IS the cap, so the stepper stays hidden. */}
       <div
         className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${
           isOpen ? "border-accent bg-accent/5" : "border-border"
@@ -2440,16 +2538,20 @@ function WhoBlock({
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           public
         </span>
-        <>
-          <div className="h-7 w-px shrink-0 bg-border" />
-          <span className="shrink-0 text-xs text-muted-foreground">limit</span>
-          <Stepper
-            value={guestLimit}
-            onChange={onGuestLimit}
-            min={1}
-            max={200}
-          />
-        </>
+        {isOpen && (
+          <>
+            <div className="h-7 w-px shrink-0 bg-border" />
+            <span className="shrink-0 text-xs text-muted-foreground">
+              limit
+            </span>
+            <Stepper
+              value={guestLimit}
+              onChange={onGuestLimit}
+              min={1}
+              max={200}
+            />
+          </>
+        )}
       </div>
 
       {!isOpen && editingCircle && (
@@ -2573,7 +2675,8 @@ function useLongPress({
   }
 }
 
-// Three compact chips for the system circles, plus a wrapped row of custom
+// Compact chips for the system circles, which wrap so a name is never cut
+// short (#368), plus a wrapped row of custom
 // circles the user has created on the Circles page (#172 — custom circles
 // used to be silently dropped here even though the API already accepts
 // them as an audience). Inner/Close are editable — tap selects the
@@ -2609,7 +2712,7 @@ export function CircleCards({
   return (
     <div className="flex flex-col gap-2">
       {systemCircles.length > 0 && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="flex flex-wrap gap-2">
           {systemCircles.map((c) => (
             <CircleChip
               key={c.id}
@@ -2679,12 +2782,12 @@ function CircleChip({
       <CircleStackIcon
         type={circle.type}
         className={`h-3.5 w-3.5 shrink-0 ${
-          selected ? "text-accent" : "text-muted-foreground"
+          selected ? "text-accent-ink" : "text-muted-foreground"
         }`}
       />
       <span
-        className={`min-w-0 flex-1 truncate text-left text-xs ${
-          selected ? "font-medium text-accent" : "text-foreground"
+        className={`min-w-0 text-left text-xs break-words ${
+          selected ? "font-medium text-accent-ink" : "text-foreground"
         }`}
       >
         {circle.name}
@@ -2714,7 +2817,7 @@ function CircleEditor({
   return (
     <div className="flex min-h-0 flex-col gap-2 rounded-xl border border-accent bg-accent/5 p-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-accent">
+        <span className="text-xs font-medium text-accent-ink">
           editing {circle.name}
         </span>
         <button
@@ -2723,7 +2826,7 @@ function CircleEditor({
           aria-label="Done editing"
           className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-accent/10"
         >
-          <XIcon className="h-3.5 w-3.5 text-accent" />
+          <XIcon className="h-3.5 w-3.5 text-accent-ink" />
         </button>
       </div>
       <FriendList
@@ -2914,7 +3017,7 @@ function InviteToggles({
           onClick={() => onPlusOne(!allowPlusOne)}
           className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors ${
             allowPlusOne
-              ? "border-accent bg-accent/10 text-accent"
+              ? "border-accent bg-accent/10 text-accent-ink"
               : "border-border text-muted-foreground hover:bg-secondary"
           }`}
         >
@@ -2933,7 +3036,7 @@ function InviteToggles({
           onClick={() => onForward(!allowForward)}
           className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors ${
             allowForward
-              ? "border-accent bg-accent/10 text-accent"
+              ? "border-accent bg-accent/10 text-accent-ink"
               : "border-border text-muted-foreground hover:bg-secondary"
           }`}
         >
@@ -3023,7 +3126,7 @@ function Chip({
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm transition-colors ${
         selected
-          ? "border-accent bg-accent/10 text-accent"
+          ? "border-accent bg-accent/10 text-accent-ink"
           : "border-border bg-background text-foreground hover:bg-secondary"
       }`}
     >

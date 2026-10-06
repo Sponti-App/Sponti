@@ -238,7 +238,7 @@ function ProfileScreen({ username }: { username: string }) {
               {person.avatarUrl && (
                 <AvatarImage src={person.avatarUrl} alt="" />
               )}
-              <AvatarFallback className="bg-accent/10 text-lg font-semibold text-accent">
+              <AvatarFallback className="bg-accent/10 text-lg font-semibold text-accent-ink">
                 {initials(person.displayName)}
               </AvatarFallback>
             </Avatar>

@@ -37,13 +37,14 @@ _Phase 1 — Gate for external testers: done (#93)._ The tester profile in `spa/
 
 _Profile rebuild: done (#166)._ Photo, one-line bio and Instagram/Telegram handles. Bio and handles are visible to connections only. Strangers see name, @username and photo, and a user who blocked you gets "not found". The fields live in `auth-server/`, and `api/` reads them. Open privacy calls: #268.
 
+_Map pins and icon set: done (#315, #345)._ Each flare pin is one circle with its category icon, plum for invite only and teal for open to all (`spa/components/map-flare-pin.tsx`); peach on a pin means live only. Phosphor replaced Lucide: every icon comes from `spa/components/icons.tsx`, and ESLint blocks importing an icon package anywhere else. Dates and times go through the lowercase formatters in `spa/lib/format-date.ts` (#339).
+
 _Current work (tracked as GitHub issues):_
 
 - **Pre-launch checklist (#274):** the living list of to-dos before sharing with testers. Add launch blockers there.
-- **Map pins (#315):** one circle per flare with its category icon, plum for invite only and teal for open to all. Peach on a pin means live only.
-- **Icon set (#345):** Phosphor replaces Lucide. Every icon comes from `spa/components/icons.tsx`, and ESLint blocks importing an icon package anywhere else.
 - **Ideas on a quiet map (#240):** curated Berlin idea spots (`spa/lib/flare-ideas.data.ts`, owned by the team) offered as one-tap flares.
-- **Parked until testers give feedback:** first-friend onboarding (#124: QR connect and the 7-day invite link work, and still need a real-phone check) and the composer layout (#311).
+- **Flare moments (#370), the top priority:** watching testers showed they don't understand what Sponti is or how to use it. The fix explains Sponti before sign-up with intro slides, lets visitors look around the map before they sign up (sign-up comes when they light a flare), reworks the existing first-run intro, and makes lighting a flare and a first join into moments (a fuse lights the flare's category icon once the api confirms it). Prototypes come first, and every surface ships behind a flag. This changes the flare UI's composition and personality, not its features. Decisions: `docs/decisions/flare-moments-direction.md`. **Status (2026-10-04):** the join data (#414) and the detail sheet above the nav (#419) are in, and the first-join moment (#380) is fully briefed. The intro is in a second prototype round (#373, draft PR #407), the lighting motion is being re-explored (#371, draft PR #405), and #425 (who "open to all" flares reach) must be decided before the map opens to signed-out visitors (#389). The tracker (#370) lists what is blocked and what is ready for an agent.
+- **Unparked by that finding:** first-friend onboarding (#124: QR connect and the 7-day invite link work, and still need a real-phone check) and the composer layout (#311), which now takes in the optional capture step for flare art.
 
 **Milestone 2 — Native distribution (store-prep, after the web round):**
 
@@ -94,7 +95,7 @@ npm run test:e2e      # Playwright e2e against stubbed backends (e2e/support/stu
 
 Design questions get a throwaway route under `spa/app/prototype/<name>/` (dev-only, nothing links to it) with committed screenshots, opened as a draft "prototype:" PR that is closed once a direction is picked.
 
-Playwright starts its own dev server on port 4415. Set `PLAYWRIGHT_WEB_SERVER_PORT` to run several copies side by side (e.g. one per git worktree). UI checks use the stubbed e2e setup, not real data: the local `.env` points at the shared database.
+Playwright starts its own dev server on port 4415, plus a second one with the full feature profile on that port + 1000 (5415, for the `mobile-full-profile` project in `e2e/full-profile/`). Set `PLAYWRIGHT_WEB_SERVER_PORT` to run several copies side by side (e.g. one per git worktree); both ports move with it (or set `PLAYWRIGHT_FULL_WEB_SERVER_PORT`). UI checks use the stubbed e2e setup, not real data: the local `.env` points at the shared database.
 
 ### Capacitor dev workflow
 

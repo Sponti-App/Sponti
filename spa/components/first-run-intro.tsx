@@ -170,7 +170,7 @@ function IntroScreens({ onAddFriend }: { onAddFriend: () => void }) {
     >
       <header className="flex shrink-0 items-center justify-between px-6 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-2">
-          <span className="flex size-7 items-center justify-center rounded-full bg-accent/15 text-accent">
+          <span className="flex size-7 items-center justify-center rounded-full bg-accent/15 text-accent-ink">
             <FlameIcon className="size-3.5" />
           </span>
           <span className="text-sm font-semibold">sponti</span>
@@ -306,7 +306,7 @@ function MapIllustration() {
       <MapGrid />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
         <span className="sponti-intro-ring absolute inset-0 rounded-full border-2 border-accent" />
-        <span className="relative flex size-12 items-center justify-center rounded-full bg-accent/20 text-accent">
+        <span className="relative flex size-12 items-center justify-center rounded-full bg-accent/20 text-accent-ink">
           <FlameIcon className="size-6" />
         </span>
       </div>

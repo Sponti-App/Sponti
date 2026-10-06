@@ -41,6 +41,8 @@ vi.mock("#models/index", () => ({
     bulkWrite: eventMemberBulkWriteMock,
     create: eventMemberCreateMock,
     distinct: eventMemberDistinctMock,
+    // #414: the first-join check. Nobody else is going here.
+    exists: vi.fn(() => ({ session: async () => null })),
     find: eventMemberFindMock,
     findOne: eventMemberFindOneMock,
     findOneAndUpdate: eventMemberFindOneAndUpdateMock,
@@ -51,6 +53,8 @@ vi.mock("#models/index", () => ({
   },
   Notification: {
     create: notificationCreateMock,
+    // #414: the first-join check. The host has had no join notice yet.
+    exists: vi.fn(() => ({ session: async () => null })),
     find: notificationFindMock,
   },
   // #91: invitation notifications skip invitees who opted out. Nobody has
@@ -931,7 +935,11 @@ describe("eventService.updateMyEventMembership", () => {
     expect(docs[0]).toEqual(
       expect.objectContaining({
         type: "event_rsvp_change",
-        metadata: expect.objectContaining({ rsvpStatus: "going" }),
+        metadata: expect.objectContaining({
+          rsvpStatus: "going",
+          rsvpChange: "joined",
+          firstJoin: true,
+        }),
       })
     );
   });
@@ -966,7 +974,7 @@ describe("eventService.updateMyEventMembership", () => {
     }>;
     expect(String(etaDocs[0]?.userId)).toBe(USER_ID);
     expect(String(etaDocs[0]?.actorId)).toBe(GUEST_ID);
-    expect(etaDocs[0]?.title).toMatch(/arrival time/);
+    expect(etaDocs[0]?.title).toMatch(/ changed their reply$/);
     expect(etaDocs[0]?.metadata).toEqual(
       expect.objectContaining({
         rsvpStatus: "going",
@@ -1022,7 +1030,7 @@ describe("eventService.updateMyEventMembership", () => {
     }>;
     expect(String(docs[0]?.userId)).toBe(USER_ID);
     expect(String(docs[0]?.actorId)).toBe(GUEST_ID);
-    expect(docs[0]?.title).toMatch(/arrival time/);
+    expect(docs[0]?.title).toMatch(/ changed their reply$/);
     expect(docs[0]?.message).toMatch(/running late/);
     expect(docs[0]?.metadata).toEqual(
       expect.objectContaining({ arrivalStatus: "running_late", memberWillArriveAt: null })

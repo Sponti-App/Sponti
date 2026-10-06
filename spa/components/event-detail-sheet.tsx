@@ -34,6 +34,7 @@ import {
 } from "@/lib/flare-detail"
 import { readLastKnownCoords } from "@/lib/geolocation"
 import { haptic } from "@/lib/haptics"
+import { formatDayShort } from "@/lib/format-date"
 
 interface Props {
   open: boolean
@@ -136,227 +137,249 @@ export function EventDetailSheet({
         }
       }}
       dismissible
+      // No text inputs in the sheet, and it is pinned to the nav with CSS.
+      // Leaving vaul's keyboard repositioning on would let it write its own
+      // `bottom` over ours (same as notifications-sheet.tsx).
+      repositionInputs={false}
     >
       <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-50 bg-foreground/30" />
-        <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-3xl bg-background shadow-(--shadow-sheet) outline-none">
-          {/* Drag handle — vaul attaches its gesture here automatically */}
-          <div className="mx-auto mt-3 mb-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30" />
-          <Drawer.Title className="sr-only">
-            {displayEvent?.title ?? "Flare details"}
-          </Drawer.Title>
-          <Drawer.Description className="sr-only">
-            event details and rsvp
-          </Drawer.Description>
+        {/* Docked on the bottom nav like the notifications sheet, so the bell
+            stays in view (#419). The scrim stops at the nav's top edge, so
+            the nav stays lit and tappable. */}
+        <Drawer.Overlay className="fixed inset-x-0 top-0 bottom-[var(--sponti-nav-h,64px)] z-50 bg-foreground/30" />
+        {/* The frame ends at the nav's top edge and clips, so the sheet slides
+            in and out from behind that edge instead of across the nav. The nav
+            already pads for the home indicator, so the sheet adds no inset of
+            its own. `after:hidden` turns off vaul's ::after, which extends the
+            background 200% below the sheet and would paint over the nav
+            (#296/#301). The cap matches the notifications sheet: measured
+            against the visible viewport (--sponti-vvh) so the top stays in
+            thumb reach on iOS Safari.
 
-          {displayEvent && (
-            <div
-              className="max-h-[62vh] overflow-y-auto px-4 pb-6"
-              data-vaul-no-drag
-            >
-              <FlareHeader
-                as="h2"
-                type={displayEvent.type}
-                title={displayEvent.title}
-                statusLine={flareStatusLine(displayEvent, timing)}
-                timing={timing}
-                viewer={viewer}
-              />
+            A press on the nav is left as an outside press, unlike in the
+            notifications sheet: it dismisses this sheet and the nav item's
+            own click still runs, so one tap closes the sheet and goes to the
+            tab (or opens the feed). */}
+        <div className="pointer-events-none fixed inset-x-0 top-0 bottom-[var(--sponti-nav-h,64px)] z-50 overflow-hidden">
+          <Drawer.Content className="pointer-events-auto absolute inset-x-0 bottom-0 flex max-h-[calc(0.7*var(--sponti-vvh,100vh)-var(--sponti-nav-h,64px))] flex-col rounded-t-3xl bg-background shadow-(--shadow-sheet) outline-none after:hidden">
+            {/* Drag handle — vaul attaches its gesture here automatically */}
+            <div className="mx-auto mt-3 mb-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30" />
+            <Drawer.Title className="sr-only">
+              {displayEvent?.title ?? "Flare details"}
+            </Drawer.Title>
+            <Drawer.Description className="sr-only">
+              event details and rsvp
+            </Drawer.Description>
 
-              <div className="my-4">
-                <FlareFacts
-                  when={formatWhen(displayEvent.startAt, timing === "live")}
-                  until={`until ${formatClock(displayEvent.endAt)}`}
-                  placeName={displayEvent.location.name}
-                  placeDetail={
-                    [
-                      distance?.label,
-                      displayEvent.location.area ??
-                        displayEvent.location.address,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || null
-                  }
-                  mapsUrl={googleMapsUrl({
-                    coordinates: eventCoords(displayEvent),
-                    name: displayEvent.location.name,
-                  })}
+            {displayEvent && (
+              <div
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6"
+                data-vaul-no-drag
+              >
+                <FlareHeader
+                  as="h2"
+                  type={displayEvent.type}
+                  title={displayEvent.title}
+                  statusLine={flareStatusLine(displayEvent, timing)}
+                  timing={timing}
+                  viewer={viewer}
                 />
-              </div>
 
-              {/* Host: one compact row, a link to their profile (#199). The
+                <div className="my-4">
+                  <FlareFacts
+                    when={formatWhen(displayEvent.startAt, timing === "live")}
+                    until={`until ${formatClock(displayEvent.endAt)}`}
+                    placeName={displayEvent.location.name}
+                    placeDetail={
+                      [
+                        distance?.label,
+                        displayEvent.location.area ??
+                          displayEvent.location.address,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || null
+                    }
+                    mapsUrl={googleMapsUrl({
+                      coordinates: eventCoords(displayEvent),
+                      name: displayEvent.location.name,
+                    })}
+                  />
+                </div>
+
+                {/* Host: one compact row, a link to their profile (#199). The
                   note, when there is one, sits under the name. */}
-              <HostRow
-                href={hostProfileHref}
-                onNavigate={() => onClose()}
-                label={hostLabel}
-                name={displayEvent.host.name}
-                avatarUrl={displayEvent.host.avatarUrl}
-                avatar={displayEvent.host.avatar}
-                color={displayEvent.host.color}
-                note={displayEvent.host.note}
-              />
+                <HostRow
+                  href={hostProfileHref}
+                  onNavigate={() => onClose()}
+                  label={hostLabel}
+                  name={displayEvent.host.name}
+                  avatarUrl={displayEvent.host.avatarUrl}
+                  avatar={displayEvent.host.avatar}
+                  color={displayEvent.host.color}
+                  note={displayEvent.host.note}
+                />
 
-              {/* Who's Going. With nobody yet it is one quiet line instead of
+                {/* Who's Going. With nobody yet it is one quiet line instead of
                   a label over an empty row. */}
-              <div className="mb-4">
-                {displayEvent.going === 0 &&
-                displayEvent.attendees.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    no one going yet
-                  </p>
-                ) : (
-                  <>
-                    <p className="mb-2 text-xs text-muted-foreground">
-                      who&apos;s going
+                <div className="mb-4">
+                  {displayEvent.going === 0 &&
+                  displayEvent.attendees.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      no one going yet
                     </p>
-                    <div className="flex items-center gap-3">
-                      {displayEvent.attendees.length > 0 && (
-                        <div className="flex -space-x-2">
-                          {displayEvent.attendees.map((a, i) => (
-                            <GuestFace
-                              key={a.id ?? i}
-                              href={guestProfileHref(a)}
-                              onNavigate={() => onClose()}
-                              className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-xs ${a.color} ${avatarText(a.color)}`}
-                            >
-                              {a.avatar ||
-                                a.name?.charAt(0).toUpperCase() ||
-                                "U"}
-                            </GuestFace>
-                          ))}
-                        </div>
-                      )}
-                      <div>
+                  ) : (
+                    <>
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        who&apos;s going
+                      </p>
+                      <div className="flex items-center gap-3">
                         {displayEvent.attendees.length > 0 && (
-                          <p className="font-medium">
-                            {displayEvent.attendees.map((a, i) => {
-                              const href = guestProfileHref(a)
-                              const name = a.name.toLowerCase()
-                              return (
-                                <span key={a.id ?? i}>
-                                  {i > 0 && ", "}
-                                  {href ? (
-                                    <Link
-                                      href={href}
-                                      onClick={() => onClose()}
-                                      aria-label={`${name}, open profile`}
-                                      className="rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:text-muted-foreground"
-                                    >
-                                      {name}
-                                    </Link>
-                                  ) : (
-                                    name
-                                  )}
-                                </span>
-                              )
-                            })}
-                          </p>
+                          <div className="flex -space-x-2">
+                            {displayEvent.attendees.map((a, i) => (
+                              <GuestFace
+                                key={a.id ?? i}
+                                href={guestProfileHref(a)}
+                                onNavigate={() => onClose()}
+                                className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-xs ${a.color} ${avatarText(a.color)}`}
+                              >
+                                {a.avatar ||
+                                  a.name?.charAt(0).toUpperCase() ||
+                                  "U"}
+                              </GuestFace>
+                            ))}
+                          </div>
                         )}
-                        <p className="text-sm text-muted-foreground">
-                          {displayEvent.going} going
-                        </p>
+                        <div>
+                          {displayEvent.attendees.length > 0 && (
+                            <p className="font-medium">
+                              {displayEvent.attendees.map((a, i) => {
+                                const href = guestProfileHref(a)
+                                const name = a.name.toLowerCase()
+                                return (
+                                  <span key={a.id ?? i}>
+                                    {i > 0 && ", "}
+                                    {href ? (
+                                      <Link
+                                        href={href}
+                                        onClick={() => onClose()}
+                                        aria-label={`${name}, open profile`}
+                                        className="rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:text-muted-foreground"
+                                      >
+                                        {name}
+                                      </Link>
+                                    ) : (
+                                      name
+                                    )}
+                                  </span>
+                                )
+                              })}
+                            </p>
+                          )}
+                          <p className="text-sm text-muted-foreground">
+                            {displayEvent.going} going
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </>
-                )}
+                    </>
+                  )}
 
-                {/* Attendee arrival answers — host only; the api only sends
+                  {/* Attendee arrival answers — host only; the api only sends
                     willArriveAt/arrivalStatus to the host in the first place. */}
-                {isHost && attendeesWithArrival.length > 0 && (
-                  <div className="mt-2 flex flex-col gap-1">
-                    {attendeesWithArrival.map((a, i) => (
-                      <div
-                        key={a.id ?? i}
-                        className="flex items-center justify-between text-xs text-muted-foreground"
-                      >
-                        <span>{a.name}</span>
-                        <span
-                          className={
-                            a.arrivalStatus === "running_late"
-                              ? "font-medium text-accent"
-                              : undefined
-                          }
+                  {isHost && attendeesWithArrival.length > 0 && (
+                    <div className="mt-2 flex flex-col gap-1">
+                      {attendeesWithArrival.map((a, i) => (
+                        <div
+                          key={a.id ?? i}
+                          className="flex items-center justify-between text-xs text-muted-foreground"
                         >
-                          {a.willArriveAt
-                            ? formatArrivalStatus(a.willArriveAt)
-                            : a.arrivalStatus
-                              ? arrivalStatusLabel(a.arrivalStatus)
-                              : null}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                          <span>{a.name}</span>
+                          <span
+                            className={
+                              a.arrivalStatus === "running_late"
+                                ? "font-medium text-accent"
+                                : undefined
+                            }
+                          >
+                            {a.willArriveAt
+                              ? formatArrivalStatus(a.willArriveAt)
+                              : a.arrivalStatus
+                                ? arrivalStatusLabel(a.arrivalStatus)
+                                : null}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-              <FlareActions
-                viewer={viewer}
-                timing={timing}
-                declined={!joined && displayEvent.myRsvp === "declined"}
-                eta={selectedEta}
-                declineInline={false}
-                onEtaChange={(eta) => {
-                  haptic("selection")
-                  setSelectedEta(eta)
-                }}
-                onJoin={() => {
-                  haptic("success")
-                  onJoin(displayEvent, withEta ? selectedEta : null)
-                }}
-                onDecline={() => {
-                  haptic("warning")
-                  onLeave(displayEvent)
-                }}
-                onShareUpdate={() => {
-                  haptic("selection")
-                  openFlarePage("?tab=updates&compose=1")
-                }}
-              />
+                <FlareActions
+                  viewer={viewer}
+                  timing={timing}
+                  declined={!joined && displayEvent.myRsvp === "declined"}
+                  eta={selectedEta}
+                  declineInline={false}
+                  onEtaChange={(eta) => {
+                    haptic("selection")
+                    setSelectedEta(eta)
+                  }}
+                  onJoin={() => {
+                    haptic("success")
+                    onJoin(displayEvent, withEta ? selectedEta : null)
+                  }}
+                  onDecline={() => {
+                    haptic("warning")
+                    onLeave(displayEvent)
+                  }}
+                  onShareUpdate={() => {
+                    haptic("selection")
+                    openFlarePage("?tab=updates&compose=1")
+                  }}
+                />
 
-              {/* Everything after the main action, in one two-column row so
+                {/* Everything after the main action, in one two-column row so
                   the sheet ends on a balanced pair rather than a stack. An odd
                   one out spans the full width. */}
-              <div className="mt-3 grid grid-cols-2 gap-2 [&>*:last-child:nth-child(odd)]:col-span-2">
-                {viewer === "joined" &&
-                  withEta &&
-                  eventCoords(displayEvent) && (
-                    <SecondaryAction
-                      onClick={() => {
-                        haptic("medium")
-                        onSeeRoute(displayEvent)
-                      }}
-                    >
-                      <NavigationArrowIcon className="h-4 w-4" /> see route
+                <div className="mt-3 grid grid-cols-2 gap-2 [&>*:last-child:nth-child(odd)]:col-span-2">
+                  {viewer === "joined" &&
+                    withEta &&
+                    eventCoords(displayEvent) && (
+                      <SecondaryAction
+                        onClick={() => {
+                          haptic("medium")
+                          onSeeRoute(displayEvent)
+                        }}
+                      >
+                        <NavigationArrowIcon className="h-4 w-4" /> see route
+                      </SecondaryAction>
+                    )}
+                  {viewer === "joined" &&
+                    timing !== "ended" &&
+                    timing !== "cancelled" && (
+                      <SecondaryAction
+                        onClick={() => {
+                          haptic("warning")
+                          onLeave(displayEvent)
+                        }}
+                      >
+                        can&apos;t make it
+                      </SecondaryAction>
+                    )}
+                  {viewer === "host" && (
+                    <SecondaryAction onClick={() => openFlarePage("/edit")}>
+                      <PencilSimpleIcon className="h-4 w-4" /> edit flare
                     </SecondaryAction>
                   )}
-                {viewer === "joined" &&
-                  timing !== "ended" &&
-                  timing !== "cancelled" && (
-                    <SecondaryAction
-                      onClick={() => {
-                        haptic("warning")
-                        onLeave(displayEvent)
-                      }}
-                    >
-                      can&apos;t make it
-                    </SecondaryAction>
-                  )}
-                {viewer === "host" && (
-                  <SecondaryAction onClick={() => openFlarePage("/edit")}>
-                    <PencilSimpleIcon className="h-4 w-4" /> edit flare
+                  <SecondaryAction onClick={() => openFlarePage()}>
+                    {viewer === "invited"
+                      ? "see details and updates"
+                      : "open flare"}
+                    <CaretRightIcon className="h-4 w-4" />
                   </SecondaryAction>
-                )}
-                <SecondaryAction onClick={() => openFlarePage()}>
-                  {viewer === "invited"
-                    ? "see details and updates"
-                    : "open flare"}
-                  <CaretRightIcon className="h-4 w-4" />
-                </SecondaryAction>
+                </div>
               </div>
-            </div>
-          )}
-        </Drawer.Content>
+            )}
+          </Drawer.Content>
+        </div>
       </Drawer.Portal>
     </Drawer.Root>
   )
@@ -493,13 +516,7 @@ function formatWhen(startIso: string, live: boolean): string {
       ? "today"
       : start.toDateString() === tomorrow.toDateString()
         ? "tomorrow"
-        : start
-            .toLocaleDateString(undefined, {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-            })
-            .toLowerCase()
+        : formatDayShort(start)
   return `${day} · ${formatClock(startIso)}`
 }
 

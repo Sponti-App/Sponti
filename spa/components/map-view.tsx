@@ -59,28 +59,22 @@ import {
   GoogleMapPolyline,
 } from "@/components/google-map-overlays"
 import { EVENT_TYPES } from "@/types/utils"
+import {
+  FlarePin,
+  FlarePreviewCard,
+  VisibilityLegend,
+  flareTitle,
+} from "@/components/map-flare-pin"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { useTheme } from "next-themes"
-
-function eventIcon(type: EventType, avatar: string) {
-  const match = EVENT_TYPES.find((t) => t.value === type)
-
-  if (!match) {
-    return <>{avatar}</>
-  }
-
-  const Icon = match.icon
-
-  return <Icon className="h-5 w-5 shrink-0 text-accent" />
-}
 
 // What the map draws for an idea (#244). Deliberately the opposite of a flare
 // pin: smaller, filled with the muted chip colour, a dashed outline and a grey
 // icon, and no peach anywhere (peach is the CTA colour and means "a real
 // flare"). The dashed outline reads as "a suggestion, nothing planned here" in
 // both light and dark. The padding is only a bigger touch target.
-function IdeaPinMark({
+export function IdeaPinMark({
   idea,
   selected,
 }: {
@@ -107,7 +101,7 @@ function IdeaPinMark({
 // Where idea pins sit on the static fallback, which has no real projection
 // (its flare pins are pseudo-positioned too): percent from the top-left, chosen
 // to stay clear of the flare slots, the header chips and the dock.
-const IDEA_PIN_SLOTS = [
+export const IDEA_PIN_SLOTS = [
   { top: "24%", left: "46%" },
   { top: "40%", left: "9%" },
   { top: "40%", left: "62%" },
@@ -115,11 +109,29 @@ const IDEA_PIN_SLOTS = [
   { top: "47%", left: "36%" },
 ]
 
+// Where the fallback's flare pins sit: pseudo positions around the centre
+// (there is no real projection), percent from the top-left. All four stay
+// above the dock at mid, so every pin can be tapped.
+export const FLARE_PIN_SLOTS: Array<{
+  top: string
+  left?: string
+  right?: string
+}> = [
+  { top: "28%", left: "20%" },
+  { top: "50%", right: "6%" },
+  { top: "46%", left: "4%" },
+  { top: "20%", right: "18%" },
+]
+
 function StaticMapFallback({
   events,
   onEventSelect,
   joinedIds,
   user,
+  viewerId,
+  now,
+  previewEvent,
+  setPreviewEvent,
   highlightId = null,
   ideas = [],
   selectedIdeaId = null,
@@ -129,12 +141,28 @@ function StaticMapFallback({
   onEventSelect: (event: EventItem) => void
   joinedIds: Set<string>
   user: GeoCoords
+  viewerId: string | null
+  /** The map's clock, in ms. */
+  now: number
+  previewEvent: EventItem | null
+  setPreviewEvent: React.Dispatch<React.SetStateAction<EventItem | null>>
   /** The flare whose rail card is centred; its pin grows. */
   highlightId?: string | null
   ideas?: FlareIdea[]
   selectedIdeaId?: string | null
   onIdeaSelect?: (idea: FlareIdea) => void
 }) {
+  const drawn = events.slice(0, FLARE_PIN_SLOTS.length)
+  const previewIndex = previewEvent
+    ? drawn.findIndex((e) => e.id === previewEvent.id)
+    : -1
+  const previewSlot =
+    previewIndex >= 0 ? FLARE_PIN_SLOTS[previewIndex] : undefined
+  const openPreview = () => {
+    if (!previewEvent) return
+    onEventSelect(previewEvent)
+    setPreviewEvent(null)
+  }
   return (
     <div className="relative h-full w-full bg-muted">
       <div
@@ -163,46 +191,65 @@ function StaticMapFallback({
           <IdeaPinMark idea={idea} selected={selectedIdeaId === idea.id} />
         </button>
       ))}
-      {events.slice(0, 4).map((event, i) => {
-        // Pseudo positions around the center so the static fallback is readable
-        const positions = [
-          { top: "30%", left: "26%" },
-          { top: "55%", right: "14%" },
-          { top: "68%", left: "32%" },
-          { top: "22%", right: "22%" },
-        ]
-        const pos = positions[i % positions.length]
+      {drawn.map((event, i) => {
         const dist = distanceFromUser(event, user)?.label ?? ""
         return (
           <button
             key={event.id}
-            onClick={() => onEventSelect(event)}
-            style={pos}
-            className={`absolute flex cursor-pointer flex-col items-center ${
+            type="button"
+            onClick={() =>
+              setPreviewEvent((prev) => (prev?.id === event.id ? null : event))
+            }
+            style={FLARE_PIN_SLOTS[i]}
+            className={`absolute flex flex-col items-center ${
               highlightId === event.id ? "z-10" : ""
             }`}
           >
-            <div
-              className={`flex h-10 w-10 items-center justify-center rounded-full border-2 border-accent bg-background text-sm font-medium shadow-lg transition-transform duration-200 ${
-                isJoined(event, joinedIds)
-                  ? "ring-2 ring-accent ring-offset-2"
-                  : ""
-              } ${highlightId === event.id ? "scale-125" : ""}`}
-            >
-              {eventIcon(event.type, event.host.avatar)}
-            </div>
-            <div className="mt-1 rounded bg-card px-2 py-1 text-center text-xs shadow-md">
-              <span className="font-medium">{event.title.split("·", 2)}</span>
+            <FlarePin
+              event={event}
+              own={!!viewerId && event.host.id === viewerId}
+              joined={isJoined(event, joinedIds)}
+              highlighted={highlightId === event.id}
+              now={now}
+            />
+            <span className="mt-1 rounded bg-card px-2 py-1 text-center text-xs shadow-md">
+              <span className="font-medium">{flareTitle(event)}</span>
               {dist && (
                 <>
                   <br />
                   <span className="text-muted-foreground">{dist}</span>
                 </>
               )}
-            </div>
+            </span>
           </button>
         )
       })}
+      {previewEvent && previewSlot && (
+        // No projection here either: the card is centred across the map,
+        // above a pin in the lower half and below one near the header.
+        <div
+          data-flare-preview={previewEvent.id}
+          onClick={openPreview}
+          style={
+            parseFloat(previewSlot.top) < 40
+              ? { top: `calc(${previewSlot.top} + 7.5rem)` }
+              : {
+                  top: `calc(${previewSlot.top} - 0.5rem)`,
+                  transform: "translateY(-100%)",
+                }
+          }
+          className="absolute left-1/2 z-20 -ml-31 cursor-pointer"
+        >
+          <FlarePreviewCard
+            event={previewEvent}
+            own={!!viewerId && previewEvent.host.id === viewerId}
+            user={user}
+            now={now}
+            onClose={() => setPreviewEvent(null)}
+            onSeeFlare={openPreview}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -217,11 +264,20 @@ function StaticMapFallback({
 export function FlarePreviewMarker({
   event,
   position,
+  own = false,
+  user = null,
+  now,
   onOpen,
   onClose,
 }: {
   event: EventItem
   position: GeoCoords
+  /** The viewer hosts this flare. */
+  own?: boolean
+  /** The viewer's position, for the distance. */
+  user?: GeoCoords | null
+  /** The map's clock, in ms. */
+  now: number
   onOpen: () => void
   onClose: () => void
 }) {
@@ -231,7 +287,7 @@ export function FlarePreviewMarker({
       position={position}
       zIndex={1000}
       clickable
-      title={`open ${event.title.split("·", 2)[0].trim()}`}
+      title={`open ${flareTitle(event)}`}
       onClick={() => {
         if (closePressedRef.current) {
           closePressedRef.current = false
@@ -246,45 +302,19 @@ export function FlarePreviewMarker({
         onPointerDown={() => {
           closePressedRef.current = false
         }}
-        className="relative mb-10 flex origin-bottom animate-[scale-in_150ms_ease-out] flex-col items-center"
+        className="relative mb-[4.5rem] flex origin-bottom animate-[scale-in_150ms_ease-out] flex-col items-center"
       >
-        <div className="relative w-52 rounded-2xl border border-border/60 bg-background p-3.5 shadow-xl">
-          <button
-            type="button"
-            aria-label="close"
-            onPointerDown={(e) => {
-              e.stopPropagation()
-              closePressedRef.current = true
-            }}
-            onClick={(e) => {
-              // A mouse or keyboard click can reach the marker too. With the
-              // flag set, the marker's handler closes as well, never opens.
-              e.stopPropagation()
-              closePressedRef.current = true
-              onClose()
-            }}
-            className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
-          >
-            <XIcon className="h-3.5 w-3.5" />
-          </button>
-          <div className="flex w-full flex-col items-center gap-1.5 text-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15">
-              {eventIcon(event.type, event.host.avatar)}
-            </div>
-            <p className="line-clamp-2 text-sm font-semibold text-foreground">
-              {event.title.split("·", 2)[0]}
-            </p>
-            <p className="line-clamp-1 text-xs text-muted-foreground">
-              {event.location.name}
-            </p>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span>{event.going} going</span>
-              <span className="text-border">·</span>
-              <span>by {event.host.name.trim().split(/\s+/)[0]}</span>
-            </div>
-          </div>
-        </div>
-        <div className="h-0 w-0 border-x-[8px] border-t-[8px] border-x-transparent border-t-background" />
+        <FlarePreviewCard
+          event={event}
+          own={own}
+          user={user}
+          now={now}
+          onClose={onClose}
+          onClosePressed={() => {
+            closePressedRef.current = true
+          }}
+        />
+        <div className="h-0 w-0 border-x-[8px] border-t-[8px] border-x-transparent border-t-card" />
       </div>
     </AdvancedMarker>
   )
@@ -298,6 +328,8 @@ function GoogleMapContent({
   routeResult,
   routeDestination,
   joinedIds,
+  viewerId,
+  now,
   cameraCenter,
   currentLocation,
   recenterTick,
@@ -313,6 +345,9 @@ function GoogleMapContent({
   routeResult: RouteResult | null
   routeDestination: GeoCoords | null
   joinedIds: Set<string>
+  viewerId: string | null
+  /** The map's clock, in ms. */
+  now: number
   cameraCenter: GeoCoords
   currentLocation: GeoCoords | null
   recenterTick: number
@@ -359,6 +394,10 @@ function GoogleMapContent({
         onEventSelect={onEventSelect}
         joinedIds={joinedIds}
         user={cameraCenter}
+        viewerId={viewerId}
+        now={now}
+        previewEvent={previewEvent}
+        setPreviewEvent={setPreviewEvent}
         highlightId={highlightId}
         ideas={ideas}
         selectedIdeaId={selectedIdeaId}
@@ -422,30 +461,13 @@ function GoogleMapContent({
               setPreviewEvent((prev) => (prev?.id === event.id ? null : event))
             }
           >
-            <div className="flex cursor-pointer flex-col items-center">
-              <div className="relative flex items-center justify-center">
-                {isLive(event) && (
-                  <span
-                    aria-hidden="true"
-                    className="animate-pulse-ring absolute h-8 w-8 rounded-full bg-accent"
-                  />
-                )}
-                <div
-                  className={`relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent bg-background text-xs font-medium shadow-lg transition-transform duration-200 ${
-                    isJoined(event, joinedIds)
-                      ? "ring-2 ring-accent ring-offset-2"
-                      : ""
-                  } ${highlightId === event.id ? "scale-125" : ""}`}
-                >
-                  {eventIcon(event.type, event.host.avatar)}
-                </div>
-              </div>
-              {isLive(event) && (
-                <div className="mt-1 rounded bg-accent px-1.5 py-0.5 text-[10px] font-medium text-accent-foreground shadow">
-                  live
-                </div>
-              )}
-            </div>
+            <FlarePin
+              event={event}
+              own={!!viewerId && event.host.id === viewerId}
+              joined={isJoined(event, joinedIds)}
+              highlighted={highlightId === event.id}
+              now={now}
+            />
           </AdvancedMarker>
         )
       })}
@@ -453,6 +475,9 @@ function GoogleMapContent({
         <FlarePreviewMarker
           event={previewEvent}
           position={eventCoords(previewEvent)!}
+          own={!!viewerId && previewEvent.host.id === viewerId}
+          user={currentLocation}
+          now={now}
           onOpen={() => {
             onEventSelect(previewEvent)
             setPreviewEvent(null)
@@ -577,6 +602,8 @@ function warnIfMissingMapId(
 
 // Default + widened radii for the empty-state pivot. If 10 km nearby is empty,
 // the user can opt into 20 km. Beyond that, we suggest the calendar view.
+const NO_EVENTS: EventItem[] = []
+
 const DEFAULT_RADIUS_KM = 10
 const WIDE_RADIUS_KM = 20
 
@@ -595,6 +622,8 @@ export function MapView({
 }) {
   const { open: composeOpen, openDrawer } = useNewEventDrawer()
   const router = useRouter()
+  const { user: authUser } = useAuth()
+  const viewerId = authUser?.id ?? null
   // Always opens at mid (the prototype's default): the rail shows what's on
   // without covering the map. Not remembered across visits.
   const [dock, setDock] = useState<DockState>("mid")
@@ -715,6 +744,9 @@ export function MapView({
   const activeCount = groupedEvents.live.length + groupedEvents.upcoming.length
   const endedVisible = timeFilter === "all" && groupedEvents.ended.length > 0
   const mapFailedEmpty = !!map.error && mapEvents.length === 0
+  // A pin's chip and ring depend on the clock, so flare pins wait for it
+  // (it is 0 until the first effect) instead of drawing every flare as "soon".
+  const pinEvents = nowMs > 0 ? mapEvents : NO_EVENTS
 
   // Quiet state: only once the results are real (location known, loaded, no
   // failed first fetch), so the card never flashes during a load.
@@ -1007,13 +1039,15 @@ export function MapView({
       ) : apiKey ? (
         <APIProvider apiKey={apiKey}>
           <GoogleMapContent
-            events={mapEvents}
+            events={pinEvents}
             onEventSelect={onEventSelect}
             previewEvent={previewEvent}
             setPreviewEvent={setPreviewEvent}
             routeResult={routeResult}
             routeDestination={routeDestination}
             joinedIds={joinedIds}
+            viewerId={viewerId}
+            now={nowMs}
             cameraCenter={cameraCenter}
             currentLocation={geo.coords}
             recenterTick={recenterTick}
@@ -1025,10 +1059,14 @@ export function MapView({
         </APIProvider>
       ) : (
         <StaticMapFallback
-          events={mapEvents}
+          events={pinEvents}
           onEventSelect={onEventSelect}
           joinedIds={joinedIds}
           user={cameraCenter}
+          viewerId={viewerId}
+          now={nowMs}
+          previewEvent={previewEvent}
+          setPreviewEvent={setPreviewEvent}
           highlightId={highlightId}
           ideas={ideaPins}
           selectedIdeaId={selectedIdeaId}
@@ -1036,15 +1074,19 @@ export function MapView({
         />
       )}
 
-      {/* Geolocation + route error banners — top-16 clears the floating
-          header chips. With the list page open the banner moves into the
-          list's header instead of floating over it. */}
+      {/* Under the floating header chips (top-16 clears them): the
+          geolocation banner, then the pin legend while any flare pin is on
+          the map (#315). With the list page open the banner moves into the
+          list's header instead, and the legend has no pins to explain. */}
       {!listOpen && (
-        <GeolocationBanner
-          status={geo.status}
-          showingCachedLocation={isUsingCachedLocation}
-          onRetry={geo.request}
-        />
+        <div className="pointer-events-none absolute inset-x-3 top-16 z-30 flex flex-col items-center gap-2">
+          <GeolocationBanner
+            status={geo.status}
+            showingCachedLocation={isUsingCachedLocation}
+            onRetry={geo.request}
+          />
+          {cameraCenter && pinEvents.length > 0 && <VisibilityLegend />}
+        </div>
       )}
 
       {routeError && (
@@ -1403,8 +1445,8 @@ function MapCameraPlaceholder({
   const title = blocked ? "location needed" : "finding your location"
   const message = blocked
     ? (errorMessage ??
-      "Turn on location access to show nearby flares in your area.")
-    : "Setting up the map around you."
+      "turn on location access to show nearby flares in your area")
+    : "setting up the map around you"
 
   return (
     <div className="relative flex h-full w-full items-center justify-center bg-muted">
@@ -1459,14 +1501,14 @@ function GeolocationBanner({
     return null
   const msg =
     status === "denied"
-      ? "showing last known area - enable location for nearby flares"
-      : "couldn't update your location - showing last known area"
+      ? "showing last known area, enable location for nearby flares"
+      : "couldn't update your location, showing last known area"
   return (
     <div
       className={`flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs ${
         inline
           ? "bg-background"
-          : "absolute top-16 right-3 left-3 z-30 bg-background/95 shadow-md"
+          : "pointer-events-auto w-full bg-background/95 shadow-md"
       }`}
     >
       <MapPinIcon className="h-3.5 w-3.5 shrink-0 text-accent" />
@@ -1514,7 +1556,7 @@ function LocationSheetState({
       <p className="text-sm font-medium">location needed</p>
       <p className="mt-1 text-xs text-muted-foreground">
         {errorMessage ??
-          "Enable location access to show nearby flares around you."}
+          "enable location access to show nearby flares around you"}
       </p>
       <button
         onClick={onRetry}
@@ -1762,7 +1804,7 @@ function FlareCard({
               {event.title.split("·", 2)[0]}
             </p>
             {joined && !isEnded && (
-              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
+              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent-ink">
                 <CheckIcon className="h-2.5 w-2.5" /> going
               </span>
             )}
@@ -2048,7 +2090,7 @@ function RailCard({
           <span />
         )}
         {joined ? (
-          <span className="flex items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 font-medium text-accent">
+          <span className="flex items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 font-medium text-accent-ink">
             <CheckIcon className="h-2.5 w-2.5" /> going
           </span>
         ) : (

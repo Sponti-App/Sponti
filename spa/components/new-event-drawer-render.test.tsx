@@ -1,4 +1,10 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
@@ -249,6 +255,53 @@ describe("NewEventDrawer place search", () => {
     ).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalled()
     fetchMock.mockRestore()
+  })
+
+  // #402: iOS Safari only raises the keyboard when focus() runs inside the
+  // tap, so the field must be focused by the time the tap handler returns,
+  // not on a later frame. fireEvent.click returns at that point; the old
+  // requestAnimationFrame focus had not run yet. The keyboard itself needs a
+  // real iPhone.
+  it("focuses the search field inside the tap on the magnifier", async () => {
+    const user = userEvent.setup()
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+    await user.click(screen.getByRole("button", { name: /my location/i }))
+
+    fireEvent.click(screen.getByRole("button", { name: /search for a place/i }))
+
+    const field = screen.getByPlaceholderText("search for a place")
+    expect(field).toHaveFocus()
+    expect(field.closest(".sr-only")).toBeNull()
+    expect(
+      screen.getByRole("button", { name: /use my location instead/i })
+    ).toBeInTheDocument()
+  })
+
+  it("keeps the field out of the way, unfocusable and unfocused, until it expands", async () => {
+    const user = userEvent.setup()
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+    await user.click(screen.getByRole("button", { name: /my location/i }))
+
+    const field = screen.getByPlaceholderText("search for a place")
+    expect(field).not.toHaveFocus()
+    expect(field).toHaveAttribute("tabindex", "-1")
+    expect(field.closest(".sr-only")).not.toBeNull()
+    expect(
+      screen.queryByRole("button", { name: /use my location instead/i })
+    ).not.toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole("button", { name: /search for a place/i })
+    )
+    expect(field).toHaveFocus()
+    expect(field.closest(".sr-only")).toBeNull()
+
+    // Collapsing lets go of the focus (and the keyboard).
+    await user.click(
+      screen.getByRole("button", { name: /use my location instead/i })
+    )
+    expect(field).not.toHaveFocus()
+    expect(field.closest(".sr-only")).not.toBeNull()
   })
 })
 

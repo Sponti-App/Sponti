@@ -495,6 +495,56 @@ const formatEtaLabel = (eta: Date, now: Date = new Date()): string => {
 const formatArrivalStatusLabel = (status: "on_time" | "running_late"): string =>
   status === "on_time" ? "on time" : "running late";
 
+// #414: what an `event_rsvp_change` notification reports, so the spa doesn't
+// have to read it out of the copy. Stored in `metadata.rsvpChange`; older
+// notifications (written before #414) have no `rsvpChange` and no `firstJoin`.
+export type RsvpChangeKind = "joined" | "declined" | "arrival_updated";
+
+/**
+ * #414: is this join the first one the host hears about on this flare? True
+ * only when nobody else (host aside) is going and the host has never had a
+ * join notification for the flare. So a flare has at most one first join: a
+ * guest who leaves and joins again, or someone joining after everyone else
+ * left, is a later join. Must run before the new notification is written.
+ * Older notifications count too: any `event_rsvp_change` with
+ * `rsvpStatus: "going"` means someone joined (an arrival update can only
+ * follow a join). Two joins committed at the same moment can both come out
+ * first; the spa stacks joins that arrive together anyway.
+ */
+const isFirstJoinOnFlare = async ({
+  eventId,
+  hostId,
+  attendeeId,
+  session,
+}: {
+  eventId: string;
+  hostId: string;
+  attendeeId: string;
+  session?: ClientSession;
+}) => {
+  const eventObjectId = toObjectId(eventId);
+  // One after the other, not Promise.all: a transaction's session can't run
+  // operations in parallel.
+  const otherGoing = await EventMember.exists({
+    eventId: eventObjectId,
+    userId: { $nin: [toObjectId(hostId), toObjectId(attendeeId)] },
+    role: { $ne: "host" },
+    rsvpStatus: "going",
+    removedAt: null,
+  }).session(session ?? null);
+  if (otherGoing) return false;
+
+  const earlierJoin = await Notification.exists({
+    userId: toObjectId(hostId),
+    type: "event_rsvp_change",
+    targetType: "event",
+    targetId: eventObjectId,
+    "metadata.rsvpStatus": "going",
+  }).session(session ?? null);
+
+  return !earlierJoin;
+};
+
 export const createEventRsvpChangeNotification = async ({
   eventId,
   hostId,
@@ -504,8 +554,8 @@ export const createEventRsvpChangeNotification = async ({
   memberWillArriveAt,
   arrivalStatus,
   // Set when the RSVP status itself didn't change and this is only reporting
-  // a going member moving their arrival time or status (#90, #211) — distinct
-  // copy so the host isn't told someone "RSVP'd" when they didn't.
+  // a going member moving their arrival time or status (#90, #211), so the
+  // host isn't told someone joined when they didn't.
   etaOnly = false,
   session,
 }: {
@@ -525,16 +575,20 @@ export const createEventRsvpChangeNotification = async ({
 
   const users = await getUsersByIds([attendeeId]);
   const attendee = users.get(attendeeId);
-  const attendeeName = actorDisplayName(attendee, "Someone");
+  const attendeeName = actorDisplayName(attendee, "someone");
   const rsvpLabel = rsvpStatus === "going" ? "is going to" : "can't make it to";
   const eta = rsvpStatus === "going" && memberWillArriveAt ? new Date(memberWillArriveAt) : null;
   const etaLabel = eta ? formatEtaLabel(eta) : null;
   const statusLabel =
     rsvpStatus === "going" && arrivalStatus ? formatArrivalStatusLabel(arrivalStatus) : null;
 
+  // Lowercase, no "RSVP" (#415). The spa writes the same words itself from
+  // `metadata.rsvpChange`; this title is what older spa builds still show.
   const title = etaOnly
-    ? `${attendeeName} updated their arrival time`
-    : `${attendeeName} updated their RSVP`;
+    ? `${attendeeName} changed their reply`
+    : rsvpStatus === "going"
+      ? `${attendeeName} joined your flare`
+      : `${attendeeName} can't make it`;
   const message = etaOnly
     ? statusLabel
       ? `${attendeeName} is now ${statusLabel} for ${eventTitle}.`
@@ -544,6 +598,16 @@ export const createEventRsvpChangeNotification = async ({
       : etaLabel
         ? `${attendeeName} ${rsvpLabel} ${eventTitle} — arriving ${etaLabel}.`
         : `${attendeeName} ${rsvpLabel} ${eventTitle}.`;
+
+  const rsvpChange: RsvpChangeKind = etaOnly
+    ? "arrival_updated"
+    : rsvpStatus === "going"
+      ? "joined"
+      : "declined";
+  const firstJoin =
+    rsvpChange === "joined"
+      ? await isFirstJoinOnFlare({ eventId, hostId, attendeeId, session })
+      : false;
 
   return createNotifications(
     [
@@ -560,6 +624,8 @@ export const createEventRsvpChangeNotification = async ({
           rsvpStatus,
           memberWillArriveAt: eta ? eta.toISOString() : null,
           arrivalStatus: statusLabel ? arrivalStatus : null,
+          rsvpChange,
+          firstJoin,
         },
       },
     ],

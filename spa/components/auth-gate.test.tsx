@@ -11,7 +11,11 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   me: vi.fn(),
   login: vi.fn(),
+  // #389: off, as in the tester build, unless a test turns it on.
+  flags: { browseBeforeSignup: false },
 }))
+
+vi.mock("@/lib/feature-flags", () => ({ featureFlags: mocks.flags }))
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
@@ -88,6 +92,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks()
+  mocks.flags.browseBeforeSignup = false
   document.body.innerHTML = ""
 })
 
@@ -173,6 +178,32 @@ describe("AuthGate on a cold load or refresh (#219)", () => {
       document.body.innerHTML = ""
     }
     expect(mocks.replace).not.toHaveBeenCalled()
+  })
+})
+
+describe("AuthGate with browseBeforeSignup (#389)", () => {
+  it("lets a signed-out visitor stay on the home map", async () => {
+    mocks.flags.browseBeforeSignup = true
+    setUrl("/")
+
+    await hydrateApp(<p>home map</p>)
+
+    expect(await screen.findByText("home map")).toBeInTheDocument()
+    expect(mocks.replace).not.toHaveBeenCalled()
+    expect(mocks.me).not.toHaveBeenCalled()
+  })
+
+  it("still sends a signed-out visitor on any other page to /login", async () => {
+    mocks.flags.browseBeforeSignup = true
+
+    await hydrateApp()
+
+    await waitFor(() =>
+      expect(mocks.replace).toHaveBeenCalledWith(
+        "/login?redirectTo=%2Fevent%2Fevent-1%3Ffrom%3Dshare"
+      )
+    )
+    expect(screen.queryByText("flare page")).not.toBeInTheDocument()
   })
 })
 

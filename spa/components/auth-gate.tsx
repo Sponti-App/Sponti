@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { isContactPath } from "@/lib/contact-links"
+import { featureFlags } from "@/lib/feature-flags"
 import {
   AUTH_PATHS,
   buildLoginPath,
@@ -24,8 +25,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const wakingUp = useSlowRequestHint(status === "loading")
 
   // #124: QR and invite links open for signed-out visitors, who are sent
-  // on to sign-up from there.
-  const isPublic = PUBLIC_PATHS.includes(pathname) || isContactPath(pathname)
+  // on to sign-up from there. #389: with `browseBeforeSignup`, so does the
+  // home map, which then renders its signed-out view.
+  const isPublic =
+    PUBLIC_PATHS.includes(pathname) ||
+    isContactPath(pathname) ||
+    (featureFlags.browseBeforeSignup && pathname === "/")
   const isAuthPage = AUTH_PATHS.includes(pathname)
 
   useEffect(() => {

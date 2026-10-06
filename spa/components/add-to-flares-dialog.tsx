@@ -4,6 +4,7 @@ import { useState } from "react"
 import { CheckIcon, FlameIcon, XIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import type { CircleFlare } from "@/lib/api/circles"
+import { formatClock, formatWeekdayShort } from "@/lib/format-date"
 import { cn } from "@/lib/utils"
 
 function whenLabel(startAt: string): string {
@@ -11,11 +12,8 @@ function whenLabel(startAt: string): string {
   const day =
     start.toDateString() === new Date().toDateString()
       ? "today"
-      : start.toLocaleDateString([], { weekday: "short" })
-  const time = start
-    .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    .toLowerCase()
-  return `${day} ${time}`
+      : formatWeekdayShort(start)
+  return `${day} ${formatClock(start)}`
 }
 
 /**
@@ -67,7 +65,7 @@ export function AddToFlaresDialog({
       <div className="relative flex w-full max-w-md flex-col rounded-2xl border border-border bg-card shadow-xl">
         <div className="flex items-start justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent-ink">
               <FlameIcon className="h-4 w-4" />
             </div>
             <div className="min-w-0">

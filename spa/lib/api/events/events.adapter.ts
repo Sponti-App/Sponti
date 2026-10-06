@@ -1,5 +1,6 @@
 import { displayLocationName } from "@/lib/current-location"
 import { formatDistance } from "@/lib/format-distance"
+import { formatClock, formatWeekdayClock } from "@/lib/format-date"
 import type {
   ApiEvent,
   ArrivalStatus,
@@ -35,7 +36,10 @@ export function isImminent(
   return now >= start - 30 * MIN && now <= end
 }
 
-export function isLive(event: EventItem, now: number = Date.now()): boolean {
+export function isLive(
+  event: Pick<EventItem, "startAt" | "endAt">,
+  now: number = Date.now()
+): boolean {
   const start = new Date(event.startAt).getTime()
   const end = new Date(event.endAt).getTime()
   return now >= start && now <= end
@@ -50,10 +54,7 @@ export function eventDayKey(event: EventItem): string {
 }
 
 export function formatEventTime(event: EventItem): string {
-  return new Date(event.startAt).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  })
+  return formatClock(event.startAt)
 }
 
 export function formatRelativeStatus(
@@ -71,11 +72,7 @@ export function formatRelativeStatus(
   const tomorrowKey = dayKey(new Date(now + DAY))
   if (dayKey(new Date(start)) === tomorrowKey)
     return `${formatEventTime(event)} tomorrow`
-  return new Date(start).toLocaleString(undefined, {
-    weekday: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  })
+  return formatWeekdayClock(start)
 }
 
 /**

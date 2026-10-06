@@ -1434,7 +1434,7 @@ function Avatar({ name, muted = false }: { name: string; muted?: boolean }) {
       className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
         muted
           ? "bg-secondary text-muted-foreground"
-          : "border border-accent/20 bg-accent/10 text-accent"
+          : "border border-accent/20 bg-accent/10 text-accent-ink"
       }`}
     >
       {initials(name)}

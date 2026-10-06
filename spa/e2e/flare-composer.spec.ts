@@ -181,4 +181,176 @@ test.describe("flare composer", () => {
       page.getByRole("button", { name: "no changes yet" })
     ).toBeDisabled()
   })
+  // #367: with the keyboard up for the location search, the pinned CTA took
+  // half the slot above the keyboard and the suggestions were squeezed to a
+  // sliver. Chromium cannot open a real software keyboard, so this fakes the
+  // visual viewport the way iOS shrinks it; a real phone is still the final
+  // check for the iOS panning side of the issue.
+  test("location search with the keyboard up keeps suggestions visible and tappable", async ({
+    page,
+    hasTouch,
+  }) => {
+    // The CTA only steps aside on a coarse pointer, i.e. a phone.
+    test.skip(!hasTouch, "keyboard layout is touch only")
+    await page.addInitScript(() => {
+      const listeners: Record<string, Array<() => void>> = {}
+      const vv = {
+        height: window.innerHeight,
+        width: window.innerWidth,
+        offsetTop: 0,
+        offsetLeft: 0,
+        pageTop: 0,
+        pageLeft: 0,
+        scale: 1,
+        addEventListener: (type: string, fn: () => void) => {
+          ;(listeners[type] ??= []).push(fn)
+        },
+        removeEventListener: (type: string, fn: () => void) => {
+          listeners[type] = (listeners[type] ?? []).filter((f) => f !== fn)
+        },
+      }
+      Object.defineProperty(window, "visualViewport", {
+        value: vv,
+        configurable: true,
+      })
+      Object.defineProperty(window, "__openKeyboard", {
+        value: (px: number) => {
+          vv.height = window.innerHeight - px
+          ;(listeners.resize ?? []).forEach((fn) => fn())
+        },
+        configurable: true,
+      })
+    })
+    await page.route("**/api/places?*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          suggestions: [
+            { placeId: "p1", label: "Neue Zukunft", address: "Alt-Stralau 68" },
+            { placeId: "p2", label: "Neue Heimat", address: "Revaler Str. 99" },
+            { placeId: "p3", label: "Neuer See", address: "Tiergarten" },
+          ],
+        }),
+      })
+    )
+    await page.route("**/api/places/p1", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          placeId: "p1",
+          name: "Neue Zukunft",
+          address: "Alt-Stralau 68",
+          lat: 52.5,
+          lng: 13.4,
+        }),
+      })
+    )
+
+    // The init script only applies to the next navigation; beforeEach has
+    // already loaded the page once.
+    await page.reload()
+    await expect(
+      page.getByRole("navigation", { name: "Primary" })
+    ).toBeVisible()
+    await page.getByRole("button", { name: "flare", exact: true }).click()
+    await page
+      .getByRole("button", { name: /my location/ })
+      .first()
+      .click()
+    await page.getByRole("button", { name: "Search for a place" }).click()
+    const input = page.getByPlaceholder("search for a place")
+    await input.fill("neue zu")
+    await page.evaluate(() => {
+      ;(
+        window as unknown as { __openKeyboard: (px: number) => void }
+      ).__openKeyboard(336)
+    })
+
+    const cta = page.getByRole("button", { name: "light a flare", exact: true })
+    const first = page.getByRole("button", { name: /Neue Zukunft/ })
+    await expect(first).toBeVisible()
+    // The CTA steps aside while the keyboard is up...
+    await expect(cta).toBeHidden()
+    // ...so the first suggestion sits wholly inside the slot above the
+    // keyboard, not under anything.
+    await expect(async () => {
+      const box = await first.boundingBox()
+      const viewport = await page.evaluate(() => window.visualViewport!.height)
+      expect(box).not.toBeNull()
+      expect(box!.y).toBeGreaterThanOrEqual(0)
+      expect(box!.y + box!.height).toBeLessThanOrEqual(viewport)
+    }).toPass()
+
+    // Tapping it picks the place, closes the keyboard and brings the CTA back.
+    await first.click()
+    await expect(input).not.toBeFocused()
+    await expect(cta).toBeVisible()
+  })
+
+  // #366: on "pick a time" the wheels sat over their "start"/"end" labels, the
+  // selected row drifted off the highlight band and the end wheel showed a
+  // gap. Pin the geometry: label above wheel, three rows tall, selected row
+  // on the band, for both wheels, including at the end of a list.
+  test("pick a time keeps each wheel below its label with the selection centred", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "flare", exact: true }).click()
+    await page.getByRole("tab", { name: "pick a time" }).click()
+
+    const wheels = [
+      {
+        label: "start",
+        list: page.getByRole("listbox", { name: "start time" }),
+      },
+      { label: "end", list: page.getByRole("listbox", { name: "end time" }) },
+    ]
+    for (const { list } of wheels) await expect(list).toBeVisible()
+
+    const check = async (): Promise<void> => {
+      for (const { label, list } of wheels) {
+        const labelBox = await page
+          .getByText(label, { exact: true })
+          .first()
+          .boundingBox()
+        const wheel = await list.boundingBox()
+        const selected = await list
+          .locator('[role="option"][aria-selected="true"]')
+          .boundingBox()
+        expect(labelBox).not.toBeNull()
+        expect(wheel).not.toBeNull()
+        expect(selected).not.toBeNull()
+        // The label sits wholly above the wheel.
+        expect(labelBox!.y + labelBox!.height).toBeLessThanOrEqual(wheel!.y + 1)
+        // Three 36px rows, with the selected one on the middle row.
+        expect(wheel!.height).toBeCloseTo(108, 0)
+        const wheelMid = wheel!.y + wheel!.height / 2
+        expect(selected!.y + selected!.height / 2).toBeCloseTo(wheelMid, 0)
+      }
+    }
+
+    await expect(async () => {
+      await check()
+    }).toPass()
+
+    // Run each wheel to its last option, where the list has one empty slot
+    // below the selection by design, and check nothing else moves. One wheel
+    // at a time, waiting for it to settle on the last option: a new start
+    // time rebuilds the end list, and scrolling the end wheel inside the
+    // wheel's 90ms settle window made its pending callback read the old list
+    // and select a time outside the new one (#417, a race, not the clock).
+    for (const { list } of wheels) {
+      await list.evaluate((el) => {
+        el.scrollTo({ top: el.scrollHeight })
+      })
+      await expect(list.locator('[role="option"]').last()).toHaveAttribute(
+        "aria-selected",
+        "true"
+      )
+    }
+    await expect(async () => {
+      await check()
+    }).toPass()
+  })
 })

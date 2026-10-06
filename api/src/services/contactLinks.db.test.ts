@@ -13,7 +13,11 @@ import {
   resetMyInviteLink,
   resolveInviteLink,
 } from "#services/inviteLinkService";
-import { createQrContactToken, resolveQrContactToken } from "#services/qrContactTokenService";
+import {
+  QR_EXPIRED_REQUEST_GRACE_MS,
+  createQrContactToken,
+  resolveQrContactToken,
+} from "#services/qrContactTokenService";
 
 // #124: first-friend flows against a real (in-memory) Mongo — instant QR
 // connect, the 7-day invite link, and the unauthenticated sign-up preview.
@@ -204,17 +208,117 @@ describe("QR scan connects instantly (#124)", () => {
     );
   });
 
-  it("rejects an expired QR code and makes no connection", async () => {
+  it("rejects a QR code expired past the grace window and makes no connection", async () => {
     await seedUsers();
     const { token } = await createQrContactToken(OWNER_ID);
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(Date.now() + 16 * 60 * 1000);
+    vi.setSystemTime(Date.now() + 15 * 60 * 1000 + QR_EXPIRED_REQUEST_GRACE_MS + 1000);
 
     await expect(resolveQrContactToken(VIEWER_ID, { token, connect: true })).rejects.toMatchObject({
       statusCode: 410,
       code: "QR_CONTACT_TOKEN_EXPIRED",
     });
     expect(await Connection.countDocuments({})).toBe(0);
+    // Dead for good: the next try reads like a code that never existed.
+    await expect(resolveQrContactToken(VIEWER_ID, { token, connect: true })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  describe("just expired, e.g. during a slow sign-up (#441)", () => {
+    const expireBy = (ms: number) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(Date.now() + 15 * 60 * 1000 + ms);
+    };
+
+    it("names the owner and offers a request, flagged as expired", async () => {
+      await seedUsers();
+      const { token } = await createQrContactToken(OWNER_ID);
+      expireBy(30 * 60 * 1000);
+
+      const result = await resolveQrContactToken(VIEWER_ID, { token, connect: false });
+
+      expect(result).toMatchObject({
+        expired: true,
+        relationship: "none",
+        canConnect: true,
+        profile: { username: "alex", displayName: "Alex Kim" },
+        connection: null,
+      });
+      expect(await Connection.countDocuments({})).toBe(0);
+    });
+
+    it("sends a friend request, never an instant connection", async () => {
+      await seedUsers();
+      const { token } = await createQrContactToken(OWNER_ID);
+      expireBy(30 * 60 * 1000);
+
+      const result = await resolveQrContactToken(VIEWER_ID, { token, connect: true });
+
+      expect(result.relationship).toBe("pending_outgoing");
+      expect(result.canConnect).toBe(false);
+      expect(result.connection).toMatchObject({ processed: true, delivered: true });
+      const rows = await connectionRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ status: "pending", type: "shared_invitation" });
+      expect(await Notification.findOne({ userId: oid(OWNER_ID) }).lean()).toMatchObject({
+        type: "connection_request",
+      });
+    });
+
+    it("accepts the owner's request to the viewer", async () => {
+      await seedUsers();
+      await Connection.create({
+        requesterId: oid(OWNER_ID),
+        receiverId: oid(VIEWER_ID),
+        status: "pending",
+        type: "shared_invitation",
+      });
+      const { token } = await createQrContactToken(OWNER_ID);
+      expireBy(30 * 60 * 1000);
+
+      const result = await resolveQrContactToken(VIEWER_ID, { token, connect: true });
+
+      expect(result.relationship).toBe("connected");
+    });
+
+    it("keeps working on repeat tries inside the window", async () => {
+      await seedUsers();
+      const { token } = await createQrContactToken(OWNER_ID);
+      expireBy(30 * 60 * 1000);
+
+      await resolveQrContactToken(VIEWER_ID, { token, connect: false });
+      await expect(
+        resolveQrContactToken(VIEWER_ID, { token, connect: false })
+      ).resolves.toMatchObject({ expired: true });
+    });
+
+    it("does not resend a pending request or reveal a block", async () => {
+      await seedUsers();
+      const { token } = await createQrContactToken(OWNER_ID);
+      expireBy(30 * 60 * 1000);
+
+      await resolveQrContactToken(VIEWER_ID, { token, connect: true });
+      const again = await resolveQrContactToken(VIEWER_ID, { token, connect: true });
+      expect(again).toMatchObject({ relationship: "pending_outgoing", canConnect: false });
+      expect(await Connection.countDocuments({})).toBe(1);
+
+      await Connection.deleteMany({});
+      await Block.create({ blockerId: oid(OWNER_ID), blockedId: oid(VIEWER_ID) });
+      await expect(
+        resolveQrContactToken(VIEWER_ID, { token, connect: true })
+      ).rejects.toMatchObject({ statusCode: 404, code: "QR_CONTACT_TOKEN_NOT_FOUND" });
+      expect(await Connection.countDocuments({})).toBe(0);
+    });
+
+    it("marks a live code as not expired", async () => {
+      await seedUsers();
+      const { token } = await createQrContactToken(OWNER_ID);
+
+      await expect(
+        resolveQrContactToken(VIEWER_ID, { token, connect: false })
+      ).resolves.toMatchObject({ expired: false });
+    });
   });
 });
 
@@ -391,5 +495,20 @@ describe("unauthenticated contact preview (#124)", () => {
 
     expect(response.body.data.token).toEqual(expect.any(String));
     expect(response.body.data).not.toHaveProperty("userId");
+  });
+
+  // Keep this last: the limiter counts per address for the whole test file.
+  it("is rate-limited (#450)", async () => {
+    let limited: request.Response | undefined;
+
+    for (let i = 0; i < 70 && !limited; i += 1) {
+      const response = await request(app)
+        .post("/api/v1/public/contact-preview")
+        .send({ kind: "invite", token: "does-not-exist" });
+      if (response.status === 429) limited = response;
+    }
+
+    expect(limited?.body.error.code).toBe("RATE_LIMITED");
+    expect(limited?.headers["retry-after"]).toBeDefined();
   });
 });

@@ -27,7 +27,7 @@ export default function ForgotPasswordPage() {
       if (err instanceof HttpError) {
         setError(err.message)
       } else {
-        setError("Something went wrong. Try again.")
+        setError("something went wrong, try again")
       }
     } finally {
       setSubmitting(false)

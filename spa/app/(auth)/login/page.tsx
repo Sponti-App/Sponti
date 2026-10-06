@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation"
 import { AuthFrame } from "@/components/auth-frame"
 import { GoogleAuthButton } from "@/components/google-auth-button"
 import { useAuth } from "@/components/auth-provider"
+import { LegalLinks } from "@/components/legal-links"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -53,7 +54,7 @@ export default function LoginPage() {
       if (err instanceof HttpError) {
         setError(err.message)
       } else {
-        setError("Something went wrong. Try again.")
+        setError("something went wrong, try again")
       }
       setSubmitting(false)
     }
@@ -70,7 +71,7 @@ export default function LoginPage() {
         if (err instanceof HttpError) {
           setError(err.message)
         } else {
-          setError("Something went wrong. Try again.")
+          setError("something went wrong, try again")
         }
         setGoogleSubmitting(false)
       }
@@ -163,6 +164,8 @@ export default function LoginPage() {
           disabled={submitting || googleSubmitting}
           onCredential={handleGoogleCredential}
         />
+
+        <LegalLinks className="mt-2" />
       </form>
     </AuthFrame>
   )

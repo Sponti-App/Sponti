@@ -13,6 +13,8 @@ const USER_KEY = "sponti.auth.user.v1"
 // permission so the map has a camera center immediately, without needing to
 // drive the browser's real permission prompt in a headless run.
 const LAST_KNOWN_COORDS_KEY = "sponti.geo.last-known-coords.v1"
+// Mirrors spa/lib/intro-slides.ts's INTRO_SLIDES_KEY (#377).
+const INTRO_SLIDES_KEY = "sponti.intro-slides.v1"
 
 export const STUB_USER = {
   id: "user-e2e-1",
@@ -53,6 +55,8 @@ export type StubApiEvent = {
   guestInviteLimit: number
   status: "active" | "cancelled" | "completed"
   goingCount?: number
+  // The viewer's own answer; "going" marks a flare they joined.
+  myRsvp?: "invited" | "going" | "declined" | null
   // Going guests, as the api's `attachEventPeople` sends them (#265 links
   // each by username). ETA fields only ever reach the host.
   attendees?: Array<{
@@ -88,6 +92,30 @@ export function makeStubFlare(
     goingCount: 2,
     ...overrides,
   }
+}
+
+/** Google's polyline format, the inverse of `decodePolyline` in routes-api.ts. */
+function encodePolyline(path: Array<{ lat: number; lng: number }>): string {
+  let out = ""
+  let prevLat = 0
+  let prevLng = 0
+  const push = (delta: number) => {
+    let v = delta < 0 ? ~(delta << 1) : delta << 1
+    while (v >= 0x20) {
+      out += String.fromCharCode((0x20 | (v & 0x1f)) + 63)
+      v >>= 5
+    }
+    out += String.fromCharCode(v + 63)
+  }
+  for (const { lat, lng } of path) {
+    const e5Lat = Math.round(lat * 1e5)
+    const e5Lng = Math.round(lng * 1e5)
+    push(e5Lat - prevLat)
+    push(e5Lng - prevLng)
+    prevLat = e5Lat
+    prevLng = e5Lng
+  }
+  return out
 }
 
 async function fulfillJson(
@@ -128,12 +156,44 @@ export type StubUserProfile = {
   connectionId: string | null
 }
 
+/** One pin from GET /public/events/map (#425): nothing but what a pin needs. */
+export type StubPublicPin = {
+  _id: string
+  type: string
+  location: { type: "Point"; coordinates: [number, number] }
+  startAt: string
+  endAt: string
+}
+
+export function makeStubPublicPin(
+  overrides: Partial<StubPublicPin> = {}
+): StubPublicPin {
+  const now = Date.now()
+  return {
+    _id: "public-e2e-1",
+    type: "drinks",
+    location: {
+      type: "Point",
+      coordinates: [STUB_COORDS.lng, STUB_COORDS.lat],
+    },
+    startAt: new Date(now - 10 * 60_000).toISOString(),
+    endAt: new Date(now + 90 * 60_000).toISOString(),
+    ...overrides,
+  }
+}
+
 type StubBackendOptions = {
   /** Events returned by GET /events/map/active. Empty by default. */
   mapEvents?: StubApiEvent[]
   /**
+   * Pins returned by the unauthenticated GET /public/events/map (#425), the
+   * signed-out map's only flare data. Empty by default.
+   */
+  publicPins?: StubPublicPin[]
+  /**
    * GET /events/:id answers with the map event of that id. Pass more here
-   * for flares that aren't on the map.
+   * for flares that aren't on the map. Any other id answers 404
+   * EVENT_NOT_FOUND, like the api.
    */
   events?: StubApiEvent[]
   /** Profiles by username; any other username answers 404 USER_NOT_FOUND. */
@@ -152,6 +212,33 @@ type StubBackendOptions = {
    * (#289). All unset by default.
    */
   ownProfile?: Partial<StubOwnProfile>
+  /**
+   * Start signed out: no session is seeded, and POST /auth/register and
+   * /auth/login answer with the stub user's tokens, so a test can drive the
+   * real sign-in or sign-up form. Signed in by default.
+   */
+  signedOut?: boolean
+  /**
+   * Show the intro slides (#377, full profile only) on a signed-out
+   * visitor's first open. Off by default: the device counts as having seen
+   * them, so specs about the signed-out map land straight on it.
+   */
+  introSlides?: boolean
+  /**
+   * How many accepted connections GET /connections lists. Zero by default.
+   */
+  friends?: number
+  /**
+   * The circles GET /circles lists, as the api returns them. Empty by
+   * default. `memberCount` members are generated as `friend-0..n`, matching
+   * the ids GET /connections uses.
+   */
+  circles?: Array<{
+    _id: string
+    name: string
+    type: "inner" | "close" | "all" | "custom"
+    memberCount: number
+  }>
 }
 
 /** The self-authored fields GET /auth/me and PATCH /auth/me/profile carry. */
@@ -216,12 +303,34 @@ export async function stubBackend(
     profileVisibility: options.profileVisibility ?? STUB_USER.profileVisibility,
   }
   const coords = options.coords ?? STUB_COORDS
+  const signedOut = options.signedOut ?? false
+  const introSlides = options.introSlides ?? false
+  const connections = Array.from({ length: options.friends ?? 0 }, (_, i) => ({
+    _id: `conn-${i}`,
+    requesterId: user.id,
+    receiverId: `friend-${i}`,
+    status: "accepted",
+    otherUser: { _id: `friend-${i}`, username: `friend${i}` },
+  }))
 
   await page.addInitScript(
-    ({ accessTokenKey, refreshTokenKey, userKey, coordsKey, user, coords }) => {
-      window.localStorage.setItem(accessTokenKey, "e2e-access-token")
-      window.localStorage.setItem(refreshTokenKey, "e2e-refresh-token")
-      window.localStorage.setItem(userKey, JSON.stringify(user))
+    ({
+      accessTokenKey,
+      refreshTokenKey,
+      userKey,
+      coordsKey,
+      user,
+      coords,
+      signedOut,
+      introSlidesKey,
+      introSlides,
+    }) => {
+      if (!introSlides) window.localStorage.setItem(introSlidesKey, "seen")
+      if (!signedOut) {
+        window.localStorage.setItem(accessTokenKey, "e2e-access-token")
+        window.localStorage.setItem(refreshTokenKey, "e2e-refresh-token")
+        window.localStorage.setItem(userKey, JSON.stringify(user))
+      }
       window.localStorage.setItem(coordsKey, JSON.stringify(coords))
     },
     {
@@ -231,12 +340,26 @@ export async function stubBackend(
       coordsKey: LAST_KNOWN_COORDS_KEY,
       user,
       coords,
+      signedOut,
+      introSlidesKey: INTRO_SLIDES_KEY,
+      introSlides,
     }
   )
 
   await page.route(`${AUTH_BASE}/**`, async (route) => {
     const url = new URL(route.request().url())
 
+    if (
+      route.request().method() === "POST" &&
+      (url.pathname === "/auth/register" || url.pathname === "/auth/login")
+    ) {
+      await fulfillJson(route, {
+        accessToken: "e2e-access-token",
+        refreshToken: "e2e-refresh-token",
+        user: { ...user, ...ownProfile },
+      })
+      return
+    }
     if (url.pathname === "/auth/me") {
       await fulfillJson(route, { user: { ...user, ...ownProfile } })
       return
@@ -291,6 +414,39 @@ export async function stubBackend(
       await fulfillJson(route, { data: mapEvents })
       return
     }
+    if (path === "/public/events/map" && route.request().method() === "GET") {
+      await fulfillJson(route, { data: options.publicPins ?? [] })
+      return
+    }
+    if (path === "/connections" && route.request().method() === "GET") {
+      await fulfillJson(route, {
+        data: connections,
+        pagination: {
+          page: 1,
+          limit: 100,
+          total: connections.length,
+          totalPages: 1,
+        },
+      })
+      return
+    }
+    if (path === "/circles" && route.request().method() === "GET") {
+      await fulfillJson(route, {
+        data: (options.circles ?? []).map((circle) => ({
+          _id: circle._id,
+          ownerId: user.id,
+          name: circle.name,
+          type: circle.type,
+          members: Array.from({ length: circle.memberCount }, (_, i) => ({
+            _id: `${circle._id}-m${i}`,
+            circleId: circle._id,
+            ownerId: user.id,
+            userId: `friend-${i}`,
+          })),
+        })),
+      })
+      return
+    }
     if (path === "/events/calendar/upcoming") {
       await fulfillJson(route, {
         data: [],
@@ -325,15 +481,20 @@ export async function stubBackend(
       return
     }
     if (path === "/maps/route") {
-      // What the api answers with no Google key: the SPA falls back to a
-      // straight line instead of decoding a polyline that isn't there.
-      await fulfillJson(
-        route,
-        {
-          error: { message: "Routes unavailable", code: "ROUTES_UNAVAILABLE" },
+      // A fixed 10 min, 800 m walk, drawn from the origin through a bend to
+      // the destination the app asked for (spa/lib/routes-api.ts decodes it).
+      const { origin, destination } = route.request().postDataJSON() as {
+        origin: { lat: number; lng: number }
+        destination: { lat: number; lng: number }
+      }
+      const bend = { lat: destination.lat, lng: origin.lng + 0.001 }
+      await fulfillJson(route, {
+        data: {
+          encodedPolyline: encodePolyline([origin, bend, destination]),
+          durationSeconds: 600,
+          distanceMeters: 800,
         },
-        503
-      )
+      })
       return
     }
     const mutualMatch = path.match(
@@ -383,8 +544,16 @@ export async function stubBackend(
       const event = eventsById.get(eventMatch[1])
       if (event) {
         await fulfillJson(route, { data: event })
-        return
+      } else {
+        // The api's answer for a flare that doesn't exist or isn't visible
+        // (eventService.getEventById, through the error handler).
+        await fulfillJson(
+          route,
+          { error: { message: "Event not found", code: "EVENT_NOT_FOUND" } },
+          404
+        )
       }
+      return
     }
     if (route.request().method() === "POST" && path === "/events") {
       await fulfillJson(

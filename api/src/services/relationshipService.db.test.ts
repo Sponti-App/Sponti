@@ -1,9 +1,13 @@
 import mongoose, { Types } from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { Block, Connection, type ConnectionStatus } from "#models/index";
+import { Block, Connection, Notification, type ConnectionStatus } from "#models/index";
 import { blockUser, unblockUser } from "#services/blockService";
-import { deleteConnection, sendConnectionRequest } from "#services/connectionService";
+import {
+  deleteConnection,
+  respondToConnectionRequest,
+  sendConnectionRequest,
+} from "#services/connectionService";
 import { getConnectedUserIds, getRelationship } from "#services/relationshipService";
 import { searchUsers } from "#services/userDirectoryService";
 
@@ -44,11 +48,16 @@ beforeAll(async () => {
     replSet: { count: 1, storageEngine: "wiredTiger" },
   });
   await mongoose.connect(mongoServer.getUri(), { dbName: "sponti_relationship_test" });
-  await Promise.all([Block.syncIndexes(), Connection.syncIndexes()]);
+  await Promise.all([Block.syncIndexes(), Connection.syncIndexes(), Notification.syncIndexes()]);
 }, 120_000);
 
 afterEach(async () => {
-  await Promise.all([Block.deleteMany({}), Connection.deleteMany({}), users().deleteMany({})]);
+  await Promise.all([
+    Block.deleteMany({}),
+    Connection.deleteMany({}),
+    Notification.deleteMany({}),
+    users().deleteMany({}),
+  ]);
 });
 
 afterAll(async () => {
@@ -240,6 +249,59 @@ describe("blocking deletes both connection rows (#260)", () => {
 
     expect(await getConnectedUserIds(A)).toEqual(new Set([C]));
     expect(await Connection.countDocuments({})).toBe(2);
+  });
+});
+
+describe("accepting a request between a blocked pair (#444)", () => {
+  // A asked B. The block is placed without going through blockUser, so the
+  // pending row survives, like a request that raced the block or old data.
+  for (const [blocker, blocked, label] of [
+    [A, B, "the requester blocked the receiver"],
+    [B, A, "the receiver blocked the requester"],
+  ] as const) {
+    it(`fails like a missing request and connects nobody (${label})`, async () => {
+      const pending = await row(A, B, "pending");
+      await block(blocker, blocked);
+
+      await expect(
+        respondToConnectionRequest(B, String(pending._id), { status: "accepted" })
+      ).rejects.toMatchObject({ statusCode: 404, code: "CONNECTION_REQUEST_NOT_FOUND" });
+
+      const rows = await Connection.find({}).lean();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ status: "pending" });
+      expect(await relationshipOf(A, B)).toBe("blocked");
+      expect(await getConnectedUserIds(A)).toEqual(new Set());
+      expect(await getConnectedUserIds(B)).toEqual(new Set());
+      expect(await Notification.countDocuments({})).toBe(0);
+    });
+  }
+
+  it("still lets the receiver decline it", async () => {
+    const pending = await row(A, B, "pending");
+    await block(A, B);
+
+    await respondToConnectionRequest(B, String(pending._id), { status: "rejected" });
+
+    expect(await Connection.findById(pending._id).lean()).toMatchObject({ status: "rejected" });
+  });
+
+  it("still accepts a request between an unblocked pair", async () => {
+    const pending = await row(A, B, "pending");
+
+    await respondToConnectionRequest(B, String(pending._id), { status: "accepted" });
+
+    expect(await relationshipOf(A, B)).toBe("connected");
+  });
+
+  it("can't be accepted after a real block either, since blocking removes the request", async () => {
+    const pending = await row(A, B, "pending");
+
+    await blockUser(B, A);
+
+    await expect(
+      respondToConnectionRequest(B, String(pending._id), { status: "accepted" })
+    ).rejects.toMatchObject({ statusCode: 404, code: "CONNECTION_REQUEST_NOT_FOUND" });
   });
 });
 

@@ -184,7 +184,7 @@ export function NotificationsSheet({
                   notifications
                 </Drawer.Title>
                 {unreadCount > 0 && (
-                  <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">
+                  <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent-ink">
                     {unreadCount}
                   </span>
                 )}

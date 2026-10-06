@@ -25,6 +25,11 @@ export type QrContactResolveResult = {
   relationship: QrRelationship
   canConnect: boolean
   expiresAt: string
+  /**
+   * #441: a QR code that ran out recently (e.g. during a slow sign-up) still
+   * resolves, but only to a friend request. Absent from older api builds.
+   */
+  expired?: boolean
   connection: {
     processed: boolean
     delivered: boolean
