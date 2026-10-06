@@ -2276,6 +2276,12 @@ function DateStrip({
 // and focuses it; tapping the X collapses back to "current loc". Picking a
 // place from the autocomplete list keeps the field open so the user can see
 // what was picked.
+//
+// The input is always mounted: visually hidden (sr-only, so it takes no
+// layout) while collapsed. iOS Safari only raises the keyboard when focus()
+// runs synchronously inside the tap, and the input has to exist at that
+// moment (#402). It stays the same element when it expands, so it keeps its
+// focus.
 function WherePicker({
   whereType,
   onWhereType,
@@ -2309,12 +2315,16 @@ function WherePicker({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const expanded = whereType === "search"
-  // The input can leave the tree while focused (collapse, section change, the
-  // sheet closing) without a blur reaching React, which would strand the
-  // composer in its keyboard-up layout.
+  // The input can leave the tree while focused (section change, the sheet
+  // closing) without a blur reaching React, which would strand the composer
+  // in its keyboard-up layout.
+  useEffect(() => () => onSearchFocusChange(false), [onSearchFocusChange])
+  // Collapsing keeps the input mounted, so let go of its focus (and the
+  // keyboard) explicitly.
   useEffect(() => {
-    if (!expanded) onSearchFocusChange(false)
-    return () => onSearchFocusChange(false)
+    if (expanded) return
+    inputRef.current?.blur()
+    onSearchFocusChange(false)
   }, [expanded, onSearchFocusChange])
   const currentHint =
     geoStatus === "requesting"
@@ -2326,13 +2336,12 @@ function WherePicker({
         : null
 
   const expand = (): void => {
-    onWhereType("search")
-    // Focus the input on the next frame, after the input mounts.
+    // Focus synchronously, inside the tap: iOS Safari ignores a focus() from
+    // a later frame and leaves the keyboard down (#402).
     // preventScroll: iOS otherwise pans the page to reveal the field, which
     // dragged the fixed sheet's top off screen; the sheet reveals it itself.
-    requestAnimationFrame(() =>
-      inputRef.current?.focus({ preventScroll: true })
-    )
+    inputRef.current?.focus({ preventScroll: true })
+    onWhereType("search")
   }
   const collapse = (): void => {
     onWhereType("current")
@@ -2369,25 +2378,32 @@ function WherePicker({
             </p>
           )}
         </div>
-      ) : (
-        <div>
-          <div className="relative" data-place-search>
+      ) : null}
+      <div
+        className={expanded ? undefined : "sr-only"}
+        aria-hidden={expanded ? undefined : true}
+      >
+        <div className="relative" data-place-search={expanded ? "" : undefined}>
+          {expanded && (
             <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              ref={inputRef}
-              placeholder="search for a place"
-              value={searchQuery}
-              onChange={(e) => onSearchQuery(e.target.value)}
-              onFocus={() => onSearchFocusChange(true)}
-              onBlur={() => onSearchFocusChange(false)}
-              // The keyboard's return key means "done": close it so the
-              // composer's CTA comes back.
-              enterKeyHint="search"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur()
-              }}
-              className="pr-9 pl-9"
-            />
+          )}
+          <Input
+            tabIndex={expanded ? undefined : -1}
+            ref={inputRef}
+            placeholder="search for a place"
+            value={searchQuery}
+            onChange={(e) => onSearchQuery(e.target.value)}
+            onFocus={() => onSearchFocusChange(true)}
+            onBlur={() => onSearchFocusChange(false)}
+            // The keyboard's return key means "done": close it so the
+            // composer's CTA comes back.
+            enterKeyHint="search"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur()
+            }}
+            className="pr-9 pl-9"
+          />
+          {expanded && (
             <button
               type="button"
               onClick={collapse}
@@ -2396,61 +2412,65 @@ function WherePicker({
             >
               <XIcon className="h-3 w-3" />
             </button>
-          </div>
-          {placesLoading && (
-            <p className="mt-1.5 text-xs text-muted-foreground">searching…</p>
           )}
-          {placeDetailsLoading && (
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              checking place...
-            </p>
-          )}
-          {placeDetailsError && (
-            <p className="mt-1.5 text-xs text-destructive" role="alert">
-              {placeDetailsError}
-            </p>
-          )}
-          {selectedLocation && !placeDetailsLoading && (
-            <p className="mt-1.5 truncate text-xs text-muted-foreground">
-              selected - {selectedLocation.address ?? selectedLocation.name}
-            </p>
-          )}
-          {!placesLoading &&
-            !placeDetailsLoading &&
-            !pickedSearchAddress &&
-            !selectedLocation &&
-            placeResults.length > 0 && (
-              <ul
-                className="mt-1.5 overflow-hidden rounded-lg border border-border bg-card"
-                // Keep focus in the input while a suggestion is pressed: a
-                // blur on press would bring the CTA back and shift the list
-                // out from under the finger before the tap lands.
-                onMouseDown={(e) => e.preventDefault()}
-              >
-                {placeResults.map((r) => (
-                  <li key={r.placeId}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onPickSearch(r)
-                        inputRef.current?.blur()
-                      }}
-                      className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
-                    >
-                      <MapPinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm">{r.label}</div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          {r.address}
-                        </div>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
         </div>
-      )}
+        {expanded && (
+          <>
+            {placesLoading && (
+              <p className="mt-1.5 text-xs text-muted-foreground">searching…</p>
+            )}
+            {placeDetailsLoading && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                checking place...
+              </p>
+            )}
+            {placeDetailsError && (
+              <p className="mt-1.5 text-xs text-destructive" role="alert">
+                {placeDetailsError}
+              </p>
+            )}
+            {selectedLocation && !placeDetailsLoading && (
+              <p className="mt-1.5 truncate text-xs text-muted-foreground">
+                selected - {selectedLocation.address ?? selectedLocation.name}
+              </p>
+            )}
+            {!placesLoading &&
+              !placeDetailsLoading &&
+              !pickedSearchAddress &&
+              !selectedLocation &&
+              placeResults.length > 0 && (
+                <ul
+                  className="mt-1.5 overflow-hidden rounded-lg border border-border bg-card"
+                  // Keep focus in the input while a suggestion is pressed: a
+                  // blur on press would bring the CTA back and shift the list
+                  // out from under the finger before the tap lands.
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  {placeResults.map((r) => (
+                    <li key={r.placeId}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onPickSearch(r)
+                          inputRef.current?.blur()
+                        }}
+                        className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-secondary"
+                      >
+                        <MapPinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm">{r.label}</div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {r.address}
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
