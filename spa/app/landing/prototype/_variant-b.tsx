@@ -176,7 +176,7 @@ function Floating({
   )
 }
 
-const APPS: { Icon: Icon; label: string; x: number; y: number }[] = [
+export const APPS: { Icon: Icon; label: string; x: number; y: number }[] = [
   { Icon: ChatIcon, label: "group chat", x: -150, y: -60 },
   { Icon: EnvelopeIcon, label: "email", x: 140, y: -80 },
   { Icon: CalendarBlankIcon, label: "calendar", x: -120, y: 80 },
@@ -184,7 +184,7 @@ const APPS: { Icon: Icon; label: string; x: number; y: number }[] = [
   { Icon: BellIcon, label: "reminders", x: 0, y: -130 },
 ]
 
-const PLANS = [
+export const PLANS = [
   "beer",
   "dinner",
   "picnic",
@@ -198,7 +198,13 @@ const PLANS = [
 /** Types each word, holds it, deletes it, and moves on. Reduced motion
  * shows the first word, still. The heading's accessible name is the first
  * word too, so screen readers don't hear the typing. */
-function Typewriter({ words }: { words: string[] }) {
+export function Typewriter({
+  words,
+  className = "text-accent-ink dark:text-primary",
+}: {
+  words: string[]
+  className?: string
+}) {
   const reduced = usePrefersReducedMotion()
   const [index, setIndex] = useState(0)
   const [chars, setChars] = useState(words[0].length)
@@ -224,7 +230,7 @@ function Typewriter({ words }: { words: string[] }) {
   return (
     <>
       <span className="sr-only">{words[0]}</span>
-      <span aria-hidden="true" className="text-accent-ink dark:text-primary">
+      <span aria-hidden="true" className={className}>
         {shown}
         <span className="lp-caret ml-0.5 inline-block h-[0.9em] w-[3px] translate-y-[0.1em] rounded-full bg-current" />
       </span>
@@ -234,7 +240,7 @@ function Typewriter({ words }: { words: string[] }) {
 
 /** True once the section has scrolled far enough for the apps to have
  * folded into the flare; false again when scrolled back, so it relights. */
-function useLit(ref: React.RefObject<HTMLElement | null>) {
+export function useLit(ref: React.RefObject<HTMLElement | null>) {
   const [lit, setLit] = useState(false)
   useEffect(() => {
     const el = ref.current
