@@ -22,17 +22,25 @@ import { Button } from "@/components/ui/button"
 import {
   coachMarkSteps,
   firstBoxInside,
+  homeCoachMarksVisible,
+  HOME_COACH_MARKS,
+  markHomeCoachMarksSeen,
+  useHomeCoachMarksPending,
   type Box,
   type CoachMark,
   type CoachMarkId,
 } from "@/lib/coach-marks"
+import { useShowOnboarding } from "@/lib/onboarding"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 
-/** What each mark points at. The view toggle carries `data-coach`. */
+/** What each mark points at. The view toggle and the menu button carry
+ * `data-coach`. */
 const TARGETS: Record<Exclude<CoachMarkId, "idea">, string> = {
   flare: 'nav[aria-label="Primary"] [data-nav-flare-circle]',
   calendar: '[data-coach="view-toggle"]',
+  circles: 'nav[aria-label="Primary"] button[aria-label="Circles"]',
+  menu: '[data-coach="menu"]',
 }
 
 // How long to wait for an idea spot to render (the map's clock, Google's
@@ -106,17 +114,31 @@ function spotlight(target: Box): Box & { round: boolean } {
   }
 }
 
-export function CoachMarks({ onDone }: { onDone: () => void }) {
-  // Null while looking for an idea spot; then the marks to run.
+/**
+ * `run` picks the marks: the signed-out map's (the default) or, #497, the
+ * signed-in home's circles tab and menu.
+ */
+export function CoachMarks({
+  onDone,
+  run = "signedOut",
+}: {
+  onDone: () => void
+  run?: "signedOut" | "home"
+}) {
+  // Null while looking for an idea spot; then the marks to run. The signed-in
+  // run has no idea spot to wait for.
   const [plan, setPlan] = useState<{
     steps: CoachMark[]
     ideaId: string | null
-  } | null>(null)
+  } | null>(() =>
+    run === "home" ? { steps: [...HOME_COACH_MARKS], ideaId: null } : null
+  )
   const [index, setIndex] = useState(0)
   const [target, setTarget] = useState<Box | null>(null)
   const [viewport, setViewport] = useState({ height: 0 })
 
   useEffect(() => {
+    if (run !== "signedOut") return
     // Counted, not timed: a frozen clock (tests, a paused tab) still ends it.
     let polls = 0
     const timer = window.setInterval(() => {
@@ -128,7 +150,7 @@ export function CoachMarks({ onDone }: { onDone: () => void }) {
       }
     }, IDEA_POLL_MS)
     return () => window.clearInterval(timer)
-  }, [])
+  }, [run])
 
   const mark = plan?.steps[index] ?? null
   const selector = mark ? selectorFor(mark.id, plan?.ideaId ?? null) : null
@@ -266,4 +288,44 @@ export function CoachMarks({ onDone }: { onDone: () => void }) {
       </div>
     </div>
   )
+}
+
+// ---- the signed-in run (#497) ----------------------------------------------
+
+/** Whether any dialog or sheet but the coach marks themselves is open. */
+function useDialogOpen(): boolean {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    const check = () =>
+      setOpen(
+        document.querySelector('[role="dialog"]:not([data-coach-mark])') !==
+          null
+      )
+    check()
+    const timer = window.setInterval(check, 300)
+    return () => window.clearInterval(timer)
+  }, [])
+  return open
+}
+
+/**
+ * #497 (behind `coachMarks`): the circles tab and the menu, once per device,
+ * on the signed-in home map. They wait for the post-sign-up checklist and
+ * first-friend step (#459), the first-run intro and every open sheet.
+ * `blocked` is the home's own state: the menu, the invite dialog, a flare's
+ * detail sheet, a dock card, or the calendar being up.
+ */
+export function HomeCoachMarks({ blocked }: { blocked: boolean }) {
+  const pending = useHomeCoachMarksPending()
+  const onboardingShowing = useShowOnboarding()
+  const dialogOpen = useDialogOpen()
+  const visible = homeCoachMarksVisible({
+    pending,
+    onboardingShowing,
+    blocked,
+    dialogOpen,
+  })
+  return visible ? (
+    <CoachMarks run="home" onDone={markHomeCoachMarksSeen} />
+  ) : null
 }
