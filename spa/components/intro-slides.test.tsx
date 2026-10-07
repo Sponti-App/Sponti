@@ -47,6 +47,20 @@ describe("IntroSlides (#377)", () => {
     expect(mocks.push).not.toHaveBeenCalled()
   })
 
+  it("keeps a scrim under the copy block on every slide, so the type reads over the art (#498)", () => {
+    render(<IntroSlides onLeave={vi.fn()} />)
+    const dialog = screen.getByRole("dialog")
+    for (const next of [0, 1, 2]) {
+      const scrim = dialog.querySelector("[data-intro-scrim]")
+      expect(scrim).not.toBeNull()
+      expect(scrim).toHaveAttribute("aria-hidden", "true")
+      // It sits in the copy block, with the heading.
+      expect(scrim?.parentElement).toContainElement(title())
+      if (next < 2)
+        fireEvent.click(screen.getByRole("button", { name: "next" }))
+    }
+  })
+
   it("moves with the arrow keys and the dots, and Escape skips", () => {
     const onLeave = vi.fn()
     render(<IntroSlides onLeave={onLeave} />)
