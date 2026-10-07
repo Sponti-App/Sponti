@@ -200,29 +200,6 @@ export function FlarePin({
 }
 
 /**
- * The key to the pin fills. Colour has to be learned and fails for some
- * colour-blind viewers, so it stays on screen while any flare pin is.
- */
-export function VisibilityLegend() {
-  return (
-    <div
-      data-map-legend
-      className="flex items-center gap-3 rounded-full bg-card/90 px-3 py-1 text-xs text-muted-foreground shadow backdrop-blur-md"
-    >
-      {(["private", "public"] as const).map((v) => (
-        <span key={v} className="flex items-center gap-1.5">
-          <span
-            aria-hidden="true"
-            className={`h-3 w-3 rounded-full border border-card ${VISIBILITY_FILL[v]}`}
-          />
-          {VISIBILITY_LABEL[v]}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-/**
  * The popover card over a tapped pin. The band is tinted by who can join and
  * shows the category as its icon only (the word is its accessible name). The
  * close button sits in the band, centred on it and flush with its right edge.

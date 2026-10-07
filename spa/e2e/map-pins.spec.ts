@@ -188,18 +188,14 @@ test.describe("map flare pins (#315)", () => {
     }
   })
 
-  test("the legend shows while flare pins are on the map", async ({ page }) => {
-    await openMap(page, [INVITE_LIVE])
-    await expect(legend(page)).toBeVisible()
-    await expect(legend(page)).toHaveText(/invite only.*open to all/)
-  })
-
-  test("no legend on an empty map", async ({ page }) => {
-    await openMap(page, [])
-    await expect(
-      page.getByRole("region", { name: "flares near you" })
-    ).toBeVisible()
+  test("no pin legend under the top bar, with or without pins (#490)", async ({
+    page,
+  }) => {
+    await openMap(page, [INVITE_LIVE, OPEN_SOON])
+    await expect(pin(page, INVITE_LIVE._id)).toBeVisible()
     await expect(legend(page)).toHaveCount(0)
+    await expect(page.getByText("invite only", { exact: true })).toHaveCount(0)
+    await expect(page.getByText("open to all", { exact: true })).toHaveCount(0)
   })
 
   test("the fallback map keeps the title before the ·", async ({ page }) => {

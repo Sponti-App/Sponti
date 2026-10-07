@@ -115,7 +115,8 @@ test.describe("browse before sign-up (#389)", () => {
     for (const pin of await flarePins(page).all()) {
       await expect(pin).toHaveAttribute("data-visibility", "public")
     }
-    await expect(page.locator("[data-map-legend]")).toBeVisible()
+    // #490: no pin legend under the top bar.
+    await expect(page.locator("[data-map-legend]")).toHaveCount(0)
     await expect(page.getByText("2 open flares in berlin")).toBeVisible()
 
     // The live / soon tabs narrow the pins.

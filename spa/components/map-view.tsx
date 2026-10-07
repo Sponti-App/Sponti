@@ -61,7 +61,6 @@ import { EVENT_TYPES } from "@/types/utils"
 import {
   FlarePin,
   FlarePreviewCard,
-  VisibilityLegend,
   flareTitle,
 } from "@/components/map-flare-pin"
 import { useRouter } from "next/navigation"
@@ -1110,9 +1109,9 @@ export function MapView({
       )}
 
       {/* Under the floating header chips (top-16 clears them): the
-          geolocation banner, then the pin legend while any flare pin is on
-          the map (#315). With the list page open the banner moves into the
-          list's header instead, and the legend has no pins to explain. */}
+          geolocation banner. With the list page open the banner moves into
+          the list's header instead. The pin legend (#315) is gone (#490):
+          the popover names who can join. */}
       {!listOpen && (
         <div className="pointer-events-none absolute inset-x-3 top-16 z-30 flex flex-col items-center gap-2">
           {start.area && (
@@ -1128,7 +1127,6 @@ export function MapView({
             showingCachedLocation={isUsingCachedLocation}
             onRetry={geo.request}
           />
-          {cameraCenter && pinEvents.length > 0 && <VisibilityLegend />}
         </div>
       )}
 

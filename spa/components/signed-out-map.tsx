@@ -23,7 +23,7 @@ import {
 import { useTheme } from "next-themes"
 import { FlameIcon, MapPinIcon } from "@/components/icons"
 import { LegalLinks } from "@/components/legal-links"
-import { FlarePin, VisibilityLegend } from "@/components/map-flare-pin"
+import { FlarePin } from "@/components/map-flare-pin"
 import {
   FLARE_PIN_SLOTS,
   IDEA_PIN_SLOTS,
@@ -177,9 +177,8 @@ export function SignedOutMap({
         <SignedOutStaticMap {...canvasProps} />
       )}
 
-      {/* Under the floating header chips: the area (or a picked area's
-          banner, #408), and the pin legend while any flare pin is on the map
-          (#315). */}
+      {/* Under the floating header chips: the area, or a picked area's
+          banner (#408). No pin legend (#490). */}
       <div className="pointer-events-none absolute inset-x-3 top-16 z-30 flex flex-col items-end gap-2">
         {banner}
         <div className="flex w-full items-center justify-between gap-2">
@@ -191,7 +190,6 @@ export function SignedOutMap({
               {located ? "near you" : areaLabel}
             </span>
           )}
-          {visiblePins.length > 0 && <VisibilityLegend />}
         </div>
       </div>
 
