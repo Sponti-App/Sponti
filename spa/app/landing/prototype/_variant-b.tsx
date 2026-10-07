@@ -22,6 +22,7 @@ import {
 } from "@/components/icons"
 import { LegalLinks } from "@/components/legal-links"
 import { WHO_REPORT_URL } from "@/components/intro-slides"
+import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import {
   ArtSlot,
@@ -38,13 +39,14 @@ import {
   spotlight,
   useInView,
   usePointerVar,
+  usePrefersReducedMotion,
   useScrollVar,
 } from "./_shared"
 
 export function VariantB() {
   return (
     <div className="flex flex-col">
-      <header className="sticky top-0 z-30 border-b border-border/40 bg-background/70 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-border/40 bg-background/30 backdrop-blur-sm">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-3 lg:px-8">
           <Logo />
           <OpenSponti className="h-9 px-4 text-xs shadow-none" />
@@ -182,9 +184,84 @@ const APPS: { Icon: Icon; label: string; x: number; y: number }[] = [
   { Icon: BellIcon, label: "reminders", x: 0, y: -130 },
 ]
 
+const PLANS = [
+  "beer",
+  "dinner",
+  "picnic",
+  "gig",
+  "bike ride",
+  "game night",
+  "sauna day",
+  "flea market run",
+]
+
+/** Types each word, holds it, deletes it, and moves on. Reduced motion
+ * shows the first word, still. The heading's accessible name is the first
+ * word too, so screen readers don't hear the typing. */
+function Typewriter({ words }: { words: string[] }) {
+  const reduced = usePrefersReducedMotion()
+  const [index, setIndex] = useState(0)
+  const [chars, setChars] = useState(words[0].length)
+  const [deleting, setDeleting] = useState(false)
+  useEffect(() => {
+    if (reduced) return
+    const word = words[index]
+    const timer = window.setTimeout(
+      () => {
+        if (!deleting && chars < word.length) setChars(chars + 1)
+        else if (!deleting) setDeleting(true)
+        else if (chars > 0) setChars(chars - 1)
+        else {
+          setDeleting(false)
+          setIndex((index + 1) % words.length)
+        }
+      },
+      !deleting && chars === word.length ? 1600 : deleting ? 45 : 85
+    )
+    return () => window.clearTimeout(timer)
+  }, [reduced, words, index, chars, deleting])
+  const shown = reduced ? words[0] : words[index].slice(0, chars)
+  return (
+    <>
+      <span className="sr-only">{words[0]}</span>
+      <span aria-hidden="true" className="text-accent-ink dark:text-primary">
+        {shown}
+        <span className="lp-caret ml-0.5 inline-block h-[0.9em] w-[3px] translate-y-[0.1em] rounded-full bg-current" />
+      </span>
+    </>
+  )
+}
+
+/** True once the section has scrolled far enough for the apps to have
+ * folded into the flare; false again when scrolled back, so it relights. */
+function useLit(ref: React.RefObject<HTMLElement | null>) {
+  const [lit, setLit] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let frame = 0
+    const check = () => {
+      frame = 0
+      const p = Number(el.style.getPropertyValue("--p") || 0)
+      setLit((was) => (was ? p > 0.55 : p >= 0.6))
+    }
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(check)
+    }
+    check()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener("scroll", onScroll)
+    }
+  }, [ref])
+  return lit
+}
+
 /** Five apps to plan one beer, folding into one flare as you scroll. */
 function Problem() {
   const ref = useScrollVar<HTMLElement>()
+  const lit = useLit(ref)
   // 0 → scattered, 1 → gathered (over the middle of the scroll).
   const gather = "clamp(0, calc((var(--p, 0) - 0.3) * 3.3), 1)"
   return (
@@ -195,7 +272,7 @@ function Problem() {
       <Reveal>
         <p className="text-sm font-medium text-muted-foreground">the problem</p>
         <h2 className="mt-3 text-3xl leading-tight font-medium tracking-tight lg:text-5xl">
-          five apps to plan one beer
+          five apps to plan one <Typewriter words={PLANS} />
         </h2>
         <p className="mt-5 max-w-md text-muted-foreground lg:text-lg">
           a poll in the group chat, a link in an email, an event nobody opens, a
@@ -218,13 +295,23 @@ function Problem() {
           </span>
         ))}
         <span
-          className="absolute top-1/2 left-1/2 flex size-20 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-[0_0_60px_-10px_var(--accent)]"
+          data-lit={lit}
+          className="lp-flare absolute top-1/2 left-1/2 flex size-32 items-center justify-center rounded-full bg-accent text-accent-foreground lg:size-36"
           style={{
-            transform: `translate(-50%, -50%) scale(calc(0.3 + ${gather} * 0.7))`,
+            transform: `translate(-50%, -50%) scale(calc(0.25 + ${gather} * 0.75))`,
             opacity: gather,
           }}
         >
-          <FlameIcon className="size-9" />
+          <span aria-hidden="true" className="lp-flare-ring" />
+          <span
+            aria-hidden="true"
+            className="lp-flare-ring"
+            style={{ animationDelay: "0.35s" }}
+          />
+          <FlameIcon
+            weight="fill"
+            className="lp-flare-icon size-14 lg:size-16"
+          />
         </span>
       </div>
     </section>
@@ -297,8 +384,8 @@ function HowCard({
         <span className="text-sm text-muted-foreground tabular-nums">{n}</span>
         <p className="mt-1 text-lg font-semibold">{title}</p>
         <p className="text-muted-foreground">{body}</p>
-        <div className="mt-6 flex h-[22rem] justify-center overflow-hidden">
-          <Phone className="w-[13rem] translate-y-4 transition-transform duration-500 group-hover:translate-y-0">
+        <div className="mt-6 flex justify-center">
+          <Phone className="w-[13rem] transition-transform duration-500 group-hover:-translate-y-1">
             <Screen play={inView} />
           </Phone>
         </div>

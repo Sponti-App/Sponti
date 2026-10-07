@@ -713,7 +713,19 @@ export function PrototypeStyles() {
       .lp-pop { animation: lp-pop .35s cubic-bezier(.3,1.4,.5,1) both; }
       @keyframes lp-float { 0%,100% { translate: 0 0 } 50% { translate: 0 -8px } }
       .lp-float { animation: lp-float 6s ease-in-out infinite; }
+      @keyframes lp-caret { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }
+      .lp-caret { animation: lp-caret 1s steps(1) infinite; }
+      .lp-flare { box-shadow: 0 0 40px -12px var(--accent); transition: box-shadow .6s ease; }
+      .lp-flare[data-lit="true"] { animation: lp-glow 2.4s ease-in-out .5s infinite; box-shadow: 0 0 90px 10px color-mix(in oklch, var(--accent) 55%, transparent), 0 0 30px 2px var(--accent); }
+      @keyframes lp-glow { 0%,100% { box-shadow: 0 0 90px 10px color-mix(in oklch, var(--accent) 55%, transparent), 0 0 30px 2px var(--accent) } 50% { box-shadow: 0 0 130px 24px color-mix(in oklch, var(--accent) 40%, transparent), 0 0 40px 6px var(--accent) } }
+      .lp-flare-ring { position: absolute; inset: 0; border-radius: 9999px; border: 2px solid var(--accent); opacity: 0; pointer-events: none; }
+      .lp-flare[data-lit="true"] .lp-flare-ring { animation: lp-burst 1.1s cubic-bezier(.2,.7,.3,1) both; }
+      @keyframes lp-burst { from { transform: scale(1); opacity: .9 } to { transform: scale(2.4); opacity: 0 } }
+      .lp-flare-icon { transition: transform .5s cubic-bezier(.3,1.6,.5,1); }
+      .lp-flare[data-lit="true"] .lp-flare-icon { transform: scale(1.12); animation: lp-flicker 1.8s ease-in-out .6s infinite; transform-origin: 50% 85%; }
+      @keyframes lp-flicker { 0%,100% { transform: scale(1.12) rotate(0) } 25% { transform: scale(1.16,1.08) rotate(-3deg) } 50% { transform: scale(1.1,1.16) rotate(2deg) } 75% { transform: scale(1.15,1.1) rotate(-1deg) } }
       @media (prefers-reduced-motion: reduce) {
+        .lp-caret, .lp-flare[data-lit="true"], .lp-flare[data-lit="true"] .lp-flare-ring, .lp-flare[data-lit="true"] .lp-flare-icon { animation: none; }
         .lp-reveal { opacity: 1; transform: none; transition: none; }
         .lp-pop, .lp-float { animation: none; }
         [data-landing-v2] * { transition-duration: 0s !important; }

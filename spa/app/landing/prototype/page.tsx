@@ -26,8 +26,8 @@ type Key = keyof typeof VARIANTS
 
 function Prototype() {
   const params = useSearchParams()
-  const v = (params.get("v") ?? "a") as Key
-  const key: Key = v in VARIANTS ? v : "a"
+  const v = (params.get("v") ?? "b") as Key
+  const key: Key = v in VARIANTS ? v : "b"
   const { View } = VARIANTS[key]
   const bar = params.get("bar") !== "0"
   return (
