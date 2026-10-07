@@ -263,6 +263,7 @@ describe("MapView quiet card", () => {
         id: "e1",
         title: "picnic at humboldthain",
         type: "hangout",
+        visibility: "public",
         startAt: new Date(JUNE - 10 * 60_000).toISOString(),
         endAt: new Date(JUNE + 60 * 60_000).toISOString(),
         going: 1,

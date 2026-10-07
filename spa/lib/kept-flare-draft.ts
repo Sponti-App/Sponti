@@ -2,7 +2,7 @@ import { FLARE_IDEAS, type FlareIdea } from "@/lib/flare-ideas.data"
 import { REDIRECT_PARAM } from "@/lib/redirect-path"
 
 // #389: the flare a signed-out visitor started (an idea spot, or a blank
-// flare from the flare button or the FAB), kept across the sign-up or sign-in
+// flare from the nav's flare button), kept across the sign-up or sign-in
 // round trip so they land back in the composer with it.
 //
 // Only the idea's id is stored, never free text: on the way back it is looked

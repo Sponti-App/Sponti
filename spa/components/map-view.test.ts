@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import type { EventItem, EventType } from "@/lib/api/events"
-import { bottomOccupiedCss, quietFlareType } from "./map-view"
+import { bottomOccupiedCss, quietFlareType, swipeClosesSheet } from "./map-view"
 
 // --sponti-bottom-occupied is the distance from the viewport bottom to the
 // top of whatever the map docks on the nav, so bottom-docked UI outside the
@@ -75,5 +75,25 @@ describe("quietFlareType", () => {
     expect(
       quietFlareType(new Set<EventType>(["food", "party"]), [], NOW)
     ).toBeNull()
+  })
+})
+
+// #492: when a downward drag on the list page's handle closes it.
+describe("swipeClosesSheet", () => {
+  it("closes past 100px, however slow", () => {
+    expect(swipeClosesSheet(100, 2000)).toBe(true)
+    expect(swipeClosesSheet(99, 2000)).toBe(false)
+  })
+
+  it("closes on a quick flick over a short distance", () => {
+    expect(swipeClosesSheet(40, 60)).toBe(true)
+  })
+
+  it("a tiny jiggle never closes, however fast", () => {
+    expect(swipeClosesSheet(10, 5)).toBe(false)
+  })
+
+  it("an upward or zero drag never closes", () => {
+    expect(swipeClosesSheet(0, 0)).toBe(false)
   })
 })

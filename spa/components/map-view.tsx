@@ -61,7 +61,6 @@ import { EVENT_TYPES } from "@/types/utils"
 import {
   FlarePin,
   FlarePreviewCard,
-  VisibilityLegend,
   flareTitle,
 } from "@/components/map-flare-pin"
 import { useRouter } from "next/navigation"
@@ -497,12 +496,12 @@ function GoogleMapContent({
   )
 }
 
-// Variant C of #223: no draggable sheet. The dock (filter bar, plus the FAB
-// at peek or the card rail at mid) and the full list page are fixed to
+// Variant C of #223: no draggable sheet. The dock (filter bar, plus the card
+// rail at mid) and the full list page are fixed to
 // bottom: var(--sponti-nav-h), the same coordinate system as the nav, so
 // they sit flush on it in every browser mode and never cover it. Buttons
 // switch the state; a vertical swipe on the dock is only a shortcut.
-//   peek: filter bar + FAB
+//   peek: filter bar only (no FAB since #491: the nav's flare button)
 //   mid:  filter bar + a horizontal card rail
 //   full: a plain list page from under the header chips down to the nav
 export type DockState = "peek" | "mid" | "full"
@@ -1015,6 +1014,11 @@ export function MapView({
     else if (dock === "mid") snap("peek")
   }
 
+  // #492: the list page closes like the app's other sheets: a drag handle,
+  // and a swipe down on the handle or the title row. The page follows the
+  // finger; let go past the threshold (or flick) and it goes back to the map.
+  const listSwipe = useSwipeDownToClose(() => snap("mid"))
+
   const railRef = useRef<HTMLDivElement | null>(null)
   const syncRailFocus = () => {
     const rail = railRef.current
@@ -1112,9 +1116,9 @@ export function MapView({
       )}
 
       {/* Under the floating header chips (top-16 clears them): the
-          geolocation banner, then the pin legend while any flare pin is on
-          the map (#315). With the list page open the banner moves into the
-          list's header instead, and the legend has no pins to explain. */}
+          geolocation banner. With the list page open the banner moves into
+          the list's header instead. The pin legend (#315) is gone (#490):
+          the popover names who can join. */}
       {!listOpen && (
         <div className="pointer-events-none absolute inset-x-3 top-16 z-30 flex flex-col items-center gap-2">
           {start.area && (
@@ -1130,7 +1134,6 @@ export function MapView({
             showingCachedLocation={isUsingCachedLocation}
             onRetry={geo.request}
           />
-          {cameraCenter && pinEvents.length > 0 && <VisibilityLegend />}
         </div>
       )}
 
@@ -1155,35 +1158,23 @@ export function MapView({
           dockHidden ? "invisible opacity-0" : ""
         }`}
       >
-        {/* Map controls. The plain FAB only shows at peek: from mid up the
-            nav's flare button is right below and does the same. Recenter
-            is only meaningful on a real Google map. */}
-        {(dock === "peek" || (hasInteractiveMap && dock === "mid")) && (
+        {/* Map controls: only recenter, and only on a real Google map. The
+            nav's flare button is the one way to light a flare (#491), so the
+            map has no FAB. */}
+        {hasInteractiveMap && dock !== "full" && (
           <div className="flex flex-col items-end gap-3 px-4">
-            {hasInteractiveMap && (
-              <button
-                type="button"
-                onClick={() => {
-                  haptic("light")
-                  if (!hasCurrentLocation) start.requestLocation()
-                  else setRecenterTick((n) => n + 1)
-                }}
-                aria-label="Recenter on my location"
-                className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md active:scale-95"
-              >
-                <GpsFixIcon className="h-5 w-5" />
-              </button>
-            )}
-            {dock === "peek" && (
-              <button
-                type="button"
-                onClick={() => lightFlare()}
-                aria-label="Light a flare"
-                className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg active:scale-95"
-              >
-                <FlameIcon className="h-6 w-6" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                haptic("light")
+                if (!hasCurrentLocation) start.requestLocation()
+                else setRecenterTick((n) => n + 1)
+              }}
+              aria-label="Recenter on my location"
+              className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md active:scale-95"
+            >
+              <GpsFixIcon className="h-5 w-5" />
+            </button>
           </div>
         )}
 
@@ -1313,8 +1304,9 @@ export function MapView({
         </div>
       </div>
 
-      {/* Full: a plain list page between the header chips and the nav. It
-          scrolls natively; nothing to drag. */}
+      {/* Full: a plain list page between the header chips and the nav. The
+          list scrolls natively; the handle and the title row drag it down to
+          close (#492). */}
       <div
         role="region"
         aria-label="flare list"
@@ -1324,6 +1316,9 @@ export function MapView({
           top: TOP_RESERVED_CSS,
           bottom: NAV_RESERVED_CSS,
           transitionTimingFunction: SHEET_EASE,
+          // While a finger holds it the page follows without easing.
+          ...(listSwipe.offset > 0 && { translate: `0 ${listSwipe.offset}px` }),
+          ...(listSwipe.dragging && { transitionDuration: "0ms" }),
         }}
         className={`fixed inset-x-0 z-20 flex flex-col rounded-t-3xl bg-background shadow-(--shadow-sheet) transition-[translate,visibility] duration-500 ${
           listOpen
@@ -1331,21 +1326,40 @@ export function MapView({
             : "pointer-events-none invisible translate-y-[calc(100%+8rem)]"
         }`}
       >
-        <div className="shrink-0 space-y-2 px-4 pt-4 pb-2">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-base font-semibold">flares near you</h2>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {statusLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() => snap("mid")}
-                className="flex h-8 items-center gap-1 rounded-full bg-card px-3 text-xs font-medium text-primary active:scale-[0.97]"
-              >
-                <MapTrifoldIcon className="h-3.5 w-3.5" />
-                map
-              </button>
+        <div className="shrink-0 space-y-2 px-4 pb-2">
+          <div
+            data-list-drag
+            {...listSwipe.handlers}
+            className="-mx-4 touch-none px-4 select-none"
+          >
+            {/* The same handle as the app's drawers (ui/drawer.tsx). A tap
+                on it closes too, so closing never depends on a gesture. */}
+            <button
+              type="button"
+              aria-label="close list"
+              onClick={listSwipe.guardClick(() => snap("mid"))}
+              className="flex h-7 w-full items-center justify-center"
+            >
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-10 rounded-full bg-border"
+              />
+            </button>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold">flares near you</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {statusLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={listSwipe.guardClick(() => snap("mid"))}
+                  className="flex h-8 items-center gap-1 rounded-full bg-card px-3 text-xs font-medium text-primary active:scale-[0.97]"
+                >
+                  <MapTrifoldIcon className="h-3.5 w-3.5" />
+                  map
+                </button>
+              </div>
             </div>
           </div>
           {listOpen && (
@@ -2098,6 +2112,24 @@ export function QuietFlareCard({
   )
 }
 
+// #493: a rail card carries its pin's colour (map-flare-pin.tsx): a shade of
+// plum for invite only, of teal for open to all, with the icon in a circle of
+// the pin's own fill. Text stays foreground / muted-foreground, AA on both
+// tints in both modes. Full class names so Tailwind sees them.
+const RAIL_CARD_TINT: Record<
+  EventItem["visibility"],
+  { card: string; icon: string }
+> = {
+  private: {
+    card: "border-flare-invite bg-flare-invite-tint",
+    icon: "bg-flare-invite text-flare-invite-ink",
+  },
+  public: {
+    card: "border-flare-open bg-flare-open-tint",
+    icon: "bg-flare-open text-flare-open-ink",
+  },
+}
+
 /**
  * A flare in the mid-state rail. Content height (the rail aligns its items to
  * the end, so a taller neighbour doesn't stretch it), and no swipe-to-join:
@@ -2117,17 +2149,22 @@ function RailCard({
   const { user: authUser } = useAuth()
   const live = isLive(event)
   const metaText = useFlareMeta(event, user, live ? "live" : "upcoming")
+  const tint = RAIL_CARD_TINT[event.visibility]
   return (
     <button
       type="button"
       data-rail-id={event.id}
+      data-visibility={event.visibility}
       onClick={onClick}
-      className={`flex w-[78%] max-w-80 shrink-0 snap-center flex-col gap-2 rounded-2xl border border-border bg-card p-3 text-left shadow-(--shadow-card) active:scale-[0.99] ${
+      className={`flex w-[78%] max-w-80 shrink-0 snap-center flex-col gap-2 rounded-2xl border p-3 text-left shadow-(--shadow-card) active:scale-[0.99] ${tint.card} ${
         live ? "border-l-[3px] border-l-accent" : ""
       }`}
     >
       <div className="flex w-full items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
+        <div
+          data-rail-icon
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${tint.icon}`}
+        >
           <FlareTypeIcon event={event} />
         </div>
         <div className="min-w-0 flex-1">
@@ -2165,4 +2202,102 @@ function FlareTypeIcon({ event }: { event: EventItem }) {
   if (!match) return <span className="text-sm">{event.host.avatar}</span>
   const Icon = match.icon
   return <Icon className="h-5 w-5" />
+}
+
+// #492: how far down (px) the list page has to be dragged, or how fast
+// (px/ms) it has to be flicked, to close on release. Like vaul's drawers: a
+// quarter of a phone's sheet, or a quick flick over a short distance.
+const SWIPE_CLOSE_PX = 100
+const SWIPE_CLOSE_VELOCITY = 0.5
+const SWIPE_FLICK_MIN_PX = 24
+// Movement under this is a tap, not a drag.
+const SWIPE_SLOP_PX = 6
+
+/** Whether a downward drag of `dy` px over `ms` ms closes the sheet. */
+export function swipeClosesSheet(dy: number, ms: number): boolean {
+  if (dy >= SWIPE_CLOSE_PX) return true
+  return (
+    dy >= SWIPE_FLICK_MIN_PX && dy / Math.max(ms, 1) >= SWIPE_CLOSE_VELOCITY
+  )
+}
+
+/**
+ * Drag-down-to-close for the list page (#492). Pointer events, so it works
+ * with touch and a mouse. The zone it is spread on needs `touch-none` so the
+ * browser doesn't scroll or refresh the page instead. Once a press starts in
+ * the zone its moves are followed on the window, since the finger leaves the
+ * zone at once (pointer capture would also take the click away from the
+ * zone's buttons). Upward drags are ignored: the page is already open. A drag
+ * that moved isn't also a tap: wrap the zone's buttons in `guardClick`.
+ */
+function useSwipeDownToClose(onClose: () => void) {
+  const [offset, setOffset] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const moved = useRef(false)
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+  // Removes the window listeners of the drag in progress, if any.
+  const stopRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => stopRef.current?.(), [])
+
+  const onPointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return
+    stopRef.current?.()
+    const id = e.pointerId
+    const startY = e.clientY
+    const startT = e.timeStamp
+    moved.current = false
+
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== id) return
+      const dy = ev.clientY - startY
+      if (!moved.current) {
+        if (Math.abs(dy) < SWIPE_SLOP_PX) return
+        moved.current = true
+        setDragging(true)
+      }
+      setOffset(Math.max(0, dy))
+    }
+    const finish = (ev: PointerEvent, cancelled: boolean) => {
+      if (ev.pointerId !== id) return
+      stop()
+      setDragging(false)
+      setOffset(0)
+      const dy = Math.max(0, ev.clientY - startY)
+      if (
+        !cancelled &&
+        moved.current &&
+        swipeClosesSheet(dy, ev.timeStamp - startT)
+      ) {
+        onCloseRef.current()
+      }
+    }
+    const up = (ev: PointerEvent) => finish(ev, false)
+    const cancel = (ev: PointerEvent) => finish(ev, true)
+    const stop = () => {
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", up)
+      window.removeEventListener("pointercancel", cancel)
+      stopRef.current = null
+    }
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", up)
+    window.addEventListener("pointercancel", cancel)
+    stopRef.current = stop
+  }
+
+  return {
+    offset,
+    dragging,
+    handlers: { onPointerDown },
+    guardClick: (action: () => void) => () => {
+      if (moved.current) {
+        moved.current = false
+        return
+      }
+      action()
+    },
+  }
 }

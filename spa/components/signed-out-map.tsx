@@ -8,8 +8,9 @@
 // on berlin, where the idea spots are, unless the location ask (#408, behind
 // `locationAsk`) gave it the visitor's position or a picked area.
 //
-// Every way of doing something here (a pin, an idea's "light a flare", the
-// FAB) is handed to the parent, which asks the visitor to sign up.
+// Every way of doing something here (a pin, an idea's "light a flare") is
+// handed to the parent, which asks the visitor to sign up. Lighting a flare
+// is the nav's flare button; the map has no FAB (#491).
 
 import { useEffect, useMemo, useState } from "react"
 import {
@@ -21,9 +22,8 @@ import {
   useApiLoadingStatus,
 } from "@vis.gl/react-google-maps"
 import { useTheme } from "next-themes"
-import { FlameIcon } from "@/components/icons"
 import { LegalLinks } from "@/components/legal-links"
-import { FlarePin, VisibilityLegend } from "@/components/map-flare-pin"
+import { FlarePin } from "@/components/map-flare-pin"
 import {
   FLARE_PIN_SLOTS,
   IDEA_PIN_SLOTS,
@@ -66,7 +66,6 @@ export function SignedOutMap({
   dockHidden = false,
   onPin,
   onLightIdea,
-  onLight,
 }: {
   center?: GeoCoords
   areaLabel?: string
@@ -74,14 +73,12 @@ export function SignedOutMap({
   located?: boolean
   /** A picked area's banner, under the header chips (#408). */
   banner?: React.ReactNode
-  /** Hide the dock (and its peach fab) under the location ask (#408). */
+  /** Hide the dock under the location ask (#408). */
   dockHidden?: boolean
   /** An open-to-all pin was tapped. */
   onPin: (pin: PublicMapPin) => void
   /** An idea card's "light a flare". */
   onLightIdea: (idea: FlareIdea) => void
-  /** The FAB. */
-  onLight: () => void
 }) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   const [nowMs, setNowMs] = useState(0)
@@ -177,12 +174,11 @@ export function SignedOutMap({
         <SignedOutStaticMap {...canvasProps} />
       )}
 
-      {/* Under the floating header chips: a picked area's banner (#408), and
-          the pin legend while any flare pin is on the map (#315). The area
-          itself is in the sheet's heading below (#496). */}
+      {/* Under the floating header chips: a picked area's banner (#408). The
+          area itself is in the sheet's heading below (#496); no pin legend
+          (#490). */}
       <div className="pointer-events-none absolute inset-x-3 top-16 z-30 flex flex-col items-end gap-2">
         {banner}
-        {visiblePins.length > 0 && <VisibilityLegend />}
       </div>
 
       {/* The dock sits on the nav, like the signed-in map's. */}
@@ -194,20 +190,6 @@ export function SignedOutMap({
           dockHidden ? "invisible" : ""
         }`}
       >
-        <div className="flex justify-end px-4">
-          <button
-            type="button"
-            onClick={() => {
-              haptic("medium")
-              onLight()
-            }}
-            aria-label="Light a flare"
-            className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg active:scale-95"
-          >
-            <FlameIcon className="h-6 w-6" />
-          </button>
-        </div>
-
         {tappedIdea && tappedIdeaType ? (
           <QuietFlareCard
             type={tappedIdeaType}

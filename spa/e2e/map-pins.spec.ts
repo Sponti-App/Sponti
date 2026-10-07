@@ -188,18 +188,14 @@ test.describe("map flare pins (#315)", () => {
     }
   })
 
-  test("the legend shows while flare pins are on the map", async ({ page }) => {
-    await openMap(page, [INVITE_LIVE])
-    await expect(legend(page)).toBeVisible()
-    await expect(legend(page)).toHaveText(/invite only.*open to all/)
-  })
-
-  test("no legend on an empty map", async ({ page }) => {
-    await openMap(page, [])
-    await expect(
-      page.getByRole("region", { name: "flares near you" })
-    ).toBeVisible()
+  test("no pin legend under the top bar, with or without pins (#490)", async ({
+    page,
+  }) => {
+    await openMap(page, [INVITE_LIVE, OPEN_SOON])
+    await expect(pin(page, INVITE_LIVE._id)).toBeVisible()
     await expect(legend(page)).toHaveCount(0)
+    await expect(page.getByText("invite only", { exact: true })).toHaveCount(0)
+    await expect(page.getByText("open to all", { exact: true })).toHaveCount(0)
   })
 
   test("the fallback map labels an untitled flare with its host (#494)", async ({
@@ -377,4 +373,88 @@ test.describe("pins follow the filters (#364)", () => {
     await typeChip(page, "drinks").click()
     await expect(popover(page)).toBeHidden()
   })
+})
+
+// #493: the rail's flare cards carry their pin's colour instead of the flat
+// card colour: a shade of plum for invite only, of teal for open to all, in
+// both modes, with AA text on it. Live keeps the peach left strip.
+test.describe("rail cards tinted by who can join (#493)", () => {
+  const railCard = (page: Page, id: string) =>
+    page
+      .getByRole("region", { name: "flares near you" })
+      .locator(`[data-rail-id="${id}"]`)
+
+  /** WCAG contrast of the element's text colour on its background. */
+  const textContrast = (el: Locator, bg: Locator) =>
+    Promise.all([
+      el.evaluate((n) => getComputedStyle(n).color),
+      bg.evaluate((n) => getComputedStyle(n).backgroundColor),
+    ]).then(([fg, back]) =>
+      el.page().evaluate(
+        ({ fg, back }) => {
+          // The canvas turns any CSS colour (oklch included) into sRGB.
+          const ctx = document.createElement("canvas").getContext("2d")!
+          const lum = (color: string) => {
+            ctx.clearRect(0, 0, 1, 1)
+            ctx.fillStyle = color
+            ctx.fillRect(0, 0, 1, 1)
+            const [r, g, b] = Array.from(ctx.getImageData(0, 0, 1, 1).data)
+            const lin = (c: number) => {
+              const v = c / 255
+              return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+            }
+            return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+          }
+          const [a, b] = [lum(fg), lum(back)]
+          return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+        },
+        { fg, back }
+      )
+    )
+
+  for (const colorScheme of ["light", "dark"] as const) {
+    test(`invite only is plum, open to all is teal, text is AA (${colorScheme})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme })
+      await openMap(page, [INVITE_LIVE, OPEN_SOON])
+
+      const invite = railCard(page, INVITE_LIVE._id)
+      const open = railCard(page, OPEN_SOON._id)
+      await expect(invite).toHaveAttribute("data-visibility", "private")
+      await expect(open).toHaveAttribute("data-visibility", "public")
+
+      const [inviteTint, openTint, card] = await Promise.all([
+        tokenColor(page, "--flare-invite-tint"),
+        tokenColor(page, "--flare-open-tint"),
+        tokenColor(page, "--card"),
+      ])
+      expect(inviteTint).not.toBe(openTint)
+      expect((await style(invite)).background).toBe(inviteTint)
+      expect((await style(open)).background).toBe(openTint)
+      expect((await style(invite)).background).not.toBe(card)
+
+      // The icon sits in the pin's own fill.
+      expect((await style(invite.locator("[data-rail-icon]"))).background).toBe(
+        await tokenColor(page, "--flare-invite")
+      )
+      expect((await style(open.locator("[data-rail-icon]"))).background).toBe(
+        await tokenColor(page, "--flare-open")
+      )
+
+      // Title and meta line, AA for normal text.
+      for (const c of [invite, open]) {
+        for (const text of await c.locator("p").all()) {
+          expect(await textContrast(text, c)).toBeGreaterThanOrEqual(4.5)
+        }
+      }
+
+      // Live keeps its peach strip; a soon card has none.
+      const accent = await tokenColor(page, "--accent", "color")
+      const leftBorder = (el: Locator) =>
+        el.evaluate((n) => getComputedStyle(n).borderLeftColor)
+      expect(await leftBorder(invite)).toBe(accent)
+      expect(await leftBorder(open)).not.toBe(accent)
+    })
+  }
 })
