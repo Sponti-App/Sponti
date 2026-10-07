@@ -2109,6 +2109,24 @@ export function QuietFlareCard({
   )
 }
 
+// #493: a rail card carries its pin's colour (map-flare-pin.tsx): a shade of
+// plum for invite only, of teal for open to all, with the icon in a circle of
+// the pin's own fill. Text stays foreground / muted-foreground, AA on both
+// tints in both modes. Full class names so Tailwind sees them.
+const RAIL_CARD_TINT: Record<
+  EventItem["visibility"],
+  { card: string; icon: string }
+> = {
+  private: {
+    card: "border-flare-invite bg-flare-invite-tint",
+    icon: "bg-flare-invite text-flare-invite-ink",
+  },
+  public: {
+    card: "border-flare-open bg-flare-open-tint",
+    icon: "bg-flare-open text-flare-open-ink",
+  },
+}
+
 /**
  * A flare in the mid-state rail. Content height (the rail aligns its items to
  * the end, so a taller neighbour doesn't stretch it), and no swipe-to-join:
@@ -2127,17 +2145,22 @@ function RailCard({
 }) {
   const live = isLive(event)
   const metaText = useFlareMeta(event, user, live ? "live" : "upcoming")
+  const tint = RAIL_CARD_TINT[event.visibility]
   return (
     <button
       type="button"
       data-rail-id={event.id}
+      data-visibility={event.visibility}
       onClick={onClick}
-      className={`flex w-[78%] max-w-80 shrink-0 snap-center flex-col gap-2 rounded-2xl border border-border bg-card p-3 text-left shadow-(--shadow-card) active:scale-[0.99] ${
+      className={`flex w-[78%] max-w-80 shrink-0 snap-center flex-col gap-2 rounded-2xl border p-3 text-left shadow-(--shadow-card) active:scale-[0.99] ${tint.card} ${
         live ? "border-l-[3px] border-l-accent" : ""
       }`}
     >
       <div className="flex w-full items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
+        <div
+          data-rail-icon
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${tint.icon}`}
+        >
           <FlareTypeIcon event={event} />
         </div>
         <div className="min-w-0 flex-1">

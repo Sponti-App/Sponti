@@ -569,22 +569,16 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
       }),
     ])
     const railCard = rail(page).locator('[data-rail-id="e-sports"]')
+    // Not the colour: a rail card is tinted by who can join (#493), and an
+    // idea isn't a flare, so it keeps the plain card colour.
     const railStyle = await railCard.evaluate((el) => {
       const cs = getComputedStyle(el)
-      return {
-        radius: cs.borderRadius,
-        pad: cs.padding,
-        bg: cs.backgroundColor,
-      }
+      return { radius: cs.borderRadius, pad: cs.padding }
     })
     await chip(page, "drinks").click()
     const ideaStyle = await quietCard(page).evaluate((el) => {
       const cs = getComputedStyle(el)
-      return {
-        radius: cs.borderRadius,
-        pad: cs.padding,
-        bg: cs.backgroundColor,
-      }
+      return { radius: cs.borderRadius, pad: cs.padding }
     })
     expect(ideaStyle).toEqual(railStyle)
   })
