@@ -97,6 +97,37 @@ test.describe("landing page (#467, #506)", () => {
     await expect(page.locator("footer [data-testing-note]")).toHaveCount(1)
   })
 
+  test("the footer's waitlist signs up through formspree, with a mail link to say hi", async ({
+    page,
+  }) => {
+    let posted: unknown = null
+    await page.route("https://formspree.io/**", async (route) => {
+      posted = route.request().postDataJSON()
+      await route.fulfill({ json: { ok: true } })
+    })
+    await page.goto("/landing")
+    const footer = page.locator("footer")
+    await expect(
+      footer.getByRole("link", { name: /say hi: hello@sponti\.fun/ })
+    ).toHaveAttribute("href", "mailto:hello@sponti.fun")
+    await footer.getByLabel("your email").fill("someone@example.com")
+    await footer.getByRole("button", { name: "keep me posted" }).click()
+    await expect(footer.getByRole("status")).toContainText("you're on the list")
+    expect(posted).toEqual({ email: "someone@example.com", source: "landing" })
+  })
+
+  test("the waitlist says so when the sign-up fails", async ({ page }) => {
+    await page.route("https://formspree.io/**", (route) =>
+      route.fulfill({ status: 500, json: {} })
+    )
+    await page.goto("/landing")
+    const footer = page.locator("footer")
+    await footer.getByLabel("your email").fill("someone@example.com")
+    await footer.getByRole("button", { name: "keep me posted" }).click()
+    await expect(footer.getByRole("alert")).toContainText("didn't go through")
+    await expect(footer.getByLabel("your email")).toBeVisible()
+  })
+
   test("desktop: a qr code of the app sits by the calls to action", async ({
     page,
     isMobile,

@@ -1,11 +1,12 @@
 "use client"
 
-import { createContext, useContext } from "react"
+import { createContext, useContext, useState, type FormEvent } from "react"
 import {
   ArrowRightIcon,
   BellIcon,
   CalendarBlankIcon,
   ChatIcon,
+  CheckIcon,
   EnvelopeIcon,
   FlameIcon,
   LockIcon,
@@ -76,8 +77,9 @@ export function LandingPage({ appUrl }: { appUrl: string }) {
           <Why />
           <Closing />
         </main>
-        <footer className="flex flex-col items-center gap-3 border-t border-border/60 px-6 py-6">
-          <TestingNote className="justify-center" />
+        <footer className="flex flex-col items-center gap-3 border-t border-border/60 px-6 pt-12 pb-6">
+          <Waitlist />
+          <TestingNote className="mt-8 justify-center" />
           <LegalLinks />
         </footer>
       </div>
@@ -169,6 +171,99 @@ function TestingNote({ className }: { className?: string }) {
       />
       <span>early testing in berlin. things may break.</span>
     </p>
+  )
+}
+
+// The same Formspree form the old sponti.fun used, so earlier sign-ups and
+// these land in one list.
+const WAITLIST_URL = "https://formspree.io/f/mojbenvd"
+const CONTACT_EMAIL = "hello@sponti.fun"
+
+/** The footer's waitlist for the stable version, plus a mail link to say hi. */
+function Waitlist() {
+  const [email, setEmail] = useState("")
+  const [state, setState] = useState<"idle" | "sending" | "done" | "failed">(
+    "idle"
+  )
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setState("sending")
+    try {
+      const res = await fetch(WAITLIST_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ email, source: "landing" }),
+      })
+      setState(res.ok ? "done" : "failed")
+    } catch {
+      setState("failed")
+    }
+  }
+
+  return (
+    <section
+      aria-labelledby="landing-waitlist"
+      className="flex w-full max-w-md flex-col items-center gap-3 text-center"
+    >
+      <h2 id="landing-waitlist" className="text-base font-semibold">
+        want the stable version?
+      </h2>
+      <p className="text-sm text-muted-foreground">
+        leave your email and we&apos;ll write once, when testing is done.
+      </p>
+      {state === "done" ? (
+        <p
+          role="status"
+          className="flex items-center gap-2 rounded-full bg-accent/15 px-4 py-2 text-sm"
+        >
+          <CheckIcon className="size-4 text-(--coral-text)" />
+          you&apos;re on the list. talk soon.
+        </p>
+      ) : (
+        <form
+          onSubmit={submit}
+          data-landing-waitlist
+          className="flex w-full flex-col gap-2 sm:flex-row"
+        >
+          <label htmlFor="landing-waitlist-email" className="sr-only">
+            your email
+          </label>
+          <input
+            id="landing-waitlist-email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="your email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="h-11 w-full min-w-0 rounded-full border border-border bg-white/70 px-4 text-sm placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={state === "sending"}
+            className="h-11 shrink-0 rounded-full bg-foreground px-5 text-sm font-semibold text-background transition-colors hover:bg-foreground/90 disabled:opacity-60"
+          >
+            {state === "sending" ? "adding..." : "keep me posted"}
+          </button>
+        </form>
+      )}
+      {state === "failed" && (
+        <p role="alert" className="text-xs text-(--coral-text)">
+          that didn&apos;t go through. try again, or mail us below.
+        </p>
+      )}
+      <a
+        href={`mailto:${CONTACT_EMAIL}`}
+        className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+      >
+        <EnvelopeIcon className="size-4" />
+        or just say hi: {CONTACT_EMAIL}
+      </a>
+    </section>
   )
 }
 
