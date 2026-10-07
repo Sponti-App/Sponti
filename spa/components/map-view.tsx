@@ -494,12 +494,12 @@ function GoogleMapContent({
   )
 }
 
-// Variant C of #223: no draggable sheet. The dock (filter bar, plus the FAB
-// at peek or the card rail at mid) and the full list page are fixed to
+// Variant C of #223: no draggable sheet. The dock (filter bar, plus the card
+// rail at mid) and the full list page are fixed to
 // bottom: var(--sponti-nav-h), the same coordinate system as the nav, so
 // they sit flush on it in every browser mode and never cover it. Buttons
 // switch the state; a vertical swipe on the dock is only a shortcut.
-//   peek: filter bar + FAB
+//   peek: filter bar only (no FAB since #491: the nav's flare button)
 //   mid:  filter bar + a horizontal card rail
 //   full: a plain list page from under the header chips down to the nav
 export type DockState = "peek" | "mid" | "full"
@@ -1151,35 +1151,23 @@ export function MapView({
           dockHidden ? "invisible opacity-0" : ""
         }`}
       >
-        {/* Map controls. The plain FAB only shows at peek: from mid up the
-            nav's flare button is right below and does the same. Recenter
-            is only meaningful on a real Google map. */}
-        {(dock === "peek" || (hasInteractiveMap && dock === "mid")) && (
+        {/* Map controls: only recenter, and only on a real Google map. The
+            nav's flare button is the one way to light a flare (#491), so the
+            map has no FAB. */}
+        {hasInteractiveMap && dock !== "full" && (
           <div className="flex flex-col items-end gap-3 px-4">
-            {hasInteractiveMap && (
-              <button
-                type="button"
-                onClick={() => {
-                  haptic("light")
-                  if (!hasCurrentLocation) start.requestLocation()
-                  else setRecenterTick((n) => n + 1)
-                }}
-                aria-label="Recenter on my location"
-                className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md active:scale-95"
-              >
-                <GpsFixIcon className="h-5 w-5" />
-              </button>
-            )}
-            {dock === "peek" && (
-              <button
-                type="button"
-                onClick={() => lightFlare()}
-                aria-label="Light a flare"
-                className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg active:scale-95"
-              >
-                <FlameIcon className="h-6 w-6" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                haptic("light")
+                if (!hasCurrentLocation) start.requestLocation()
+                else setRecenterTick((n) => n + 1)
+              }}
+              aria-label="Recenter on my location"
+              className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md active:scale-95"
+            >
+              <GpsFixIcon className="h-5 w-5" />
+            </button>
           </div>
         )}
 

@@ -7,7 +7,7 @@ import {
 } from "./support/stubs"
 
 // #223: the home map's "flares near you" drawer is a dock (filter bar, plus
-// the FAB at peek or a card rail at mid) and a full-height list page, all
+// a card rail at mid; no FAB since #491) and a full-height list page, all
 // fixed to bottom: var(--sponti-nav-h). These guard the geometry contract
 // #109 asked for: whatever the map docks sits flush on the nav, never covers
 // it, and the document itself never scrolls. Chromium doesn't reproduce
@@ -88,21 +88,21 @@ test.describe("home map dock geometry (#223)", () => {
     const railBox = await box(rail(page))
     const dockBox = await box(dock(page))
     expect(railBox.y).toBeGreaterThanOrEqual(dockBox.y)
-    // FAB only at peek: from mid up the nav's flare button does the same.
+    // No FAB (#491): the nav's flare button is the only one.
     await expect(
       page.getByRole("button", { name: "Light a flare", exact: true })
     ).toBeHidden()
     expect(await navIsOnTop(page)).toBe(true)
   })
 
-  test("peek: the filter bar and FAB stay flush on the nav without the rail", async ({
+  test("peek: the filter bar stays flush on the nav without the rail, and there is no FAB (#491)", async ({
     page,
   }) => {
     await page.getByRole("button", { name: "hide cards" }).click()
     await expect(rail(page)).toBeHidden()
     await expect(
       page.getByRole("button", { name: "Light a flare", exact: true })
-    ).toBeVisible()
+    ).toHaveCount(0)
     expect(Math.abs(await gapAboveNav(page, dock(page)))).toBeLessThanOrEqual(1)
     expect(await navIsOnTop(page)).toBe(true)
 
@@ -311,15 +311,12 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
     await expect(navFlare(page).locator("svg[data-icon='bank']")).toBeVisible()
   })
 
-  test("the card shows at peek too, next to the FAB, and opens the composer", async ({
+  test("the card shows at peek too, and opens the composer", async ({
     page,
   }) => {
     await chip(page, "food").click()
     await page.getByRole("button", { name: "hide cards" }).click()
     await expect(quietCard(page)).toBeVisible()
-    await expect(
-      page.getByRole("button", { name: "Light a flare", exact: true })
-    ).toBeVisible()
 
     await quietCard(page)
       .getByRole("button", { name: "light a food flare" })

@@ -89,7 +89,6 @@ export function SignedOutHome() {
             }
             onPin={() => openAsk({ kind: "pin" })}
             onLightIdea={(idea) => openAsk({ kind: "light", draft: { idea } })}
-            onLight={() => openAsk({ kind: "light", draft: { idea: null } })}
           />
         ) : (
           <SignedOutCalendar />

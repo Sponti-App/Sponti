@@ -174,7 +174,7 @@ Canonical reference: [BRAND.md](./BRAND.md). Read it before touching styling.
 - Light mode bg: pale pink-cream `oklch(0.97 0.015 346)`. Dark mode bg: ink-black navy `oklch(0.2178 0.0145 266.91)`.
 - Typography: **Bricolage Grotesque** (one family, 4-step scale 18/16/14/12 px, hierarchy via weight + color not size). All product copy lowercase.
 - Stack: Tailwind v4 + shadcn Nova preset + Radix + Phosphor icons (regular weight; the active bottom-nav tab uses fill), imported only through `spa/components/icons.tsx`.
-- Recurring patterns: `border-l-[3px] border-l-accent` for live/active rows, `bg-card text-primary` for selected segmented/tab states, FAB only on map view, ended/past states muted and folded behind a "show N ended" toggle.
+- Recurring patterns: `border-l-[3px] border-l-accent` for live/active rows, `bg-card text-primary` for selected segmented/tab states, one flare button, in the middle of the bottom nav (no FAB on the map), ended/past states muted and folded behind a "show N ended" toggle.
 - Do not fall back to stock shadcn `--accent` — we override it with the brand peach in both modes.
 
 ## For full tokens (light + dark oklch tables), spacing rhythm, component recipes, voice rules, and "what to avoid" — see [BRAND.md](./BRAND.md).

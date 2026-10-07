@@ -180,7 +180,7 @@ test.describe("browse before sign-up (#389)", () => {
     expect(offending).toEqual([])
   })
 
-  test("the flare button and the fab ask to sign up with a blank flare kept", async ({
+  test("the nav's flare button asks to sign up with a blank flare kept, and the map has no fab (#491)", async ({
     page,
   }) => {
     const offending = await openSignedOutMap(page)
@@ -198,9 +198,10 @@ test.describe("browse before sign-up (#389)", () => {
     await page.keyboard.press("Escape")
     await expect(sheet(page)).toBeHidden()
 
-    await page.getByRole("button", { name: "Light a flare" }).click()
-    await expect(sheet(page).getByText("sign up to light it")).toBeVisible()
-    // Neither tap opened the composer.
+    await expect(
+      page.getByRole("button", { name: "Light a flare", exact: true })
+    ).toHaveCount(0)
+    // The tap didn't open the composer.
     await expect(composerTitle(page)).not.toBeInViewport()
 
     expect(offending).toEqual([])
@@ -260,7 +261,7 @@ test.describe("browse before sign-up (#389)", () => {
   }) => {
     await openSignedOutMap(page)
 
-    await page.getByRole("button", { name: "Light a flare" }).click()
+    await nav(page).getByRole("button", { name: "flare", exact: true }).click()
     await sheet(page).getByRole("link", { name: "i have an account" }).click()
     await expect(page).toHaveURL(/\/login\?redirectTo=%2F%3Fresume%3Dflare$/)
 
@@ -331,7 +332,7 @@ test.describe("legal links before sign-up (#457)", () => {
     page,
   }) => {
     await openSignedOutMap(page)
-    await page.getByRole("button", { name: "Light a flare" }).click()
+    await nav(page).getByRole("button", { name: "flare", exact: true }).click()
     await expect(sheet(page)).toBeVisible()
 
     await sheet(page).getByRole("link", { name: "impressum" }).click()

@@ -26,15 +26,14 @@ test.describe("flare composer", () => {
     await expect(cta).toBeInViewport()
   })
 
-  test("opens from the map FAB with the title input and CTA in view", async ({
+  test("at peek the nav's flare button still opens the composer, and the map has no FAB (#491)", async ({
     page,
   }) => {
-    // The map opens at mid, where the nav's flare button stands in for the
-    // FAB; the FAB shows at peek (#223).
     await page.getByRole("button", { name: "hide cards" }).click()
-    await page
-      .getByRole("button", { name: "Light a flare", exact: true })
-      .click()
+    await expect(
+      page.getByRole("button", { name: "Light a flare", exact: true })
+    ).toHaveCount(0)
+    await page.getByRole("button", { name: "flare", exact: true }).click()
 
     const titleInput = page.getByPlaceholder(TITLE_PLACEHOLDER)
     const cta = page.getByRole("button", { name: "light a flare", exact: true })

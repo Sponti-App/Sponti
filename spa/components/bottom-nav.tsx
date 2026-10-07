@@ -147,7 +147,7 @@ function NavBar({ items }: { items: NavItem[] }) {
     href === "/" ? pathname === "/" : pathname.startsWith(href)
 
   // Publish the actual rendered nav height (incl. safe-area inset) as a CSS
-  // variable so the floating bottom sheet and FAB can sit flush above the bar
+  // variable so the floating bottom sheet and the map's dock can sit flush above the bar
   // on every device. Avoids the visible gap caused by hard-coded heights.
   const navRef = useRef<HTMLElement | null>(null)
   useEffect(() => {

@@ -118,7 +118,7 @@ Built on **shadcn (Nova preset)** + **Radix UI** + **Tailwind v4** + **Phosphor 
 | Ended / past | `bg-muted/30` surface, `text-muted-foreground` text, no border strip |
 | Mode toggles (`week/month`, `map/calendar`) | Pill chips with `bg-card text-primary` active state |
 | Filter chips | Outline by default, `bg-accent text-accent-foreground` when on, "× clear" appears only when ≥1 active |
-| FAB (map view) | `h-14 w-14 rounded-full bg-accent` floating right, above bottom sheet |
+| Flare button | The peach circle in the middle of the bottom nav is the only flare button. No floating FAB on the map (#491) |
 | Sheets / drawers | Rounded-top `rounded-t-3xl`, `bg-background`, `shadow-(--shadow-sheet)` |
 
 ---
@@ -137,7 +137,7 @@ Built on **shadcn (Nova preset)** + **Radix UI** + **Tailwind v4** + **Phosphor 
 
 ## 8. Imagery & iconography
 
-- **Icons:** Phosphor (`@phosphor-icons/react`), regular weight, colour `currentColor`, default 16–20 px in product chrome, 24 px for the flare button and FAB. The active bottom-nav tab uses the fill weight. Components import icons only from `spa/components/icons.tsx`, never from an icon package. The flare button is `Flame`, "my flares" is `Fire`.
+- **Icons:** Phosphor (`@phosphor-icons/react`), regular weight, colour `currentColor`, default 16–20 px in product chrome, 24 px for the flare button. The active bottom-nav tab uses the fill weight. Components import icons only from `spa/components/icons.tsx`, never from an icon package. The flare button is `Flame`, "my flares" is `Fire`.
 - **Avatars:** circular, generated initials over a host-color bg (used for event hosts, never on map markers).
 - **No stock photography in-product.** Marketing surfaces only.
 - **Map markers** are one circle with the category icon, tinted by who can join: plum for invite only, teal for open to all. The host's colour stays on avatars, not markers. Peach on a marker means live.

@@ -21,8 +21,8 @@ import { EVENT_TYPES } from "@/types/utils"
 
 /** Why the sheet is asking. */
 export type SignUpAsk =
-  /** Lighting a flare: the nav's flare button, the FAB or an idea's "light a
-   * flare". The draft is kept for after sign-up. */
+  /** Lighting a flare: the nav's flare button or an idea's "light a flare".
+   * The draft is kept for after sign-up. */
   | { kind: "light"; draft: KeptFlareDraft }
   /** A nav tab that needs an account. */
   | { kind: "account"; tab: AccountOnlyTab }

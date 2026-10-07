@@ -55,7 +55,7 @@ _Avoid_: Tutorial, walkthrough.
 `AuthenticatedAppShell`, which renders the bottom nav, the unread badge and the notifications sheet once for every authenticated page. Pages never render `BottomNav` themselves (`docs/decisions/app-shell-owns-bottom-nav.md`). The one exception is the signed-out map, which renders `SignedOutBottomNav`: it holds no app-level state, and its tabs open that page's sign-up sheet.
 
 **Signed-out map**:
-The home map a visitor sees before signing up, behind `browseBeforeSignup` (#389): idea spots and open-to-all pins from the public map endpoint (`lib/api/public-map.ts`), centred on berlin, with "sign in" where settings sits. It calls no endpoint that needs an account. A pin, the nav's tabs, the flare button, the FAB and an idea's "light a flare" each open the **sign-up sheet**.
+The home map a visitor sees before signing up, behind `browseBeforeSignup` (#389): idea spots and open-to-all pins from the public map endpoint (`lib/api/public-map.ts`), centred on berlin, with "sign in" where settings sits. It calls no endpoint that needs an account. A pin, the nav's tabs, the flare button and an idea's "light a flare" each open the **sign-up sheet**.
 _Avoid_: Guest mode, preview, welcome page.
 
 **Kept draft**:
