@@ -219,8 +219,11 @@ export function QrShareSheet({
         onClick={onClose}
         className="absolute inset-0 bg-foreground/30"
       />
-      <div className="relative mt-auto flex flex-col rounded-t-3xl border-t border-border bg-card shadow-2xl">
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+      {/* Fits the visible viewport (#495): the overlay is the screen, so the
+          sheet never grows past it, and its body scrolls on a short phone
+          instead of pushing the code under the bottom edge. */}
+      <div className="relative mt-auto flex max-h-full flex-col rounded-t-3xl border-t border-border bg-card shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between px-4 pt-4 pb-2">
           <span className="text-base font-semibold">{heading}</span>
           {closeLabel ? (
             <button
@@ -245,9 +248,9 @@ export function QrShareSheet({
         <Tabs
           value={tab}
           onValueChange={(value) => setTab(value as ShareTab)}
-          className="gap-0"
+          className="min-h-0 gap-0"
         >
-          <div className="px-4">
+          <div className="shrink-0 px-4">
             <TabsList className="h-9 w-full">
               <TabsTrigger value="link">invite link</TabsTrigger>
               <TabsTrigger value="qr">qr code</TabsTrigger>
@@ -255,7 +258,7 @@ export function QrShareSheet({
           </div>
 
           {/* Both tabs hold the same height, so switching doesn't jump. */}
-          <div className="flex min-h-[25.5rem] flex-col px-6 pt-5 pb-8">
+          <div className="flex min-h-0 min-h-[min(25.5rem,60dvh)] flex-col overflow-y-auto overscroll-contain px-6 pt-5 pb-[max(2rem,env(safe-area-inset-bottom))]">
             <TabsContent
               value="link"
               className="m-0 flex flex-1 flex-col"
@@ -335,7 +338,7 @@ export function QrShareSheet({
                 <p className="text-base font-semibold">{displayName}</p>
                 <p className="text-sm text-muted-foreground">@{handle}</p>
               </div>
-              <div className="flex h-60 w-60 items-center justify-center rounded-2xl border border-border bg-background p-4">
+              <div className="flex size-[min(15rem,36dvh)] shrink-0 items-center justify-center rounded-2xl border border-border bg-background p-4">
                 {qrDataUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
