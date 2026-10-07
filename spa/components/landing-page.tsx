@@ -98,14 +98,25 @@ function Logo() {
   )
 }
 
-function OpenSponti({ className }: { className?: string }) {
+/** "open sponti". Coral by default; `ink` (indigo, cream text) for the
+ * hero's, where it sits over the warm scene. */
+function OpenSponti({
+  className,
+  ink = false,
+}: {
+  className?: string
+  ink?: boolean
+}) {
   const appUrl = useContext(AppUrl)
   return (
     <a
       href={appUrl}
       data-landing-cta
       className={cn(
-        "group inline-flex h-12 items-center justify-center gap-1.5 rounded-full bg-accent px-6 text-sm font-medium text-accent-foreground shadow-[0_8px_30px_-8px_var(--accent)] transition-[transform,background-color,box-shadow] outline-none hover:-translate-y-0.5 hover:bg-accent/90 hover:shadow-[0_14px_40px_-10px_var(--accent)] focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px",
+        "group inline-flex h-12 items-center justify-center gap-1.5 rounded-full px-6 text-sm font-medium transition-[transform,background-color,box-shadow] outline-none hover:-translate-y-0.5 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px",
+        ink
+          ? "bg-foreground text-background shadow-[0_10px_30px_-10px_var(--foreground)] hover:bg-foreground/90 hover:shadow-[0_16px_40px_-12px_var(--foreground)]"
+          : "bg-accent text-accent-foreground shadow-[0_8px_30px_-8px_var(--accent)] hover:bg-accent/90 hover:shadow-[0_14px_40px_-10px_var(--accent)]",
         className
       )}
     >
@@ -142,7 +153,7 @@ function DesktopQr({ className }: { className?: string }) {
   )
 }
 
-/** The honest note: early testing, things may break, where to write. */
+/** The honest note: early testing, things may break. */
 function TestingNote({ className }: { className?: string }) {
   return (
     <p
@@ -157,15 +168,6 @@ function TestingNote({ className }: { className?: string }) {
         className="size-1.5 shrink-0 rounded-full bg-flare-open"
       />
       <span>early testing in berlin. things may break.</span>
-      <span>
-        tell us at{" "}
-        <a
-          href="mailto:hello@sponti.fun"
-          className="underline underline-offset-2 hover:text-foreground"
-        >
-          hello@sponti.fun
-        </a>
-      </span>
     </p>
   )
 }
@@ -247,7 +249,7 @@ function Hero() {
         </p>
       </Reveal>
       <Reveal delay={300} className="mt-8 flex justify-center">
-        <OpenSponti className="w-full max-w-xs lg:w-fit" />
+        <OpenSponti ink className="w-full max-w-xs lg:w-fit" />
       </Reveal>
 
       {/* Two small app moments, floating over the scene. */}

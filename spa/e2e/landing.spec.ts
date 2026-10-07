@@ -94,9 +94,6 @@ test.describe("landing page (#467, #506)", () => {
     await expect(notes).toHaveCount(2)
     await expect(notes.first()).toBeVisible()
     await expect(notes.first()).toContainText("early testing in berlin")
-    await expect(
-      notes.first().getByRole("link", { name: "hello@sponti.fun" })
-    ).toHaveAttribute("href", "mailto:hello@sponti.fun")
     await expect(page.locator("footer [data-testing-note]")).toHaveCount(1)
   })
 
