@@ -34,13 +34,14 @@ async function staySignedOutAfterSignOut(page: Page) {
   })
 }
 
-async function signOutAndReopenHome(page: Page) {
+// Signs out from settings and waits to land on `landing`, with no navigation
+// of its own: where sign-out goes is what these specs check.
+async function signOut(page: Page, landing: RegExp) {
   await page.getByRole("button", { name: "sign out" }).click()
-  await expect(page).toHaveURL(/\/login/)
+  await expect(page).toHaveURL(landing)
   await page.evaluate(() =>
     window.sessionStorage.setItem("e2e-signed-out", "1")
   )
-  await page.goto("/")
 }
 
 test.describe("new onboarding switch (#482)", () => {
@@ -60,10 +61,9 @@ test.describe("new onboarding switch (#482)", () => {
     await expect(newOnboarding(page)).toHaveAttribute("aria-checked", "true")
     expect(await stored(page, SWITCH_KEY)).toBe("on")
 
-    await signOutAndReopenHome(page)
-
-    // The signed-out home, not the login page, and the slides over it.
-    await expect(page).toHaveURL(/\/$/)
+    // Straight to the signed-out home, not the login page, and the slides
+    // over it.
+    await signOut(page, /\/$/)
     await expect(slides(page)).toBeVisible()
     await slides(page).getByRole("button", { name: "skip" }).click()
     // Then the coach marks (#379), then the location ask: the flags are on
@@ -96,7 +96,8 @@ test.describe("new onboarding switch (#482)", () => {
     await expect(newOnboarding(page)).toHaveAttribute("aria-checked", "false")
     expect(await stored(page, SWITCH_KEY)).toBeNull()
 
-    await signOutAndReopenHome(page)
+    await signOut(page, /\/login/)
+    await page.goto("/")
 
     await expect(page).toHaveURL(/\/login/)
     await expect(slides(page)).toHaveCount(0)
