@@ -1012,6 +1012,11 @@ export function MapView({
     else if (dock === "mid") snap("peek")
   }
 
+  // #492: the list page closes like the app's other sheets: a drag handle,
+  // and a swipe down on the handle or the title row. The page follows the
+  // finger; let go past the threshold (or flick) and it goes back to the map.
+  const listSwipe = useSwipeDownToClose(() => snap("mid"))
+
   const railRef = useRef<HTMLDivElement | null>(null)
   const syncRailFocus = () => {
     const rail = railRef.current
@@ -1297,8 +1302,9 @@ export function MapView({
         </div>
       </div>
 
-      {/* Full: a plain list page between the header chips and the nav. It
-          scrolls natively; nothing to drag. */}
+      {/* Full: a plain list page between the header chips and the nav. The
+          list scrolls natively; the handle and the title row drag it down to
+          close (#492). */}
       <div
         role="region"
         aria-label="flare list"
@@ -1308,6 +1314,9 @@ export function MapView({
           top: TOP_RESERVED_CSS,
           bottom: NAV_RESERVED_CSS,
           transitionTimingFunction: SHEET_EASE,
+          // While a finger holds it the page follows without easing.
+          ...(listSwipe.offset > 0 && { translate: `0 ${listSwipe.offset}px` }),
+          ...(listSwipe.dragging && { transitionDuration: "0ms" }),
         }}
         className={`fixed inset-x-0 z-20 flex flex-col rounded-t-3xl bg-background shadow-(--shadow-sheet) transition-[translate,visibility] duration-500 ${
           listOpen
@@ -1315,21 +1324,40 @@ export function MapView({
             : "pointer-events-none invisible translate-y-[calc(100%+8rem)]"
         }`}
       >
-        <div className="shrink-0 space-y-2 px-4 pt-4 pb-2">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-base font-semibold">flares near you</h2>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {statusLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() => snap("mid")}
-                className="flex h-8 items-center gap-1 rounded-full bg-card px-3 text-xs font-medium text-primary active:scale-[0.97]"
-              >
-                <MapTrifoldIcon className="h-3.5 w-3.5" />
-                map
-              </button>
+        <div className="shrink-0 space-y-2 px-4 pb-2">
+          <div
+            data-list-drag
+            {...listSwipe.handlers}
+            className="-mx-4 touch-none px-4 select-none"
+          >
+            {/* The same handle as the app's drawers (ui/drawer.tsx). A tap
+                on it closes too, so closing never depends on a gesture. */}
+            <button
+              type="button"
+              aria-label="close list"
+              onClick={listSwipe.guardClick(() => snap("mid"))}
+              className="flex h-7 w-full items-center justify-center"
+            >
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-10 rounded-full bg-border"
+              />
+            </button>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold">flares near you</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {statusLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={listSwipe.guardClick(() => snap("mid"))}
+                  className="flex h-8 items-center gap-1 rounded-full bg-card px-3 text-xs font-medium text-primary active:scale-[0.97]"
+                >
+                  <MapTrifoldIcon className="h-3.5 w-3.5" />
+                  map
+                </button>
+              </div>
             </div>
           </div>
           {listOpen && (
@@ -2147,4 +2175,102 @@ function FlareTypeIcon({ event }: { event: EventItem }) {
   if (!match) return <span className="text-sm">{event.host.avatar}</span>
   const Icon = match.icon
   return <Icon className="h-5 w-5" />
+}
+
+// #492: how far down (px) the list page has to be dragged, or how fast
+// (px/ms) it has to be flicked, to close on release. Like vaul's drawers: a
+// quarter of a phone's sheet, or a quick flick over a short distance.
+const SWIPE_CLOSE_PX = 100
+const SWIPE_CLOSE_VELOCITY = 0.5
+const SWIPE_FLICK_MIN_PX = 24
+// Movement under this is a tap, not a drag.
+const SWIPE_SLOP_PX = 6
+
+/** Whether a downward drag of `dy` px over `ms` ms closes the sheet. */
+export function swipeClosesSheet(dy: number, ms: number): boolean {
+  if (dy >= SWIPE_CLOSE_PX) return true
+  return (
+    dy >= SWIPE_FLICK_MIN_PX && dy / Math.max(ms, 1) >= SWIPE_CLOSE_VELOCITY
+  )
+}
+
+/**
+ * Drag-down-to-close for the list page (#492). Pointer events, so it works
+ * with touch and a mouse. The zone it is spread on needs `touch-none` so the
+ * browser doesn't scroll or refresh the page instead. Once a press starts in
+ * the zone its moves are followed on the window, since the finger leaves the
+ * zone at once (pointer capture would also take the click away from the
+ * zone's buttons). Upward drags are ignored: the page is already open. A drag
+ * that moved isn't also a tap: wrap the zone's buttons in `guardClick`.
+ */
+function useSwipeDownToClose(onClose: () => void) {
+  const [offset, setOffset] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const moved = useRef(false)
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+  // Removes the window listeners of the drag in progress, if any.
+  const stopRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => stopRef.current?.(), [])
+
+  const onPointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return
+    stopRef.current?.()
+    const id = e.pointerId
+    const startY = e.clientY
+    const startT = e.timeStamp
+    moved.current = false
+
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== id) return
+      const dy = ev.clientY - startY
+      if (!moved.current) {
+        if (Math.abs(dy) < SWIPE_SLOP_PX) return
+        moved.current = true
+        setDragging(true)
+      }
+      setOffset(Math.max(0, dy))
+    }
+    const finish = (ev: PointerEvent, cancelled: boolean) => {
+      if (ev.pointerId !== id) return
+      stop()
+      setDragging(false)
+      setOffset(0)
+      const dy = Math.max(0, ev.clientY - startY)
+      if (
+        !cancelled &&
+        moved.current &&
+        swipeClosesSheet(dy, ev.timeStamp - startT)
+      ) {
+        onCloseRef.current()
+      }
+    }
+    const up = (ev: PointerEvent) => finish(ev, false)
+    const cancel = (ev: PointerEvent) => finish(ev, true)
+    const stop = () => {
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", up)
+      window.removeEventListener("pointercancel", cancel)
+      stopRef.current = null
+    }
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", up)
+    window.addEventListener("pointercancel", cancel)
+    stopRef.current = stop
+  }
+
+  return {
+    offset,
+    dragging,
+    handlers: { onPointerDown },
+    guardClick: (action: () => void) => () => {
+      if (moved.current) {
+        moved.current = false
+        return
+      }
+      action()
+    },
+  }
 }

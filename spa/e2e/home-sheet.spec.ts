@@ -137,6 +137,101 @@ test.describe("home map dock geometry (#223)", () => {
     await expect(list).toBeHidden()
   })
 
+  test("the list page has a drag handle: a swipe down closes it, a short drag springs back, a tap closes it (#492)", async ({
+    page,
+  }) => {
+    const list = page.getByRole("region", { name: "flare list" })
+    const handle = list.getByRole("button", { name: "close list" })
+    const open = async () => {
+      await page.getByRole("button", { name: "list", exact: true }).click()
+      await expect
+        .poll(async () => Math.abs(await gapAboveNav(page, list)))
+        .toBeLessThanOrEqual(1)
+    }
+    const dragTitle = async (dy: number) => {
+      const h = await box(
+        list.getByRole("heading", { name: "flares near you" })
+      )
+      const x = h.x + h.width / 2
+      const y = h.y + h.height / 2
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.mouse.move(x, y + dy, { steps: 12 })
+      await page.mouse.up()
+    }
+
+    await open()
+    // The handle is centred at the top of the page, above the title.
+    const [listBox, handleBox, titleBox] = await Promise.all([
+      box(list),
+      box(handle.locator("span")),
+      box(list.getByRole("heading", { name: "flares near you" })),
+    ])
+    expect(
+      Math.abs(
+        handleBox.x + handleBox.width / 2 - (listBox.x + listBox.width / 2)
+      )
+    ).toBeLessThanOrEqual(1)
+    expect(handleBox.y + handleBox.height).toBeLessThanOrEqual(titleBox.y)
+
+    // A short, slow drag is not a close: the page settles back.
+    const h = await box(handle)
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2 + 40, {
+      steps: 4,
+    })
+    // While held, the page follows the finger.
+    await expect
+      .poll(async () => (await box(list)).y)
+      .toBeGreaterThan(listBox.y + 30)
+    await page.waitForTimeout(400)
+    await page.mouse.up()
+    await expect
+      .poll(async () => Math.abs(await gapAboveNav(page, list)))
+      .toBeLessThanOrEqual(1)
+    await expect(list).toBeVisible()
+
+    // Dragging the title row down far enough closes it.
+    await dragTitle(200)
+    await expect(list).toBeHidden()
+    await expect(rail(page)).toBeVisible()
+
+    // A tap on the handle closes it too.
+    await open()
+    await handle.click()
+    await expect(list).toBeHidden()
+    await expect(rail(page)).toBeVisible()
+  })
+
+  test("a finger swipe down on the list page's handle closes it (#492)", async ({
+    page,
+  }, testInfo) => {
+    test.skip(!testInfo.project.use.hasTouch, "needs touch input")
+    await page.getByRole("button", { name: "list", exact: true }).click()
+    const list = page.getByRole("region", { name: "flare list" })
+    await expect
+      .poll(async () => Math.abs(await gapAboveNav(page, list)))
+      .toBeLessThanOrEqual(1)
+
+    // Real touch events (Playwright's mouse would send pointerType mouse).
+    const h = await box(list.getByRole("button", { name: "close list" }))
+    const x = h.x + h.width / 2
+    const y = h.y + h.height / 2
+    const cdp = await page.context().newCDPSession(page)
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd", dy: number) =>
+      cdp.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: type === "touchEnd" ? [] : [{ x, y: y + dy }],
+      })
+    await touch("touchStart", 0)
+    for (let dy = 20; dy <= 240; dy += 20) await touch("touchMove", dy)
+    await touch("touchEnd", 240)
+
+    await expect(list).toBeHidden()
+    await expect(rail(page)).toBeVisible()
+  })
+
   test("rail cards are content-height, not stretched to a taller neighbour", async ({
     page,
   }) => {
