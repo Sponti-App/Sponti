@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { isContactPath } from "@/lib/contact-links"
@@ -36,17 +36,36 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     isContactPath(pathname) ||
     (browseBeforeSignup && pathname === "/")
   const isAuthPage = AUTH_PATHS.includes(pathname)
+  // Signing out in this tab is the one move from "authenticated" straight to
+  // "unauthenticated" (a rejected session passes through "loading" first).
+  const wasAuthenticated = useRef(false)
 
   useEffect(() => {
     if (status === "loading" || !decided) return
+    const signedOutHere = wasAuthenticated.current
+    wasAuthenticated.current = status === "authenticated"
     if (status === "unauthenticated" && !isPublic) {
+      // #482: with `browseBeforeSignup`, signing out lands on the signed-out
+      // home map (and the intro slides there), not the login page.
+      if (signedOutHere && browseBeforeSignup) {
+        router.replace("/")
+        return
+      }
       // #219: remember where the user was heading so signing in returns
       // them there instead of dropping them on the home map.
       router.replace(buildLoginPath(`${pathname}${window.location.search}`))
     } else if (status === "authenticated" && isAuthPage) {
       router.replace(getRedirectTarget())
     }
-  }, [status, decided, pathname, isPublic, isAuthPage, router])
+  }, [
+    status,
+    decided,
+    pathname,
+    isPublic,
+    isAuthPage,
+    browseBeforeSignup,
+    router,
+  ])
 
   if (status === "loading" || !decided) {
     return (

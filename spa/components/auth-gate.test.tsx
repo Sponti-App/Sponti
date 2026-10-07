@@ -260,6 +260,57 @@ describe("AuthGate with the new onboarding switched on (#482)", () => {
   })
 })
 
+describe("AuthGate after signing out", () => {
+  function SignOutButton({
+    useAuth,
+  }: {
+    useAuth: () => { logout: () => Promise<void> }
+  }) {
+    const { logout } = useAuth()
+    return (
+      <button type="button" onClick={() => logout()}>
+        sign out
+      </button>
+    )
+  }
+
+  async function signOutOn(path: string) {
+    storeSession()
+    mocks.me.mockResolvedValue({ user: USER })
+    setUrl(path)
+    const { AuthProvider, AuthGate, useAuth } = await loadGate()
+    render(
+      <AuthProvider>
+        <AuthGate>
+          <SignOutButton useAuth={useAuth} />
+        </AuthGate>
+      </AuthProvider>
+    )
+    const button = await screen.findByRole("button", { name: "sign out" })
+    await act(async () => button.click())
+  }
+
+  it("lands on the signed-out home map with the new onboarding on (#482)", async () => {
+    window.localStorage.setItem(NEW_ONBOARDING_KEY, "on")
+    resetNewOnboardingMemory()
+
+    await signOutOn("/settings")
+
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/"))
+    expect(mocks.replace).toHaveBeenCalledTimes(1)
+  })
+
+  it("goes to /login in the tester build", async () => {
+    await signOutOn("/settings")
+
+    await waitFor(() =>
+      expect(mocks.replace).toHaveBeenCalledWith(
+        "/login?redirectTo=%2Fsettings"
+      )
+    )
+  })
+})
+
 describe("AuthGate after signing in (#219)", () => {
   function LoginButton({
     useAuth,
