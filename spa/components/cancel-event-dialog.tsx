@@ -3,6 +3,7 @@
 import { WarningIcon, XIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import type { HostedEvent, EventStatus } from "@/lib/api/events"
+import { displayFlareTitle } from "@/lib/flare-title"
 
 export function CancelEventDialog({
   event,
@@ -48,7 +49,15 @@ export function CancelEventDialog({
               <WarningIcon className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold">cancel {event.title}?</p>
+              <p className="text-sm font-semibold">
+                cancel{" "}
+                {displayFlareTitle({
+                  title: event.title,
+                  type: event.type,
+                  isHost: true,
+                })}
+                ?
+              </p>
               <p className="text-xs text-muted-foreground">{headline}</p>
             </div>
           </div>

@@ -73,6 +73,9 @@ export type DraftEventLocation = {
   // GeoJSON order: [lng, lat]
   coordinates: [number, number]
   placeId?: string
+  // Google's primaryType for a picked place. Only names an untitled flare
+  // (#494); it is not sent to the api.
+  placeType?: string
 }
 
 export type DraftEvent = {

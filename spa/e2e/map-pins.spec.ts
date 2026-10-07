@@ -23,7 +23,7 @@ const MIA = { _id: "user-mia", username: "mia", displayName: "mia lang" }
 const INVITE_LIVE = makeStubFlare({
   _id: "e-invite-live",
   hostId: MIA,
-  title: "drinks at klunkerkranich · rooftop",
+  title: "drinks at klunkerkranich",
   type: "drinks",
   visibility: "private",
   startAt: at("2026-06-15T11:50:00.000Z"),
@@ -202,13 +202,38 @@ test.describe("map flare pins (#315)", () => {
     await expect(legend(page)).toHaveCount(0)
   })
 
-  test("the fallback map keeps the title before the ·", async ({ page }) => {
-    await openMap(page, [INVITE_LIVE])
-    const button = page
-      .getByRole("button")
-      .filter({ has: pin(page, INVITE_LIVE._id) })
-    await expect(button).toContainText("drinks at klunkerkranich")
-    await expect(button).not.toContainText("rooftop")
+  test("the fallback map labels an untitled flare with its host (#494)", async ({
+    page,
+  }) => {
+    const untitled = makeStubFlare({
+      _id: "e-untitled",
+      hostId: MIA,
+      title: "theater outing",
+      type: "culture",
+      visibility: "private",
+      startAt: at("2026-06-15T11:50:00.000Z"),
+      endAt: at("2026-06-15T13:10:00.000Z"),
+      location: point(13.3801, 52.5512),
+    })
+    // Lit before untitled flares got a real title: [type, host, place, when].
+    const old = makeStubFlare({
+      _id: "e-old",
+      hostId: MIA,
+      title: "hobby · mia lang · acud theater · mi 7:45pm",
+      type: "hobby",
+      visibility: "private",
+      startAt: at("2026-06-15T11:50:00.000Z"),
+      endAt: at("2026-06-15T13:10:00.000Z"),
+      location: point(13.4, 52.55),
+    })
+    await openMap(page, [untitled, old])
+    for (const flare of [untitled, old]) {
+      const button = page
+        .getByRole("button")
+        .filter({ has: pin(page, flare._id) })
+      await expect(button).toContainText("theater outing with mia")
+      await expect(button).not.toContainText("·")
+    }
   })
 })
 

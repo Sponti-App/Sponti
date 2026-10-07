@@ -4,6 +4,8 @@ import { useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { Card } from "@/components/ui/card"
+import { useAuth } from "@/components/auth-provider"
+import { eventDisplayTitle } from "@/lib/flare-title"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import MonthCalendar, {
   monthCollapseDistance,
@@ -563,6 +565,7 @@ function EventCard({
   joined: boolean
   onSelect: (event: EventItem) => void
 }) {
+  const { user } = useAuth()
   const live = isLive(event)
   return (
     <Card
@@ -576,7 +579,9 @@ function EventCard({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <p className="truncate text-sm font-medium">{event.title}</p>
+          <p className="truncate text-sm font-medium">
+            {eventDisplayTitle(event, user?.id)}
+          </p>
           {joined && (
             <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent-ink">
               <CheckIcon className="h-2.5 w-2.5" /> going

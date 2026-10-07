@@ -104,6 +104,27 @@ test.describe("flare composer", () => {
     expect(Date.parse(body.endAt) - start).toBe(60 * MIN)
   })
 
+  // #494: an empty title becomes a short phrase, not the metadata list.
+  test("lights an untitled flare with a short title", async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(["geolocation"])
+    await context.setGeolocation({ latitude: 37.7749, longitude: -122.4194 })
+    await page.getByRole("button", { name: "flare", exact: true }).click()
+
+    const posted = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        new URL(req.url()).pathname.endsWith("/events")
+    )
+    await page
+      .getByRole("button", { name: "light a flare", exact: true })
+      .click()
+    const body = (await posted).postDataJSON() as { title: string }
+    expect(body.title).toBe("hangout")
+  })
+
   // #330: a flare lit "in 30m" edits as a right-now flare, with 30m picked.
   test("a flare lit in 30 minutes edits with the 30m start chip", async ({
     page,

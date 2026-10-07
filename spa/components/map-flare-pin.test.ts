@@ -13,8 +13,9 @@ const MIN = 60_000
 function flare(startOffsetMin: number, endOffsetMin: number): EventItem {
   return {
     id: "e1",
-    title: "drinks · rooftop",
+    title: "rooftop drinks",
     type: "drinks",
+    host: { id: "h1", name: "Lukas Hanus" },
     visibility: "private",
     startAt: new Date(NOW + startOffsetMin * MIN).toISOString(),
     endAt: new Date(NOW + endOffsetMin * MIN).toISOString(),
@@ -22,8 +23,22 @@ function flare(startOffsetMin: number, endOffsetMin: number): EventItem {
 }
 
 describe("map flare pin labels (#315)", () => {
-  it("keeps the title before the ·", () => {
-    expect(flareTitle(flare(0, 60))).toBe("drinks")
+  it("shows the title the host wrote", () => {
+    expect(flareTitle(flare(0, 60))).toBe("rooftop drinks")
+  })
+
+  it("adds the host to an untitled flare, except for the host (#494)", () => {
+    const untitled = { ...flare(0, 60), title: "drinks" }
+    expect(flareTitle(untitled)).toBe("drinks with lukas")
+    expect(flareTitle(untitled, true)).toBe("drinks")
+  })
+
+  it("shows an old joined title as a phrase", () => {
+    const old = {
+      ...flare(0, 60),
+      title: "drinks · lukas hanus · rooftop bar · in 30m",
+    }
+    expect(flareTitle(old)).toBe("drinks with lukas")
   })
 
   it("formats the time left", () => {
