@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import type { CircleFlare } from "@/lib/api/circles"
 import { formatClock, formatWeekdayShort } from "@/lib/format-date"
 import { cn } from "@/lib/utils"
+import { displayFlareTitle } from "@/lib/flare-title"
 
 function whenLabel(startAt: string): string {
   const start = new Date(startAt)
@@ -115,7 +116,7 @@ export function AddToFlaresDialog({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm">
-                      {flare.title}
+                      {displayFlareTitle({ title: flare.title, isHost: true })}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
                       {whenLabel(flare.startAt)}

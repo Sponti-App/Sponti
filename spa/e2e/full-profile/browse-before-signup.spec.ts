@@ -118,6 +118,8 @@ test.describe("browse before sign-up (#389)", () => {
     // #490: no pin legend under the top bar.
     await expect(page.locator("[data-map-legend]")).toHaveCount(0)
     await expect(page.getByText("2 open flares in berlin")).toBeVisible()
+    // The area is in the sheet's heading, not a chip of its own (#496).
+    await expect(page.getByText("berlin", { exact: true })).toHaveCount(0)
 
     // The live / soon tabs narrow the pins.
     await page.getByRole("tab", { name: "live" }).click()

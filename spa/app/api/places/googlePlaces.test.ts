@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 import {
   AUTOCOMPLETE_BIAS_RADIUS_M,
   autocompleteRequestBody,
+  normalizePlaceDetailsResponse,
+  PLACE_DETAILS_FIELD_MASK,
   parseBiasParams,
 } from "./googlePlaces"
 
@@ -45,5 +47,38 @@ describe("autocompleteRequestBody", () => {
         },
       },
     })
+  })
+})
+
+describe("normalizePlaceDetailsResponse", () => {
+  const details = {
+    id: "p1",
+    displayName: { text: "ACUD Theater" },
+    formattedAddress: "Veteranenstr. 21, Berlin",
+    location: { latitude: 52.54, longitude: 13.4 },
+  }
+
+  it("asks Google for the place's primary type", () => {
+    expect(PLACE_DETAILS_FIELD_MASK.split(",")).toContain("primaryType")
+  })
+
+  it("carries the primary type through", () => {
+    expect(
+      normalizePlaceDetailsResponse(
+        { ...details, primaryType: "performing_arts_theater" },
+        "p1"
+      )
+    ).toEqual({
+      placeId: "p1",
+      name: "ACUD Theater",
+      address: "Veteranenstr. 21, Berlin",
+      lat: 52.54,
+      lng: 13.4,
+      primaryType: "performing_arts_theater",
+    })
+  })
+
+  it("has a null primary type when Google sent none", () => {
+    expect(normalizePlaceDetailsResponse(details, "p1")?.primaryType).toBeNull()
   })
 })

@@ -22,7 +22,6 @@ import {
   useApiLoadingStatus,
 } from "@vis.gl/react-google-maps"
 import { useTheme } from "next-themes"
-import { MapPinIcon } from "@/components/icons"
 import { LegalLinks } from "@/components/legal-links"
 import { FlarePin } from "@/components/map-flare-pin"
 import {
@@ -72,7 +71,7 @@ export function SignedOutMap({
   areaLabel?: string
   /** The centre is the visitor's own position (#408). */
   located?: boolean
-  /** Shown in place of the area chip: a picked area's banner (#408). */
+  /** A picked area's banner, under the header chips (#408). */
   banner?: React.ReactNode
   /** Hide the dock under the location ask (#408). */
   dockHidden?: boolean
@@ -175,20 +174,11 @@ export function SignedOutMap({
         <SignedOutStaticMap {...canvasProps} />
       )}
 
-      {/* Under the floating header chips: the area, or a picked area's
-          banner (#408). No pin legend (#490). */}
+      {/* Under the floating header chips: a picked area's banner (#408). The
+          area itself is in the sheet's heading below (#496); no pin legend
+          (#490). */}
       <div className="pointer-events-none absolute inset-x-3 top-16 z-30 flex flex-col items-end gap-2">
         {banner}
-        <div className="flex w-full items-center justify-between gap-2">
-          {banner ? (
-            <span aria-hidden="true" />
-          ) : (
-            <span className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-xs font-medium shadow">
-              <MapPinIcon className="h-3.5 w-3.5 text-muted-foreground" />
-              {located ? "near you" : areaLabel}
-            </span>
-          )}
-        </div>
       </div>
 
       {/* The dock sits on the nav, like the signed-in map's. */}

@@ -211,6 +211,21 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
       </header>
 
       <div className="relative mt-auto flex flex-col px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        {/* A scrim that follows the copy block on the how slide, whose crowd
+            runs under the copy, so the type reads over the art on any screen
+            height (#498): clear above the eyebrow, solid under the text. It
+            sits in the backdrop's layer, painted after it. The other slides'
+            art ends above the copy, and a scrim would cut it. */}
+        {kind === "how" && (
+          <div
+            aria-hidden
+            data-intro-scrim
+            className="pointer-events-none absolute inset-x-0 -top-24 bottom-0 -z-10"
+            style={{
+              background: `linear-gradient(to bottom, transparent, ${mix(BG, 55, "transparent")} 3rem, ${BG} 5.5rem)`,
+            }}
+          />
+        )}
         <div key={kind} className="intro-in" aria-live="polite">
           <p className="text-sm font-medium text-muted-foreground">
             {copy.eyebrow}
