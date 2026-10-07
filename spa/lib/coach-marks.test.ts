@@ -4,10 +4,15 @@ import {
   coachMarkSteps,
   coachMarksVisible,
   firstBoxInside,
+  HOME_COACH_MARKS,
+  HOME_COACH_MARKS_KEY,
+  homeCoachMarksVisible,
   markCoachMarksSeen,
+  markHomeCoachMarksSeen,
   resetCoachMarks,
   resetCoachMarksMemory,
   shouldShowCoachMarks,
+  shouldShowHomeCoachMarks,
 } from "./coach-marks"
 import { INTRO_SLIDES_KEY } from "./intro-slides"
 import {
@@ -199,5 +204,68 @@ describe("finding an idea spot on screen", () => {
     expect(
       firstBoxInside([{ top: 200, left: 100, width: 0, height: 0 }], area)
     ).toBeNull()
+  })
+})
+
+describe("the signed-in run (#497)", () => {
+  it("is two marks: the circles tab, then the menu, in lowercase", () => {
+    expect(HOME_COACH_MARKS.map((m) => m.id)).toEqual(["circles", "menu"])
+    for (const mark of HOME_COACH_MARKS) {
+      expect(mark.title).toBe(mark.title.toLowerCase())
+      expect(mark.body).toBe(mark.body.toLowerCase())
+    }
+  })
+
+  it("has its own seen key: neither run blocks the other", () => {
+    markCoachMarksSeen()
+    expect(shouldShowCoachMarks()).toBe(false)
+    expect(shouldShowHomeCoachMarks()).toBe(true)
+
+    markHomeCoachMarksSeen()
+    expect(shouldShowHomeCoachMarks()).toBe(false)
+    expect(window.localStorage.getItem(HOME_COACH_MARKS_KEY)).toBe("seen")
+  })
+
+  it("replay map tips resets both runs", () => {
+    markCoachMarksSeen()
+    markHomeCoachMarksSeen()
+    resetCoachMarks()
+    expect(window.localStorage.getItem(COACH_MARKS_KEY)).toBeNull()
+    expect(window.localStorage.getItem(HOME_COACH_MARKS_KEY)).toBeNull()
+    expect(shouldShowCoachMarks()).toBe(true)
+    expect(shouldShowHomeCoachMarks()).toBe(true)
+  })
+
+  it("never shows with coachMarks off", () => {
+    mocks.flags.coachMarks = false
+    expect(shouldShowHomeCoachMarks()).toBe(false)
+  })
+
+  describe("visibility", () => {
+    const base = {
+      pending: true,
+      onboardingShowing: false,
+      blocked: false,
+      dialogOpen: false,
+    }
+
+    it("shows on a quiet home map", () => {
+      expect(homeCoachMarksVisible(base)).toBe(true)
+    })
+
+    it("waits for the checklist, first-friend step or first-run intro", () => {
+      expect(homeCoachMarksVisible({ ...base, onboardingShowing: true })).toBe(
+        false
+      )
+    })
+
+    it("waits for the home's own sheets and any open dialog", () => {
+      expect(homeCoachMarksVisible({ ...base, blocked: true })).toBe(false)
+      expect(homeCoachMarksVisible({ ...base, dialogOpen: true })).toBe(false)
+    })
+
+    it("doesn't show once seen", () => {
+      expect(homeCoachMarksVisible({ ...base, pending: false })).toBe(false)
+    })
   })
 })

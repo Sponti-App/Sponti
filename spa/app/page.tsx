@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, useRef, useState } from "react"
+import { HomeCoachMarks } from "@/components/coach-marks"
 import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
@@ -210,6 +211,7 @@ function SignedInHome() {
             type="button"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
+            data-coach="menu"
             onClick={() => {
               haptic("selection")
               setMenuOpen((v) => !v)
@@ -304,6 +306,18 @@ function SignedInHome() {
         onJoin={handleJoin}
         onLeave={handleLeave}
         onSeeRoute={handleSeeRoute}
+      />
+
+      {/* #497 (behind `coachMarks`): the circles tab and the menu, once per
+          device. Not over the checklist or any open sheet. */}
+      <HomeCoachMarks
+        blocked={
+          view !== "map" ||
+          menuOpen ||
+          inviteOpen ||
+          !!selectedEvent ||
+          checklist !== null
+        }
       />
 
       <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
