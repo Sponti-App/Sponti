@@ -137,6 +137,36 @@ test.describe("home map dock geometry (#223)", () => {
     await expect(list).toBeHidden()
   })
 
+  test("a live card in the list has the peach strip on its left, and the swipe label is 12px (#503)", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "list", exact: true }).click()
+    const list = page.getByRole("region", { name: "flare list" })
+    await expect(list.getByText("drinks after work")).toBeVisible()
+
+    const card = list
+      .locator('[data-slot="card"]')
+      .filter({ hasText: "drinks after work" })
+    const sides = await card.evaluate((el) => {
+      const cs = getComputedStyle(el)
+      return {
+        leftWidth: cs.borderLeftWidth,
+        left: cs.borderLeftColor,
+        top: cs.borderTopColor,
+        right: cs.borderRightColor,
+      }
+    })
+    expect(sides.leftWidth).toBe("3px")
+    expect(sides.left).not.toBe(sides.top)
+    expect(sides.top).toBe(sides.right)
+
+    const label = list.getByText("i'm in").first()
+    const fontSize = await label.evaluate((el) =>
+      parseFloat(getComputedStyle(el).fontSize)
+    )
+    expect(fontSize).toBeGreaterThanOrEqual(12)
+  })
+
   test("the list page has a drag handle: a swipe down closes it, a short drag springs back, a tap closes it (#492)", async ({
     page,
   }) => {

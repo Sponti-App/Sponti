@@ -1834,17 +1834,22 @@ function FlareCard({
       {/* Swipe-reveal "I'm in" hint — hidden for ended/joined cards */}
       {swipeEnabled && (
         <div className="absolute inset-y-0 left-0 flex w-16 items-center justify-center rounded-l-xl bg-accent">
-          <span className="flex flex-col items-center gap-0.5 text-[10px] font-semibold text-accent-foreground">
+          <span className="flex flex-col items-center gap-0.5 text-xs font-semibold text-accent-foreground">
             <CheckIcon className="h-4 w-4" />
-            I&apos;m in
+            i&apos;m in
           </span>
         </div>
       )}
 
       <Card
         className={`relative cursor-pointer flex-row items-center gap-3.5 rounded-xl border p-3 transition-colors hover:bg-muted/50 active:bg-muted ${
-          isLiveStatus ? "border-l-[3px] border-l-accent" : ""
-        } ${isEnded ? "border-border bg-muted/30" : "border-border"}`}
+          // #503: a live card's strip is the peach `border-l-accent`. A
+          // whole-border `border-border` beside it won the left side too, so
+          // a live card sets the colour on the other three sides only.
+          isLiveStatus
+            ? "border-l-[3px] border-y-border border-r-border border-l-accent"
+            : "border-border"
+        } ${isEnded ? "bg-muted/30" : ""}`}
         style={{
           transform: `translateX(${swipeX}px)`,
           transition: swipeX === 0 ? "transform 0.2s ease-out" : "none",
