@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { isContactPath } from "@/lib/contact-links"
-import { featureFlags } from "@/lib/feature-flags"
+import { LEGAL_PATHS } from "@/lib/legal-paths"
+import { useOnboardingFlags } from "@/lib/onboarding-flags"
 import {
   AUTH_PATHS,
   buildLoginPath,
@@ -12,7 +13,6 @@ import {
 } from "@/lib/redirect-path"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 
-const LEGAL_PATHS = ["/menu/terms", "/menu/privacy", "/menu/impressum"]
 const PUBLIC_PATHS = [...AUTH_PATHS, ...LEGAL_PATHS]
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -23,6 +23,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   // backend — swap the bare spinner for the same "waking up…" hint used
   // elsewhere once it's run long enough to plausibly be paying that cost.
   const wakingUp = useSlowRequestHint(status === "loading")
+  // #482: "new onboarding" can be switched on per device, which the server
+  // and the hydration render can't see. Until `decided`, the gate stays on its
+  // spinner and doesn't redirect, so "/" never flashes the login page.
+  const { browseBeforeSignup, decided } = useOnboardingFlags()
 
   // #124: QR and invite links open for signed-out visitors, who are sent
   // on to sign-up from there. #389: with `browseBeforeSignup`, so does the
@@ -30,21 +34,40 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const isPublic =
     PUBLIC_PATHS.includes(pathname) ||
     isContactPath(pathname) ||
-    (featureFlags.browseBeforeSignup && pathname === "/")
+    (browseBeforeSignup && pathname === "/")
   const isAuthPage = AUTH_PATHS.includes(pathname)
+  // Signing out in this tab is the one move from "authenticated" straight to
+  // "unauthenticated" (a rejected session passes through "loading" first).
+  const wasAuthenticated = useRef(false)
 
   useEffect(() => {
-    if (status === "loading") return
+    if (status === "loading" || !decided) return
+    const signedOutHere = wasAuthenticated.current
+    wasAuthenticated.current = status === "authenticated"
     if (status === "unauthenticated" && !isPublic) {
+      // #482: with `browseBeforeSignup`, signing out lands on the signed-out
+      // home map (and the intro slides there), not the login page.
+      if (signedOutHere && browseBeforeSignup) {
+        router.replace("/")
+        return
+      }
       // #219: remember where the user was heading so signing in returns
       // them there instead of dropping them on the home map.
       router.replace(buildLoginPath(`${pathname}${window.location.search}`))
     } else if (status === "authenticated" && isAuthPage) {
       router.replace(getRedirectTarget())
     }
-  }, [status, pathname, isPublic, isAuthPage, router])
+  }, [
+    status,
+    decided,
+    pathname,
+    isPublic,
+    isAuthPage,
+    browseBeforeSignup,
+    router,
+  ])
 
-  if (status === "loading") {
+  if (status === "loading" || !decided) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />

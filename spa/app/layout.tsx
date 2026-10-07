@@ -1,13 +1,9 @@
 import type { Metadata, Viewport } from "next"
 import { Bricolage_Grotesque } from "next/font/google"
 import "./globals.css"
-import { AuthProvider } from "@/components/auth-provider"
-import { AuthGate } from "@/components/auth-gate"
-import { ActionFeedbackProvider } from "@/components/action-feedback"
-import { NewEventDrawerProvider } from "@/components/new-event-drawer-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 import { InAppHistoryTracker } from "@/components/in-app-history-tracker"
-import { AuthenticatedAppShell } from "@/components/authenticated-app-shell"
+import { AppChrome } from "@/components/app-chrome"
 import { resolveSiteUrl } from "@/lib/site-url"
 
 const bricolageGrotesque = Bricolage_Grotesque({
@@ -92,15 +88,8 @@ export default function RootLayout({
       <body className="font-sans antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <InAppHistoryTracker />
-          <AuthProvider>
-            <AuthGate>
-              <ActionFeedbackProvider>
-                <NewEventDrawerProvider>
-                  <AuthenticatedAppShell>{children}</AuthenticatedAppShell>
-                </NewEventDrawerProvider>
-              </ActionFeedbackProvider>
-            </AuthGate>
-          </AuthProvider>
+          {/* The gates, session and app shell; not for the landing (#467). */}
+          <AppChrome>{children}</AppChrome>
         </ThemeProvider>
       </body>
     </html>

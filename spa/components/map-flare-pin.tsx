@@ -24,6 +24,7 @@ import {
   type EventItem,
   type EventVisibility,
 } from "@/lib/api/events"
+import { displayFlareTitle } from "@/lib/flare-title"
 import type { GeoCoords } from "@/lib/geolocation"
 import { EVENT_TYPES } from "@/types/utils"
 
@@ -40,9 +41,18 @@ const VISIBILITY_FILL: Record<EventVisibility, string> = {
   public: "bg-flare-open text-flare-open-ink",
 }
 
-/** The part of a flare's title before the "·", as the popover shows it. */
-export function flareTitle(event: EventItem): string {
-  return event.title.split("·", 2)[0].trim()
+/**
+ * A flare's title as the pin's label and popover show it. `own` is the
+ * viewer hosting it: a flare its host left untitled reads "theater outing"
+ * to them and "theater outing with lukas" to everyone else (#494).
+ */
+export function flareTitle(event: EventItem, own = false): string {
+  return displayFlareTitle({
+    title: event.title,
+    type: event.type,
+    hostName: event.host.name,
+    isHost: own,
+  })
 }
 
 /** What a pin needs to draw: the signed-out map's public pins (#389) carry
@@ -200,29 +210,6 @@ export function FlarePin({
 }
 
 /**
- * The key to the pin fills. Colour has to be learned and fails for some
- * colour-blind viewers, so it stays on screen while any flare pin is.
- */
-export function VisibilityLegend() {
-  return (
-    <div
-      data-map-legend
-      className="flex items-center gap-3 rounded-full bg-card/90 px-3 py-1 text-xs text-muted-foreground shadow backdrop-blur-md"
-    >
-      {(["private", "public"] as const).map((v) => (
-        <span key={v} className="flex items-center gap-1.5">
-          <span
-            aria-hidden="true"
-            className={`h-3 w-3 rounded-full border border-card ${VISIBILITY_FILL[v]}`}
-          />
-          {VISIBILITY_LABEL[v]}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-/**
  * The popover card over a tapped pin. The band is tinted by who can join and
  * shows the category as its icon only (the word is its accessible name). The
  * close button sits in the band, centred on it and flush with its right edge.
@@ -302,7 +289,7 @@ export function FlarePreviewCard({
       </div>
       <div className="p-3">
         <p className="line-clamp-2 text-sm font-semibold text-foreground">
-          {flareTitle(event)}
+          {flareTitle(event, own)}
         </p>
         <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-foreground">
           {live && <LiveDot />}

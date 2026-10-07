@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import SettingsPage from "./page"
 import type { AuthUser } from "@/lib/auth-store"
+import { resetNewOnboardingMemory } from "@/lib/onboarding-flags"
 import type { NotificationSettings } from "@/lib/api/notification-settings"
 
 const mocks = vi.hoisted(() => ({
@@ -86,6 +87,8 @@ function notificationSettings(
 describe("SettingsPage account tab", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
+    resetNewOnboardingMemory()
     currentUser = baseUser()
     mocks.fetchNotificationSettings.mockResolvedValue(notificationSettings())
     mocks.updateProfile.mockResolvedValue({
@@ -136,6 +139,71 @@ describe("SettingsPage account tab", () => {
     await user.click(toggle)
     expect(toggle).toHaveAttribute("aria-checked", "true")
     expect(window.localStorage.getItem("sponti.ideas.hidden.v1")).toBeNull()
+  })
+
+  it("switches the new onboarding on and off, on this device only (#482)", async () => {
+    const user = userEvent.setup()
+    window.localStorage.removeItem("sponti.new-onboarding.v1")
+    render(<SettingsPage />)
+
+    const toggle = screen.getByRole("switch", { name: "new onboarding" })
+    expect(toggle).toHaveAttribute("aria-checked", "false")
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-checked", "true")
+    expect(window.localStorage.getItem("sponti.new-onboarding.v1")).toBe("on")
+    expect(mocks.updateProfile).not.toHaveBeenCalled()
+    expect(mocks.updateNotificationSettings).not.toHaveBeenCalled()
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-checked", "false")
+    expect(window.localStorage.getItem("sponti.new-onboarding.v1")).toBeNull()
+  })
+
+  it("replay intro resets the slides and the first-run intro, and says so (#482)", async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem("sponti.intro-slides.v1", "seen")
+    window.localStorage.setItem("sponti.onboarding.v1", "done")
+    window.localStorage.setItem(
+      "sponti.location-choice.v1",
+      '{"kind":"location"}'
+    )
+    render(<SettingsPage />)
+
+    await user.click(screen.getByRole("button", { name: "replay intro" }))
+
+    expect(window.localStorage.getItem("sponti.intro-slides.v1")).toBeNull()
+    expect(window.localStorage.getItem("sponti.onboarding.v1")).toBe("pending")
+    // The map tips are a separate button.
+    expect(
+      window.localStorage.getItem("sponti.location-choice.v1")
+    ).not.toBeNull()
+    expect(mocks.showActionFeedback).toHaveBeenCalledWith(
+      expect.stringContaining("intro reset")
+    )
+  })
+
+  it("replay map tips resets the coach marks and the location choice, and says to sign out (#482)", async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem("sponti.intro-slides.v1", "seen")
+    window.localStorage.setItem("sponti.coach-marks.v1", "seen")
+    window.localStorage.setItem("sponti.coach-marks.home.v1", "seen")
+    window.localStorage.setItem(
+      "sponti.location-choice.v1",
+      '{"kind":"location"}'
+    )
+    render(<SettingsPage />)
+
+    await user.click(screen.getByRole("switch", { name: "new onboarding" }))
+    await user.click(screen.getByRole("button", { name: "replay map tips" }))
+
+    expect(window.localStorage.getItem("sponti.coach-marks.v1")).toBeNull()
+    expect(window.localStorage.getItem("sponti.coach-marks.home.v1")).toBeNull()
+    expect(window.localStorage.getItem("sponti.location-choice.v1")).toBeNull()
+    expect(window.localStorage.getItem("sponti.intro-slides.v1")).toBe("seen")
+    expect(mocks.showActionFeedback).toHaveBeenCalledWith(
+      "map tips reset. sign out to see them again"
+    )
   })
 
   it("links to the edit profile page and no longer holds handles itself (#289)", () => {

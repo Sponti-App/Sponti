@@ -18,7 +18,9 @@
 // exception to BRAND.md's type scale, for the intro only (#407).
 //
 // Loaded lazily by `intro-slides-gate.tsx`, so this file and its styles ship
-// only to a visitor who is about to see them.
+// only to a visitor who is about to see them. The landing page (#467,
+// `landing-page.tsx`) reuses the copy and the art: its root carries the
+// `intro-slides` class for the figures' colour.
 
 import { useEffect, useId, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -39,7 +41,7 @@ import { Button } from "@/components/ui/button"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 
-type Kind = "what" | "why" | "how"
+export type Kind = "what" | "why" | "how"
 
 const SLIDES: readonly Kind[] = ["what", "why", "how"]
 
@@ -51,7 +53,10 @@ export const WHO_REPORT_URL =
 
 // ---- copy --------------------------------------------------------------------
 
-const COPY: Record<Kind, { eyebrow: string; title: string; body: string }> = {
+export const INTRO_COPY: Record<
+  Kind,
+  { eyebrow: string; title: string; body: string }
+> = {
   what: {
     eyebrow: "what sponti is",
     title: "plans with friends, right now or soon",
@@ -136,7 +141,7 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
 
   const kind = SLIDES[index]
   const last = index === SLIDES.length - 1
-  const copy = COPY[kind]
+  const copy = INTRO_COPY[kind]
 
   const go = (next: number) => {
     const clamped = Math.min(Math.max(next, 0), SLIDES.length - 1)
@@ -206,6 +211,21 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
       </header>
 
       <div className="relative mt-auto flex flex-col px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        {/* A scrim that follows the copy block on the how slide, whose crowd
+            runs under the copy, so the type reads over the art on any screen
+            height (#498): clear above the eyebrow, solid under the text. It
+            sits in the backdrop's layer, painted after it. The other slides'
+            art ends above the copy, and a scrim would cut it. */}
+        {kind === "how" && (
+          <div
+            aria-hidden
+            data-intro-scrim
+            className="pointer-events-none absolute inset-x-0 -top-24 bottom-0 -z-10"
+            style={{
+              background: `linear-gradient(to bottom, transparent, ${mix(BG, 55, "transparent")} 3rem, ${BG} 5.5rem)`,
+            }}
+          />
+        )}
         <div key={kind} className="intro-in" aria-live="polite">
           <p className="text-sm font-medium text-muted-foreground">
             {copy.eyebrow}
@@ -290,7 +310,7 @@ function Dots({
 }
 
 /** The why slide's source. */
-function Source() {
+export function Source() {
   return (
     <p className="mt-3 text-xs text-muted-foreground/80">
       source:{" "}
@@ -363,7 +383,7 @@ function NowOrSoon() {
 
 // ---- the art -----------------------------------------------------------------
 
-function Backdrop({ kind }: { kind: Kind }) {
+export function Backdrop({ kind }: { kind: Kind }) {
   const figureBox =
     kind === "how" ? "aspect-[390/360] top-6" : "aspect-[390/480] top-4"
   return (
@@ -785,7 +805,7 @@ function HowFigure() {
 
 /** Slow and calm. Nothing moves under prefers-reduced-motion. Inline, so the
  * styles ship in this lazy chunk and not in the app's global css. */
-function IntroStyles() {
+export function IntroStyles() {
   return (
     <style>{`
       .intro-slides { --intro-silhouette: color-mix(in oklch, var(--foreground) 72%, var(--flare-invite-ink)); }

@@ -47,6 +47,22 @@ describe("IntroSlides (#377)", () => {
     expect(mocks.push).not.toHaveBeenCalled()
   })
 
+  it("puts a scrim under the how slide's copy, so the type reads over the crowd (#498)", () => {
+    render(<IntroSlides onLeave={vi.fn()} />)
+    const dialog = screen.getByRole("dialog")
+    // The first two slides' art ends above the copy: no scrim to cut it.
+    expect(dialog.querySelector("[data-intro-scrim]")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "next" }))
+    expect(dialog.querySelector("[data-intro-scrim]")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "next" }))
+
+    const scrim = dialog.querySelector("[data-intro-scrim]")
+    expect(scrim).not.toBeNull()
+    expect(scrim).toHaveAttribute("aria-hidden", "true")
+    // It sits in the copy block, with the heading.
+    expect(scrim?.parentElement).toContainElement(title())
+  })
+
   it("moves with the arrow keys and the dots, and Escape skips", () => {
     const onLeave = vi.fn()
     render(<IntroSlides onLeave={onLeave} />)

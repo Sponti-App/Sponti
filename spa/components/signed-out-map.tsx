@@ -4,12 +4,13 @@
 //
 // It shows what Sponti is without an account: the curated idea spots and the
 // open-to-all flares from the public map endpoint (#425), as pins only. It
-// loads nothing else. No session, no events list, no circles, and no
-// position request: until the location ask (#408) lands, it centres on
-// berlin, where the idea spots are.
+// loads nothing else. No session, no events list and no circles. It centres
+// on berlin, where the idea spots are, unless the location ask (#408, behind
+// `locationAsk`) gave it the visitor's position or a picked area.
 //
-// Every way of doing something here (a pin, an idea's "light a flare", the
-// FAB) is handed to the parent, which asks the visitor to sign up.
+// Every way of doing something here (a pin, an idea's "light a flare") is
+// handed to the parent, which asks the visitor to sign up. Lighting a flare
+// is the nav's flare button; the map has no FAB (#491).
 
 import { useEffect, useMemo, useState } from "react"
 import {
@@ -21,9 +22,8 @@ import {
   useApiLoadingStatus,
 } from "@vis.gl/react-google-maps"
 import { useTheme } from "next-themes"
-import { FlameIcon, MapPinIcon } from "@/components/icons"
 import { LegalLinks } from "@/components/legal-links"
-import { FlarePin, VisibilityLegend } from "@/components/map-flare-pin"
+import { FlarePin } from "@/components/map-flare-pin"
 import {
   FLARE_PIN_SLOTS,
   IDEA_PIN_SLOTS,
@@ -35,15 +35,17 @@ import { isLive } from "@/lib/api/events"
 import type { PublicMapPin } from "@/lib/api/public-map"
 import { getIdeaPins, type FlareIdea } from "@/lib/flare-ideas"
 import type { GeoCoords } from "@/lib/geolocation"
+import { hasIdeaSpots } from "@/lib/location-ask"
+import { BERLIN_START } from "@/lib/location-choice"
 import { haptic } from "@/lib/haptics"
 import { useIdeasHidden } from "@/lib/idea-preferences"
 import { usePublicMapPins } from "@/lib/use-public-map-pins"
 import { EVENT_TYPES } from "@/types/utils"
 
 /** Where the signed-out map opens: kreuzberg, among the berlin idea spots.
- * The location ask (#408) will replace it with the visitor's position or a
- * picked area. */
-export const SIGNED_OUT_CENTER: GeoCoords = { lat: 52.5, lng: 13.42 }
+ * The location ask (#408) replaces it with the visitor's position or a picked
+ * area. */
+export const SIGNED_OUT_CENTER: GeoCoords = BERLIN_START
 export const SIGNED_OUT_AREA_LABEL = "berlin"
 const SIGNED_OUT_ZOOM = 13
 
@@ -59,18 +61,24 @@ function pinLabel(pin: PublicMapPin, now: number): string {
 export function SignedOutMap({
   center = SIGNED_OUT_CENTER,
   areaLabel = SIGNED_OUT_AREA_LABEL,
+  located = false,
+  banner,
+  dockHidden = false,
   onPin,
   onLightIdea,
-  onLight,
 }: {
   center?: GeoCoords
   areaLabel?: string
+  /** The centre is the visitor's own position (#408). */
+  located?: boolean
+  /** A picked area's banner, under the header chips (#408). */
+  banner?: React.ReactNode
+  /** Hide the dock under the location ask (#408). */
+  dockHidden?: boolean
   /** An open-to-all pin was tapped. */
   onPin: (pin: PublicMapPin) => void
   /** An idea card's "light a flare". */
   onLightIdea: (idea: FlareIdea) => void
-  /** The FAB. */
-  onLight: () => void
 }) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   const [nowMs, setNowMs] = useState(0)
@@ -132,7 +140,7 @@ export function SignedOutMap({
   const count = visiblePins.length
   const title =
     count > 0
-      ? `${count} open ${count === 1 ? "flare" : "flares"} in ${areaLabel}`
+      ? `${count} open ${count === 1 ? "flare" : "flares"} ${located ? "near you" : `in ${areaLabel}`}`
       : "quiet around here"
   const hint = loading
     ? "loading flares…"
@@ -142,7 +150,9 @@ export function SignedOutMap({
         ? "open to all, live now and later today. tap one to see more."
         : ideas.length > 0
           ? "no flares yet. the dashed spots are ideas, tap one."
-          : "no flares yet."
+          : hasIdeaSpots(center)
+            ? "no flares yet."
+            : "no flares yet, and no idea spots there yet: they're berlin-only for now."
 
   const canvasProps = {
     center,
@@ -164,36 +174,22 @@ export function SignedOutMap({
         <SignedOutStaticMap {...canvasProps} />
       )}
 
-      {/* Under the floating header chips: the area, and the pin legend while
-          any flare pin is on the map (#315). */}
-      <div className="pointer-events-none absolute inset-x-3 top-16 z-30 flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-xs font-medium shadow">
-          <MapPinIcon className="h-3.5 w-3.5 text-muted-foreground" />
-          {areaLabel}
-        </span>
-        {visiblePins.length > 0 && <VisibilityLegend />}
+      {/* Under the floating header chips: a picked area's banner (#408). The
+          area itself is in the sheet's heading below (#496); no pin legend
+          (#490). */}
+      <div className="pointer-events-none absolute inset-x-3 top-16 z-30 flex flex-col items-end gap-2">
+        {banner}
       </div>
 
       {/* The dock sits on the nav, like the signed-in map's. */}
       <div
         data-map-dock
+        aria-hidden={dockHidden}
         style={{ bottom: "var(--sponti-nav-h, 64px)" }}
-        className="pointer-events-none fixed inset-x-0 z-20 flex flex-col gap-2 pb-2"
+        className={`pointer-events-none fixed inset-x-0 z-20 flex flex-col gap-2 pb-2 ${
+          dockHidden ? "invisible" : ""
+        }`}
       >
-        <div className="flex justify-end px-4">
-          <button
-            type="button"
-            onClick={() => {
-              haptic("medium")
-              onLight()
-            }}
-            aria-label="Light a flare"
-            className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg active:scale-95"
-          >
-            <FlameIcon className="h-6 w-6" />
-          </button>
-        </div>
-
         {tappedIdea && tappedIdeaType ? (
           <QuietFlareCard
             type={tappedIdeaType}

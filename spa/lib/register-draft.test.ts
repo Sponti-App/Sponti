@@ -81,17 +81,20 @@ describe("register draft (#300)", () => {
   })
 
   it("does nothing when storage throws", () => {
-    const boom = () => {
-      throw new Error("SecurityError")
-    }
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(boom)
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(boom)
-    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(boom)
+    // Some browsers throw on the sessionStorage getter itself. Spying on
+    // Storage.prototype doesn't reach jsdom's window.sessionStorage (#458).
+    const getter = vi
+      .spyOn(window, "sessionStorage", "get")
+      .mockImplementation(() => {
+        throw new Error("SecurityError")
+      })
 
     expect(() =>
       writeRegisterDraft({ displayName: "Sam", username: "", email: "" })
     ).not.toThrow()
     expect(() => clearRegisterDraft()).not.toThrow()
     expect(readRegisterDraft()).toBeNull()
+    // Each of the three calls above reached the throwing getter.
+    expect(getter).toHaveBeenCalledTimes(3)
   })
 })

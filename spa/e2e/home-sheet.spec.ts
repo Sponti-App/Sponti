@@ -7,7 +7,7 @@ import {
 } from "./support/stubs"
 
 // #223: the home map's "flares near you" drawer is a dock (filter bar, plus
-// the FAB at peek or a card rail at mid) and a full-height list page, all
+// a card rail at mid; no FAB since #491) and a full-height list page, all
 // fixed to bottom: var(--sponti-nav-h). These guard the geometry contract
 // #109 asked for: whatever the map docks sits flush on the nav, never covers
 // it, and the document itself never scrolls. Chromium doesn't reproduce
@@ -88,21 +88,21 @@ test.describe("home map dock geometry (#223)", () => {
     const railBox = await box(rail(page))
     const dockBox = await box(dock(page))
     expect(railBox.y).toBeGreaterThanOrEqual(dockBox.y)
-    // FAB only at peek: from mid up the nav's flare button does the same.
+    // No FAB (#491): the nav's flare button is the only one.
     await expect(
       page.getByRole("button", { name: "Light a flare", exact: true })
     ).toBeHidden()
     expect(await navIsOnTop(page)).toBe(true)
   })
 
-  test("peek: the filter bar and FAB stay flush on the nav without the rail", async ({
+  test("peek: the filter bar stays flush on the nav without the rail, and there is no FAB (#491)", async ({
     page,
   }) => {
     await page.getByRole("button", { name: "hide cards" }).click()
     await expect(rail(page)).toBeHidden()
     await expect(
       page.getByRole("button", { name: "Light a flare", exact: true })
-    ).toBeVisible()
+    ).toHaveCount(0)
     expect(Math.abs(await gapAboveNav(page, dock(page)))).toBeLessThanOrEqual(1)
     expect(await navIsOnTop(page)).toBe(true)
 
@@ -124,17 +124,142 @@ test.describe("home map dock geometry (#223)", () => {
     await expect
       .poll(async () => Math.abs(await gapAboveNav(page, list)))
       .toBeLessThanOrEqual(1)
-    const [listBox, settingsBox] = await Promise.all([
+    const [listBox, inviteBox] = await Promise.all([
       box(list),
-      box(page.getByRole("button", { name: "Settings" })),
+      box(page.getByRole("button", { name: "invite", exact: true })),
     ])
-    expect(listBox.y).toBeGreaterThanOrEqual(settingsBox.y + settingsBox.height)
+    expect(listBox.y).toBeGreaterThanOrEqual(inviteBox.y + inviteBox.height)
     expect(await navIsOnTop(page)).toBe(true)
     await expect(list.getByText("gallery late opening")).toBeVisible()
 
     await list.getByRole("button", { name: "map", exact: true }).click()
     await expect(rail(page)).toBeVisible()
     await expect(list).toBeHidden()
+  })
+
+  test("a live card in the list has the peach strip on its left, and the swipe label is 12px (#503)", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "list", exact: true }).click()
+    const list = page.getByRole("region", { name: "flare list" })
+    await expect(list.getByText("drinks after work")).toBeVisible()
+
+    const card = list
+      .locator('[data-slot="card"]')
+      .filter({ hasText: "drinks after work" })
+    const sides = await card.evaluate((el) => {
+      const cs = getComputedStyle(el)
+      return {
+        leftWidth: cs.borderLeftWidth,
+        left: cs.borderLeftColor,
+        top: cs.borderTopColor,
+        right: cs.borderRightColor,
+      }
+    })
+    expect(sides.leftWidth).toBe("3px")
+    expect(sides.left).not.toBe(sides.top)
+    expect(sides.top).toBe(sides.right)
+
+    const label = list.getByText("i'm in").first()
+    const fontSize = await label.evaluate((el) =>
+      parseFloat(getComputedStyle(el).fontSize)
+    )
+    expect(fontSize).toBeGreaterThanOrEqual(12)
+  })
+
+  test("the list page has a drag handle: a swipe down closes it, a short drag springs back, a tap closes it (#492)", async ({
+    page,
+  }) => {
+    const list = page.getByRole("region", { name: "flare list" })
+    const handle = list.getByRole("button", { name: "close list" })
+    const open = async () => {
+      await page.getByRole("button", { name: "list", exact: true }).click()
+      await expect
+        .poll(async () => Math.abs(await gapAboveNav(page, list)))
+        .toBeLessThanOrEqual(1)
+    }
+    const dragTitle = async (dy: number) => {
+      const h = await box(
+        list.getByRole("heading", { name: "flares near you" })
+      )
+      const x = h.x + h.width / 2
+      const y = h.y + h.height / 2
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.mouse.move(x, y + dy, { steps: 12 })
+      await page.mouse.up()
+    }
+
+    await open()
+    // The handle is centred at the top of the page, above the title.
+    const [listBox, handleBox, titleBox] = await Promise.all([
+      box(list),
+      box(handle.locator("span")),
+      box(list.getByRole("heading", { name: "flares near you" })),
+    ])
+    expect(
+      Math.abs(
+        handleBox.x + handleBox.width / 2 - (listBox.x + listBox.width / 2)
+      )
+    ).toBeLessThanOrEqual(1)
+    expect(handleBox.y + handleBox.height).toBeLessThanOrEqual(titleBox.y)
+
+    // A short, slow drag is not a close: the page settles back.
+    const h = await box(handle)
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2 + 40, {
+      steps: 4,
+    })
+    // While held, the page follows the finger.
+    await expect
+      .poll(async () => (await box(list)).y)
+      .toBeGreaterThan(listBox.y + 30)
+    await page.waitForTimeout(400)
+    await page.mouse.up()
+    await expect
+      .poll(async () => Math.abs(await gapAboveNav(page, list)))
+      .toBeLessThanOrEqual(1)
+    await expect(list).toBeVisible()
+
+    // Dragging the title row down far enough closes it.
+    await dragTitle(200)
+    await expect(list).toBeHidden()
+    await expect(rail(page)).toBeVisible()
+
+    // A tap on the handle closes it too.
+    await open()
+    await handle.click()
+    await expect(list).toBeHidden()
+    await expect(rail(page)).toBeVisible()
+  })
+
+  test("a finger swipe down on the list page's handle closes it (#492)", async ({
+    page,
+  }, testInfo) => {
+    test.skip(!testInfo.project.use.hasTouch, "needs touch input")
+    await page.getByRole("button", { name: "list", exact: true }).click()
+    const list = page.getByRole("region", { name: "flare list" })
+    await expect
+      .poll(async () => Math.abs(await gapAboveNav(page, list)))
+      .toBeLessThanOrEqual(1)
+
+    // Real touch events (Playwright's mouse would send pointerType mouse).
+    const h = await box(list.getByRole("button", { name: "close list" }))
+    const x = h.x + h.width / 2
+    const y = h.y + h.height / 2
+    const cdp = await page.context().newCDPSession(page)
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd", dy: number) =>
+      cdp.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: type === "touchEnd" ? [] : [{ x, y: y + dy }],
+      })
+    await touch("touchStart", 0)
+    for (let dy = 20; dy <= 240; dy += 20) await touch("touchMove", dy)
+    await touch("touchEnd", 240)
+
+    await expect(list).toBeHidden()
+    await expect(rail(page)).toBeVisible()
   })
 
   test("rail cards are content-height, not stretched to a taller neighbour", async ({
@@ -311,15 +436,12 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
     await expect(navFlare(page).locator("svg[data-icon='bank']")).toBeVisible()
   })
 
-  test("the card shows at peek too, next to the FAB, and opens the composer", async ({
+  test("the card shows at peek too, and opens the composer", async ({
     page,
   }) => {
     await chip(page, "food").click()
     await page.getByRole("button", { name: "hide cards" }).click()
     await expect(quietCard(page)).toBeVisible()
-    await expect(
-      page.getByRole("button", { name: "Light a flare", exact: true })
-    ).toBeVisible()
 
     await quietCard(page)
       .getByRole("button", { name: "light a food flare" })
@@ -477,22 +599,16 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
       }),
     ])
     const railCard = rail(page).locator('[data-rail-id="e-sports"]')
+    // Not the colour: a rail card is tinted by who can join (#493), and an
+    // idea isn't a flare, so it keeps the plain card colour.
     const railStyle = await railCard.evaluate((el) => {
       const cs = getComputedStyle(el)
-      return {
-        radius: cs.borderRadius,
-        pad: cs.padding,
-        bg: cs.backgroundColor,
-      }
+      return { radius: cs.borderRadius, pad: cs.padding }
     })
     await chip(page, "drinks").click()
     const ideaStyle = await quietCard(page).evaluate((el) => {
       const cs = getComputedStyle(el)
-      return {
-        radius: cs.borderRadius,
-        pad: cs.padding,
-        bg: cs.backgroundColor,
-      }
+      return { radius: cs.borderRadius, pad: cs.padding }
     })
     expect(ideaStyle).toEqual(railStyle)
   })

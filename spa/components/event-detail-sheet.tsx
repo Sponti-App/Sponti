@@ -35,6 +35,7 @@ import {
 import { readLastKnownCoords } from "@/lib/geolocation"
 import { haptic } from "@/lib/haptics"
 import { formatDayShort } from "@/lib/format-date"
+import { eventDisplayTitle } from "@/lib/flare-title"
 
 interface Props {
   open: boolean
@@ -165,7 +166,9 @@ export function EventDetailSheet({
             {/* Drag handle — vaul attaches its gesture here automatically */}
             <div className="mx-auto mt-3 mb-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30" />
             <Drawer.Title className="sr-only">
-              {displayEvent?.title ?? "Flare details"}
+              {displayEvent
+                ? eventDisplayTitle(displayEvent, user?.id)
+                : "Flare details"}
             </Drawer.Title>
             <Drawer.Description className="sr-only">
               event details and rsvp
@@ -179,7 +182,7 @@ export function EventDetailSheet({
                 <FlareHeader
                   as="h2"
                   type={displayEvent.type}
-                  title={displayEvent.title}
+                  title={eventDisplayTitle(displayEvent, user?.id)}
                   statusLine={flareStatusLine(displayEvent, timing)}
                   timing={timing}
                   viewer={viewer}

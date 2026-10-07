@@ -44,7 +44,7 @@ _Avoid_: Suggestion, recommendation, demo flare (idea spots are not flares and a
 The state where exactly one category chip is on and no flare of that category is live (`quietFlareType`), once location and results are loaded. The map then offers an idea card, or a generic card when ideas are hidden, and the bottom nav's flare button shows that category's icon.
 
 **Feature profile**:
-The compile-time switch in `lib/feature-flags.ts`: `tester` (the default; anything but `NEXT_PUBLIC_FEATURE_PROFILE=full` is tester, so a bad env fails closed) or `full`. Flags hide surfaces and never delete them: `reshare`, `plusOne` and `browseBeforeSignup` are on only in `full`. The e2e suite runs a second dev server in the `full` profile for the specs in `e2e/full-profile/`. `seedDemoData` is separate, off unless `NEXT_PUBLIC_SEED_DEMO_DATA=true`, and swaps real flares for bundled demo ones; the two never mix.
+The compile-time switch in `lib/feature-flags.ts`: `tester` (the default; anything but `NEXT_PUBLIC_FEATURE_PROFILE=full` is tester, so a bad env fails closed) or `full`. Flags hide surfaces and never delete them: `reshare`, `plusOne` and `browseBeforeSignup` are on only in `full`. The e2e suite runs a second dev server in the `full` profile for the specs in `e2e/full-profile/`. `seedDemoData` is separate, off unless `NEXT_PUBLIC_SEED_DEMO_DATA=true`, and swaps real flares for bundled demo ones; the two never mix. The new-onboarding flags (`browseBeforeSignup`, `introV2`, `locationAsk`) can also be switched on per device at runtime (settings, "new onboarding", #482): read them through `useOnboardingFlags` / `getOnboardingFlags` in `lib/onboarding-flags.ts`, never off `featureFlags` directly.
 _Avoid_: Feature toggle, remote config (nothing is changed at runtime).
 
 **First-run intro**:
@@ -55,7 +55,7 @@ _Avoid_: Tutorial, walkthrough.
 `AuthenticatedAppShell`, which renders the bottom nav, the unread badge and the notifications sheet once for every authenticated page. Pages never render `BottomNav` themselves (`docs/decisions/app-shell-owns-bottom-nav.md`). The one exception is the signed-out map, which renders `SignedOutBottomNav`: it holds no app-level state, and its tabs open that page's sign-up sheet.
 
 **Signed-out map**:
-The home map a visitor sees before signing up, behind `browseBeforeSignup` (#389): idea spots and open-to-all pins from the public map endpoint (`lib/api/public-map.ts`), centred on berlin, with "sign in" where settings sits. It calls no endpoint that needs an account. A pin, the nav's tabs, the flare button, the FAB and an idea's "light a flare" each open the **sign-up sheet**.
+The home map a visitor sees before signing up, behind `browseBeforeSignup` (#389): idea spots and open-to-all pins from the public map endpoint (`lib/api/public-map.ts`), centred on berlin, with "sign in" where settings sits. It calls no endpoint that needs an account. A pin, the nav's tabs, the flare button and an idea's "light a flare" each open the **sign-up sheet**.
 _Avoid_: Guest mode, preview, welcome page.
 
 **Kept draft**:

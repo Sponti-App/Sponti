@@ -5,15 +5,23 @@ import { cn } from "@/lib/utils"
 // wants the Impressum directly reachable from every page, so this sits where
 // a signed-out visitor is: the signed-out map's dock, the sign-up sheet and
 // the sign-in page. (Registration has its own "by signing up you agree"
-// sentence with the same three links.) The pages are public paths in
-// auth-gate (LEGAL_PATHS).
+// sentence with the same three links.) Signed in, it is the foot of the menu
+// (#369). The pages are public paths in auth-gate (LEGAL_PATHS,
+// lib/legal-paths).
 const LEGAL_LINKS = [
   { href: "/menu/impressum", label: "impressum" },
   { href: "/menu/privacy", label: "privacy" },
   { href: "/menu/terms", label: "terms" },
 ] as const
 
-export function LegalLinks({ className }: { className?: string }) {
+export function LegalLinks({
+  className,
+  tabIndex,
+}: {
+  className?: string
+  /** -1 inside a closed drawer (#369's menu), so the links aren't focusable. */
+  tabIndex?: number
+}) {
   return (
     <nav
       aria-label="legal"
@@ -33,6 +41,7 @@ export function LegalLinks({ className }: { className?: string }) {
           {/* A tap target taller than the text, without a taller row. */}
           <Link
             href={href}
+            tabIndex={tabIndex}
             className="px-2 py-2.5 underline-offset-2 hover:text-foreground hover:underline"
           >
             {label}

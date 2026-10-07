@@ -8,7 +8,6 @@ import {
   CaretDownIcon,
   DotsThreeIcon,
   PlusIcon,
-  QrCodeIcon,
   MagnifyingGlassIcon,
   UserPlusIcon,
   XIcon,
@@ -17,7 +16,8 @@ import { useActionFeedback } from "@/components/action-feedback"
 import { AddToFlaresDialog } from "@/components/add-to-flares-dialog"
 import { CircleChips, type CircleChipsState } from "@/components/circle-chips"
 import { CircleStackIcon } from "@/components/circle-stack-icon"
-import { QrShareSheet } from "@/components/qr-share-sheet"
+import { HandleCard } from "@/components/handle-card"
+import { InviteDialog, type ShareTab } from "@/components/qr-share-sheet"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -81,7 +81,8 @@ export default function CirclesPage() {
   const initialTab: Tab =
     searchParams.get("tab") === "people" ? "people" : "circles"
   const [tab, setTab] = useState<Tab>(initialTab)
-  const [qrOpen, setQrOpen] = useState(false)
+  // #369: the share sheet, open on this tab (null while closed).
+  const [shareTab, setShareTab] = useState<ShareTab | null>(null)
   const apiEnabled = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").length > 0
 
   // People tab search
@@ -602,18 +603,13 @@ export default function CirclesPage() {
             <button
               onClick={() => router.push("/")}
               aria-label="Back"
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border"
             >
               <ArrowLeftIcon className="h-4 w-4" />
             </button>
             <span className="text-base font-semibold">circles</span>
-            <button
-              onClick={() => setQrOpen(true)}
-              aria-label="Show your QR"
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground"
-            >
-              <QrCodeIcon className="h-4 w-4" />
-            </button>
+            {/* #369: the QR moved to the handle card below. */}
+            <span aria-hidden="true" className="h-9 w-9" />
           </div>
           <div className="border-b border-border/60 px-4 pb-3">
             <TabsList className="w-full">
@@ -632,6 +628,8 @@ export default function CirclesPage() {
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-4 pb-32">
+          <HandleCard user={user} onShare={setShareTab} />
+
           {/* ── CIRCLES TAB ── */}
           <TabsContent value="circles" className="m-0 mt-3 flex flex-col gap-3">
             {circlesLoading && (
@@ -1201,7 +1199,8 @@ export default function CirclesPage() {
 
               {connections.length === 0 && blocked.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-                  add friends with their @handle or QR code.
+                  share your link or let a friend scan your qr. they show up
+                  here once they&apos;re in.
                 </p>
               ) : (
                 <ul className="flex flex-col">
@@ -1369,11 +1368,13 @@ export default function CirclesPage() {
         </div>
       </Tabs>
 
-      {qrOpen && (
-        <QrShareSheet
+      {shareTab && (
+        <InviteDialog
+          key={shareTab}
           displayName={user?.displayName ?? "you"}
           handle={user?.username ?? "you"}
-          onClose={() => setQrOpen(false)}
+          initialTab={shareTab}
+          onClose={() => setShareTab(null)}
         />
       )}
 

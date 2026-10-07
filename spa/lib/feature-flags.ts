@@ -45,6 +45,12 @@ export const featureFlags = {
    */
   plusOne: FEATURE_PROFILE === "full",
 
+  // #482: `browseBeforeSignup`, `introV2` and `locationAsk` below are the new
+  // onboarding. A device can switch them all on at runtime ("new onboarding" in
+  // settings), whatever the build profile. Read them through
+  // `useOnboardingFlags` / `getOnboardingFlags` (lib/onboarding-flags.ts), never
+  // off `featureFlags` directly, or that switch won't reach the reader.
+
   /**
    * Browse before sign-up (#389, flare moments #370): a signed-out visitor
    * lands on the home map instead of /login. They see the idea spots and the
@@ -59,8 +65,45 @@ export const featureFlags = {
    * The intro slides (#377, flare moments #370): three slides (what sponti
    * is, why it exists, how lighting a flare works) on a signed-out visitor's
    * first open of the home map, once per device. They sit on #389's
-   * signed-out home, so they need `browseBeforeSignup` too. The post-sign-up
-   * first-run intro (#313) is separate and unchanged. Full profile only.
+   * signed-out home, so they need `browseBeforeSignup` too. It also swaps
+   * the post-sign-up first-run intro (#313) for a checklist in the map's
+   * sheet (#459), and has a 0-friend account add its first friend before a
+   * kept draft is lit. Off, the first-run intro is unchanged. Full profile
+   * only.
    */
   introV2: FEATURE_PROFILE === "full",
+
+  /**
+   * The location ask (#408, flare moments #370): instead of the browser's
+   * prompt on mount, the map's sheet asks "where should the map start?" with
+   * "use my location" (the prompt comes only after that tap) or the berlin
+   * area chips. Denied or blocked turns it into "pick an area to start", with
+   * a place search. The choice is remembered per device. It covers signed-out
+   * visitors (after the intro slides) and signed-in users who haven't
+   * decided. Full profile only; off, the map asks the browser on mount as
+   * before and the signed-out map stays on berlin.
+   */
+  locationAsk: FEATURE_PROFILE === "full",
+
+  /**
+   * Coach marks (#379, flare moments #370): three marks on the signed-out
+   * map, once per device, after the intro slides and before the location
+   * ask: the idea spot ("ideas nearby"), the flare button ("light a flare")
+   * and the map/calendar toggle ("soon lives here"). Each has "n of 3", skip
+   * and next; there is no replay. They sit on #389's signed-out home, so they
+   * need `browseBeforeSignup` too. Full profile only; off, nothing shows and
+   * the location ask doesn't wait.
+   */
+  coachMarks: FEATURE_PROFILE === "full",
+
+  /**
+   * The mobile-only gate (#467): on a desktop-sized screen without touch,
+   * a calm "sponti is made for your phone" notice with a QR code to open the
+   * page on a phone, and "continue anyway" (remembered per device). It is for
+   * the testers, so it is on in BOTH profiles. The opt-out is for local
+   * desktop development: set NEXT_PUBLIC_MOBILE_GATE=off. Anything else,
+   * including unset, leaves it on. Whether the notice warns or blocks is
+   * `MOBILE_GATE_MODE` in lib/mobile-gate.ts.
+   */
+  mobileGate: process.env.NEXT_PUBLIC_MOBILE_GATE !== "off",
 } as const

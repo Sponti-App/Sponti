@@ -22,6 +22,7 @@ describe("featureFlags profile", () => {
     expect(featureFlags.plusOne).toBe(false)
     expect(featureFlags.browseBeforeSignup).toBe(false)
     expect(featureFlags.introV2).toBe(false)
+    expect(featureFlags.coachMarks).toBe(false)
   })
 
   it("stays on the tester profile for any value other than 'full'", async () => {
@@ -36,6 +37,7 @@ describe("featureFlags profile", () => {
     expect(garbage.plusOne).toBe(false)
     expect(garbage.browseBeforeSignup).toBe(false)
     expect(garbage.introV2).toBe(false)
+    expect(garbage.coachMarks).toBe(false)
   })
 
   it("turns on full-app flags when set to 'full'", async () => {
@@ -45,6 +47,7 @@ describe("featureFlags profile", () => {
     expect(featureFlags.plusOne).toBe(true)
     expect(featureFlags.browseBeforeSignup).toBe(true)
     expect(featureFlags.introV2).toBe(true)
+    expect(featureFlags.coachMarks).toBe(true)
   })
 
   it("keeps seedDemoData reading its own env var, independent of the profile", async () => {
@@ -57,5 +60,22 @@ describe("featureFlags profile", () => {
     vi.stubEnv("NEXT_PUBLIC_SEED_DEMO_DATA", "true")
     const { featureFlags: tester } = await loadFlags()
     expect(tester.seedDemoData).toBe(true)
+  })
+
+  it("keeps the mobile gate on in both profiles, off only with NEXT_PUBLIC_MOBILE_GATE=off (#467)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_MOBILE_GATE", undefined)
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", undefined)
+    expect((await loadFlags()).featureFlags.mobileGate).toBe(true)
+
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "full")
+    expect((await loadFlags()).featureFlags.mobileGate).toBe(true)
+
+    vi.stubEnv("NEXT_PUBLIC_MOBILE_GATE", "on")
+    expect((await loadFlags()).featureFlags.mobileGate).toBe(true)
+
+    vi.stubEnv("NEXT_PUBLIC_MOBILE_GATE", "off")
+    expect((await loadFlags()).featureFlags.mobileGate).toBe(false)
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "tester")
+    expect((await loadFlags()).featureFlags.mobileGate).toBe(false)
   })
 })

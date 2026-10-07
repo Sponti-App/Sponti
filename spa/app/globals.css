@@ -43,6 +43,8 @@
   --color-flare-invite-ink: var(--flare-invite-ink);
   --color-flare-open: var(--flare-open);
   --color-flare-open-ink: var(--flare-open-ink);
+  --color-flare-invite-tint: var(--flare-invite-tint);
+  --color-flare-open-tint: var(--flare-open-tint);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -92,6 +94,10 @@
   --flare-invite-ink: oklch(0.36 0.09 315);
   --flare-open: oklch(0.87 0.07 185);
   --flare-open-ink: oklch(0.36 0.09 185);
+  /* Map flare cards (#493): a card-sized shade of the pin's colour. Text on
+     it stays --foreground / --muted-foreground (AA: 4.9:1 or better). */
+  --flare-invite-tint: oklch(0.94 0.035 315);
+  --flare-open-tint: oklch(0.94 0.035 185);
   --sidebar: oklch(0.96 0.012 346);
   --sidebar-foreground: oklch(0.3 0.06 346);
   --sidebar-primary: oklch(0.8041 0.126 52.09);
@@ -144,6 +150,8 @@
   --flare-invite-ink: oklch(0.95 0.03 315);
   --flare-open: oklch(0.45 0.08 185);
   --flare-open-ink: oklch(0.95 0.03 185);
+  --flare-invite-tint: oklch(0.34 0.05 315);
+  --flare-open-tint: oklch(0.34 0.05 185);
 }
 
 @layer base {
@@ -193,6 +201,27 @@
 
 .animate-pulse-ring {
   animation: pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+/* #379: the ring around a coach mark's spotlight. A box-shadow, not a scale,
+   so it hugs a wide pill (the map/calendar toggle) as closely as a circle. */
+@keyframes coach-ring {
+  from {
+    box-shadow: 0 0 0 0 var(--primary);
+  }
+  to {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+
+.animate-coach-ring {
+  animation: coach-ring 1.8s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-coach-ring {
+    animation: none;
+  }
 }
 
 @keyframes scale-in {

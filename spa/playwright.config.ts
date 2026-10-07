@@ -35,6 +35,11 @@ const SERVER_ENV = {
   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: "",
   NEXT_PUBLIC_GOOGLE_MAPS_ID: "",
   NEXT_PUBLIC_SEED_DEMO_DATA: "",
+  // #467: host routing for the landing page (proxy.ts). Only a request whose
+  // Host is sponti.test is routed; the tests' own 127.0.0.1 is untouched.
+  // APP_ORIGIN is also where the landing's "open sponti" goes.
+  LANDING_HOSTS: "sponti.test",
+  APP_ORIGIN: "http://app.sponti.test",
 }
 
 const MOBILE = {
@@ -47,6 +52,20 @@ const MOBILE = {
   // required. CI installs its own chromium (see the workflow / README)
   // and doesn't set this, so it falls back to Playwright's bundled build.
   ...(isCI ? {} : { channel: "chrome" }),
+}
+
+// #467: the mobile gate shows a notice on a desktop-sized screen without touch,
+// which is this config's "desktop" project. Seeding "continue anyway" (spa/lib/
+// mobile-gate.ts) lets every existing desktop spec reach the app; the gate's
+// own spec clears it with `test.use({ storageState: ... })`.
+const DESKTOP_STORAGE_STATE = {
+  cookies: [],
+  origins: [
+    {
+      origin: BASE_URL,
+      localStorage: [{ name: "sponti.mobile-gate.v1", value: "continue" }],
+    },
+  ],
 }
 
 export default defineConfig({
@@ -82,6 +101,7 @@ export default defineConfig({
         viewport: { width: 1280, height: 800 },
         isMobile: false,
         hasTouch: false,
+        storageState: DESKTOP_STORAGE_STATE,
         ...(isCI ? {} : { channel: "chrome" }),
       },
     },

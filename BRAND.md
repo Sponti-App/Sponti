@@ -60,6 +60,7 @@ Contrast against every tint (5 to 20%) on `--background`, `--card` and `--muted`
 | `--destructive` | `oklch(0.58 0.22 27)` | Delete, error |
 | `--flare-invite` / `--flare-invite-ink` | `oklch(0.87 0.07 315)` / `oklch(0.36 0.09 315)` | Map pin fill and icon: invite only (plum) |
 | `--flare-open` / `--flare-open-ink` | `oklch(0.87 0.07 185)` / `oklch(0.36 0.09 185)` | Map pin fill and icon: open to all (teal) |
+| `--flare-invite-tint` / `--flare-open-tint` | `oklch(0.94 0.035 315)` / `oklch(0.94 0.035 185)` | Map flare card background (#493), by who can join |
 
 ### Dark mode
 
@@ -75,6 +76,7 @@ Contrast against every tint (5 to 20%) on `--background`, `--card` and `--muted`
 | `--destructive` | `oklch(0.62 0.22 22)` | Delete, error |
 | `--flare-invite` / `--flare-invite-ink` | `oklch(0.45 0.08 315)` / `oklch(0.95 0.03 315)` | Map pin fill and icon: invite only (plum) |
 | `--flare-open` / `--flare-open-ink` | `oklch(0.45 0.08 185)` / `oklch(0.95 0.03 185)` | Map pin fill and icon: open to all (teal) |
+| `--flare-invite-tint` / `--flare-open-tint` | `oklch(0.34 0.05 315)` / `oklch(0.34 0.05 185)` | Map flare card background (#493), by who can join |
 
 ---
 
@@ -118,7 +120,7 @@ Built on **shadcn (Nova preset)** + **Radix UI** + **Tailwind v4** + **Phosphor 
 | Ended / past | `bg-muted/30` surface, `text-muted-foreground` text, no border strip |
 | Mode toggles (`week/month`, `map/calendar`) | Pill chips with `bg-card text-primary` active state |
 | Filter chips | Outline by default, `bg-accent text-accent-foreground` when on, "× clear" appears only when ≥1 active |
-| FAB (map view) | `h-14 w-14 rounded-full bg-accent` floating right, above bottom sheet |
+| Flare button | The peach circle in the middle of the bottom nav is the only flare button. No floating FAB on the map (#491) |
 | Sheets / drawers | Rounded-top `rounded-t-3xl`, `bg-background`, `shadow-(--shadow-sheet)` |
 
 ---
@@ -137,10 +139,11 @@ Built on **shadcn (Nova preset)** + **Radix UI** + **Tailwind v4** + **Phosphor 
 
 ## 8. Imagery & iconography
 
-- **Icons:** Phosphor (`@phosphor-icons/react`), regular weight, colour `currentColor`, default 16–20 px in product chrome, 24 px for the flare button and FAB. The active bottom-nav tab uses the fill weight. Components import icons only from `spa/components/icons.tsx`, never from an icon package. The flare button is `Flame`, "my flares" is `Fire`.
+- **Icons:** Phosphor (`@phosphor-icons/react`), regular weight, colour `currentColor`, default 16–20 px in product chrome, 24 px for the flare button. The active bottom-nav tab uses the fill weight. Components import icons only from `spa/components/icons.tsx`, never from an icon package. The flare button is `Flame`, "my flares" is `Fire`.
 - **Avatars:** circular, generated initials over a host-color bg (used for event hosts, never on map markers).
 - **No stock photography in-product.** Marketing surfaces only.
 - **Map markers** are one circle with the category icon, tinted by who can join: plum for invite only, teal for open to all. The host's colour stays on avatars, not markers. Peach on a marker means live.
+- **Map flare cards** (the rail over the map) carry the same colour as their pin: a `--flare-*-tint` background, the icon in a pin-coloured circle, `--foreground` / `--muted-foreground` text (AA on both tints, both modes). Live keeps its peach left strip.
 
 ---
 

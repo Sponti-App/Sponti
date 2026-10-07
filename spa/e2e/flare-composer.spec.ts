@@ -26,15 +26,14 @@ test.describe("flare composer", () => {
     await expect(cta).toBeInViewport()
   })
 
-  test("opens from the map FAB with the title input and CTA in view", async ({
+  test("at peek the nav's flare button still opens the composer, and the map has no FAB (#491)", async ({
     page,
   }) => {
-    // The map opens at mid, where the nav's flare button stands in for the
-    // FAB; the FAB shows at peek (#223).
     await page.getByRole("button", { name: "hide cards" }).click()
-    await page
-      .getByRole("button", { name: "Light a flare", exact: true })
-      .click()
+    await expect(
+      page.getByRole("button", { name: "Light a flare", exact: true })
+    ).toHaveCount(0)
+    await page.getByRole("button", { name: "flare", exact: true }).click()
 
     const titleInput = page.getByPlaceholder(TITLE_PLACEHOLDER)
     const cta = page.getByRole("button", { name: "light a flare", exact: true })
@@ -102,6 +101,27 @@ test.describe("flare composer", () => {
     expect(start - before).toBeGreaterThanOrEqual(30 * MIN - 1_000)
     expect(start - Date.now()).toBeLessThanOrEqual(30 * MIN)
     expect(Date.parse(body.endAt) - start).toBe(60 * MIN)
+  })
+
+  // #494: an empty title becomes a short phrase, not the metadata list.
+  test("lights an untitled flare with a short title", async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(["geolocation"])
+    await context.setGeolocation({ latitude: 37.7749, longitude: -122.4194 })
+    await page.getByRole("button", { name: "flare", exact: true }).click()
+
+    const posted = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        new URL(req.url()).pathname.endsWith("/events")
+    )
+    await page
+      .getByRole("button", { name: "light a flare", exact: true })
+      .click()
+    const body = (await posted).postDataJSON() as { title: string }
+    expect(body.title).toBe("hangout")
   })
 
   // #330: a flare lit "in 30m" edits as a right-now flare, with 30m picked.

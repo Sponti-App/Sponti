@@ -72,9 +72,16 @@ function watchForAccountCalls(page: Page): string[] {
   return offending
 }
 
-async function openSignedOutMap(page: Page) {
+async function openSignedOutMap(
+  page: Page,
+  options: { friends?: number } = {}
+) {
   await page.clock.setFixedTime(JUNE)
-  await stubBackend(page, { signedOut: true, publicPins: PUBLIC_PINS })
+  await stubBackend(page, {
+    signedOut: true,
+    publicPins: PUBLIC_PINS,
+    friends: options.friends,
+  })
   const offending = watchForAccountCalls(page)
   await page.goto("/")
   await expect(nav(page)).toBeVisible()
@@ -96,7 +103,9 @@ test.describe("browse before sign-up (#389)", () => {
     // No redirect to /login.
     await expect(page).toHaveURL(/\/$/)
     await expect(page.getByRole("button", { name: "sign in" })).toBeVisible()
-    await expect(page.getByRole("button", { name: "Settings" })).toHaveCount(0)
+    await expect(
+      page.getByRole("button", { name: "invite", exact: true })
+    ).toHaveCount(0)
 
     await expect(ideaPins(page)).toHaveCount(5)
     await expect(
@@ -106,8 +115,11 @@ test.describe("browse before sign-up (#389)", () => {
     for (const pin of await flarePins(page).all()) {
       await expect(pin).toHaveAttribute("data-visibility", "public")
     }
-    await expect(page.locator("[data-map-legend]")).toBeVisible()
+    // #490: no pin legend under the top bar.
+    await expect(page.locator("[data-map-legend]")).toHaveCount(0)
     await expect(page.getByText("2 open flares in berlin")).toBeVisible()
+    // The area is in the sheet's heading, not a chip of its own (#496).
+    await expect(page.getByText("berlin", { exact: true })).toHaveCount(0)
 
     // The live / soon tabs narrow the pins.
     await page.getByRole("tab", { name: "live" }).click()
@@ -170,7 +182,7 @@ test.describe("browse before sign-up (#389)", () => {
     expect(offending).toEqual([])
   })
 
-  test("the flare button and the fab ask to sign up with a blank flare kept", async ({
+  test("the nav's flare button asks to sign up with a blank flare kept, and the map has no fab (#491)", async ({
     page,
   }) => {
     const offending = await openSignedOutMap(page)
@@ -188,9 +200,10 @@ test.describe("browse before sign-up (#389)", () => {
     await page.keyboard.press("Escape")
     await expect(sheet(page)).toBeHidden()
 
-    await page.getByRole("button", { name: "Light a flare" }).click()
-    await expect(sheet(page).getByText("sign up to light it")).toBeVisible()
-    // Neither tap opened the composer.
+    await expect(
+      page.getByRole("button", { name: "Light a flare", exact: true })
+    ).toHaveCount(0)
+    // The tap didn't open the composer.
     await expect(composerTitle(page)).not.toBeInViewport()
 
     expect(offending).toEqual([])
@@ -199,7 +212,10 @@ test.describe("browse before sign-up (#389)", () => {
   test("an idea, then sign-up, lands back in the composer with the idea", async ({
     page,
   }) => {
-    const offending = await openSignedOutMap(page)
+    // With a friend already, so "let's light it up" goes straight to the
+    // composer (#459 puts a first-friend step first for 0 friends; see
+    // post-signup-checklist.spec.ts).
+    const offending = await openSignedOutMap(page, { friends: 1 })
 
     await page.getByRole("button", { name: `idea: ${MAYBACH}` }).click()
     const card = page.locator("[data-quiet-card]")
@@ -247,7 +263,7 @@ test.describe("browse before sign-up (#389)", () => {
   }) => {
     await openSignedOutMap(page)
 
-    await page.getByRole("button", { name: "Light a flare" }).click()
+    await nav(page).getByRole("button", { name: "flare", exact: true }).click()
     await sheet(page).getByRole("link", { name: "i have an account" }).click()
     await expect(page).toHaveURL(/\/login\?redirectTo=%2F%3Fresume%3Dflare$/)
 
@@ -318,7 +334,7 @@ test.describe("legal links before sign-up (#457)", () => {
     page,
   }) => {
     await openSignedOutMap(page)
-    await page.getByRole("button", { name: "Light a flare" }).click()
+    await nav(page).getByRole("button", { name: "flare", exact: true }).click()
     await expect(sheet(page)).toBeVisible()
 
     await sheet(page).getByRole("link", { name: "impressum" }).click()
