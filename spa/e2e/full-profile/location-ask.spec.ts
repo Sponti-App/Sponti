@@ -1,5 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test"
-import { stubBackend } from "../support/stubs"
+import { makeStubPublicPin, stubBackend } from "../support/stubs"
 
 // #408: with `locationAsk` (the full profile), the map's sheet asks where the
 // map should start instead of the browser prompting on mount. "use my
@@ -15,6 +15,14 @@ import { stubBackend } from "../support/stubs"
 const JUNE = "2026-06-15T12:00:00.000Z"
 const HERE = { latitude: 52.53, longitude: 13.41 }
 const HAMBURG = { lat: 53.5511, lng: 9.9937 }
+
+const NEARBY_PIN = makeStubPublicPin({
+  _id: "public-nearby",
+  type: "drinks",
+  location: { type: "Point", coordinates: [HERE.longitude, HERE.latitude] },
+  startAt: "2026-06-15T11:50:00.000Z",
+  endAt: "2026-06-15T14:00:00.000Z",
+})
 
 // No permission granted: the browser would prompt, and a request without a
 // grant is denied, as when someone taps "block".
@@ -97,7 +105,7 @@ async function stubPlaces(page: Page, available = true) {
 
 async function openSignedOut(
   page: Page,
-  options: { places?: boolean; introSlides?: boolean } = {}
+  options: { places?: boolean; introSlides?: boolean; pins?: boolean } = {}
 ) {
   await page.clock.setFixedTime(JUNE)
   await spyOnGeolocation(page)
@@ -106,6 +114,7 @@ async function openSignedOut(
     signedOut: true,
     locationAsk: true,
     introSlides: options.introSlides ?? false,
+    publicPins: options.pins ? [NEARBY_PIN] : [],
   })
   await page.goto("/")
   await expect(navNode(page)).toBeVisible()
@@ -129,7 +138,7 @@ test.describe("location ask (#408)", () => {
     context,
   }) => {
     const centres = watchPublicCentres(page)
-    await openSignedOut(page)
+    await openSignedOut(page, { pins: true })
 
     await expect(
       sheet(page).getByText("where should the map start?")
@@ -148,7 +157,9 @@ test.describe("location ask (#408)", () => {
 
     await expect(sheet(page)).toHaveCount(0)
     expect(await geoCalls(page)).toBeGreaterThan(0)
-    await expect(page.getByText("near you", { exact: true })).toBeVisible()
+    // The sheet's heading says it; there is no separate "near you" chip (#496).
+    await expect(page.getByText("1 open flare near you")).toBeVisible()
+    await expect(page.getByText("near you", { exact: true })).toHaveCount(0)
     await expect(banner(page)).toHaveCount(0)
     await expect
       .poll(() => centres.at(-1))
@@ -157,7 +168,7 @@ test.describe("location ask (#408)", () => {
     // A second visit doesn't ask again.
     await page.reload()
     await expect(nav(page)).toBeVisible()
-    await expect(page.getByText("near you", { exact: true })).toBeVisible()
+    await expect(page.getByText("1 open flare near you")).toBeVisible()
     await expect(sheet(page)).toHaveCount(0)
   })
 
