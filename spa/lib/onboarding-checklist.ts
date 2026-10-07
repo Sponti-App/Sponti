@@ -3,6 +3,7 @@ import {
   type HostedEvent,
   type MyFlaresResult,
 } from "@/lib/api/events"
+import { displayFlareTitle } from "@/lib/flare-title"
 
 // #459 (behind `introV2`): after sign-up, a checklist in the home map's sheet
 // takes over from the first-run intro (#313). Two rows, ticked off from real
@@ -55,7 +56,14 @@ export function pickHostedFlare(
   const any: HostedEvent | undefined =
     live ?? flares.hostedByMe[0] ?? flares.pastHosted[0]
   if (!any) return null
-  return { title: any.title, live: live !== undefined }
+  return {
+    title: displayFlareTitle({
+      title: any.title,
+      type: any.type,
+      isHost: true,
+    }),
+    live: live !== undefined,
+  }
 }
 
 /** "mia's here", "mia and sam are here", "mia, sam and 3 more are here". */

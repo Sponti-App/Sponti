@@ -14,6 +14,7 @@ import { useAuth } from "@/components/auth-provider"
 import { type EventStatus, type HostedEvent } from "@/lib/api/events"
 import { EventAvatarStack, initials } from "@/components/event-avatar-stack"
 import { EVENT_TYPES } from "@/types/utils"
+import { displayFlareTitle } from "@/lib/flare-title"
 import { cn } from "@/lib/utils"
 import { formatDayShort } from "@/lib/format-date"
 
@@ -83,13 +84,19 @@ export function EventHostCard({
   const showRsvpStatus = !canManage
   const isGoing = event.myRsvp === "going"
   const isDeclined = event.myRsvp === "declined"
+  const title = displayFlareTitle({
+    title: event.title,
+    type: event.type,
+    hostName: event.hostName,
+    isHost: canManage,
+  })
   const ActivityIcon =
     EVENT_TYPES.find((type) => type.value === event.type)?.icon ?? ClockIcon
 
   return (
     <Link
       href={`/event/${event.id}${canManage ? "?manage=1" : ""}`}
-      aria-label={`open details for ${event.title}`}
+      aria-label={`open details for ${title}`}
       className="block rounded-xl focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
     >
       <article
@@ -139,7 +146,7 @@ export function EventHostCard({
                 "text-muted-foreground line-through"
             )}
           >
-            {event.title.toLowerCase()}
+            {title.toLowerCase()}
           </h2>
         </div>
 

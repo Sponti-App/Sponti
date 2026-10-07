@@ -24,6 +24,7 @@ import {
   type EventItem,
   type EventVisibility,
 } from "@/lib/api/events"
+import { displayFlareTitle } from "@/lib/flare-title"
 import type { GeoCoords } from "@/lib/geolocation"
 import { EVENT_TYPES } from "@/types/utils"
 
@@ -40,9 +41,18 @@ const VISIBILITY_FILL: Record<EventVisibility, string> = {
   public: "bg-flare-open text-flare-open-ink",
 }
 
-/** The part of a flare's title before the "·", as the popover shows it. */
-export function flareTitle(event: EventItem): string {
-  return event.title.split("·", 2)[0].trim()
+/**
+ * A flare's title as the pin's label and popover show it. `own` is the
+ * viewer hosting it: a flare its host left untitled reads "theater outing"
+ * to them and "theater outing with lukas" to everyone else (#494).
+ */
+export function flareTitle(event: EventItem, own = false): string {
+  return displayFlareTitle({
+    title: event.title,
+    type: event.type,
+    hostName: event.host.name,
+    isHost: own,
+  })
 }
 
 /** What a pin needs to draw: the signed-out map's public pins (#389) carry
@@ -302,7 +312,7 @@ export function FlarePreviewCard({
       </div>
       <div className="p-3">
         <p className="line-clamp-2 text-sm font-semibold text-foreground">
-          {flareTitle(event)}
+          {flareTitle(event, own)}
         </p>
         <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-foreground">
           {live && <LiveDot />}

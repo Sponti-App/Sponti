@@ -30,6 +30,7 @@ import { CircleStackIcon } from "@/components/circle-stack-icon"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { featureFlags } from "@/lib/feature-flags"
+import { composeFlareTitle } from "@/lib/flare-title"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -81,6 +82,7 @@ type PlaceDetailsResponse = {
   address: string | null
   lat: number
   lng: number
+  primaryType?: string | null
 }
 
 const STEP_MIN = 15
@@ -579,12 +581,11 @@ export function NewEventDrawer({
   // an unsent draft of their own: that is kept as it was.
   prefill?: ComposerPrefill | null
 }) {
-  const { user, status } = useAuth()
+  const { status } = useAuth()
   const { showActionFeedback } = useActionFeedback()
   // Keeps --sponti-vvh in step with the viewport height vaul snaps against,
   // and --sponti-kb-inset in step with the software keyboard.
   useViewportMetrics()
-  const hostName = user?.displayName?.trim() || "you"
   const {
     coords: geoCoords,
     status: geoStatus,
@@ -1199,6 +1200,7 @@ export function NewEventDrawer({
         address: data.address,
         placeId: data.placeId,
         coordinates: [data.lng, data.lat],
+        placeType: data.primaryType || undefined,
       }
       setSelectedLocation(location)
       setSearchQuery(data.name)
@@ -1396,11 +1398,16 @@ export function NewEventDrawer({
 
       const effectiveDuration =
         durationMin !== null ? durationMin : OPEN_ENDED_FALLBACK_MIN
+      // The host's first name is added when the flare is shown to others, so
+      // it is not stored here (#494).
       const finalTitle =
         title.trim() ||
-        [effectiveType, hostName, whereLabel, whenLabel]
-          .filter(Boolean)
-          .join(" · ")
+        composeFlareTitle({
+          type: effectiveType,
+          placeType:
+            whereType === "search" ? selectedLocation?.placeType : null,
+          placeName: whereType === "search" ? selectedLocation?.name : null,
+        })
 
       const scheduledStart = new Date(`${startDate}T00:00:00`)
       scheduledStart.setMinutes(scheduledStart.getMinutes() + startTimeMin)

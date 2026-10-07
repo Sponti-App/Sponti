@@ -66,6 +66,7 @@ import {
 } from "@/components/map-flare-pin"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
+import { eventDisplayTitle } from "@/lib/flare-title"
 import { useTheme } from "next-themes"
 
 // What the map draws for an idea (#244). Deliberately the opposite of a flare
@@ -192,6 +193,7 @@ function StaticMapFallback({
       ))}
       {drawn.map((event, i) => {
         const dist = distanceFromUser(event, user)?.label ?? ""
+        const own = !!viewerId && event.host.id === viewerId
         return (
           <button
             key={event.id}
@@ -206,13 +208,13 @@ function StaticMapFallback({
           >
             <FlarePin
               event={event}
-              own={!!viewerId && event.host.id === viewerId}
+              own={own}
               joined={isJoined(event, joinedIds)}
               highlighted={highlightId === event.id}
               now={now}
             />
             <span className="mt-1 rounded bg-card px-2 py-1 text-center text-xs shadow-md">
-              <span className="font-medium">{flareTitle(event)}</span>
+              <span className="font-medium">{flareTitle(event, own)}</span>
               {dist && (
                 <>
                   <br />
@@ -286,7 +288,7 @@ export function FlarePreviewMarker({
       position={position}
       zIndex={1000}
       clickable
-      title={`open ${flareTitle(event)}`}
+      title={`open ${flareTitle(event, own)}`}
       onClick={() => {
         if (closePressedRef.current) {
           closePressedRef.current = false
@@ -1781,6 +1783,7 @@ function FlareCard({
   onClick: () => void
   onSwipeJoin?: () => void
 }) {
+  const { user: authUser } = useAuth()
   const isEnded = status === "ended"
   const isLiveStatus = status === "live"
   const swipeStartX = useRef<number | null>(null)
@@ -1854,7 +1857,7 @@ function FlareCard({
                 isEnded ? "text-muted-foreground" : "text-foreground"
               }`}
             >
-              {event.title.split("·", 2)[0]}
+              {eventDisplayTitle(event, authUser?.id)}
             </p>
             {joined && !isEnded && (
               <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent-ink">
@@ -2111,6 +2114,7 @@ function RailCard({
   user: GeoCoords | null
   onClick: () => void
 }) {
+  const { user: authUser } = useAuth()
   const live = isLive(event)
   const metaText = useFlareMeta(event, user, live ? "live" : "upcoming")
   return (
@@ -2128,7 +2132,7 @@ function RailCard({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-foreground">
-            {event.title.split("·", 2)[0]}
+            {eventDisplayTitle(event, authUser?.id)}
           </p>
           <p className="truncate text-xs text-muted-foreground">{metaText}</p>
         </div>

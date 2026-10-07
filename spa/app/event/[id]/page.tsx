@@ -59,6 +59,7 @@ import {
 } from "@/lib/flare-detail"
 import { HttpError } from "@/lib/http"
 import { formatDayShort } from "@/lib/format-date"
+import { displayFlareTitle } from "@/lib/flare-title"
 import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus"
 import { cn } from "@/lib/utils"
 import { EVENT_TYPES } from "@/types/utils"
@@ -411,7 +412,12 @@ function FlareDetail({
         <div className="bg-background px-4 pt-4">
           <FlareHeader
             type={event.type}
-            title={event.title}
+            title={displayFlareTitle({
+              title: event.title,
+              type: event.type,
+              hostName: event.hostName,
+              isHost,
+            })}
             statusLine={flareStatusLine(event, timing)}
             timing={timing}
             viewer={viewer}

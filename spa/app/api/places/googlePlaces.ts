@@ -10,6 +10,9 @@ export type PlaceDetails = {
   address: string | null
   lat: number
   lng: number
+  // Google's primaryType, e.g. "performing_arts_theater". Names a flare the
+  // host left untitled (#494); null when Google gave none.
+  primaryType: string | null
 }
 
 export const PLACES_API_BASE = "https://places.googleapis.com/v1"
@@ -58,7 +61,7 @@ export function autocompleteRequestBody(input: string, bias: LatLng | null) {
 export const AUTOCOMPLETE_FIELD_MASK =
   "suggestions.placePrediction.placeId,suggestions.placePrediction.structuredFormat,suggestions.placePrediction.text"
 export const PLACE_DETAILS_FIELD_MASK =
-  "id,displayName,formattedAddress,location"
+  "id,displayName,formattedAddress,location,primaryType"
 
 export function getGooglePlacesApiKey(): string {
   return (
@@ -150,5 +153,6 @@ export function normalizePlaceDetailsResponse(
     address,
     lat,
     lng,
+    primaryType: stringValue(root.primaryType),
   }
 }
