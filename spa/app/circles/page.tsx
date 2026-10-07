@@ -17,7 +17,7 @@ import { AddToFlaresDialog } from "@/components/add-to-flares-dialog"
 import { CircleChips, type CircleChipsState } from "@/components/circle-chips"
 import { CircleStackIcon } from "@/components/circle-stack-icon"
 import { HandleCard } from "@/components/handle-card"
-import { QrShareSheet, type ShareTab } from "@/components/qr-share-sheet"
+import { InviteDialog, type ShareTab } from "@/components/qr-share-sheet"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -1369,7 +1369,7 @@ export default function CirclesPage() {
       </Tabs>
 
       {shareTab && (
-        <QrShareSheet
+        <InviteDialog
           key={shareTab}
           displayName={user?.displayName ?? "you"}
           handle={user?.username ?? "you"}

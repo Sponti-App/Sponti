@@ -145,3 +145,68 @@ test.describe("top bar (#369)", () => {
     await expect(page).toHaveURL(/\/settings$/)
   })
 })
+
+// #495: on an iPhone with the browser toolbar showing, the visible area is
+// about 390x664. The friends screen is taller than that once there are a few
+// circles, and the sheet used to sit at the bottom of the page, under the fold.
+test.describe("the invite sheet fits the visible viewport (#495)", () => {
+  test.use({ viewport: { width: 390, height: 664 } })
+
+  test("friends screen with many circles: the whole qr code shows without scrolling", async ({
+    page,
+  }) => {
+    await stubBackend(page, {
+      friends: 12,
+      circles: [
+        { _id: "c-all", name: "all friends", type: "all", memberCount: 12 },
+        { _id: "c-inner", name: "inner", type: "inner", memberCount: 3 },
+        { _id: "c-close", name: "close", type: "close", memberCount: 5 },
+        ...Array.from({ length: 8 }, (_, i) => ({
+          _id: `c-${i}`,
+          name: `custom ${i}`,
+          type: "custom" as const,
+          memberCount: 4,
+        })),
+      ],
+    })
+    await page.goto("/circles")
+    await page
+      .locator("[data-handle-card]")
+      .getByRole("button", { name: "qr code" })
+      .click()
+
+    const viewport = page.viewportSize()!
+    const qr = page.getByAltText(`QR code for @${STUB_USER.username}`)
+    await expect(qr).toBeVisible()
+    const box = (await qr.boundingBox())!
+    expect(box.y).toBeGreaterThanOrEqual(0)
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height)
+
+    // The sheet itself ends at the screen's bottom edge and stays on screen.
+    const sheet = inviteDialog(page)
+    const sheetBox = (await sheet.boundingBox())!
+    expect(sheetBox.y).toBe(0)
+    expect(sheetBox.height).toBeLessThanOrEqual(viewport.height)
+  })
+
+  test("a shorter screen scrolls the sheet's body instead of cutting it off", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 480 })
+    await stubBackend(page)
+    await page.goto("/")
+    await page.getByRole("button", { name: "invite", exact: true }).click()
+    const sheet = inviteDialog(page)
+    await sheet.getByRole("tab", { name: "qr code" }).click()
+    const qr = sheet.getByAltText(`QR code for @${STUB_USER.username}`)
+    await expect(qr).toBeVisible()
+
+    const heading = sheet.getByText("invite a friend", { exact: true })
+    const headingBox = (await heading.boundingBox())!
+    expect(headingBox.y).toBeGreaterThanOrEqual(0)
+
+    await qr.scrollIntoViewIfNeeded()
+    const box = (await qr.boundingBox())!
+    expect(box.y + box.height).toBeLessThanOrEqual(480)
+  })
+})
