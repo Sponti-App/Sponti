@@ -27,12 +27,12 @@ test.describe("landing page (#467, #506)", () => {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "turn “we should” into “we're here.”",
+        name: "come together, right now.",
       })
     ).toBeVisible()
     // The typewriter's heading reads as its first plan for screen readers.
     await expect(
-      page.getByRole("heading", { name: "five apps to plan one beer" })
+      page.getByRole("heading", { name: "six apps to plan one beer" })
     ).toBeAttached()
     await expect(
       page.getByRole("heading", { name: "one tap. broadcast or join." })
@@ -44,6 +44,12 @@ test.describe("landing page (#467, #506)", () => {
     await expect(steps.nth(2)).toContainText("they tap join")
     await expect(
       page.getByRole("heading", { name: "what's happening now." })
+    ).toBeAttached()
+    // The rest of the app, one feature at a time, dark mode last.
+    const features = page.locator("[data-landing-feature]")
+    await expect(features).toHaveCount(6)
+    await expect(
+      page.getByRole("heading", { name: "your people, grouped your way." })
     ).toBeAttached()
     await expect(
       page.getByRole("heading", { name: "easy on the eyes after sunset." })
@@ -62,7 +68,7 @@ test.describe("landing page (#467, #506)", () => {
 
     // The scenes carry their descriptions.
     await expect(
-      page.getByRole("img", { name: /friends on a rooftop at sunset/ })
+      page.getByRole("img", { name: /friends on a berlin rooftop at dusk/ })
     ).toBeAttached()
 
     // Not the app: no mobile gate, no nav, no backend.
@@ -86,15 +92,18 @@ test.describe("landing page (#467, #506)", () => {
     await expect(ctas.nth(1)).toBeVisible()
   })
 
-  test("the testing note sits by the call to action and in the footer", async ({
+  test("the testing note sits under the hero's call to action", async ({
     page,
   }) => {
     await page.goto("/landing")
     const notes = page.locator("[data-testing-note]")
-    await expect(notes).toHaveCount(2)
-    await expect(notes.first()).toBeVisible()
-    await expect(notes.first()).toContainText("early testing in berlin")
-    await expect(page.locator("footer [data-testing-note]")).toHaveCount(1)
+    await expect(notes).toHaveCount(1)
+    await expect(notes).toBeVisible()
+    await expect(notes).toContainText("early testing in berlin")
+    const cta = page.getByRole("link", { name: "open sponti" }).nth(1)
+    const ctaBox = await cta.boundingBox()
+    const noteBox = await notes.boundingBox()
+    expect(noteBox!.y).toBeGreaterThan(ctaBox!.y + ctaBox!.height - 1)
   })
 
   test("the footer's waitlist signs up through formspree, with a mail link to say hi", async ({
@@ -158,13 +167,13 @@ test.describe("landing page (#467, #506)", () => {
     await expect(
       page.getByRole("heading", { name: "light a flare." })
     ).toHaveCSS("opacity", "1")
-    // The flare is lit, the typewriter holds its first plan, and the dark
-    // mode phone rests halfway.
+    // The flare is lit, the typewriter holds its first plan, and the hero
+    // is one screen with no pin to scroll through.
     await expect(page.locator(".lp-orb")).toHaveAttribute("data-lit", "true")
     await expect(page.locator("[data-typewriter]")).toHaveText("beer")
-    await expect(
-      page.locator("section[aria-labelledby='landing-night']")
-    ).toHaveAttribute("style", /--p: 0\.39/)
+    const hero = page.locator("section[aria-labelledby='landing-title']")
+    const height = await hero.evaluate((el) => el.clientHeight)
+    expect(height).toBe(page.viewportSize()!.height)
   })
 
   test("the legal links open the legal pages", async ({ page }) => {
