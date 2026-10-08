@@ -15,7 +15,7 @@ import {
 
 // A day when the berlin idea spots are in season.
 const JUNE = "2026-06-15T12:00:00.000Z"
-const MAYBACH = "market lunch at the maybachufer"
+const POOL = "laps and lounging at prinzenbad"
 
 const checklist = (page: Page) =>
   page.getByRole("region", { name: "get going" })
@@ -85,7 +85,7 @@ async function signUpWithKeptDraft(page: Page, options: { friends: number }) {
     hostedFlares: [],
   })
   await page.goto("/")
-  await page.getByRole("button", { name: `idea: ${MAYBACH}` }).click()
+  await page.getByRole("button", { name: `idea: ${POOL}` }).click()
   await page
     .locator("[data-quiet-card]")
     .getByRole("button", { name: "light a flare" })
@@ -262,7 +262,7 @@ test.describe("first friend before the kept draft is lit (#459)", () => {
     stub.setFriends(1)
     await expect(firstFriend(page)).toHaveCount(0)
     await expect(composerTitle(page)).toBeInViewport()
-    await expect(composerTitle(page)).toHaveValue(MAYBACH)
+    await expect(composerTitle(page)).toHaveValue(POOL)
   })
 
   test("0 friends: later goes back to the checklist without lighting", async ({
@@ -292,7 +292,7 @@ test.describe("first friend before the kept draft is lit (#459)", () => {
       .getByRole("button", { name: "let's light it up" })
       .click()
     await expect(composerTitle(page)).toBeInViewport()
-    await expect(composerTitle(page)).toHaveValue(MAYBACH)
+    await expect(composerTitle(page)).toHaveValue(POOL)
     await expect(firstFriend(page)).toHaveCount(0)
   })
 })

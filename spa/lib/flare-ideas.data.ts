@@ -1,11 +1,20 @@
-// DRAFT list of berlin idea spots (#242), for the team to review before any
-// tester sees it. There is no owner yet (#240 open decision): nobody is
+// DRAFT list of berlin idea spots (#242, #515), for the team to review before
+// any tester sees it. There is no owner yet (#240 open decision): nobody is
 // responsible for adding spots or keeping season windows fresh.
 //
-// Every coordinate was checked against OpenStreetMap (Nominatim) and, where an
-// article exists, Wikipedia. Season windows and the "sundays" / "thursdays"
-// style hints in blurbs are editorial guesses about a typical year, not
-// verified opening times.
+// The list covers central berlin densely (mitte, wedding, gesundbrunnen,
+// moabit, prenzlauer berg, friedrichshain, kreuzberg, neukölln, tiergarten,
+// charlottenburg, schöneberg, tempelhof, treptow) plus a handful of farther
+// spots, so a quiet map has something to offer almost anywhere. Most spots have
+// no season, which keeps the map from emptying out in winter; the seasonal ones
+// cover every time of year (lakes, open-air cinemas, christmas markets, ice
+// rinks, spargel, autumn walks).
+//
+// Every coordinate was checked against OpenStreetMap (Nominatim); the first
+// batch of spots was also cross-checked with Wikipedia. Season windows and the
+// "sundays" / "thursdays" style hints in blurbs are editorial guesses about a
+// typical year, not verified opening times. A place can close: when one does,
+// delete its entry.
 //
 // Copy is product copy: lowercase, short, no exclamation marks. `place.name`
 // is the proper name of the place, as it would be stored on a flare.
@@ -209,5 +218,1173 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     blurb: "greenhouses for the days it rains",
     category: "hobby",
     place: { name: "Botanischer Garten Berlin", lat: 52.45414, lng: 13.306653 },
+  },
+
+  // ---- mitte
+  {
+    id: "museum-island-afternoon",
+    title: "an afternoon on museum island",
+    blurb: "five museums on one little island, pick the one you like",
+    category: "culture",
+    place: {
+      name: "Museumsinsel",
+      lat: 52.518017,
+      lng: 13.399379,
+    },
+  },
+  {
+    id: "fernsehturm-view",
+    title: "up the fernsehturm",
+    blurb: "go early, the queue grows with the sun",
+    category: "culture",
+    place: {
+      name: "Berliner Fernsehturm",
+      lat: 52.520828,
+      lng: 13.409421,
+    },
+  },
+  {
+    id: "naturkunde-dinosaur",
+    title: "say hello to the dinosaur at the naturkundemuseum",
+    blurb: "one very tall skeleton and a lot of jars",
+    category: "culture",
+    place: {
+      name: "Museum für Naturkunde",
+      lat: 52.53049,
+      lng: 13.379115,
+    },
+  },
+  {
+    id: "hackesche-hoefe-wander",
+    title: "wander the hackesche höfe",
+    blurb: "courtyards, small shops and coffee somewhere in between",
+    category: "hangout",
+    place: {
+      name: "Hackesche Höfe",
+      lat: 52.524538,
+      lng: 13.401222,
+    },
+  },
+  {
+    id: "monbijoupark-lawn",
+    title: "lazy afternoon in monbijoupark",
+    blurb: "grass, the spree and museum island across the water",
+    category: "hangout",
+    place: {
+      name: "Monbijoupark",
+      lat: 52.523203,
+      lng: 13.396977,
+    },
+  },
+  {
+    id: "weinbergspark-sunset",
+    title: "sunset at weinbergspark",
+    blurb: "bring a drink, the hill fills up quickly",
+    category: "hangout",
+    place: {
+      name: "Weinbergspark",
+      lat: 52.532373,
+      lng: 13.401282,
+    },
+  },
+  {
+    id: "dada-falafel",
+    title: "falafel at dada",
+    blurb: "a linienstraße classic, napkins required",
+    category: "food",
+    place: {
+      name: "Dada Falafel",
+      lat: 52.526464,
+      lng: 13.388245,
+    },
+  },
+  {
+    id: "zeit-fuer-brot-cinnamon-roll",
+    title: "cinnamon roll at zeit für brot",
+    blurb: "worth the line, and the line moves",
+    category: "food",
+    place: {
+      name: "Zeit für Brot",
+      lat: 52.527939,
+      lng: 13.40859,
+    },
+  },
+  {
+    id: "alexanderplatz-christmas-market",
+    title: "mulled wine under the fernsehturm",
+    blurb: "the christmas market by the neptunbrunnen",
+    category: "drinks",
+    place: {
+      name: "Neptunbrunnen",
+      lat: 52.519595,
+      lng: 13.406843,
+    },
+    season: { from: "11-24", to: "12-30" },
+  },
+  {
+    id: "babylon-kino",
+    title: "a film at babylon",
+    blurb: "a 1920s cinema right on rosa-luxemburg-platz",
+    category: "culture",
+    place: {
+      name: "Babylon",
+      lat: 52.525899,
+      lng: 13.411436,
+    },
+  },
+  {
+    id: "tresor-night",
+    title: "dance at tresor",
+    blurb: "techno in an old power plant, bring stamina",
+    category: "party",
+    place: {
+      name: "Tresor",
+      lat: 52.510681,
+      lng: 13.419484,
+    },
+  },
+  {
+    id: "festival-of-lights-brandenburger-tor",
+    title: "festival of lights at the brandenburger tor",
+    blurb: "the gate glows for a week or so every october",
+    category: "culture",
+    place: {
+      name: "Brandenburger Tor",
+      lat: 52.51627,
+      lng: 13.377703,
+    },
+    season: { from: "10-05", to: "10-20" },
+  },
+
+  // ---- prenzlauer berg
+  {
+    id: "kollwitzplatz-market",
+    title: "saturday market at kollwitzplatz",
+    blurb: "farmers market food, eaten standing up",
+    category: "food",
+    place: {
+      name: "Wochenmarkt am Kollwitzplatz",
+      lat: 52.536054,
+      lng: 13.417042,
+    },
+  },
+  {
+    id: "wasserturm-picnic",
+    title: "picnic at the wasserturm",
+    blurb: "an old water tower and plenty of lawn",
+    category: "hangout",
+    place: {
+      name: "Wasserturm Prenzlauer Berg",
+      lat: 52.534185,
+      lng: 13.418598,
+    },
+  },
+  {
+    id: "kulturbrauerei-courtyards",
+    title: "poke around the kulturbrauerei",
+    blurb: "an old brewery full of gigs, films and courtyards",
+    category: "culture",
+    place: {
+      name: "Kulturbrauerei",
+      lat: 52.538604,
+      lng: 13.412435,
+    },
+  },
+  {
+    id: "konnopkes-currywurst",
+    title: "currywurst at konnopke's",
+    blurb: "under the u-bahn tracks since forever",
+    category: "food",
+    place: {
+      name: "Konnopke's Imbiss",
+      lat: 52.540475,
+      lng: 13.412219,
+    },
+  },
+  {
+    id: "cafe-anna-blume",
+    title: "breakfast at café anna blume",
+    blurb: "a flower shop with a serious breakfast habit",
+    category: "food",
+    place: {
+      name: "Café Anna Blume",
+      lat: 52.538059,
+      lng: 13.419578,
+    },
+  },
+  {
+    id: "zeiss-planetarium",
+    title: "stars at the zeiss-großplanetarium",
+    blurb: "lie back and let the ceiling do the work",
+    category: "culture",
+    place: {
+      name: "Zeiss-Großplanetarium",
+      lat: 52.543057,
+      lng: 13.428144,
+    },
+  },
+  {
+    id: "deck-5-rooftop",
+    title: "sunset drinks at deck 5",
+    blurb: "sand underfoot on the roof of a shopping centre",
+    category: "drinks",
+    place: {
+      name: "Deck 5",
+      lat: 52.549473,
+      lng: 13.416033,
+    },
+    season: { from: "04-15", to: "10-01" },
+  },
+
+  // ---- wedding
+  {
+    id: "rehberge-park",
+    title: "long walk through volkspark rehberge",
+    blurb: "hills, meadows and hardly a tourist",
+    category: "hangout",
+    place: {
+      name: "Volkspark Rehberge",
+      lat: 52.553382,
+      lng: 13.332589,
+    },
+  },
+  {
+    id: "silent-green-culture",
+    title: "poke around silent green",
+    blurb: "an old crematorium turned into a culture hall",
+    category: "culture",
+    place: {
+      name: "silent green Kulturquartier",
+      lat: 52.545685,
+      lng: 13.36649,
+    },
+  },
+  {
+    id: "wedding-record-crates",
+    title: "dig through the crates at plattenladen",
+    blurb: "a neighbourhood record shop, no hurry",
+    category: "hobby",
+    place: {
+      name: "Plattenladen",
+      lat: 52.541199,
+      lng: 13.357242,
+    },
+  },
+  {
+    id: "stadtbad-wedding-laps",
+    title: "swim laps at stadtbad wedding",
+    blurb: "a proper old tiled pool",
+    category: "sports",
+    place: {
+      name: "Stadtbad Wedding",
+      lat: 52.544074,
+      lng: 13.371986,
+    },
+  },
+  {
+    id: "erika-hess-ice-skating",
+    title: "ice skating at the erika-heß-eisstadion",
+    blurb: "round and round, rental skates available",
+    category: "sports",
+    place: {
+      name: "Erika-Heß-Eisstadion",
+      lat: 52.537529,
+      lng: 13.369867,
+    },
+    season: { from: "10-20", to: "03-15" },
+  },
+  {
+    id: "freiluftkino-rehberge",
+    title: "a film under the stars at freiluftkino rehberge",
+    blurb: "bring a jumper, it cools down after sunset",
+    category: "culture",
+    place: {
+      name: "Freiluftkino Rehberge",
+      lat: 52.554902,
+      lng: 13.33015,
+    },
+    season: { from: "05-15", to: "09-15" },
+  },
+  {
+    id: "contra-ping-pong",
+    title: "a few rounds of ping pong at contra",
+    blurb: "bring a friend and a competitive streak",
+    category: "sports",
+    place: {
+      name: "Contra Tischtennis-Zentrum",
+      lat: 52.557746,
+      lng: 13.373114,
+    },
+  },
+
+  // ---- gesundbrunnen
+  {
+    id: "humboldthain-flak-tower",
+    title: "walk up past the humboldthain flak tower",
+    blurb: "bunker ruins, a city view and plenty of lawn",
+    category: "hangout",
+    place: {
+      name: "Humboldthain Flakturm",
+      lat: 52.547348,
+      lng: 13.384727,
+    },
+  },
+  {
+    id: "berliner-unterwelten-tour",
+    title: "go underground with berliner unterwelten",
+    blurb: "bunkers and tunnels beneath gesundbrunnen",
+    category: "culture",
+    place: {
+      name: "Berliner Unterwelten",
+      lat: 52.547812,
+      lng: 13.389246,
+    },
+  },
+  {
+    id: "berlin-wall-memorial-bernauer",
+    title: "walk the wall memorial on bernauer straße",
+    blurb: "a long, quiet stretch of history",
+    category: "culture",
+    place: {
+      name: "Gedenkstätte Berliner Mauer",
+      lat: 52.535824,
+      lng: 13.390849,
+    },
+  },
+  {
+    id: "elektra-bouldering",
+    title: "bouldering at elektra",
+    blurb: "bring a friend and your best grip",
+    category: "sports",
+    place: {
+      name: "Elektra Boulderhalle",
+      lat: 52.541036,
+      lng: 13.386878,
+    },
+  },
+
+  // ---- moabit
+  {
+    id: "arminius-markthalle",
+    title: "lunch at the arminiusmarkthalle",
+    blurb: "a proper old market hall in moabit",
+    category: "food",
+    place: {
+      name: "Arminiusmarkthalle",
+      lat: 52.527833,
+      lng: 13.338621,
+    },
+  },
+  {
+    id: "fritz-schloss-park",
+    title: "lazy afternoon in fritz-schloss-park",
+    blurb: "lawns, a pond and kids on every swing",
+    category: "hangout",
+    place: {
+      name: "Fritz-Schloss-Park",
+      lat: 52.528824,
+      lng: 13.356332,
+    },
+  },
+  {
+    id: "hamburger-bahnhof-art",
+    title: "art in a former train station",
+    blurb: "the hamburger bahnhof, plus an excuse for a spritz",
+    category: "culture",
+    place: {
+      name: "Hamburger Bahnhof",
+      lat: 52.528632,
+      lng: 13.371866,
+    },
+  },
+  {
+    id: "dav-kletterhalle-moabit",
+    title: "climbing at the dav kletterhalle",
+    blurb: "ropes, walls and a friend to belay",
+    category: "sports",
+    place: {
+      name: "DAV Kletterhalle Berlin",
+      lat: 52.528575,
+      lng: 13.362546,
+    },
+  },
+
+  // ---- tiergarten
+  {
+    id: "reichstag-dome",
+    title: "the reichstag dome",
+    blurb: "book a free slot ahead, the view is worth it",
+    category: "culture",
+    place: {
+      name: "Reichstag",
+      lat: 52.518654,
+      lng: 13.376102,
+    },
+  },
+  {
+    id: "neue-nationalgalerie",
+    title: "art at the neue nationalgalerie",
+    blurb: "a glass box by mies van der rohe",
+    category: "culture",
+    place: {
+      name: "Neue Nationalgalerie",
+      lat: 52.507041,
+      lng: 13.367621,
+    },
+  },
+  {
+    id: "zoo-berlin-afternoon",
+    title: "an afternoon at the zoo",
+    blurb: "pandas, monkeys and a very good ice cream",
+    category: "hangout",
+    place: {
+      name: "Zoo Berlin",
+      lat: 52.508449,
+      lng: 13.339231,
+    },
+  },
+  {
+    id: "monkey-bar-view",
+    title: "cocktails at monkey bar",
+    blurb: "a rooftop with a view straight onto the zoo",
+    category: "drinks",
+    place: {
+      name: "Monkey Bar",
+      lat: 52.505632,
+      lng: 13.337899,
+    },
+  },
+  {
+    id: "teehaus-englischer-garten",
+    title: "tea in the englischer garten",
+    blurb: "a tea house hidden in the tiergarten",
+    category: "drinks",
+    place: {
+      name: "Teehaus im Englischen Garten",
+      lat: 52.517051,
+      lng: 13.348352,
+    },
+    season: { from: "04-01", to: "10-31" },
+  },
+  {
+    id: "strasse-17-juni-flea-market",
+    title: "rummage at the flea market on straße des 17. juni",
+    blurb: "weekend treasure hunt under the trees",
+    category: "hobby",
+    place: {
+      name: "Trödelmarkt Straße des 17. Juni",
+      lat: 52.51367,
+      lng: 13.333423,
+    },
+  },
+  {
+    id: "potsdamer-platz-panoramapunkt",
+    title: "take the lift up to the panoramapunkt",
+    blurb: "one of the fastest lifts in europe",
+    category: "culture",
+    place: {
+      name: "Panoramapunkt",
+      lat: 52.508991,
+      lng: 13.375125,
+    },
+  },
+  {
+    id: "tiergarten-autumn-leaves",
+    title: "chase the autumn leaves in the tiergarten",
+    blurb: "golden light and crunchy paths",
+    category: "hangout",
+    place: {
+      name: "Luiseninsel",
+      lat: 52.510882,
+      lng: 13.36446,
+    },
+    season: { from: "10-10", to: "11-10" },
+  },
+
+  // ---- charlottenburg
+  {
+    id: "schloss-charlottenburg-garden",
+    title: "stroll the schloss charlottenburg garden",
+    blurb: "baroque hedges and a pond for ducks",
+    category: "hangout",
+    place: {
+      name: "Schloss Charlottenburg",
+      lat: 52.519826,
+      lng: 13.292202,
+    },
+  },
+  {
+    id: "schloss-charlottenburg-christmas-market",
+    title: "christmas market at schloss charlottenburg",
+    blurb: "mulled wine in front of a palace",
+    category: "drinks",
+    place: {
+      name: "Schloss Charlottenburg Weihnachtsmarkt",
+      lat: 52.520642,
+      lng: 13.29271,
+    },
+    season: { from: "11-24", to: "12-30" },
+  },
+  {
+    id: "zwiebelfisch-bar",
+    title: "a night at zwiebelfisch",
+    blurb: "an old savignyplatz bar with a lot of character",
+    category: "drinks",
+    place: {
+      name: "Zwiebelfisch",
+      lat: 52.506586,
+      lng: 13.321614,
+    },
+  },
+  {
+    id: "buecherbogen-art-books",
+    title: "browse the art books at bücherbogen",
+    blurb: "tucked under the s-bahn arches",
+    category: "hobby",
+    place: {
+      name: "Bücherbogen",
+      lat: 52.505007,
+      lng: 13.321741,
+    },
+  },
+  {
+    id: "lietzensee-loop",
+    title: "loop around the lietzensee",
+    blurb: "a little lake beside the busy city",
+    category: "hangout",
+    place: {
+      name: "Lietzensee",
+      lat: 52.506423,
+      lng: 13.288046,
+    },
+  },
+  {
+    id: "karl-august-platz-market",
+    title: "saturday market at karl-august-platz",
+    blurb: "tulips, cheese and a lot of dogs",
+    category: "food",
+    place: {
+      name: "Wochenmarkt Karl-August-Platz",
+      lat: 52.508347,
+      lng: 13.31097,
+    },
+  },
+  {
+    id: "delphi-filmpalast",
+    title: "a film at the delphi filmpalast",
+    blurb: "a grand old cinema palace",
+    category: "culture",
+    place: {
+      name: "Delphi Filmpalast",
+      lat: 52.506069,
+      lng: 13.328471,
+    },
+  },
+
+  // ---- schöneberg
+  {
+    id: "winterfeldtplatz-market",
+    title: "saturday at the winterfeldtmarkt",
+    blurb: "cheese, flowers and a bratwurst",
+    category: "food",
+    place: {
+      name: "Winterfeldtmarkt",
+      lat: 52.496529,
+      lng: 13.354365,
+    },
+  },
+  {
+    id: "rathaus-schoeneberg-flea-market",
+    title: "flea market at the rathaus schöneberg",
+    blurb: "sundays, old furniture and vinyl",
+    category: "hobby",
+    place: {
+      name: "Flohmarkt Rathaus Schöneberg",
+      lat: 52.484825,
+      lng: 13.344103,
+    },
+  },
+  {
+    id: "suedgelaende-nature-park",
+    title: "wander the natur-park südgelände",
+    blurb: "an old rail yard being reclaimed by trees",
+    category: "hangout",
+    place: {
+      name: "Natur-Park Südgelände",
+      lat: 52.459052,
+      lng: 13.356464,
+    },
+  },
+  {
+    id: "cafe-berio",
+    title: "breakfast at café berio",
+    blurb: "a maaßenstraße classic",
+    category: "food",
+    place: {
+      name: "Café Berio",
+      lat: 52.498007,
+      lng: 13.354745,
+    },
+  },
+  {
+    id: "odeon-kino",
+    title: "a film at the odeon",
+    blurb: "original-language films on hauptstraße",
+    category: "culture",
+    place: {
+      name: "Odeon",
+      lat: 52.482053,
+      lng: 13.349648,
+    },
+  },
+  {
+    id: "gleisdreieck-park",
+    title: "stroll through the park am gleisdreieck",
+    blurb: "old tracks, new lawns and a lot of skateboards",
+    category: "hangout",
+    place: {
+      name: "Park am Gleisdreieck",
+      lat: 52.501644,
+      lng: 13.372293,
+    },
+  },
+
+  // ---- friedrichshain
+  {
+    id: "mont-klamott",
+    title: "climb mont klamott",
+    blurb: "a hill made of rubble with a great view",
+    category: "hangout",
+    place: {
+      name: "Volkspark Friedrichshain",
+      lat: 52.527159,
+      lng: 13.432147,
+    },
+  },
+  {
+    id: "oberbaumbruecke-sunset",
+    title: "sunset on the oberbaumbrücke",
+    blurb: "red brick, trains overhead, the spree below",
+    category: "hangout",
+    place: {
+      name: "Oberbaumbrücke",
+      lat: 52.501729,
+      lng: 13.445731,
+    },
+  },
+  {
+    id: "boxhagener-platz-flea-market",
+    title: "flea market at boxhagener platz",
+    blurb: "sundays, vinyl and old lamps",
+    category: "hobby",
+    place: {
+      name: "Boxhagener Platz",
+      lat: 52.510808,
+      lng: 13.459703,
+    },
+  },
+  {
+    id: "karl-marx-allee-walk",
+    title: "walk karl-marx-allee from frankfurter tor",
+    blurb: "socialist wedding-cake architecture",
+    category: "culture",
+    place: {
+      name: "Frankfurter Tor",
+      lat: 52.515818,
+      lng: 13.453974,
+    },
+  },
+  {
+    id: "skatehalle-berlin",
+    title: "skate at the skatehalle",
+    blurb: "an indoor park for rainy days",
+    category: "sports",
+    place: {
+      name: "Skatehalle Berlin",
+      lat: 52.507013,
+      lng: 13.453823,
+    },
+  },
+  {
+    id: "freiluftkino-friedrichshain",
+    title: "a film at freiluftkino friedrichshain",
+    blurb: "blankets, bugs and a big screen in the volkspark",
+    category: "culture",
+    place: {
+      name: "Freiluftkino Friedrichshain",
+      lat: 52.525438,
+      lng: 13.435553,
+    },
+    season: { from: "05-15", to: "09-15" },
+  },
+  {
+    id: "holzmarkt-sunset",
+    title: "sunset at the holzmarkt",
+    blurb: "the river, a village and a bonfire feeling",
+    category: "drinks",
+    place: {
+      name: "Holzmarkt 25",
+      lat: 52.511459,
+      lng: 13.426537,
+    },
+    season: { from: "04-15", to: "10-15" },
+  },
+
+  // ---- kreuzberg
+  {
+    id: "juedisches-museum",
+    title: "walk through the jüdisches museum",
+    blurb: "daniel libeskind's building is half the story",
+    category: "culture",
+    place: {
+      name: "Jüdisches Museum Berlin",
+      lat: 52.502247,
+      lng: 13.395147,
+    },
+  },
+  {
+    id: "goerlitzer-park",
+    title: "lounge in the görlitzer park",
+    blurb: "grass, grills and all of kreuzberg passing by",
+    category: "hangout",
+    place: {
+      name: "Görlitzer Park",
+      lat: 52.496579,
+      lng: 13.437605,
+    },
+  },
+  {
+    id: "mustafas-gemuese-kebap",
+    title: "queue for mustafa's gemüse kebap",
+    blurb: "a berlin legend, lemon on top",
+    category: "food",
+    place: {
+      name: "Mustafa's Gemüse Kebap",
+      lat: 52.493809,
+      lng: 13.38788,
+    },
+  },
+  {
+    id: "burgermeister-schlesisches-tor",
+    title: "burgers under the u-bahn at burgermeister",
+    blurb: "a converted public toilet, strangely cosy",
+    category: "food",
+    place: {
+      name: "Burgermeister",
+      lat: 52.501121,
+      lng: 13.442458,
+    },
+  },
+  {
+    id: "moviemento-kino",
+    title: "a film at the moviemento",
+    blurb: "one of berlin's oldest cinemas, still going",
+    category: "culture",
+    place: {
+      name: "Moviemento",
+      lat: 52.490334,
+      lng: 13.423401,
+    },
+  },
+  {
+    id: "freiluftkino-kreuzberg",
+    title: "a film at freiluftkino kreuzberg",
+    blurb: "an open-air screen in bethanien's courtyard",
+    category: "culture",
+    place: {
+      name: "Freiluftkino Kreuzberg",
+      lat: 52.504061,
+      lng: 13.42348,
+    },
+    season: { from: "05-15", to: "09-15" },
+  },
+  {
+    id: "five-elephant-cheesecake",
+    title: "cheesecake at five elephant",
+    blurb: "coffee roasters with a berlin-famous slice",
+    category: "food",
+    place: {
+      name: "Five Elephant",
+      lat: 52.493382,
+      lng: 13.438297,
+    },
+  },
+  {
+    id: "so36-gig",
+    title: "a gig at so36",
+    blurb: "kreuzberg's punk and party institution",
+    category: "party",
+    place: {
+      name: "SO36",
+      lat: 52.500391,
+      lng: 13.422161,
+    },
+  },
+  {
+    id: "minigolf-brachvogel",
+    title: "minigolf at the landwehrkanal",
+    blurb: "fairways, canal and a cold drink",
+    category: "sports",
+    place: {
+      name: "Minigolf Brachvogel",
+      lat: 52.496806,
+      lng: 13.399551,
+    },
+    season: { from: "04-01", to: "10-31" },
+  },
+  {
+    id: "karneval-der-kulturen",
+    title: "karneval der kulturen in kreuzberg",
+    blurb: "a pentecost parade with half the city",
+    category: "party",
+    place: {
+      name: "Blücherplatz",
+      lat: 52.49696,
+      lng: 13.393335,
+    },
+    season: { from: "05-15", to: "06-15" },
+  },
+
+  // ---- neukölln
+  {
+    id: "hasenheide-park",
+    title: "walk the hasenheide",
+    blurb: "a big old park with a lot of picnickers",
+    category: "hangout",
+    place: {
+      name: "Hasenheide",
+      lat: 52.488286,
+      lng: 13.41308,
+    },
+  },
+  {
+    id: "koernerpark-gallery",
+    title: "coffee in the körnerpark",
+    blurb: "a small baroque park with a gallery",
+    category: "culture",
+    place: {
+      name: "Körnerpark",
+      lat: 52.471317,
+      lng: 13.437912,
+    },
+  },
+  {
+    id: "rollberg-kino",
+    title: "a film at the rollberg",
+    blurb: "a cosy cinema in the old brewery quarter",
+    category: "culture",
+    place: {
+      name: "Rollberg Kino",
+      lat: 52.478797,
+      lng: 13.428029,
+    },
+  },
+  {
+    id: "stadtbad-neukoelln",
+    title: "swim at stadtbad neukölln",
+    blurb: "a pool that looks like a palace",
+    category: "sports",
+    place: {
+      name: "Stadtbad Neukölln",
+      lat: 52.479195,
+      lng: 13.439732,
+    },
+  },
+  {
+    id: "rixdorf-christmas-market",
+    title: "christmas at richardplatz",
+    blurb: "the rixdorf christmas market, a village feeling in the city",
+    category: "drinks",
+    place: {
+      name: "Richardplatz",
+      lat: 52.47419,
+      lng: 13.445879,
+    },
+    season: { from: "12-01", to: "12-22" },
+  },
+  {
+    id: "freiluftkino-hasenheide",
+    title: "a film at freiluftkino hasenheide",
+    blurb: "bring a jacket, stay for the second film",
+    category: "culture",
+    place: {
+      name: "Freiluftkino Hasenheide",
+      lat: 52.483622,
+      lng: 13.416309,
+    },
+    season: { from: "05-15", to: "09-15" },
+  },
+  {
+    id: "eisstadion-neukoelln",
+    title: "ice skating at the eisstadion neukölln",
+    blurb: "an old rink beside tempelhofer feld",
+    category: "sports",
+    place: {
+      name: "Eisstadion Neukölln",
+      lat: 52.467805,
+      lng: 13.41952,
+    },
+    season: { from: "10-20", to: "03-15" },
+  },
+
+  // ---- farther out
+  {
+    id: "britzer-garten-tulips",
+    title: "tulips at the britzer garten",
+    blurb: "a flower park, a mini train and lots of petals",
+    category: "hangout",
+    place: {
+      name: "Britzer Garten",
+      lat: 52.433781,
+      lng: 13.417283,
+    },
+    season: { from: "04-10", to: "05-10" },
+  },
+
+  // ---- tempelhof
+  {
+    id: "tempelhof-airlift-memorial",
+    title: "visit the luftbrückendenkmal",
+    blurb: "the airlift memorial, a berlin story",
+    category: "culture",
+    place: {
+      name: "Luftbrückendenkmal",
+      lat: 52.484135,
+      lng: 13.387405,
+    },
+  },
+  {
+    id: "schwerbelastungskoerper",
+    title: "stand next to the schwerbelastungskörper",
+    blurb: "a giant concrete cylinder with a story",
+    category: "culture",
+    place: {
+      name: "Schwerbelastungskörper",
+      lat: 52.484019,
+      lng: 13.371613,
+    },
+  },
+  {
+    id: "columbiabad-summer-pool",
+    title: "swim at the columbiabad",
+    blurb: "a big outdoor pool beside the airfield",
+    category: "sports",
+    place: {
+      name: "Columbiabad",
+      lat: 52.479588,
+      lng: 13.415077,
+    },
+    season: { from: "05-15", to: "09-15" },
+  },
+  {
+    id: "alter-park-tempelhof",
+    title: "stroll the alter park in tempelhof",
+    blurb: "old trees and a surprisingly quiet corner of the city",
+    category: "hangout",
+    place: {
+      name: "Alter Park",
+      lat: 52.462398,
+      lng: 13.383475,
+    },
+  },
+  {
+    id: "bergmannstrasse-stroll",
+    title: "wander bergmannstraße",
+    blurb: "cafés, bookshops and a quiet cemetery to cut through",
+    category: "hangout",
+    place: {
+      name: "Bergmannstraße",
+      lat: 52.488822,
+      lng: 13.402425,
+    },
+  },
+
+  // ---- treptow
+  {
+    id: "sowjetisches-ehrenmal",
+    title: "walk through the soviet memorial",
+    blurb: "monumental, quiet and free to enter",
+    category: "culture",
+    place: {
+      name: "Sowjetisches Ehrenmal",
+      lat: 52.487665,
+      lng: 13.46882,
+    },
+  },
+  {
+    id: "archenhold-sternwarte",
+    title: "look through the archenhold telescope",
+    blurb: "a giant telescope from 1896, tours and stargazing",
+    category: "culture",
+    place: {
+      name: "Archenhold-Sternwarte",
+      lat: 52.485855,
+      lng: 13.476329,
+    },
+  },
+  {
+    id: "spreepark-wander",
+    title: "wander the spreepark",
+    blurb: "an old amusement park slowly waking up",
+    category: "culture",
+    place: {
+      name: "Spreepark",
+      lat: 52.484925,
+      lng: 13.488993,
+    },
+  },
+  {
+    id: "molecule-man",
+    title: "visit the molecule man",
+    blurb: "three giant figures in the spree",
+    category: "culture",
+    place: {
+      name: "Molecule Man",
+      lat: 52.496976,
+      lng: 13.458948,
+    },
+  },
+  {
+    id: "badeschiff-swim",
+    title: "swim at the badeschiff",
+    blurb: "a pool floating in the spree",
+    category: "sports",
+    place: {
+      name: "Badeschiff",
+      lat: 52.497633,
+      lng: 13.453667,
+    },
+    season: { from: "05-15", to: "09-15" },
+  },
+  {
+    id: "insel-der-jugend",
+    title: "coffee on the insel der jugend",
+    blurb: "a little island you reach by a bridge",
+    category: "hangout",
+    place: {
+      name: "Insel der Jugend",
+      lat: 52.487286,
+      lng: 13.48079,
+    },
+    season: { from: "04-15", to: "10-15" },
+  },
+
+  // ---- farther out
+  {
+    id: "spandau-zitadelle",
+    title: "explore the spandau zitadelle",
+    blurb: "moat, bats and a very old fortress",
+    category: "culture",
+    place: {
+      name: "Zitadelle Spandau",
+      lat: 52.541034,
+      lng: 13.212744,
+    },
+  },
+  {
+    id: "spandau-christmas-market",
+    title: "christmas market in spandau's old town",
+    blurb: "half-timbered houses and mulled wine",
+    category: "drinks",
+    place: {
+      name: "Weihnachtsmarkt Spandau Altstadt",
+      lat: 52.538425,
+      lng: 13.204889,
+    },
+    season: { from: "11-24", to: "12-23" },
+  },
+  {
+    id: "mueggelsee-beach",
+    title: "swim at the müggelsee",
+    blurb: "berlin's biggest lake, bring a bike",
+    category: "sports",
+    place: {
+      name: "Strandbad Müggelsee",
+      lat: 52.444937,
+      lng: 13.675983,
+    },
+    season: { from: "06-01", to: "09-15" },
+  },
+  {
+    id: "wannsee-beach",
+    title: "a day at the strandbad wannsee",
+    blurb: "europe's biggest inland beach, they say",
+    category: "sports",
+    place: {
+      name: "Strandbad Wannsee",
+      lat: 52.438169,
+      lng: 13.178038,
+    },
+    season: { from: "05-15", to: "09-15" },
+  },
+  {
+    id: "teufelssee-swim",
+    title: "swim at the teufelssee",
+    blurb: "a forest lake deep in grunewald",
+    category: "sports",
+    place: {
+      name: "Teufelssee",
+      lat: 52.491142,
+      lng: 13.233625,
+    },
+    season: { from: "06-01", to: "09-15" },
+  },
+  {
+    id: "dong-xuan-center",
+    title: "lunch at the dong xuan center",
+    blurb: "vietnamese food in a vast market hall",
+    category: "food",
+    place: {
+      name: "Dong Xuan Center",
+      lat: 52.528791,
+      lng: 13.489681,
+    },
+  },
+  {
+    id: "tierpark-friedrichsfelde",
+    title: "an afternoon at the tierpark",
+    blurb: "a huge park with animals from everywhere",
+    category: "hangout",
+    place: {
+      name: "Tierpark Berlin",
+      lat: 52.501554,
+      lng: 13.531267,
+    },
+  },
+  {
+    id: "domaene-dahlem-asparagus",
+    title: "asparagus at the domäne dahlem",
+    blurb: "spargel season at the old farm estate",
+    category: "food",
+    place: {
+      name: "Domäne Dahlem",
+      lat: 52.459165,
+      lng: 13.28921,
+    },
+    season: { from: "04-20", to: "06-24" },
+  },
+  {
+    id: "sisyphos-dance",
+    title: "dance at sisyphos",
+    blurb: "an outdoor party village, bring sunglasses",
+    category: "party",
+    place: {
+      name: "Sisyphos",
+      lat: 52.493326,
+      lng: 13.491899,
+    },
+    season: { from: "05-01", to: "10-15" },
+  },
+  {
+    id: "schlachtensee-autumn-loop",
+    title: "autumn loop around the schlachtensee",
+    blurb: "reflections, leaves and a hot chocolate",
+    category: "hangout",
+    place: {
+      name: "Schlachtensee",
+      lat: 52.43846,
+      lng: 13.2141,
+    },
+    season: { from: "10-01", to: "11-15" },
   },
 ]

@@ -19,7 +19,7 @@ import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { QrShareSheet } from "@/components/qr-share-sheet"
 import { Button } from "@/components/ui/button"
 import { fetchAcceptedConnections } from "@/lib/api/connections"
-import { getIdeasNear } from "@/lib/flare-ideas"
+import { getIdeasNearWidening } from "@/lib/flare-ideas"
 import { readLastKnownCoords, type GeoCoords } from "@/lib/geolocation"
 import { haptic } from "@/lib/haptics"
 import { useIdeasHidden } from "@/lib/idea-preferences"
@@ -45,7 +45,12 @@ export function firstFlarePrefill(
   ideasHidden: boolean
 ): ComposerPrefill | undefined {
   if (!center || ideasHidden) return undefined
-  const [idea] = getIdeasNear({ center, now, limit: 1 })
+  const [idea] = getIdeasNearWidening({
+    center,
+    now,
+    limit: 1,
+    minCandidates: 1,
+  })
   return idea ? ideaPrefill(idea) : undefined
 }
 
