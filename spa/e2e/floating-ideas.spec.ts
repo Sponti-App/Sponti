@@ -55,8 +55,9 @@ test.describe("floating ideas on the map (#515)", () => {
   }) => {
     await openMap(page)
     await expect(floating(page)).toHaveCount(3)
-    // June near humboldthain: the same four spots as idea-pins.spec.ts.
-    await expect(spotPins(page)).toHaveCount(4)
+    // June near humboldthain: the spots are capped at five, as in
+    // idea-pins.spec.ts.
+    await expect(spotPins(page)).toHaveCount(5)
   })
 
   test("tapping one opens the idea card with no place or distance, and light a flare fills the composer without a place", async ({
