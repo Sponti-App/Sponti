@@ -129,7 +129,7 @@ npm start            # build then run dist/app.js
 
 - Branch from `dev` and open PRs against `dev`, never `main`. CI runs the spa, api and auth-server checks on every PR.
 - `dev` is merged into `main` to release. `main` deploys to production (Vercel project `sponti`, https://sponti-flame.vercel.app). `dev` deploys to https://sponti-git-dev-spontis-projects.vercel.app, so check new work there before it reaches `main`.
-- Backends run on the team's netcup VPS (Docker Compose + Caddy): `https://api.152-53-198-143.sslip.io` and `https://auth.152-53-198-143.sslip.io`. A merge into `dev` that touches `api/`, `auth-server/` or `deploy/netcup/` deploys them automatically (`.github/workflows/deploy-backends.yml`). Runbook, logs and manual deploys: `deploy/netcup/README.md`. Secrets live only on the server, and `CORS_ORIGINS` there must list any new SPA origin.
+- Backends run on the team's netcup VPS (Docker Compose + Caddy): `https://api.sponti.fun` and `https://auth.sponti.fun`. A merge into `dev` that touches `api/`, `auth-server/` or `deploy/netcup/` deploys them automatically (`.github/workflows/deploy-backends.yml`). Runbook, logs and manual deploys: `deploy/netcup/README.md`. Secrets live only on the server, and `CORS_ORIGINS` there must list any new SPA origin.
 - GitHub only auto-closes issues on merges into the default branch (`main`), so close an issue by hand, linking the PR, once that PR is merged to `dev`.
 - Stage explicit paths (`git add <file>`), never a symlinked `node_modules`.
 

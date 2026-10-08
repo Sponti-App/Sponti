@@ -38,7 +38,7 @@ jobs:
         run: |
           for host in api auth; do
             for attempt in 1 2 3 4 5 6; do
-              if curl -fsS -m 10 "https://$host.152-53-198-143.sslip.io/health"; then
+              if curl -fsS -m 10 "https://$host.sponti.fun/health"; then
                 echo " ($host ok)"
                 break
               fi
