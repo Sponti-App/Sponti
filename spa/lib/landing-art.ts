@@ -61,3 +61,22 @@ export const LANDING_SCENES = {
 >
 
 export type LandingSceneName = keyof typeof LANDING_SCENES
+
+// The hero: a Berlin rooftop at dusk, 1672 × 941, friends around a flare
+// whose light swirls up past the TV tower. One flat image: the page gets its
+// depth from what sits over it. Real cut-outs (sky, city, people) of the
+// same canvas can be added to `layers` back to front, each with a `depth`
+// (0 still, 1 moves the most). `flare` is where the painted flare burns, in
+// % of the image: the hero centres it across the frame, zooms towards it,
+// and its light spreads out from it.
+export const LANDING_HERO: {
+  ratio: number
+  alt: string
+  flare: { x: number; y: number }
+  layers: LandingLayer[]
+} = {
+  ratio: 1672 / 941,
+  alt: "friends on a berlin rooftop at dusk, gathered around a flare whose light swirls up past the tv tower",
+  flare: { x: 48.5, y: 68.1 },
+  layers: [{ src: "/landing/brand/hero-berlin.webp", depth: 0 }],
+}
