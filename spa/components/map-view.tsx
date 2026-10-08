@@ -46,7 +46,11 @@ import { useLocationStart } from "@/lib/use-location-start"
 import { useMapEvents } from "@/lib/use-events"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 import { setSuggestedFlareType } from "@/lib/suggested-flare-type"
-import { getIdeaPins, getIdeasNear, type FlareIdea } from "@/lib/flare-ideas"
+import {
+  getIdeaPins,
+  getIdeasNearWidening,
+  type FlareIdea,
+} from "@/lib/flare-ideas"
 import { haptic } from "@/lib/haptics"
 import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
 import { useOptionalActionFeedback } from "@/components/action-feedback"
@@ -556,8 +560,9 @@ export function quietFlareType(
 }
 
 // The idea shown on the quiet card (#243): the nearest idea of the selected
-// type within 2 km of where the map is centred, or null (generic card) when
-// there is none or the position is unknown. Same clock as the rest of the map.
+// type to where the map is centred (widening 2, 4, then 8 km, #515), or null
+// (generic card) when there is none or the position is unknown. Same clock as
+// the rest of the map.
 export function quietIdea(
   center: GeoCoords | null,
   type: EventType,
@@ -565,8 +570,13 @@ export function quietIdea(
 ): FlareIdea | null {
   if (!center || now <= 0) return null
   return (
-    getIdeasNear({ center, now: new Date(now), category: type, limit: 1 })[0] ??
-    null
+    getIdeasNearWidening({
+      center,
+      now: new Date(now),
+      category: type,
+      limit: 1,
+      minCandidates: 1,
+    })[0] ?? null
   )
 }
 

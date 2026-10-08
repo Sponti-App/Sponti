@@ -475,7 +475,8 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
 })
 
 // #243: with a berlin position the quiet card is a real idea from the curated
-// list (2 km, nearest first), and lighting it opens the composer filled in.
+// list (nearest first, widening 2 to 8 km, #515), and lighting it opens the
+// composer filled in.
 // The idea list has date-dependent seasons (the drinks idea near humboldthain,
 // prater-beer-garden, runs 15 Apr to 30 Sep), so the browser clock is fixed to
 // a day inside them. Stub flares are stamped from Date.now() in node, which
@@ -550,8 +551,15 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
   test("no idea of the type in range: the generic card, opening the composer with the category only", async ({
     page,
   }) => {
-    await openBerlinMap(page, [])
-    // No curated food spot within 2 km of humboldthain.
+    // The north-west edge of berlin: no curated idea within the 8 km the
+    // search widens to (#515), so even a busy category has nothing to offer.
+    await page.clock.setFixedTime(JUNE)
+    await stubBackend(page, {
+      mapEvents: [],
+      coords: { lat: 52.6, lng: 13.1 },
+    })
+    await page.goto("/")
+    await expect(nav(page)).toBeVisible()
     await chip(page, "food").click()
 
     const card = quietCard(page)
