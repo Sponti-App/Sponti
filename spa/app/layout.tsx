@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { Bricolage_Grotesque } from "next/font/google"
+import { Agentation } from "agentation"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { InAppHistoryTracker } from "@/components/in-app-history-tracker"
@@ -91,6 +92,11 @@ export default function RootLayout({
           {/* The gates, session and app shell; not for the landing (#467). */}
           <AppChrome>{children}</AppChrome>
         </ThemeProvider>
+        {/* Dev-only visual annotation toolbar; sends notes to the local
+            agentation MCP server so an agent can pick them up. */}
+        {process.env.NODE_ENV === "development" && (
+          <Agentation endpoint="http://localhost:4747" />
+        )}
       </body>
     </html>
   )
