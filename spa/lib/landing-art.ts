@@ -49,14 +49,14 @@ export const LANDING_SCENES = {
     alt: "three friends and a dog walking along the river towards the sun",
     glow: [{ x: 62, y: 35.5, size: 26 }],
   },
-  crowd: {
-    src: "/landing/brand/crowd.webp",
-    ratio: 1122 / 1402,
-    alt: "a crowd with raised hands, turned towards a bright light",
-    glow: [{ x: 54.5, y: 41.5, size: 30 }],
+  lounge: {
+    src: "/landing/brand/lounge.webp",
+    ratio: 1672 / 941,
+    alt: "friends on a sunset lounge, gathered on cushions around a glowing flare with the city through the window",
+    glow: [{ x: 51.3, y: 70.4, size: 18 }],
   },
 } satisfies Record<string, LandingScene> as Record<
-  "rooftop" | "park" | "walk" | "crowd",
+  "rooftop" | "park" | "walk" | "lounge",
   LandingScene
 >
 

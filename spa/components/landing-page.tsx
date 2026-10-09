@@ -34,6 +34,7 @@ import {
   depth,
   spotlight,
   useInView,
+  useMatchMedia,
   usePinProgress,
   usePointerVar,
   useScrollVar,
@@ -60,13 +61,14 @@ import { cn } from "@/lib/utils"
 // type, and illustrated scenes before app screens. Static, public, and outside
 // the app: no session check, no api, no nav, no mobile gate (app-chrome.tsx).
 //
-// Top to bottom: the rooftop scene with the headline over it; the problem
-// (five apps folding into one flare); how it works, with the app's phones on
-// the one indigo band; what's happening now (the park scene, with flares on
-// its lights); the deck's short lines; the app's dark mode, quietly; why it
-// exists; and "light a flare" over the crowd. Every "open sponti" goes to the
-// app, a QR code of it sits beside the calls to action on desktop, and an
-// honest testing note sits near them and in the footer.
+// Top to bottom: the rooftop scene with the headline over it; why it exists
+// (the WHO stat on loneliness, risen right under the hero per review); the
+// problem (six apps folding into one flare); how it works, with the app's
+// phones on the one indigo band; what's happening now (the park scene, with
+// flares on its lights); the rest of the app as one feature walk-through; and
+// "light a flare" over a sunset lounge scene. Every "open sponti" goes to the
+// app on a phone; on desktop it reveals a QR code instead of navigating
+// (DESKTOP_QUERY), and an honest testing note sits under the hero's.
 //
 // Images come from lib/landing-art.ts. Motion is in components/landing/
 // motion.tsx; reduced motion gets every final state.
@@ -86,11 +88,11 @@ export function LandingPage({ appUrl }: { appUrl: string }) {
         </header>
         <main className="flex flex-col">
           <Hero />
+          <Why />
           <Problem />
           <How />
           <Now />
           <Features />
-          <Why />
           <Closing />
         </main>
         <footer className="flex flex-col items-center gap-3 border-t border-border/60 px-6 pt-12 pb-6">
@@ -115,20 +117,50 @@ function Logo() {
   )
 }
 
+/** The mobile gate's rule for a desktop: hover, a fine pointer, a wide
+ * screen. Sponti is made for the phone, so a desktop gets a QR code there
+ * instead of a straight link into a desktop browser tab. Mirrored by
+ * DESKTOP_ONLY (same breakpoint, as a Tailwind arbitrary variant) for the
+ * QR's own CSS-only mobile hiding. */
+const DESKTOP_QUERY =
+  "(hover: hover) and (pointer: fine) and (min-width: 900px)"
+const DESKTOP_ONLY =
+  "hidden [@media(hover:hover)_and_(pointer:fine)_and_(min-width:900px)]:flex"
+
 /** "open sponti". Coral by default; `ink` (indigo, cream text) for the
- * hero's, where it sits over the warm scene. */
+ * hero's, where it sits over the warm scene. On a touch phone it's a plain
+ * link to the app. On desktop, where opening the app in a browser tab isn't
+ * useful, passing `onReveal` turns the click into a toggle (its own QR code,
+ * `aria-controls`/`aria-expanded` describing what it opens) instead of
+ * navigating; the href stays, so a slow network, no-js, or a middle-click
+ * still reaches the app. */
 function OpenSponti({
   className,
   ink = false,
+  onReveal,
+  expanded,
+  controls,
 }: {
   className?: string
   ink?: boolean
+  onReveal?: () => void
+  expanded?: boolean
+  controls?: string
 }) {
   const appUrl = useContext(AppUrl)
+  const isDesktop = useMatchMedia(DESKTOP_QUERY)
   return (
     <a
       href={appUrl}
       data-landing-cta
+      aria-expanded={onReveal && isDesktop ? expanded : undefined}
+      aria-controls={onReveal && isDesktop ? controls : undefined}
+      onClick={(event) => {
+        if (onReveal && isDesktop) {
+          event.preventDefault()
+          onReveal()
+        }
+      }}
       className={cn(
         "group inline-flex h-12 items-center justify-center gap-1.5 rounded-full px-6 text-sm font-medium transition-[transform,background-color,box-shadow] outline-none hover:-translate-y-0.5 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px",
         ink
@@ -142,11 +174,6 @@ function OpenSponti({
     </a>
   )
 }
-
-/** The mobile gate's rule for a desktop: hover, a fine pointer, a wide
- * screen. Sponti is made for the phone, so a desktop gets a QR code too. */
-const DESKTOP_ONLY =
-  "hidden [@media(hover:hover)_and_(pointer:fine)_and_(min-width:900px)]:flex"
 
 function DesktopQr({
   className,
@@ -177,21 +204,18 @@ function DesktopQr({
   )
 }
 
-/** The honest note: early testing, things may break. */
+/** The honest note: early testing, things may break. A quiet pill, low
+ * enough contrast to read as a footnote rather than a badge. */
 function TestingNote({ className }: { className?: string }) {
   return (
     <p
       data-testing-note
       className={cn(
-        "inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground",
+        "rounded-full bg-background/35 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-sm",
         className
       )}
     >
-      <span
-        aria-hidden="true"
-        className="size-1.5 shrink-0 rounded-full bg-flare-open"
-      />
-      <span>early testing in berlin. things may break.</span>
+      early testing in berlin. things may break.
     </p>
   )
 }
@@ -333,6 +357,7 @@ function FloatCard({
 function Hero() {
   const pin = usePinProgress<HTMLElement>()
   const pointer = usePointerVar<HTMLDivElement>()
+  const [qrShown, setQrShown] = useState(false)
   return (
     <section
       ref={pin}
@@ -366,15 +391,21 @@ function Hero() {
           </Reveal>
           <Reveal delay={120}>
             <p className="mx-auto mt-5 max-w-lg text-base font-medium lg:text-lg">
-              sponti is for making plans in the moment, or in the near future.
+              an app for making plans happen.
             </p>
           </Reveal>
           <Reveal
             delay={240}
             className="mt-8 flex w-full flex-col items-center gap-2.5"
           >
-            <OpenSponti ink className="w-full max-w-xs lg:w-fit" />
-            <TestingNote className="justify-center text-foreground/75" />
+            <OpenSponti
+              ink
+              className="w-full max-w-xs lg:w-fit"
+              onReveal={() => setQrShown((shown) => !shown)}
+              expanded={qrShown}
+              controls="hero-qr"
+            />
+            <TestingNote className="text-foreground/75" />
           </Reveal>
         </div>
 
@@ -387,7 +418,7 @@ function Hero() {
           }}
         >
           <FloatCard
-            className="bottom-2 left-0 lg:left-[4%]"
+            className="bottom-2 left-0 lg:left-[-2%]"
             px={22}
             delay="0s"
             reveal={600}
@@ -405,7 +436,7 @@ function Hero() {
             </span>
           </FloatCard>
           <FloatCard
-            className="right-[6%] bottom-16 hidden sm:block"
+            className="right-[6%] bottom-16 hidden sm:block lg:right-[0%]"
             px={32}
             delay="-3s"
             reveal={900}
@@ -414,10 +445,25 @@ function Hero() {
             <span className="text-sm">sam and 4 others joined</span>
           </FloatCard>
         </div>
-        <DesktopQr
-          className="mx-auto mt-6 w-fit rounded-2xl bg-background/80 p-3 pr-5 backdrop-blur-sm"
-          style={{ opacity: "calc(1 - var(--q, 0) * 2.5)" }}
-        />
+        {/* Hidden behind the button above until clicked (desktop only; a
+            phone's click goes straight to the app, never opening this). */}
+        <div
+          id="hero-qr"
+          className="mt-6 grid transition-[grid-template-rows] duration-300 ease-out"
+          style={{
+            gridTemplateRows: qrShown ? "1fr" : "0fr",
+            // Collapsing to a 0fr row only clips the QR visually (its own
+            // box keeps its natural size under the clip), so it still reads
+            // as present to assistive tech and to automated visibility
+            // checks. `visibility` genuinely removes it between clicks.
+            visibility: qrShown ? "visible" : "hidden",
+            opacity: "calc(1 - var(--q, 0) * 2.5)",
+          }}
+        >
+          <div className="overflow-hidden">
+            <DesktopQr className="mx-auto w-fit rounded-2xl bg-background/80 p-3 pr-5 backdrop-blur-sm" />
+          </div>
+        </div>
       </div>
     </section>
   )
@@ -456,7 +502,7 @@ function Problem() {
     <section
       ref={ref}
       aria-labelledby="landing-problem"
-      className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-14 px-6 pt-10 pb-24 lg:grid-cols-2 lg:px-8 lg:pt-16 lg:pb-36"
+      className="mx-auto grid w-full max-w-6xl items-center gap-14 px-6 py-24 lg:grid-cols-2 lg:px-8 lg:py-36"
     >
       <Reveal>
         <p className="lp-eyebrow">we&apos;ve all been there.</p>
@@ -718,10 +764,10 @@ const FEATURES: {
     eyebrow: "getting there",
     title: (
       <>
-        find your way <span className="lp-coral">there.</span>
+        join other flares, <span className="lp-coral">and get there.</span>
       </>
     ),
-    body: "join a flare and get the walking route and how long it takes. the host sees you're on the way.",
+    body: "get the walking route and how long it takes. the host sees you're on the way.",
     Screen: RouteScreen,
   },
   {
@@ -784,8 +830,8 @@ function Features() {
             id="landing-features"
             className="lp-display mt-4 max-w-3xl text-5xl lg:text-7xl"
           >
-            everything a plan needs.{" "}
-            <span className="lp-coral">nothing it doesn&apos;t.</span>
+            finally, an easy way to keep up with your{" "}
+            <span className="lp-coral">peeps.</span>
           </h2>
         </Reveal>
         {/* Desktop: the steps scroll past a phone that holds still. */}
@@ -1041,27 +1087,23 @@ function FeatureStep({
   )
 }
 
+/** Why it exists: now the first thing under the hero (moved up on review),
+ * so it rises into the hero's fade the way the problem section used to —
+ * same reduced top padding, same stacking above the hero's pinned scene. */
 function Why() {
   const ref = useScrollVar<HTMLElement>()
   return (
     <section
       ref={ref}
       aria-labelledby="landing-why"
-      className="mx-auto grid w-full max-w-6xl items-center gap-12 px-6 py-24 lg:grid-cols-[1fr_26rem] lg:px-8 lg:py-36"
+      className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-12 px-6 pt-10 pb-24 lg:grid-cols-[1fr_26rem] lg:px-8 lg:pt-16 lg:pb-36"
     >
       <Reveal>
         <p className="lp-eyebrow">why it exists</p>
         <h2 id="landing-why" className="lp-display mt-4 text-5xl lg:text-7xl">
           more connected than ever, and more alone.
         </h2>
-        <p className="mt-6 max-w-md text-muted-foreground lg:text-lg">
-          messages everywhere, and still no time to catch up with your best
-          friends. sponti is built to get you off your phone and out with them.
-        </p>
-        <p className="lp-display mt-8 text-3xl lg:text-4xl">
-          make it easier to be <span className="lp-coral">together.</span>
-        </p>
-        <p className="mt-6 text-xs text-muted-foreground">
+        <p className="mt-3 text-xs text-muted-foreground">
           source:{" "}
           <a
             href={WHO_REPORT_URL}
@@ -1069,6 +1111,10 @@ function Why() {
           >
             who commission on social connection (2025)
           </a>
+        </p>
+        <p className="mt-6 max-w-md text-muted-foreground lg:text-lg">
+          messages everywhere, and still no time to catch up with your best
+          friends. sponti is built to get you off your phone and out with them.
         </p>
       </Reveal>
       <Scene
@@ -1083,6 +1129,7 @@ function Why() {
 
 function Closing() {
   const ref = useScrollVar<HTMLElement>()
+  const [qrShown, setQrShown] = useState(false)
   return (
     <section
       ref={ref}
@@ -1090,7 +1137,7 @@ function Closing() {
       className="relative isolate flex min-h-[100svh] flex-col justify-end overflow-hidden px-6 pt-40 pb-16 text-center lg:pb-24"
     >
       <Scene
-        name="crowd"
+        name="lounge"
         className="absolute inset-0 -z-20"
         move="translate(-50%, calc(-50% + (var(--p, 0.5) - 0.5) * -90px)) scale(1.1)"
       />
@@ -1112,8 +1159,24 @@ function Closing() {
         <p className="max-w-md text-base lg:text-lg">
           or join one, and finally be at the right place at the right time.
         </p>
-        <OpenSponti className="w-full max-w-xs lg:w-fit" />
-        <DesktopQr className="mt-2" />
+        <OpenSponti
+          className="w-full max-w-xs lg:w-fit"
+          onReveal={() => setQrShown((shown) => !shown)}
+          expanded={qrShown}
+          controls="closing-qr"
+        />
+        <div
+          id="closing-qr"
+          className="mt-2 grid w-full transition-[grid-template-rows] duration-300 ease-out"
+          style={{
+            gridTemplateRows: qrShown ? "1fr" : "0fr",
+            visibility: qrShown ? "visible" : "hidden",
+          }}
+        >
+          <div className="overflow-hidden">
+            <DesktopQr className="mx-auto w-fit" />
+          </div>
+        </div>
       </Reveal>
     </section>
   )

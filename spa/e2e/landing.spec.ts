@@ -137,26 +137,49 @@ test.describe("landing page (#467, #506)", () => {
     await expect(footer.getByLabel("your email")).toBeVisible()
   })
 
-  test("desktop: a qr code of the app sits by the calls to action", async ({
+  test("desktop: 'open sponti' reveals a qr code instead of navigating", async ({
     page,
     isMobile,
   }) => {
-    test.skip(isMobile, "the desktop qr")
+    test.skip(isMobile, "the desktop reveal")
     await page.goto("/landing")
+    const ctas = page.getByRole("link", { name: "open sponti" })
+    // Collapsed, the qr's `visibility: hidden` takes it out of the
+    // accessibility tree, so the plain img (not its role) finds both.
+    const qrImages = page.locator('img[alt="qr code to open sponti"]')
+    await expect(qrImages).toHaveCount(2)
+    for (const q of await qrImages.all()) await expect(q).toBeHidden()
+
+    // The hero's (index 1): hidden behind the button until it's clicked.
+    const hero = ctas.nth(1)
+    await expect(hero).toHaveAttribute("aria-expanded", "false")
+    await hero.click()
+    await expect(page).toHaveURL(/\/landing$/)
+    await expect(hero).toHaveAttribute("aria-expanded", "true")
     const qr = page.getByRole("img", { name: "qr code to open sponti" })
-    await expect(qr).toHaveCount(2)
     await expect(qr.first()).toBeVisible()
     await expect(qr.first()).toHaveAttribute("src", /^data:image\/png;base64,/)
     await expect(qr.first()).toHaveAttribute("data-qr-target", APP_URL)
     await expect(page.getByText("made for your phone").first()).toBeVisible()
+
+    // Clicking again hides it.
+    await hero.click()
+    await expect(qrImages.first()).toBeHidden()
   })
 
-  test("phone: no qr code", async ({ page, isMobile }) => {
+  test("phone: 'open sponti' goes straight to the app, no qr code", async ({
+    page,
+    isMobile,
+  }) => {
     test.skip(!isMobile, "the phone project")
     await page.goto("/landing")
     for (const qr of await page.locator("[data-landing-qr]").all()) {
       await expect(qr).toBeHidden()
     }
+    // A touch device has no desktop reveal to intercept the click.
+    await expect(
+      page.getByRole("link", { name: "open sponti" }).nth(1)
+    ).not.toHaveAttribute("aria-expanded")
   })
 
   test("reduced motion: every part shows its final state", async ({ page }) => {

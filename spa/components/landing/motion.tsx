@@ -23,6 +23,20 @@ export function usePrefersReducedMotion(): boolean {
   return reduced
 }
 
+/** Tracks whether a media query matches, reactively. False on the server and
+ * until mounted, so a desktop-only behaviour never fires during SSR. */
+export function useMatchMedia(query: string): boolean {
+  const [matches, setMatches] = useState(false)
+  useEffect(() => {
+    const mql = window.matchMedia(query)
+    const update = () => setMatches(mql.matches)
+    update()
+    mql.addEventListener("change", update)
+    return () => mql.removeEventListener("change", update)
+  }, [query])
+  return matches
+}
+
 /** True once the element has scrolled into view (and stays true). */
 export function useInView<T extends HTMLElement>(threshold = 0.35) {
   const ref = useRef<T>(null)
