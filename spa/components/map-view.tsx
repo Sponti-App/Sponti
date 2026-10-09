@@ -28,6 +28,7 @@ import {
   XIcon,
 } from "@/components/icons"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { featureFlags } from "@/lib/feature-flags"
 import {
   distanceFromUser,
   eventCoords,
@@ -46,7 +47,17 @@ import { useLocationStart } from "@/lib/use-location-start"
 import { useMapEvents } from "@/lib/use-events"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 import { setSuggestedFlareType } from "@/lib/suggested-flare-type"
-import { getIdeaPins, getIdeasNear, type FlareIdea } from "@/lib/flare-ideas"
+import {
+  getIdeaPins,
+  getIdeasNearWidening,
+  type FlareIdea,
+} from "@/lib/flare-ideas"
+import {
+  ANYWHERE_PLACE_LINE,
+  type FloatingIdea,
+  type Idea,
+} from "@/lib/flare-ideas-anywhere"
+import { useFloatingIdeas } from "@/lib/use-floating-ideas"
 import { haptic } from "@/lib/haptics"
 import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
 import { useOptionalActionFeedback } from "@/components/action-feedback"
@@ -67,31 +78,37 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { eventDisplayTitle } from "@/lib/flare-title"
 import { useTheme } from "next-themes"
+import { IdeaIcon } from "@/components/idea-icon"
+import { InviteDialog } from "@/components/qr-share-sheet"
+import {
+  NoFriendsPanel,
+  pickQuietIdeas,
+  QuietIdeaCards,
+  RecentPeoplePanel,
+  useQuietPeople,
+} from "@/components/quiet-home"
+import { recentConnections } from "@/lib/quiet-home"
 
-// What the map draws for an idea (#244). Deliberately the opposite of a flare
-// pin: smaller, filled with the muted chip colour, a dashed outline and a grey
-// icon, and no peach anywhere (peach is the CTA colour and means "a real
-// flare"). The dashed outline reads as "a suggestion, nothing planned here" in
-// both light and dark. The padding is only a bigger touch target.
+// What the map draws for an idea (#244). Not a flare pin: a dashed ring with
+// the idea's own icon (#524) and no fill colour. #522 (Patrick, 2026-10-09):
+// the ring is peach and the pin a size up, so ideas read as an invitation on
+// a quiet map; dashed still says "a suggestion, nothing planned here", where
+// a real flare is a solid circle. The padding is only a bigger touch target.
 export function IdeaPinMark({
   idea,
   selected,
 }: {
-  idea: FlareIdea
+  idea: Pick<Idea, "category" | "icon">
   selected: boolean
 }) {
-  const match = EVENT_TYPES.find((t) => t.value === idea.category)
-  const Icon = match?.icon ?? MapPinIcon
   return (
     <div className="flex cursor-pointer items-center justify-center p-2">
       <div
-        className={`flex h-7 w-7 items-center justify-center rounded-full border border-dashed bg-muted text-muted-foreground shadow-md transition-transform duration-200 ${
-          selected
-            ? "scale-125 border-foreground/70 text-foreground"
-            : "border-muted-foreground/70"
+        className={`flex h-9 w-9 items-center justify-center rounded-full border-2 border-dashed bg-background text-foreground shadow-md transition-transform duration-200 ${
+          selected ? "scale-125 border-primary" : "border-primary/80"
         }`}
       >
-        <Icon className="h-3.5 w-3.5" />
+        <IdeaIcon idea={idea} className="h-4 w-4" />
       </div>
     </div>
   )
@@ -107,6 +124,73 @@ export const IDEA_PIN_SLOTS = [
   { top: "22%", left: "8%" },
   { top: "47%", left: "36%" },
 ]
+
+// Where floating ideas (#515) sit on the static fallback: in the gaps around
+// the position dot (the centre) that the flare and idea slots leave free, so a
+// floating pin never covers a flare pin (a flare pin with its chips is about
+// 100 px tall, which is why they sit between the flare slots and not under
+// them) and stays above the dock.
+export const FLOATING_PIN_SLOTS = [
+  { top: "54%", left: "33%" },
+  { top: "54%", left: "57%" },
+  { top: "40%", left: "46%" },
+]
+
+// A floating idea's pin (#515). It reuses the idea pin look, so it reads as an
+// idea and never as a flare. `data-floating-idea` (not `data-idea-pin`) tells
+// it from a spot's pin.
+export function FloatingIdeaStaticPin({
+  idea,
+  index,
+  selected,
+  onSelect,
+}: {
+  idea: FloatingIdea
+  index: number
+  selected: boolean
+  onSelect: (idea: FloatingIdea) => void
+}) {
+  return (
+    <button
+      type="button"
+      data-floating-idea={idea.id}
+      aria-label={`idea: ${idea.title}`}
+      onClick={() => onSelect(idea)}
+      style={FLOATING_PIN_SLOTS[index % FLOATING_PIN_SLOTS.length]}
+      className="absolute z-[1]"
+    >
+      <IdeaPinMark idea={idea} selected={selected} />
+    </button>
+  )
+}
+
+export function FloatingIdeaMarker({
+  idea,
+  selected,
+  onSelect,
+}: {
+  idea: FloatingIdea
+  selected: boolean
+  onSelect: (idea: FloatingIdea) => void
+}) {
+  return (
+    <AdvancedMarker
+      position={idea.position}
+      anchorPoint={AdvancedMarkerAnchorPoint.CENTER}
+      title={idea.title}
+      zIndex={selected ? 400 : 0}
+      onClick={() => onSelect(idea)}
+    >
+      <div
+        data-floating-idea={idea.id}
+        role="button"
+        aria-label={`idea: ${idea.title}`}
+      >
+        <IdeaPinMark idea={idea} selected={selected} />
+      </div>
+    </AdvancedMarker>
+  )
+}
 
 // Where the fallback's flare pins sit: pseudo positions around the centre
 // (there is no real projection), percent from the top-left. All four stay
@@ -133,6 +217,7 @@ function StaticMapFallback({
   setPreviewEvent,
   highlightId = null,
   ideas = [],
+  floatingIdeas = [],
   selectedIdeaId = null,
   onIdeaSelect,
 }: {
@@ -148,8 +233,9 @@ function StaticMapFallback({
   /** The flare whose rail card is centred; its pin grows. */
   highlightId?: string | null
   ideas?: FlareIdea[]
+  floatingIdeas?: FloatingIdea[]
   selectedIdeaId?: string | null
-  onIdeaSelect?: (idea: FlareIdea) => void
+  onIdeaSelect?: (idea: Idea) => void
 }) {
   const drawn = events.slice(0, FLARE_PIN_SLOTS.length)
   const previewIndex = previewEvent
@@ -189,6 +275,15 @@ function StaticMapFallback({
         >
           <IdeaPinMark idea={idea} selected={selectedIdeaId === idea.id} />
         </button>
+      ))}
+      {floatingIdeas.map((idea, i) => (
+        <FloatingIdeaStaticPin
+          key={idea.id}
+          idea={idea}
+          index={i}
+          selected={selectedIdeaId === idea.id}
+          onSelect={(picked) => onIdeaSelect?.(picked)}
+        />
       ))}
       {drawn.map((event, i) => {
         const dist = distanceFromUser(event, user)?.label ?? ""
@@ -335,6 +430,7 @@ function GoogleMapContent({
   recenterTick,
   highlightId,
   ideas,
+  floatingIdeas,
   selectedIdeaId,
   onIdeaSelect,
 }: {
@@ -354,8 +450,9 @@ function GoogleMapContent({
   /** The flare whose rail card is centred; its pin grows. */
   highlightId: string | null
   ideas: FlareIdea[]
+  floatingIdeas: FloatingIdea[]
   selectedIdeaId: string | null
-  onIdeaSelect: (idea: FlareIdea) => void
+  onIdeaSelect: (idea: Idea) => void
 }) {
   const status = useApiLoadingStatus()
   const map = useMap()
@@ -400,6 +497,7 @@ function GoogleMapContent({
         setPreviewEvent={setPreviewEvent}
         highlightId={highlightId}
         ideas={ideas}
+        floatingIdeas={floatingIdeas}
         selectedIdeaId={selectedIdeaId}
         onIdeaSelect={onIdeaSelect}
       />
@@ -448,6 +546,14 @@ function GoogleMapContent({
             <IdeaPinMark idea={idea} selected={selectedIdeaId === idea.id} />
           </div>
         </AdvancedMarker>
+      ))}
+      {floatingIdeas.map((idea) => (
+        <FloatingIdeaMarker
+          key={`floating:${idea.id}`}
+          idea={idea}
+          selected={selectedIdeaId === idea.id}
+          onSelect={onIdeaSelect}
+        />
       ))}
       {events.map((event) => {
         const coords = eventCoords(event)
@@ -556,8 +662,9 @@ export function quietFlareType(
 }
 
 // The idea shown on the quiet card (#243): the nearest idea of the selected
-// type within 2 km of where the map is centred, or null (generic card) when
-// there is none or the position is unknown. Same clock as the rest of the map.
+// type to where the map is centred (widening 2, 4, then 8 km, #515), or null
+// (generic card) when there is none or the position is unknown. Same clock as
+// the rest of the map.
 export function quietIdea(
   center: GeoCoords | null,
   type: EventType,
@@ -565,13 +672,23 @@ export function quietIdea(
 ): FlareIdea | null {
   if (!center || now <= 0) return null
   return (
-    getIdeasNear({ center, now: new Date(now), category: type, limit: 1 })[0] ??
-    null
+    getIdeasNearWidening({
+      center,
+      now: new Date(now),
+      category: type,
+      limit: 1,
+      minCandidates: 1,
+    })[0] ?? null
   )
 }
 
 // What the composer opens with when an idea is lit.
-export function ideaPrefill(idea: FlareIdea): ComposerPrefill {
+// A spot fills in its place. An idea that is not tied to one (#515) leaves the
+// place out, and the composer then starts on "my location", its own default,
+// resolved when the flare is posted: nothing to invent here, and nothing wrong
+// to keep if the person's position isn't known yet.
+export function ideaPrefill(idea: Idea): ComposerPrefill {
+  if (!idea.place) return { title: idea.title, category: idea.category }
   return {
     title: idea.title,
     category: idea.category,
@@ -845,14 +962,31 @@ export function MapView({
       flarePositions,
     ]
   )
+  // Floating ideas (#515): place-less ideas around the person's own position
+  // (the camera's centre until there is one). They keep clear of the flares
+  // and of the idea spots above.
+  const floatingObstacles = useMemo(
+    () => [...flarePositions, ...ideaPins.map((i) => i.place)],
+    [flarePositions, ideaPins]
+  )
+  const floatingIdeas = useFloatingIdeas({
+    anchor: geo.coords ?? cameraCenter,
+    nowMs,
+    categories: typeFilters,
+    obstacles: floatingObstacles,
+    ready: !map.loading,
+  })
   // The idea the person tapped on the map. Looked up in the current pins, so
   // it closes by itself if a chip or the clock takes its pin away.
   const [tappedIdeaId, setTappedIdeaId] = useState<string | null>(null)
-  const tappedIdea = ideaPins.find((i) => i.id === tappedIdeaId) ?? null
+  const tappedIdea: Idea | null =
+    ideaPins.find((i) => i.id === tappedIdeaId) ??
+    floatingIdeas.find((i) => i.id === tappedIdeaId) ??
+    null
   const tappedIdeaType = tappedIdea
     ? EVENT_TYPES.find((t) => t.value === tappedIdea.category)
     : undefined
-  const selectIdeaPin = (pin: FlareIdea) => {
+  const selectIdeaPin = (pin: Idea) => {
     haptic("selection")
     setPreviewEvent(null)
     setTappedIdeaId((prev) => (prev === pin.id ? null : pin.id))
@@ -869,7 +1003,60 @@ export function MapView({
   const selectedIdeaId = tappedIdea?.id ?? idea?.id ?? null
 
   const showDockCard = !!dockCard && dock === "mid" && !tappedIdea
-  const showRail = dock === "mid" && !quietType && !tappedIdea && !showDockCard
+
+  // #522 (behind `quietHome`): with no flares, the sheet shows the people you
+  // recently connected with (or an invite with none), and nearby idea cards.
+  // Only once the results are real, like the quiet card above.
+  const quietPeople = useQuietPeople(featureFlags.quietHome)
+  const recentPeople = useMemo(
+    () =>
+      quietPeople && nowMs > 0 ? recentConnections(quietPeople, nowMs) : [],
+    [quietPeople, nowMs]
+  )
+  const quietIdeas = useMemo(
+    () => pickQuietIdeas(ideaPins, floatingIdeas, cameraCenter),
+    [ideaPins, floatingIdeas, cameraCenter]
+  )
+  const quietPeopleBlock: "recent" | "none" | null =
+    recentPeople.length > 0
+      ? "recent"
+      : quietPeople && quietPeople.length === 0
+        ? "none"
+        : null
+  const showQuietHome =
+    featureFlags.quietHome &&
+    dock === "mid" &&
+    !quietType &&
+    !tappedIdea &&
+    !showDockCard &&
+    !!cameraCenter &&
+    nowMs > 0 &&
+    !map.loading &&
+    !mapFailedEmpty &&
+    visibleEvents.length === 0 &&
+    typeFilters.size === 0 &&
+    (quietPeopleBlock !== null || quietIdeas.length > 0)
+  const [quietInviteOpen, setQuietInviteOpen] = useState(false)
+  // The chips, the count and "list" wait until there is something to sort:
+  // two flares, or a chip already on (so it can be turned off).
+  const unfilteredActiveCount = useMemo(
+    () =>
+      nowMs > 0
+        ? mapEvents.filter((e) => new Date(e.endAt).getTime() >= nowMs).length
+        : 0,
+    [mapEvents, nowMs]
+  )
+  const showFilterBar =
+    !featureFlags.quietHome ||
+    unfilteredActiveCount >= 2 ||
+    typeFilters.size > 0
+
+  const showRail =
+    dock === "mid" &&
+    !quietType &&
+    !tappedIdea &&
+    !showDockCard &&
+    !showQuietHome
   const highlightId = showRail
     ? visibleEvents.some((e) => e.id === railFocusId)
       ? railFocusId
@@ -1094,6 +1281,7 @@ export function MapView({
             recenterTick={recenterTick}
             highlightId={highlightId}
             ideas={ideaPins}
+            floatingIdeas={floatingIdeas}
             selectedIdeaId={selectedIdeaId}
             onIdeaSelect={selectIdeaPin}
           />
@@ -1110,6 +1298,7 @@ export function MapView({
           setPreviewEvent={setPreviewEvent}
           highlightId={highlightId}
           ideas={ideaPins}
+          floatingIdeas={floatingIdeas}
           selectedIdeaId={selectedIdeaId}
           onIdeaSelect={selectIdeaPin}
         />
@@ -1197,6 +1386,23 @@ export function MapView({
             onLight={(prefill) => lightFlare(prefill)}
             onHideIdeas={hideIdeas}
           />
+        ) : showQuietHome ? (
+          <div data-quiet-home className="flex flex-col gap-2">
+            {quietPeopleBlock === "recent" ? (
+              <RecentPeoplePanel
+                people={recentPeople}
+                now={nowMs}
+                onFlareWith={(person) => openDrawer({ inviteIds: [person.id] })}
+              />
+            ) : quietPeopleBlock === "none" ? (
+              <NoFriendsPanel onInvite={() => setQuietInviteOpen(true)} />
+            ) : null}
+            <QuietIdeaCards
+              ideas={quietIdeas}
+              center={cameraCenter}
+              onLight={(next) => openDrawer(ideaPrefill(next))}
+            />
+          </div>
         ) : showRail ? (
           <div
             key={`${timeFilter}:${[...typeFilters].join(",")}`}
@@ -1257,52 +1463,68 @@ export function MapView({
         ) : null}
 
         {/* Filter bar */}
-        <div className="pointer-events-auto mx-3 space-y-2 rounded-2xl border border-border/60 bg-background/90 p-2 shadow-(--shadow-card) backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            <TimeTabs
-              value={timeFilter}
-              onChange={changeTimeFilter}
-              className="flex-1"
-            />
-            <button
-              type="button"
-              onClick={() => snap(dock === "mid" ? "peek" : "mid")}
-              aria-label={dock === "mid" ? "hide cards" : "show cards"}
-              className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 text-xs font-medium active:scale-[0.97]"
-            >
-              {dock === "mid" ? (
-                <>
-                  <CaretDownIcon className="h-3.5 w-3.5" />
-                  hide
-                </>
+        {showFilterBar && (
+          <div className="pointer-events-auto mx-3 space-y-2 rounded-2xl border border-border/60 bg-background/90 p-2 shadow-(--shadow-card) backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              {featureFlags.timeTabs ? (
+                <TimeTabs
+                  value={timeFilter}
+                  onChange={changeTimeFilter}
+                  className="flex-1"
+                />
               ) : (
-                <>
-                  {map.loading ? (
-                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-                  ) : (
-                    <span>{visibleEvents.length}</span>
-                  )}
-                  nearby
-                </>
+                <p className="min-w-0 flex-1 truncate pl-1 text-sm font-semibold">
+                  flares near you
+                </p>
               )}
-            </button>
-            <button
-              type="button"
-              onClick={() => snap("full")}
-              className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-card px-2.5 text-xs font-medium text-primary active:scale-[0.97]"
-            >
-              <ListBulletsIcon className="h-3.5 w-3.5" />
-              list
-            </button>
+              <button
+                type="button"
+                onClick={() => snap(dock === "mid" ? "peek" : "mid")}
+                aria-label={dock === "mid" ? "hide cards" : "show cards"}
+                className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 text-xs font-medium active:scale-[0.97]"
+              >
+                {dock === "mid" ? (
+                  <>
+                    <CaretDownIcon className="h-3.5 w-3.5" />
+                    hide
+                  </>
+                ) : (
+                  <>
+                    {map.loading ? (
+                      <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                    ) : (
+                      <span>{visibleEvents.length}</span>
+                    )}
+                    nearby
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => snap("full")}
+                className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-card px-2.5 text-xs font-medium text-primary active:scale-[0.97]"
+              >
+                <ListBulletsIcon className="h-3.5 w-3.5" />
+                list
+              </button>
+            </div>
+            <TypeChips
+              active={typeFilters}
+              onToggle={toggleType}
+              onClear={clearTypes}
+              className="mx-0 px-0"
+            />
           </div>
-          <TypeChips
-            active={typeFilters}
-            onToggle={toggleType}
-            onClear={clearTypes}
-            className="mx-0 px-0"
-          />
-        </div>
+        )}
       </div>
+
+      {quietInviteOpen && (
+        <InviteDialog
+          displayName={authUser?.displayName ?? "you"}
+          handle={authUser?.username ?? "you"}
+          onClose={() => setQuietInviteOpen(false)}
+        />
+      )}
 
       {/* Full: a plain list page between the header chips and the nav. The
           list scrolls natively; the handle and the title row drag it down to
@@ -1370,7 +1592,9 @@ export function MapView({
               onRetry={geo.request}
             />
           )}
-          <TimeTabs value={timeFilter} onChange={changeTimeFilter} />
+          {featureFlags.timeTabs && (
+            <TimeTabs value={timeFilter} onChange={changeTimeFilter} />
+          )}
           <TypeChips
             active={typeFilters}
             onToggle={toggleType}
@@ -2036,7 +2260,7 @@ export function QuietFlareCard({
   onHideIdeas,
 }: {
   type: (typeof EVENT_TYPES)[number]
-  idea: FlareIdea | null
+  idea: Idea | null
   center: GeoCoords | null
   onLight: (prefill: ComposerPrefill) => void
   /** Only for a card opened from an idea pin: closes it back to the rail. The
@@ -2046,8 +2270,11 @@ export function QuietFlareCard({
   onHideIdeas?: () => void
 }) {
   const Icon = type.icon
+  // An idea that isn't tied to a spot (#515) has no place name or distance.
   const distance =
-    idea && center ? formatDistance(haversineMeters(center, idea.place)) : null
+    idea?.place && center
+      ? formatDistance(haversineMeters(center, idea.place))
+      : null
   return (
     <div
       data-quiet-card={idea ? "idea" : "generic"}
@@ -2055,7 +2282,11 @@ export function QuietFlareCard({
     >
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
-          <Icon className="h-5 w-5" />
+          {idea ? (
+            <IdeaIcon idea={idea} className="h-5 w-5" />
+          ) : (
+            <Icon className="h-5 w-5" />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p
@@ -2069,9 +2300,16 @@ export function QuietFlareCard({
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {idea
-              ? [idea.place.name, distance].filter(Boolean).join(" · ")
+              ? idea.place
+                ? [idea.place.name, distance].filter(Boolean).join(" · ")
+                : ANYWHERE_PLACE_LINE
               : "start one and your circles will see it"}
           </p>
+          {idea && !idea.place && idea.blurb && (
+            <p className="truncate text-xs text-muted-foreground">
+              {idea.blurb}
+            </p>
+          )}
         </div>
         {idea && (
           <span className="shrink-0 self-start rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
@@ -2097,7 +2335,11 @@ export function QuietFlareCard({
           }
           className="flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground active:scale-[0.98]"
         >
-          <Icon className="h-4 w-4 shrink-0" />
+          {idea ? (
+            <IdeaIcon idea={idea} className="h-4 w-4 shrink-0" />
+          ) : (
+            <Icon className="h-4 w-4 shrink-0" />
+          )}
           <span className="truncate">
             {idea ? "light a flare" : `light a ${type.label} flare`}
           </span>

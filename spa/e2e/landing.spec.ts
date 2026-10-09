@@ -27,12 +27,12 @@ test.describe("landing page (#467, #506)", () => {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "turn “we should” into “we're here.”",
+        name: "come together, right now.",
       })
     ).toBeVisible()
     // The typewriter's heading reads as its first plan for screen readers.
     await expect(
-      page.getByRole("heading", { name: "five apps to plan one beer" })
+      page.getByRole("heading", { name: "six apps to plan one beer" })
     ).toBeAttached()
     await expect(
       page.getByRole("heading", { name: "one tap. broadcast or join." })
@@ -44,6 +44,12 @@ test.describe("landing page (#467, #506)", () => {
     await expect(steps.nth(2)).toContainText("they tap join")
     await expect(
       page.getByRole("heading", { name: "what's happening now." })
+    ).toBeAttached()
+    // The rest of the app, one feature at a time, dark mode last.
+    const features = page.locator("[data-landing-feature]")
+    await expect(features).toHaveCount(6)
+    await expect(
+      page.getByRole("heading", { name: "your people, grouped your way." })
     ).toBeAttached()
     await expect(
       page.getByRole("heading", { name: "easy on the eyes after sunset." })
@@ -62,7 +68,7 @@ test.describe("landing page (#467, #506)", () => {
 
     // The scenes carry their descriptions.
     await expect(
-      page.getByRole("img", { name: /friends on a rooftop at sunset/ })
+      page.getByRole("img", { name: /friends on a berlin rooftop at dusk/ })
     ).toBeAttached()
 
     // Not the app: no mobile gate, no nav, no backend.
@@ -86,15 +92,18 @@ test.describe("landing page (#467, #506)", () => {
     await expect(ctas.nth(1)).toBeVisible()
   })
 
-  test("the testing note sits by the call to action and in the footer", async ({
+  test("the testing note sits under the hero's call to action", async ({
     page,
   }) => {
     await page.goto("/landing")
     const notes = page.locator("[data-testing-note]")
-    await expect(notes).toHaveCount(2)
-    await expect(notes.first()).toBeVisible()
-    await expect(notes.first()).toContainText("early testing in berlin")
-    await expect(page.locator("footer [data-testing-note]")).toHaveCount(1)
+    await expect(notes).toHaveCount(1)
+    await expect(notes).toBeVisible()
+    await expect(notes).toContainText("early testing in berlin")
+    const cta = page.getByRole("link", { name: "open sponti" }).nth(1)
+    const ctaBox = await cta.boundingBox()
+    const noteBox = await notes.boundingBox()
+    expect(noteBox!.y).toBeGreaterThan(ctaBox!.y + ctaBox!.height - 1)
   })
 
   test("the footer's waitlist signs up through formspree, with a mail link to say hi", async ({
@@ -128,26 +137,49 @@ test.describe("landing page (#467, #506)", () => {
     await expect(footer.getByLabel("your email")).toBeVisible()
   })
 
-  test("desktop: a qr code of the app sits by the calls to action", async ({
+  test("desktop: 'open sponti' reveals a qr code instead of navigating", async ({
     page,
     isMobile,
   }) => {
-    test.skip(isMobile, "the desktop qr")
+    test.skip(isMobile, "the desktop reveal")
     await page.goto("/landing")
+    const ctas = page.getByRole("link", { name: "open sponti" })
+    // Collapsed, the qr's `visibility: hidden` takes it out of the
+    // accessibility tree, so the plain img (not its role) finds both.
+    const qrImages = page.locator('img[alt="qr code to open sponti"]')
+    await expect(qrImages).toHaveCount(2)
+    for (const q of await qrImages.all()) await expect(q).toBeHidden()
+
+    // The hero's (index 1): hidden behind the button until it's clicked.
+    const hero = ctas.nth(1)
+    await expect(hero).toHaveAttribute("aria-expanded", "false")
+    await hero.click()
+    await expect(page).toHaveURL(/\/landing$/)
+    await expect(hero).toHaveAttribute("aria-expanded", "true")
     const qr = page.getByRole("img", { name: "qr code to open sponti" })
-    await expect(qr).toHaveCount(2)
     await expect(qr.first()).toBeVisible()
     await expect(qr.first()).toHaveAttribute("src", /^data:image\/png;base64,/)
     await expect(qr.first()).toHaveAttribute("data-qr-target", APP_URL)
     await expect(page.getByText("made for your phone").first()).toBeVisible()
+
+    // Clicking again hides it.
+    await hero.click()
+    await expect(qrImages.first()).toBeHidden()
   })
 
-  test("phone: no qr code", async ({ page, isMobile }) => {
+  test("phone: 'open sponti' goes straight to the app, no qr code", async ({
+    page,
+    isMobile,
+  }) => {
     test.skip(!isMobile, "the phone project")
     await page.goto("/landing")
     for (const qr of await page.locator("[data-landing-qr]").all()) {
       await expect(qr).toBeHidden()
     }
+    // A touch device has no desktop reveal to intercept the click.
+    await expect(
+      page.getByRole("link", { name: "open sponti" }).nth(1)
+    ).not.toHaveAttribute("aria-expanded")
   })
 
   test("reduced motion: every part shows its final state", async ({ page }) => {
@@ -158,13 +190,13 @@ test.describe("landing page (#467, #506)", () => {
     await expect(
       page.getByRole("heading", { name: "light a flare." })
     ).toHaveCSS("opacity", "1")
-    // The flare is lit, the typewriter holds its first plan, and the dark
-    // mode phone rests halfway.
+    // The flare is lit, the typewriter holds its first plan, and the hero
+    // is one screen with no pin to scroll through.
     await expect(page.locator(".lp-orb")).toHaveAttribute("data-lit", "true")
     await expect(page.locator("[data-typewriter]")).toHaveText("beer")
-    await expect(
-      page.locator("section[aria-labelledby='landing-night']")
-    ).toHaveAttribute("style", /--p: 0\.39/)
+    const hero = page.locator("section[aria-labelledby='landing-title']")
+    const height = await hero.evaluate((el) => el.clientHeight)
+    expect(height).toBe(page.viewportSize()!.height)
   })
 
   test("the legal links open the legal pages", async ({ page }) => {
@@ -177,9 +209,60 @@ test.describe("landing page (#467, #506)", () => {
       "href",
       "/menu/terms"
     )
+    // The footer's one extra: the app's own about page.
+    await expect(legal.getByRole("link", { name: "about" })).toHaveAttribute(
+      "href",
+      "/menu/about-sponti"
+    )
     await legal.getByRole("link", { name: "privacy" }).click()
     await expect(page).toHaveURL(/\/menu\/privacy$/)
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
+  })
+
+  test("the footer's about link opens the about page, signed out", async ({
+    page,
+  }) => {
+    await page.goto("/landing")
+    await page
+      .getByRole("navigation", { name: "legal" })
+      .getByRole("link", { name: "about" })
+      .click()
+    await expect(page).toHaveURL(/\/menu\/about-sponti$/)
+    await expect(
+      page.getByRole("heading", { level: 1, name: "about sponti" })
+    ).toBeVisible()
+    await expect(
+      page.getByText("sponti does not want your attention")
+    ).toBeVisible()
+  })
+
+  test("how it works tells it from the host's side, then the guest's", async ({
+    page,
+  }) => {
+    await page.goto("/landing")
+    const steps = page.locator("[data-landing-step]")
+    const host = page.getByRole("tab", { name: "as a host" })
+    const guest = page.getByRole("tab", { name: "as a guest" })
+
+    // The host's three steps come first.
+    await expect(host).toHaveAttribute("aria-selected", "true")
+    await expect(guest).toHaveAttribute("aria-selected", "false")
+    await expect(steps).toHaveCount(3)
+    await expect(steps.nth(0)).toContainText("say what you're up to")
+
+    await guest.click()
+    await expect(guest).toHaveAttribute("aria-selected", "true")
+    await expect(steps).toHaveCount(3)
+    await expect(steps.nth(0)).toContainText("check the map or calendar")
+    await expect(steps.nth(1)).toContainText("tap and join")
+    await expect(steps.nth(2)).toContainText("get the walking route")
+    await expect(steps.nth(2)).toContainText("on your way")
+
+    // Arrow keys move between the tabs, back to the host's.
+    await guest.press("ArrowLeft")
+    await expect(host).toHaveAttribute("aria-selected", "true")
+    await expect(host).toBeFocused()
+    await expect(steps.nth(0)).toContainText("say what you're up to")
   })
 })
 
@@ -193,12 +276,16 @@ test.describe("landing host routing (#467)", () => {
     expect(await response.text()).toContain("data-landing-cta")
   })
 
-  test("the landing host serves the legal pages", async ({ request }) => {
-    const response = await request.get("/menu/impressum", {
-      headers: HOST,
-      maxRedirects: 0,
-    })
-    expect(response.status()).toBe(200)
+  test("the landing host serves the legal pages and about", async ({
+    request,
+  }) => {
+    for (const path of ["/menu/impressum", "/menu/about-sponti"]) {
+      const response = await request.get(path, {
+        headers: HOST,
+        maxRedirects: 0,
+      })
+      expect(response.status(), path).toBe(200)
+    }
   })
 
   test("other paths on the landing host go to the app, path and query kept", async ({

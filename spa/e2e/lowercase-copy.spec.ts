@@ -38,7 +38,7 @@ test.describe("lowercase copy (#339)", () => {
       })
     )
     await page.goto("/")
-    await page.getByRole("button", { name: "calendar" }).click()
+    await page.getByRole("button", { name: "soon", exact: true }).click()
 
     const row = page.getByText(/^1:24\s?pm$/)
     await expect(row).toBeVisible()

@@ -45,6 +45,23 @@ export const featureFlags = {
    */
   plusOne: FEATURE_PROFILE === "full",
 
+  /**
+   * The live/soon/all tabs in the map's sheet and list, signed in and signed
+   * out. Off in both profiles: with the view toggle named "now" (the map) and
+   * "soon" (the calendar), a second live/soon split on the map confused
+   * testers. Off, the map shows every flare that hasn't ended ("all").
+   */
+  timeTabs: false,
+
+  /**
+   * The quiet home (#522): when the map has no flares, its sheet shows the
+   * people you recently connected with (one tap from a flare with them), an
+   * invite for a 0-friend account, the value prop for a signed-out visitor,
+   * and nearby idea cards; the type chips wait until there are two flares.
+   * On in both profiles; off, the old "no flares within 10 km" card.
+   */
+  quietHome: true,
+
   // #482: `browseBeforeSignup`, `introV2` and `locationAsk` below are the new
   // onboarding. A device can switch them all on at runtime ("new onboarding" in
   // settings), whatever the build profile. Read them through
@@ -56,10 +73,9 @@ export const featureFlags = {
    * lands on the home map instead of /login. They see the idea spots and the
    * open-to-all pins from the public map endpoint (#425), and lighting a
    * flare, tapping a pin or an account-only nav tab asks them to sign up in a
-   * sheet that keeps their draft. Full profile only until the rest of the
-   * signed-out onboarding (coach marks #379, the location ask #408) lands.
+   * sheet that keeps their draft. On in both profiles.
    */
-  browseBeforeSignup: FEATURE_PROFILE === "full",
+  browseBeforeSignup: true,
 
   /**
    * The intro slides (#377, flare moments #370): three slides (what sponti
@@ -68,10 +84,9 @@ export const featureFlags = {
    * signed-out home, so they need `browseBeforeSignup` too. It also swaps
    * the post-sign-up first-run intro (#313) for a checklist in the map's
    * sheet (#459), and has a 0-friend account add its first friend before a
-   * kept draft is lit. Off, the first-run intro is unchanged. Full profile
-   * only.
+   * kept draft is lit. Off, the first-run intro is unchanged. On in both profiles.
    */
-  introV2: FEATURE_PROFILE === "full",
+  introV2: true,
 
   /**
    * The location ask (#408, flare moments #370): instead of the browser's
@@ -80,10 +95,11 @@ export const featureFlags = {
    * area chips. Denied or blocked turns it into "pick an area to start", with
    * a place search. The choice is remembered per device. It covers signed-out
    * visitors (after the intro slides) and signed-in users who haven't
-   * decided. Full profile only; off, the map asks the browser on mount as
-   * before and the signed-out map stays on berlin.
+   * decided. Off, the map asks the browser on mount as
+   * before and the signed-out map stays on berlin. On in both
+   * profiles.
    */
-  locationAsk: FEATURE_PROFILE === "full",
+  locationAsk: true,
 
   /**
    * Coach marks (#379, flare moments #370): three marks on the signed-out
@@ -91,10 +107,10 @@ export const featureFlags = {
    * ask: the idea spot ("ideas nearby"), the flare button ("light a flare")
    * and the map/calendar toggle ("soon lives here"). Each has "n of 3", skip
    * and next; there is no replay. They sit on #389's signed-out home, so they
-   * need `browseBeforeSignup` too. Full profile only; off, nothing shows and
+   * need `browseBeforeSignup` too. On in both profiles; off, nothing shows and
    * the location ask doesn't wait.
    */
-  coachMarks: FEATURE_PROFILE === "full",
+  coachMarks: true,
 
   /**
    * The mobile-only gate (#467): on a desktop-sized screen without touch,
@@ -106,4 +122,16 @@ export const featureFlags = {
    * `MOBILE_GATE_MODE` in lib/mobile-gate.ts.
    */
   mobileGate: process.env.NEXT_PUBLIC_MOBILE_GATE !== "off",
+
+  /**
+   * Floating ideas (#515): a few place-less ideas ("have some friends over",
+   * "a picnic blanket and nothing else") drawn as idea pins around the
+   * person's own position, on the signed-in and the signed-out map, so a
+   * quiet map still has something to tap. They follow the "show ideas on the
+   * map" setting. On in BOTH profiles, because a first visit with an empty
+   * map is what testers hit. The opt-out is a kill switch: set
+   * NEXT_PUBLIC_FLOATING_IDEAS=off. Anything else, including unset, leaves
+   * it on.
+   */
+  floatingIdeas: process.env.NEXT_PUBLIC_FLOATING_IDEAS !== "off",
 } as const

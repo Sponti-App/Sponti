@@ -7,7 +7,7 @@ import { getOnboardingFlags, useOnboardingFlags } from "@/lib/onboarding-flags"
 // the signed-out map, once per device. They run after the intro slides (#377)
 // and before the location ask (#408), which waits for them. Set A from the
 // intro prototype (#373, PR #407 section 2): the idea spot, the flare button,
-// then the map/calendar toggle. Settings can replay them (#482).
+// then the now/soon toggle. Settings can replay them (#482).
 //
 // Storage follows `intro-slides.ts`: one device-only localStorage key, every
 // call wrapped (private windows, blocked site data), and `memory` carrying the
@@ -165,7 +165,7 @@ export const COACH_MARKS: readonly CoachMark[] = [
   {
     id: "calendar",
     title: "soon lives here",
-    body: "the map shows what's on now. flares with a picked time wait in the calendar.",
+    body: "now is what's on around you. flares with a picked time wait under soon.",
   },
 ]
 

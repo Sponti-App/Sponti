@@ -1,17 +1,27 @@
 "use client"
 
-import { createContext, useContext, useState, type FormEvent } from "react"
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react"
 import {
   ArrowRightIcon,
   BellIcon,
   CalendarBlankIcon,
   ChatIcon,
+  ChatTextIcon,
   CheckIcon,
   EnvelopeIcon,
   FlameIcon,
-  LockIcon,
-  MapTrifoldIcon,
+  GlobeIcon,
   MegaphoneIcon,
+  MoonIcon,
+  NavigationArrowIcon,
+  UsersIcon,
   type Icon,
 } from "@/components/icons"
 import { WHO_REPORT_URL } from "@/components/intro-slides"
@@ -24,16 +34,24 @@ import {
   depth,
   spotlight,
   useInView,
+  useMatchMedia,
+  usePinProgress,
   usePointerVar,
   useScrollVar,
   useScrolledPast,
 } from "@/components/landing/motion"
 import {
+  CalendarScreen,
+  CirclesScreen,
   ComposeScreen,
   JoinScreen,
   MapScreen,
+  OpenFlareScreen,
   Phone,
+  QuietScreen,
+  RouteScreen,
 } from "@/components/landing/previews"
+import { HeroScene } from "@/components/landing/hero-scene"
 import { Scene } from "@/components/landing/scene"
 import { LANDING_SCENES } from "@/lib/landing-art"
 import { cn } from "@/lib/utils"
@@ -43,18 +61,22 @@ import { cn } from "@/lib/utils"
 // type, and illustrated scenes before app screens. Static, public, and outside
 // the app: no session check, no api, no nav, no mobile gate (app-chrome.tsx).
 //
-// Top to bottom: the rooftop scene with the headline over it; the problem
-// (five apps folding into one flare); how it works, with the app's phones on
-// the one indigo band; what's happening now (the park scene, with flares on
-// its lights); the deck's short lines; the app's dark mode, quietly; why it
-// exists; and "light a flare" over the crowd. Every "open sponti" goes to the
-// app, a QR code of it sits beside the calls to action on desktop, and an
-// honest testing note sits near them and in the footer.
+// Top to bottom: the rooftop scene with the headline over it; why it exists
+// (the WHO stat on loneliness, risen right under the hero per review); the
+// problem (six apps folding into one flare); how it works, with the app's
+// phones on the one indigo band; what's happening now (the park scene, with
+// flares on its lights); the rest of the app as one feature walk-through; and
+// "light a flare" over a sunset lounge scene. Every "open sponti" goes to the
+// app on a phone; on desktop it reveals a QR code instead of navigating
+// (DESKTOP_QUERY), and an honest testing note sits under the hero's.
 //
 // Images come from lib/landing-art.ts. Motion is in components/landing/
 // motion.tsx; reduced motion gets every final state.
 
 const AppUrl = createContext("/")
+
+/** The footer's one page beyond the legal three: the app's own about page. */
+const FOOTER_EXTRA_LINKS = [{ href: "/menu/about-sponti", label: "about" }]
 
 export function LandingPage({ appUrl }: { appUrl: string }) {
   return (
@@ -69,18 +91,20 @@ export function LandingPage({ appUrl }: { appUrl: string }) {
         </header>
         <main className="flex flex-col">
           <Hero />
+          <Why />
           <Problem />
           <How />
           <Now />
-          <Lines />
-          <Night />
-          <Why />
+          <Features />
           <Closing />
         </main>
         <footer className="flex flex-col items-center gap-3 border-t border-border/60 px-6 pt-12 pb-6">
           <Waitlist />
-          <TestingNote className="mt-8 justify-center" />
-          <LegalLinks />
+          <LegalLinks
+            className="mt-8"
+            navLabel="legal and about"
+            extraLinks={FOOTER_EXTRA_LINKS}
+          />
         </footer>
       </div>
     </AppUrl.Provider>
@@ -100,20 +124,50 @@ function Logo() {
   )
 }
 
+/** The mobile gate's rule for a desktop: hover, a fine pointer, a wide
+ * screen. Sponti is made for the phone, so a desktop gets a QR code there
+ * instead of a straight link into a desktop browser tab. Mirrored by
+ * DESKTOP_ONLY (same breakpoint, as a Tailwind arbitrary variant) for the
+ * QR's own CSS-only mobile hiding. */
+const DESKTOP_QUERY =
+  "(hover: hover) and (pointer: fine) and (min-width: 900px)"
+const DESKTOP_ONLY =
+  "hidden [@media(hover:hover)_and_(pointer:fine)_and_(min-width:900px)]:flex"
+
 /** "open sponti". Coral by default; `ink` (indigo, cream text) for the
- * hero's, where it sits over the warm scene. */
+ * hero's, where it sits over the warm scene. On a touch phone it's a plain
+ * link to the app. On desktop, where opening the app in a browser tab isn't
+ * useful, passing `onReveal` turns the click into a toggle (its own QR code,
+ * `aria-controls`/`aria-expanded` describing what it opens) instead of
+ * navigating; the href stays, so a slow network, no-js, or a middle-click
+ * still reaches the app. */
 function OpenSponti({
   className,
   ink = false,
+  onReveal,
+  expanded,
+  controls,
 }: {
   className?: string
   ink?: boolean
+  onReveal?: () => void
+  expanded?: boolean
+  controls?: string
 }) {
   const appUrl = useContext(AppUrl)
+  const isDesktop = useMatchMedia(DESKTOP_QUERY)
   return (
     <a
       href={appUrl}
       data-landing-cta
+      aria-expanded={onReveal && isDesktop ? expanded : undefined}
+      aria-controls={onReveal && isDesktop ? controls : undefined}
+      onClick={(event) => {
+        if (onReveal && isDesktop) {
+          event.preventDefault()
+          onReveal()
+        }
+      }}
       className={cn(
         "group inline-flex h-12 items-center justify-center gap-1.5 rounded-full px-6 text-sm font-medium transition-[transform,background-color,box-shadow] outline-none hover:-translate-y-0.5 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px",
         ink
@@ -128,17 +182,19 @@ function OpenSponti({
   )
 }
 
-/** The mobile gate's rule for a desktop: hover, a fine pointer, a wide
- * screen. Sponti is made for the phone, so a desktop gets a QR code too. */
-const DESKTOP_ONLY =
-  "hidden [@media(hover:hover)_and_(pointer:fine)_and_(min-width:900px)]:flex"
-
-function DesktopQr({ className }: { className?: string }) {
+function DesktopQr({
+  className,
+  style,
+}: {
+  className?: string
+  style?: React.CSSProperties
+}) {
   const appUrl = useContext(AppUrl)
   return (
     <div
       data-landing-qr
       className={cn(DESKTOP_ONLY, "items-center gap-4", className)}
+      style={style}
     >
       <PhoneQr
         url={appUrl}
@@ -155,21 +211,18 @@ function DesktopQr({ className }: { className?: string }) {
   )
 }
 
-/** The honest note: early testing, things may break. */
+/** The honest note: early testing, things may break. A quiet pill, low
+ * enough contrast to read as a footnote rather than a badge. */
 function TestingNote({ className }: { className?: string }) {
   return (
     <p
       data-testing-note
       className={cn(
-        "inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground",
+        "rounded-full bg-background/35 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-sm",
         className
       )}
     >
-      <span
-        aria-hidden="true"
-        className="size-1.5 shrink-0 rounded-full bg-flare-open"
-      />
-      <span>early testing in berlin. things may break.</span>
+      early testing in berlin. things may break.
     </p>
   )
 }
@@ -301,81 +354,131 @@ function FloatCard({
 
 // ---- sections -------------------------------------------------------------------
 
-/** The rooftop scene fills the hero, behind the header too, drifting a
- * little with the cursor. The words sit on a soft cream glow over its sky. */
+/**
+ * The rooftop in depth (HeroScene), pinned for a while as you scroll: the
+ * words lift away faster than the scene, the cards faster still, and the
+ * scene pushes in until the flare's light fills the frame and lets the page
+ * go. It sits behind the header too, and drifts a little with the cursor.
+ * Reduced motion skips the pin: one screen, at rest.
+ */
 function Hero() {
-  const ref = usePointerVar<HTMLElement>()
+  const pin = usePinProgress<HTMLElement>()
+  const pointer = usePointerVar<HTMLDivElement>()
+  const [qrShown, setQrShown] = useState(false)
   return (
     <section
-      ref={ref}
+      ref={pin}
       aria-labelledby="landing-title"
-      className="relative isolate -mt-15 flex min-h-[100svh] flex-col overflow-hidden px-6 pt-24 pb-8 text-center lg:pt-28"
+      className="relative -mt-15 -mb-[45svh] h-[160svh] motion-reduce:mb-0 motion-reduce:h-[100svh]"
     >
-      <Scene
-        name="rooftop"
-        priority
-        className="absolute inset-0 -z-20"
-        move={`translate(-50%, -50%) ${depth(-12)} scale(1.05)`}
-      />
       <div
-        aria-hidden="true"
-        className="absolute inset-x-0 top-0 -z-10 h-[75%] bg-[radial-gradient(70%_80%_at_50%_10%,color-mix(in_oklch,var(--background)_88%,transparent),color-mix(in_oklch,var(--background)_55%,transparent)_45%,transparent_75%)] lg:bg-[radial-gradient(45%_75%_at_50%_15%,color-mix(in_oklch,var(--background)_85%,transparent),color-mix(in_oklch,var(--background)_45%,transparent)_50%,transparent_78%)]"
-      />
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 -z-10 h-24 bg-gradient-to-t from-background to-transparent"
-      />
-      <Reveal>
-        <TestingNote className="justify-center rounded-full bg-background/75 px-3 py-1.5 backdrop-blur-sm" />
-      </Reveal>
-      <Reveal delay={100}>
-        <h1
-          id="landing-title"
-          className="lp-display mx-auto mt-6 max-w-5xl text-[3.6rem] text-balance lg:text-[8rem]"
+        ref={pointer}
+        className="sticky top-0 isolate flex h-[100svh] flex-col overflow-hidden px-6 pt-24 pb-10 text-center lg:pt-28 lg:pb-16"
+      >
+        <HeroScene className="absolute inset-0 -z-20" />
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 -z-10 h-[75%] bg-[radial-gradient(70%_80%_at_50%_10%,color-mix(in_oklch,var(--background)_88%,transparent),color-mix(in_oklch,var(--background)_55%,transparent)_45%,transparent_75%)] lg:bg-[radial-gradient(45%_75%_at_50%_15%,color-mix(in_oklch,var(--background)_85%,transparent),color-mix(in_oklch,var(--background)_45%,transparent)_50%,transparent_78%)]"
+          style={{ opacity: "calc(1 - var(--q, 0) * 1.5)" }}
+        />
+        <div
+          className="flex flex-col items-center"
+          style={{
+            transform: `${depth(6)} translateY(calc(var(--q, 0) * -45svh))`,
+            opacity: "calc(1 - var(--q, 0) * 2.2)",
+          }}
         >
-          turn &ldquo;we should&rdquo; into{" "}
-          <span className="lp-coral">&ldquo;we&apos;re here.&rdquo;</span>
-        </h1>
-      </Reveal>
-      <Reveal delay={200}>
-        <p className="mx-auto mt-5 max-w-lg text-base font-medium lg:text-lg">
-          sponti is for plans with friends, right now or soon. light a flare,
-          and whoever&apos;s free comes along. no group chat needed.
-        </p>
-      </Reveal>
-      <Reveal delay={300} className="mt-8 flex justify-center">
-        <OpenSponti ink className="w-full max-w-xs lg:w-fit" />
-      </Reveal>
+          <Reveal>
+            <h1
+              id="landing-title"
+              className="lp-display mx-auto max-w-5xl text-[4rem] text-balance lg:text-[8.5rem]"
+            >
+              come together, <span className="lp-coral">right now.</span>
+            </h1>
+          </Reveal>
+          <Reveal delay={120}>
+            {/* White over the scene. A soft indigo scrim sits behind it: on a phone
+                the cream glow that lifts the dark headline would otherwise wash
+                white text out. */}
+            <p className="relative mx-auto mt-5 max-w-lg text-base font-medium text-white [text-shadow:0_1px_6px_rgb(46_32_95/0.55)] lg:text-lg">
+              <span
+                aria-hidden="true"
+                className="absolute -inset-x-5 -inset-y-2.5 -z-10 rounded-full bg-foreground/45 blur-xl"
+              />
+              host a gathering with your friends, or join one.
+            </p>
+          </Reveal>
+          <Reveal
+            delay={240}
+            className="mt-8 flex w-full flex-col items-center gap-2.5"
+          >
+            <OpenSponti
+              ink
+              className="w-full max-w-xs lg:w-fit"
+              onReveal={() => setQrShown((shown) => !shown)}
+              expanded={qrShown}
+              controls="hero-qr"
+            />
+            <TestingNote className="text-foreground/75" />
+          </Reveal>
+        </div>
 
-      {/* Two small app moments, floating over the scene. */}
-      <div className="pointer-events-none relative mx-auto mt-auto h-32 w-full max-w-5xl lg:h-40">
-        <FloatCard
-          className="bottom-2 left-0 lg:left-[4%]"
-          px={22}
-          delay="0s"
-          reveal={600}
+        {/* Two small app moments, floating over the scene. */}
+        <div
+          className="pointer-events-none relative mx-auto mt-auto h-32 w-full max-w-5xl lg:h-40"
+          style={{
+            transform: "translateY(calc(var(--q, 0) * -80svh))",
+            opacity: "calc(1 - var(--q, 0) * 1.6)",
+          }}
         >
-          <span className="flex size-8 items-center justify-center rounded-full bg-accent text-accent-foreground">
-            <FlameIcon weight="fill" className="size-4" />
-          </span>
-          <span className="text-left">
-            <span className="block text-sm font-semibold">mia lit a flare</span>
-            <span className="block text-xs text-muted-foreground">
-              drinks on the roof · live
+          <FloatCard
+            className="bottom-2 left-0 lg:left-[-2%]"
+            px={22}
+            delay="0s"
+            reveal={600}
+          >
+            <span className="flex size-8 items-center justify-center rounded-full bg-accent text-accent-foreground">
+              <FlameIcon weight="fill" className="size-4" />
             </span>
-          </span>
-        </FloatCard>
-        <FloatCard
-          className="right-[6%] bottom-16 hidden sm:block"
-          px={32}
-          delay="-3s"
-          reveal={900}
+            <span className="text-left">
+              <span className="block text-sm font-semibold">
+                mia lit a flare
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                drinks on the roof · live
+              </span>
+            </span>
+          </FloatCard>
+          <FloatCard
+            className="right-[6%] bottom-16 hidden sm:block lg:right-[0%]"
+            px={32}
+            delay="-3s"
+            reveal={900}
+          >
+            <span className="size-2 rounded-full bg-accent" />
+            <span className="text-sm">sam and 4 others joined</span>
+          </FloatCard>
+        </div>
+        {/* Hidden behind the button above until clicked (desktop only; a
+            phone's click goes straight to the app, never opening this). */}
+        <div
+          id="hero-qr"
+          className="mt-6 grid transition-[grid-template-rows] duration-300 ease-out"
+          style={{
+            gridTemplateRows: qrShown ? "1fr" : "0fr",
+            // Collapsing to a 0fr row only clips the QR visually (its own
+            // box keeps its natural size under the clip), so it still reads
+            // as present to assistive tech and to automated visibility
+            // checks. `visibility` genuinely removes it between clicks.
+            visibility: qrShown ? "visible" : "hidden",
+            opacity: "calc(1 - var(--q, 0) * 2.5)",
+          }}
         >
-          <span className="size-2 rounded-full bg-accent" />
-          <span className="text-sm">sam and 4 others joined</span>
-        </FloatCard>
+          <div className="overflow-hidden">
+            <DesktopQr className="mx-auto w-fit rounded-2xl bg-background/80 p-3 pr-5 backdrop-blur-sm" />
+          </div>
+        </div>
       </div>
-      <DesktopQr className="mx-auto mt-6 w-fit rounded-2xl bg-background/80 p-3 pr-5 backdrop-blur-sm" />
     </section>
   )
 }
@@ -386,6 +489,7 @@ const APPS: { Icon: Icon; label: string; x: number; y: number }[] = [
   { Icon: CalendarBlankIcon, label: "calendar", x: -120, y: 80 },
   { Icon: MegaphoneIcon, label: "event page", x: 150, y: 60 },
   { Icon: BellIcon, label: "reminders", x: 0, y: -130 },
+  { Icon: ChatTextIcon, label: "sms", x: 10, y: 130 },
 ]
 
 const PLANS = [
@@ -399,43 +503,51 @@ const PLANS = [
   "flea market run",
 ]
 
-/** Five apps to plan one ___, folding into one soft flare as you scroll. */
+/** Six apps to plan one ___, around one small flare that takes them in as
+ * you scroll and lights. The fold waits until the section is well in view,
+ * so the apps can be read first. */
 function Problem() {
   // Reduced motion rests past the fold, so the flare shows lit.
   const ref = useScrollVar<HTMLElement>(0.8)
-  const lit = useScrolledPast(ref, 0.6)
-  // 0 → scattered, 1 → gathered (over the middle of the scroll).
-  const gather = "clamp(0, calc((var(--p, 0) - 0.3) * 3.3), 1)"
+  const lit = useScrolledPast(ref, 0.68)
+  // 0 → scattered, 1 → gathered (from 0.42 to about 0.7 of the scroll).
+  const gather = "clamp(0, calc((var(--p, 0) - 0.42) * 3.5), 1)"
   return (
     <section
       ref={ref}
       aria-labelledby="landing-problem"
-      className="mx-auto grid w-full max-w-6xl items-center gap-14 px-6 py-24 lg:grid-cols-2 lg:px-8 lg:py-36"
+      // No top padding: the section above (Why) already pads this join, so a
+      // top here would double the gap.
+      className="mx-auto grid w-full max-w-6xl items-center gap-14 px-6 pb-24 lg:grid-cols-2 lg:px-8 lg:pb-36"
     >
       <Reveal>
-        <p className="lp-eyebrow">digital overdose, social famine.</p>
+        <p className="lp-eyebrow">we&apos;ve all been there.</p>
         <h2
           id="landing-problem"
           className="lp-display mt-4 text-5xl lg:text-7xl"
         >
-          five apps to plan one{" "}
-          <Typewriter words={PLANS} className="lp-coral" />
+          six apps to plan one <Typewriter words={PLANS} className="lp-coral" />
         </h2>
         <p className="mt-6 max-w-md text-muted-foreground lg:text-lg">
           a poll in the group chat, a link in an email, an event nobody opens, a
-          calendar invite at midnight.{" "}
-          <span className="font-semibold text-foreground">
-            a group chat is where plans go to die.
+          calendar invite at midnight.
+          <span className="mt-3 block font-semibold text-balance text-foreground">
+            sponti helps you easily gather your friends, or join them, without
+            all the noise.
           </span>
         </p>
       </Reveal>
-      <div aria-hidden="true" className="relative mx-auto h-80 w-full max-w-sm">
+      {/* --spread pulls the scattered apps in at phone width. */}
+      <div
+        aria-hidden="true"
+        className="relative mx-auto h-80 w-full max-w-sm [--spread:0.7] sm:[--spread:1]"
+      >
         {APPS.map(({ Icon, label, x, y }) => (
           <span
             key={label}
             className="absolute top-1/2 left-1/2 flex items-center gap-2 rounded-2xl bg-card px-3 py-2 text-sm text-muted-foreground shadow-[0_10px_30px_-12px_rgb(46_32_95/0.35)]"
             style={{
-              transform: `translate(-50%, -50%) translate(calc(${x}px * (1 - ${gather})), calc(${y}px * (1 - ${gather}))) scale(calc(1 - ${gather} * 0.6))`,
+              transform: `translate(-50%, -50%) translate(calc(${x}px * var(--spread) * (1 - ${gather})), calc(${y}px * (1 - ${gather}))) scale(calc(1 - ${gather} * 0.6))`,
               opacity: `calc(1 - ${gather})`,
             }}
           >
@@ -447,8 +559,8 @@ function Problem() {
           data-lit={lit}
           className="lp-orb absolute top-1/2 left-1/2 flex size-36 items-center justify-center rounded-full lg:size-40"
           style={{
-            transform: `translate(-50%, -50%) scale(calc(0.25 + ${gather} * 0.75))`,
-            opacity: gather,
+            transform: `translate(-50%, -50%) scale(calc(0.55 + ${gather} * 0.45))`,
+            opacity: `calc(0.55 + ${gather} * 0.45)`,
           }}
         >
           <span className="lp-orb-ring" />
@@ -463,26 +575,62 @@ function Problem() {
   )
 }
 
-const HOW = [
-  {
-    title: "say what you're up to",
-    body: "right now, or at a time you pick.",
-    Screen: ComposeScreen,
-  },
-  {
-    title: "your people see it",
-    body: "on their map, not in a muted chat.",
-    Screen: MapScreen,
-  },
-  {
-    title: "they tap join",
-    body: "and you see who's coming.",
-    Screen: JoinScreen,
-  },
+type Role = "host" | "guest"
+
+const ROLES: { id: Role; label: string }[] = [
+  { id: "host", label: "as a host" },
+  { id: "guest", label: "as a guest" },
 ]
 
-/** The page's one dark band: indigo, the app's phones, a coral glow. */
+type HowStepContent = {
+  title: string
+  body: string
+  Screen: (props: { play?: boolean }) => React.ReactNode
+}
+
+/** The same three beats from each side: lighting a flare, and joining one. */
+const HOW: Record<Role, HowStepContent[]> = {
+  host: [
+    {
+      title: "say what you're up to",
+      body: "right now, or at a time you pick.",
+      Screen: ComposeScreen,
+    },
+    {
+      title: "your people see it",
+      body: "on their map, where a muted chat can't bury it.",
+      Screen: MapScreen,
+    },
+    {
+      title: "they tap join",
+      body: "and you see who's coming.",
+      Screen: JoinScreen,
+    },
+  ],
+  guest: [
+    {
+      title: "check the map or calendar",
+      body: "to see what's happening right now, or what's coming up.",
+      Screen: MapScreen,
+    },
+    {
+      title: "tap and join",
+      body: "to see the details, like who else is going, and share updates.",
+      Screen: JoinScreen,
+    },
+    {
+      title: "get the walking route",
+      body: "and let the host know you're on your way.",
+      Screen: RouteScreen,
+    },
+  ],
+}
+
+/** The page's one dark band: indigo, the app's phones, a coral glow. A switch
+ * under the headline tells it from the host's side or the guest's; the
+ * steps (and their phones) swap with it. */
 function How() {
+  const [role, setRole] = useState<Role>("host")
   return (
     <section
       aria-labelledby="landing-how"
@@ -501,13 +649,83 @@ function How() {
         <h2 id="landing-how" className="lp-display mt-4 text-5xl lg:text-8xl">
           one tap. <span className="lp-coral">broadcast</span> or join.
         </h2>
+        <RoleTabs role={role} onChange={setRole} />
       </Reveal>
-      <ol className="mx-auto mt-14 grid max-w-6xl gap-6 lg:grid-cols-3">
-        {HOW.map((step, i) => (
-          <HowStep key={step.title} index={i} {...step} />
-        ))}
-      </ol>
+      <div
+        role="tabpanel"
+        id={`how-panel-${role}`}
+        aria-labelledby={`how-tab-${role}`}
+      >
+        {/* Keyed by role, so a switch replays each step's reveal and phone. */}
+        <ol
+          key={role}
+          className="mx-auto mt-10 grid max-w-6xl gap-6 lg:grid-cols-3"
+        >
+          {HOW[role].map((step, i) => (
+            <HowStep key={step.title} index={i} {...step} />
+          ))}
+        </ol>
+      </div>
     </section>
+  )
+}
+
+/** A two-way switch as ARIA tabs: arrows, Home and End move between them. */
+function RoleTabs({
+  role,
+  onChange,
+}: {
+  role: Role
+  onChange: (role: Role) => void
+}) {
+  function onKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    const at = ROLES.findIndex((r) => r.id === role)
+    const next =
+      event.key === "ArrowRight"
+        ? (at + 1) % ROLES.length
+        : event.key === "ArrowLeft"
+          ? (at - 1 + ROLES.length) % ROLES.length
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? ROLES.length - 1
+              : at
+    if (next === at) return
+    event.preventDefault()
+    onChange(ROLES[next].id)
+    document.getElementById(`how-tab-${ROLES[next].id}`)?.focus()
+  }
+  return (
+    <div
+      role="tablist"
+      aria-label="see how it works as"
+      className="mt-8 inline-flex rounded-full bg-white/10 p-1"
+    >
+      {ROLES.map(({ id, label }) => {
+        const selected = role === id
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            id={`how-tab-${id}`}
+            aria-selected={selected}
+            aria-controls={`how-panel-${id}`}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onChange(id)}
+            onKeyDown={onKeyDown}
+            className={cn(
+              "h-10 rounded-full px-5 text-sm font-medium transition-colors duration-300 outline-none focus-visible:ring-3 focus-visible:ring-ring/60",
+              selected
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {label}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -516,12 +734,7 @@ function HowStep({
   title,
   body,
   Screen,
-}: {
-  index: number
-  title: string
-  body: string
-  Screen: (props: { play?: boolean }) => React.ReactNode
-}) {
+}: HowStepContent & { index: number }) {
   const [ref, inView] = useInView<HTMLLIElement>(0.45)
   return (
     <li ref={ref} data-landing-step>
@@ -582,8 +795,7 @@ function Now() {
           what&apos;s happening <span className="lp-coral">now.</span>
         </h2>
         <p className="mt-5 max-w-md text-muted-foreground lg:text-lg">
-          every flare is a little light on your friends&apos; map. open the app
-          and see who&apos;s out, and where.
+          open the app and see who&apos;s up to something, and where.
         </p>
       </Reveal>
       <div ref={frame} className="mx-3 mt-12 lg:mx-auto lg:max-w-7xl">
@@ -623,123 +835,393 @@ function Now() {
   )
 }
 
-/** The rest of the app, as the deck's short statements. */
-const LINES: { Icon: Icon; line: React.ReactNode; body: string }[] = [
+/**
+ * The rest of the app, told one feature at a time: the steps scroll past a
+ * phone that holds still beside them (desktop) and swaps its screen for the
+ * step in the middle of the viewport. The last step is dark mode, so the
+ * band itself goes dark with it, like the sun going down in the scenes. On a
+ * phone each step carries its own small phone instead.
+ */
+const FEATURES: {
+  id: string
+  Icon: Icon
+  eyebrow: string
+  title: React.ReactNode
+  body: string
+  Screen: (props: { play?: boolean }) => React.ReactNode
+  dark?: boolean
+}[] = [
   {
-    Icon: MapTrifoldIcon,
-    line: (
+    id: "circles",
+    Icon: UsersIcon,
+    eyebrow: "circles",
+    title: (
       <>
-        map <span className="lp-coral">=</span> now.
+        your people, <span className="lp-coral">grouped your way.</span>
       </>
     ),
-    body: "what's happening right now, near you.",
+    body: "close friends, the climbing crew, the flatmates. make a circle once, then pick who sees each flare.",
+    Screen: CirclesScreen,
   },
   {
+    id: "open",
+    Icon: GlobeIcon,
+    eyebrow: "open flares",
+    title: (
+      <>
+        invite only, or <span className="lp-coral">open to all.</span>
+      </>
+    ),
+    body: "keep a plan to your circles, or open it up so anyone who sees it can come along.",
+    Screen: OpenFlareScreen,
+  },
+  {
+    id: "route",
+    Icon: NavigationArrowIcon,
+    eyebrow: "getting there",
+    title: (
+      <>
+        join other flares, <span className="lp-coral">and get there.</span>
+      </>
+    ),
+    body: "get the walking route and how long it takes. the host sees you're on the way.",
+    Screen: RouteScreen,
+  },
+  {
+    id: "calendar",
     Icon: CalendarBlankIcon,
-    line: (
+    eyebrow: "calendar",
+    title: (
       <>
         calendar <span className="lp-coral">=</span> upcoming.
       </>
     ),
-    body: "flares with a picked time wait there.",
+    body: "flares with a picked time wait in the calendar, so saturday's plan doesn't get lost in a chat.",
+    Screen: CalendarScreen,
   },
   {
-    Icon: LockIcon,
-    line: "your people, grouped your way.",
-    body: "close friends, a circle, or anyone nearby. you pick who sees it.",
-  },
-  {
+    id: "quiet",
     Icon: BellIcon,
-    line: "quiet by default.",
-    body: "no read receipts, no pings at 2am. quiet hours are built in.",
+    eyebrow: "notifications",
+    title: (
+      <>
+        you set the <span className="lp-coral">volume.</span>
+      </>
+    ),
+    // From the settings page: reminders and invitations switch on and off,
+    // and quiet hours (off until you turn them on) take a start and an end.
+    body: "choose which reminders and invitations reach you, and set quiet hours for the night.",
+    Screen: QuietScreen,
+  },
+  {
+    id: "dark",
+    Icon: MoonIcon,
+    eyebrow: "light or dark",
+    title: (
+      <>
+        easy on the eyes after <span className="lp-coral">sunset.</span>
+      </>
+    ),
+    body: "sponti follows your phone's light or dark setting, so a late plan doesn't light up the whole bar.",
+    Screen: MapScreen,
+    dark: true,
   },
 ]
 
-function Lines() {
+function Features() {
+  const [active, setActive] = useState(0)
+  const dusk = FEATURES[active].dark === true
   return (
     <section
-      aria-label="what's in the app"
-      className="mx-auto grid w-full max-w-6xl gap-x-12 gap-y-14 px-6 pb-24 sm:grid-cols-2 lg:px-8 lg:pb-36"
+      aria-labelledby="landing-features"
+      data-dusk={dusk}
+      className={cn(
+        "relative isolate mx-3 rounded-[2.5rem] px-6 pt-20 pb-6 transition-[background-color,color] duration-700 lg:mx-auto lg:w-[calc(100%-3rem)] lg:max-w-7xl lg:px-10 lg:py-28",
+        dusk ? "lp-indigo" : "bg-card"
+      )}
     >
-      {LINES.map(({ Icon, line, body }, i) => (
-        <Reveal key={body} delay={(i % 2) * 120}>
-          <div className="group border-t border-border pt-6">
-            <span className="flex size-10 items-center justify-center rounded-full bg-muted text-foreground transition-colors duration-300 group-hover:bg-accent group-hover:text-accent-foreground">
-              <Icon className="size-5" />
-            </span>
-            <h3 className="lp-display mt-5 text-4xl lg:text-5xl">{line}</h3>
-            <p className="mt-3 max-w-sm text-muted-foreground">{body}</p>
-          </div>
+      {/* Sized to its content and centred, so the phone sits by the words. */}
+      <div className="mx-auto lg:w-fit">
+        <Reveal>
+          <p className="lp-eyebrow">inside sponti</p>
+          <h2
+            id="landing-features"
+            className="lp-display mt-4 max-w-3xl text-5xl lg:text-7xl"
+          >
+            finally, an easy way to keep up with your{" "}
+            <span className="lp-coral">peeps.</span>
+          </h2>
         </Reveal>
-      ))}
+        {/* Desktop: the steps scroll past a phone that holds still. */}
+        <div className="hidden lg:grid lg:grid-cols-[30rem_auto] lg:gap-20">
+          <ol>
+            {FEATURES.map((feature, i) => (
+              <FeatureStep
+                key={feature.id}
+                index={i}
+                active={active === i}
+                onActive={setActive}
+                {...feature}
+              />
+            ))}
+          </ol>
+          <div aria-hidden="true">
+            <div className="sticky top-[calc(50svh-17rem)] flex items-center gap-6 py-10">
+              <FeaturePhone active={active} className="w-[16rem]" />
+              <FeatureDots active={active} vertical />
+            </div>
+          </div>
+        </div>
+      </div>
+      <FeaturesPinned active={active} onActive={setActive} />
     </section>
+  )
+}
+
+/** The phone beside the steps, holding every step's screen and showing the
+ * active one. Dark mode's screen wipes down over the others, and the frame
+ * goes dark with it. */
+function FeaturePhone({
+  active,
+  className,
+}: {
+  active: number
+  className?: string
+}) {
+  const dusk = FEATURES[active].dark === true
+  return (
+    <Phone
+      className={cn(
+        "transition-colors duration-700",
+        dusk && "lp-app-dark border-white/10",
+        className
+      )}
+    >
+      {FEATURES.map(({ id, Screen, dark }, i) => (
+        <div
+          key={id}
+          data-feature-screen={id}
+          className={cn(
+            "absolute inset-0 transition-opacity duration-500",
+            dark && "lp-app-dark",
+            active === i ? "z-10 opacity-100" : "opacity-0"
+          )}
+          style={
+            dark
+              ? {
+                  clipPath:
+                    active === i ? "inset(0 0 0 0)" : "inset(0 0 100% 0)",
+                  transition:
+                    "clip-path 900ms cubic-bezier(.6,0,.2,1), opacity 300ms",
+                }
+              : undefined
+          }
+        >
+          <Screen play={active === i} />
+        </div>
+      ))}
+    </Phone>
+  )
+}
+
+function FeatureDots({
+  active,
+  vertical = false,
+}: {
+  active: number
+  vertical?: boolean
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("flex gap-2", vertical && "flex-col")}
+    >
+      {FEATURES.map(({ id }, i) => (
+        <span
+          key={id}
+          className={cn(
+            "size-1.5 rounded-full transition-[width,height,background-color,opacity] duration-500",
+            active === i
+              ? cn("bg-accent", vertical ? "h-6" : "w-6")
+              : "bg-current opacity-25"
+          )}
+        />
+      ))}
+    </span>
   )
 }
 
 /**
- * The app's dark mode, without making a thing of it: one phone whose map
- * turns from light to dark as you scroll past, like the sun going down in
- * the scenes. Reduced motion rests halfway, showing both.
+ * Phones: the same walk-through, pinned. A tall box holds a screen-high
+ * sticky frame with the phone and the active step's words; scrolling through
+ * the box steps through the features, one per stretch of the scroll.
  */
-function Night() {
-  // Fully dark by the time the phone reaches the middle of the screen.
-  // Reduced motion rests at the halfway point (0.25 + 0.5 / 3.5 ≈ 0.39).
-  const ref = useScrollVar<HTMLElement>(0.39)
-  const [phone, inView] = useInView<HTMLDivElement>(0.3)
-  const dusk = "clamp(0, calc((var(--p, 0) - 0.25) * 3.5), 1)"
+function FeaturesPinned({
+  active,
+  onActive,
+}: {
+  active: number
+  onActive: (index: number) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let frame = 0
+    const update = () => {
+      frame = 0
+      // Hidden on desktop, where the steps' own observers drive `active`.
+      if (!el.offsetParent) return
+      const box = el.getBoundingClientRect()
+      const room = Math.max(1, box.height - window.innerHeight)
+      const q = Math.min(1, Math.max(0, -box.top / room))
+      onActive(Math.min(FEATURES.length - 1, Math.floor(q * FEATURES.length)))
+      // The phone keeps the desktop's 16rem screens, scaled to about half
+      // the screen's height, so nothing inside it has to squeeze.
+      const rem = parseFloat(
+        getComputedStyle(document.documentElement).fontSize
+      )
+      const scale = Math.min(
+        1,
+        (window.innerHeight * 0.5) / (16 * rem * (19 / 9))
+      )
+      el.style.setProperty("--phone-scale", scale.toFixed(3))
+    }
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update)
+    }
+    update()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    window.addEventListener("resize", onScroll)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener("scroll", onScroll)
+      window.removeEventListener("resize", onScroll)
+    }
+  }, [onActive])
   return (
-    <section
+    <div
       ref={ref}
-      aria-labelledby="landing-night"
-      className="mx-auto grid w-full max-w-5xl items-center gap-12 px-6 pb-24 lg:grid-cols-[1fr_auto] lg:gap-20 lg:px-8 lg:pb-36"
+      className="lg:hidden"
+      style={{ height: `${FEATURES.length * 60 + 40}svh` }}
     >
-      <Reveal>
-        <p className="lp-eyebrow">light or dark</p>
-        <h2 id="landing-night" className="lp-display mt-4 text-4xl lg:text-6xl">
-          easy on the eyes after <span className="lp-coral">sunset.</span>
-        </h2>
-        <p className="mt-5 max-w-sm text-muted-foreground lg:text-lg">
-          sponti follows your phone&apos;s light or dark setting, so a late plan
-          doesn&apos;t light up the whole bar.
-        </p>
-      </Reveal>
-      <div ref={phone} aria-hidden="true" className="flex justify-center">
-        <Phone className="w-[14rem]">
-          <MapScreen play={inView} />
-          <div
-            data-landing-dark
-            className="lp-app-dark absolute inset-0 z-[15]"
-            style={{ clipPath: `inset(0 0 calc((1 - ${dusk}) * 100%) 0)` }}
-          >
-            <MapScreen play={inView} />
-          </div>
-        </Phone>
+      <div className="sticky top-15 flex h-[calc(100svh-3.75rem)] flex-col items-center justify-center gap-5">
+        <div
+          className="relative shrink-0"
+          style={{
+            width: "calc(16rem * var(--phone-scale, 0.75))",
+            height: "calc(16rem * 19 / 9 * var(--phone-scale, 0.75))",
+          }}
+        >
+          <FeaturePhone
+            active={active}
+            className="absolute top-0 left-0 w-[16rem] origin-top-left [scale:var(--phone-scale,0.75)]"
+          />
+        </div>
+        <FeatureDots active={active} />
+        <div className="grid w-full max-w-sm text-center">
+          {FEATURES.map(({ id, Icon, eyebrow, title, body }, i) => (
+            <div
+              key={id}
+              className={cn(
+                "flex flex-col items-center transition-[opacity,translate] duration-500 [grid-area:1/1]",
+                active === i
+                  ? "opacity-100"
+                  : cn(
+                      "pointer-events-none opacity-0",
+                      i < active ? "-translate-y-3" : "translate-y-3"
+                    )
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <Icon className="size-4 text-(--coral-ink)" />
+                <span className="lp-eyebrow">
+                  0{i + 1} · {eyebrow}
+                </span>
+              </span>
+              <h3 className="lp-display mt-3 text-3xl text-balance">{title}</h3>
+              <p className="mt-2 text-sm whitespace-pre-line text-muted-foreground">
+                {body}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
-    </section>
+    </div>
   )
 }
 
+function FeatureStep({
+  index,
+  active,
+  onActive,
+  Icon,
+  eyebrow,
+  title,
+  body,
+}: (typeof FEATURES)[number] & {
+  index: number
+  active: boolean
+  onActive: (index: number) => void
+}) {
+  const ref = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    // Active while the step crosses the middle of the viewport.
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) onActive(index)
+      },
+      { rootMargin: "-50% 0px -50% 0px" }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [index, onActive])
+  return (
+    <li
+      ref={ref}
+      data-landing-feature={eyebrow}
+      className={cn(
+        "flex min-h-[80svh] flex-col justify-center transition-opacity duration-500",
+        !active && "opacity-30"
+      )}
+    >
+      <Reveal>
+        <span className="flex items-center gap-3">
+          <span className="flex size-10 items-center justify-center rounded-full bg-accent text-accent-foreground">
+            <Icon className="size-5" />
+          </span>
+          <span className="lp-eyebrow">
+            0{index + 1} · {eyebrow}
+          </span>
+        </span>
+        <h3 className="lp-display mt-5 max-w-xl text-6xl">{title}</h3>
+        <p className="mt-4 max-w-md text-lg whitespace-pre-line text-muted-foreground">
+          {body}
+        </p>
+      </Reveal>
+    </li>
+  )
+}
+
+/** Why it exists: now the first thing under the hero (moved up on review),
+ * so it rises into the hero's fade the way the problem section used to —
+ * same reduced top padding, same stacking above the hero's pinned scene. */
 function Why() {
   const ref = useScrollVar<HTMLElement>()
   return (
     <section
       ref={ref}
       aria-labelledby="landing-why"
-      className="mx-auto grid w-full max-w-6xl items-center gap-12 px-6 pb-24 lg:grid-cols-[1fr_26rem] lg:px-8 lg:pb-36"
+      className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-12 px-6 pt-10 pb-24 lg:grid-cols-[1fr_26rem] lg:px-8 lg:pt-16 lg:pb-36"
     >
       <Reveal>
         <p className="lp-eyebrow">why it exists</p>
         <h2 id="landing-why" className="lp-display mt-4 text-5xl lg:text-7xl">
           more connected than ever, and more alone.
         </h2>
-        <p className="mt-6 max-w-md text-muted-foreground lg:text-lg">
-          messages everywhere, and still no time to catch up with your best
-          friends. sponti is built to get you off your phone and out with them.
-        </p>
-        <p className="lp-display mt-8 text-3xl lg:text-4xl">
-          make it easier to be <span className="lp-coral">together.</span>
-        </p>
-        <p className="mt-6 text-xs text-muted-foreground">
+        <p className="mt-3 text-xs text-muted-foreground">
           source:{" "}
           <a
             href={WHO_REPORT_URL}
@@ -747,6 +1229,11 @@ function Why() {
           >
             who commission on social connection (2025)
           </a>
+        </p>
+        <p className="mt-6 max-w-md text-muted-foreground lg:text-lg">
+          the world health organization found that 1 in 6 people worldwide is
+          affected by loneliness. sponti is built to get you off your phone and
+          out with people.
         </p>
       </Reveal>
       <Scene
@@ -761,6 +1248,7 @@ function Why() {
 
 function Closing() {
   const ref = useScrollVar<HTMLElement>()
+  const [qrShown, setQrShown] = useState(false)
   return (
     <section
       ref={ref}
@@ -768,7 +1256,7 @@ function Closing() {
       className="relative isolate flex min-h-[100svh] flex-col justify-end overflow-hidden px-6 pt-40 pb-16 text-center lg:pb-24"
     >
       <Scene
-        name="crowd"
+        name="lounge"
         className="absolute inset-0 -z-20"
         move="translate(-50%, calc(-50% + (var(--p, 0.5) - 0.5) * -90px)) scale(1.1)"
       />
@@ -788,10 +1276,26 @@ function Closing() {
           light a <span className="lp-coral">flare.</span>
         </h2>
         <p className="max-w-md text-base lg:text-lg">
-          see who&apos;s up for something, right now or soon.
+          or join one, and finally be at the right place at the right time.
         </p>
-        <OpenSponti className="w-full max-w-xs lg:w-fit" />
-        <DesktopQr className="mt-2" />
+        <OpenSponti
+          className="w-full max-w-xs lg:w-fit"
+          onReveal={() => setQrShown((shown) => !shown)}
+          expanded={qrShown}
+          controls="closing-qr"
+        />
+        <div
+          id="closing-qr"
+          className="mt-2 grid w-full transition-[grid-template-rows] duration-300 ease-out"
+          style={{
+            gridTemplateRows: qrShown ? "1fr" : "0fr",
+            visibility: qrShown ? "visible" : "hidden",
+          }}
+        >
+          <div className="overflow-hidden">
+            <DesktopQr className="mx-auto w-fit" />
+          </div>
+        </div>
       </Reveal>
     </section>
   )

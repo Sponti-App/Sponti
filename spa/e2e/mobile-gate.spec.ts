@@ -74,7 +74,12 @@ test.describe("mobile gate (#467)", () => {
     test.skip(isMobile, "the desktop notice")
     await stubBackend(page, { signedOut: true })
 
-    for (const path of ["/menu/impressum", "/menu/privacy", "/menu/terms"]) {
+    for (const path of [
+      "/menu/impressum",
+      "/menu/privacy",
+      "/menu/terms",
+      "/menu/about-sponti",
+    ]) {
       await page.goto(path)
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
       await expect(notice(page)).toHaveCount(0)

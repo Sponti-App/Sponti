@@ -23,6 +23,20 @@ export function usePrefersReducedMotion(): boolean {
   return reduced
 }
 
+/** Tracks whether a media query matches, reactively. False on the server and
+ * until mounted, so a desktop-only behaviour never fires during SSR. */
+export function useMatchMedia(query: string): boolean {
+  const [matches, setMatches] = useState(false)
+  useEffect(() => {
+    const mql = window.matchMedia(query)
+    const update = () => setMatches(mql.matches)
+    update()
+    mql.addEventListener("change", update)
+    return () => mql.removeEventListener("change", update)
+  }, [query])
+  return matches
+}
+
 /** True once the element has scrolled into view (and stays true). */
 export function useInView<T extends HTMLElement>(threshold = 0.35) {
   const ref = useRef<T>(null)
@@ -102,6 +116,40 @@ export function useScrollVar<T extends HTMLElement>(rest = 0.5) {
       window.removeEventListener("resize", onScroll)
     }
   }, [rest])
+  return ref
+}
+
+/**
+ * Writes `--q` on a tall element whose child is `position: sticky`: 0 while
+ * its top is at the viewport's top, 1 once it has scrolled its extra height
+ * (its height minus the viewport's) and the sticky child lets go. Reduced
+ * motion keeps it at 0.
+ */
+export function usePinProgress<T extends HTMLElement>() {
+  const ref = useRef<T>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || window.matchMedia(REDUCED).matches) return
+    let frame = 0
+    const update = () => {
+      frame = 0
+      const box = el.getBoundingClientRect()
+      const room = Math.max(1, box.height - window.innerHeight)
+      const q = Math.min(1, Math.max(0, -box.top / room))
+      el.style.setProperty("--q", q.toFixed(4))
+    }
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update)
+    }
+    update()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    window.addEventListener("resize", onScroll)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener("scroll", onScroll)
+      window.removeEventListener("resize", onScroll)
+    }
+  }, [])
   return ref
 }
 
@@ -186,7 +234,9 @@ export function spotlight(event: React.PointerEvent<HTMLElement>) {
 
 /** Types each word, holds it, deletes it, and moves on. Reduced motion
  * shows the first word, still. Screen readers hear only the first word, so
- * the heading doesn't keep changing under them. */
+ * the heading doesn't keep changing under them. Every word sits invisible in
+ * the same grid cell, so the box keeps the longest word's size and the
+ * heading never reflows as words come and go. */
 export function Typewriter({
   words,
   className,
@@ -219,9 +269,17 @@ export function Typewriter({
   return (
     <>
       <span className="sr-only">{words[0]}</span>
-      <span aria-hidden="true" data-typewriter className={className}>
-        {shown}
-        <span className="lp-caret ml-0.5 inline-block h-[0.9em] w-[3px] translate-y-[0.1em] rounded-full bg-current" />
+      <span aria-hidden="true" className="inline-grid align-bottom">
+        {words.map((word) => (
+          <span key={word} className="invisible [grid-area:1/1]">
+            {word}
+            <span className="ml-0.5 inline-block w-[3px]" />
+          </span>
+        ))}
+        <span data-typewriter className={cn("[grid-area:1/1]", className)}>
+          {shown}
+          <span className="lp-caret ml-0.5 inline-block h-[0.9em] w-[3px] translate-y-[0.1em] rounded-full bg-current" />
+        </span>
       </span>
     </>
   )

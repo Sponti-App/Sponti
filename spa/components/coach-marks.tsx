@@ -18,6 +18,7 @@ import {
   useRef,
   useState,
 } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import {
   coachMarkSteps,
@@ -210,7 +211,11 @@ export function CoachMarks({
   const below = spot ? spot.top + spot.height / 2 < viewport.height / 2 : true
   const titleId = `coach-mark-${mark.id}`
 
-  return (
+  // Portalled to the body: the signed-in home is a `position: fixed` layer,
+  // which is a stacking context of its own, so inside it no z-index could
+  // lift the overlay over the nav (z-40, outside that layer) and the circles
+  // tab's spotlight and card sat under the nav.
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -286,7 +291,8 @@ export function CoachMarks({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -312,19 +318,42 @@ function useDialogOpen(): boolean {
  * #497 (behind `coachMarks`): the circles tab and the menu, once per device,
  * on the signed-in home map. They wait for the post-sign-up checklist and
  * first-friend step (#459), the first-run intro and every open sheet.
- * `blocked` is the home's own state: the menu, the invite dialog, a flare's
- * detail sheet, a dock card, or the calendar being up.
+ * `blocked` is what the user opened on the home: the menu, the invite dialog,
+ * a flare's detail sheet or the calendar. `onboardingCard` is the checklist
+ * in the map's sheet.
+ *
+ * They only start on arriving at the home or as the onboarding steps above
+ * finish, so they read as the end of that flow. Once the user opens
+ * something of their own first, the marks wait for the next arrival instead
+ * of popping up the moment it closes.
  */
-export function HomeCoachMarks({ blocked }: { blocked: boolean }) {
+export function HomeCoachMarks({
+  blocked,
+  onboardingCard,
+}: {
+  blocked: boolean
+  onboardingCard: boolean
+}) {
   const pending = useHomeCoachMarksPending()
   const onboardingShowing = useShowOnboarding()
   const dialogOpen = useDialogOpen()
-  const visible = homeCoachMarksVisible({
-    pending,
-    onboardingShowing,
-    blocked,
-    dialogOpen,
-  })
+  const [missed, setMissed] = useState(false)
+  const [started, setStarted] = useState(false)
+  const visible =
+    !missed &&
+    homeCoachMarksVisible({
+      pending,
+      onboardingShowing,
+      blocked: blocked || onboardingCard,
+      dialogOpen,
+    })
+  // Adjusting state during render: latch a start, and a miss (the user's own
+  // menu, sheet or dialog came first). A dialog while onboarding is still up
+  // belongs to onboarding (the first-friend step, the composer it opens).
+  if (visible && !started) setStarted(true)
+  const userBusy =
+    blocked || (dialogOpen && !onboardingShowing && !onboardingCard)
+  if (pending && !started && !missed && userBusy) setMissed(true)
   return visible ? (
     <CoachMarks run="home" onDone={markHomeCoachMarksSeen} />
   ) : null

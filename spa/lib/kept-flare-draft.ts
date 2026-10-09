@@ -1,4 +1,6 @@
-import { FLARE_IDEAS, type FlareIdea } from "@/lib/flare-ideas.data"
+import { ANYWHERE_IDEAS } from "@/lib/flare-ideas.anywhere.data"
+import { FLARE_IDEAS } from "@/lib/flare-ideas.data"
+import type { Idea } from "@/lib/flare-ideas-anywhere"
 import { REDIRECT_PARAM } from "@/lib/redirect-path"
 
 // #389: the flare a signed-out visitor started (an idea spot, or a blank
@@ -6,7 +8,8 @@ import { REDIRECT_PARAM } from "@/lib/redirect-path"
 // round trip so they land back in the composer with it.
 //
 // Only the idea's id is stored, never free text: on the way back it is looked
-// up in the curated list, so nothing read from storage reaches the composer
+// up in the curated lists (the spots, and the place-less ideas of #515), so
+// nothing read from storage reaches the composer
 // unchecked. It lives in sessionStorage (this tab only), and every storage
 // call is wrapped, because storage can be missing or throw (private windows,
 // blocked site data). Then the draft is simply not kept.
@@ -14,7 +17,7 @@ import { REDIRECT_PARAM } from "@/lib/redirect-path"
 export const KEPT_FLARE_DRAFT_KEY = "sponti.kept-flare-draft.v1"
 
 /** The draft the visitor started: an idea, or a blank flare. */
-export type KeptFlareDraft = { idea: FlareIdea | null }
+export type KeptFlareDraft = { idea: Idea | null }
 
 /** Marks the trip back from the auth pages as "with a kept draft". */
 export const RESUME_PARAM = "resume"
@@ -50,7 +53,9 @@ export function readKeptFlareDraft(): KeptFlareDraft | null {
     const { ideaId } = parsed as Partial<Stored>
     const idea =
       typeof ideaId === "string"
-        ? (FLARE_IDEAS.find((i) => i.id === ideaId) ?? null)
+        ? (FLARE_IDEAS.find((i) => i.id === ideaId) ??
+          ANYWHERE_IDEAS.find((i) => i.id === ideaId) ??
+          null)
         : null
     return { idea }
   } catch {
