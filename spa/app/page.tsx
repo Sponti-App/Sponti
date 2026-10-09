@@ -14,9 +14,13 @@ import { KeptDraftWelcome } from "@/components/kept-draft-welcome"
 import { useOnboardingChecklist } from "@/components/onboarding-checklist"
 import { SignedOutHome } from "@/components/signed-out-home"
 import {
+  HeaderIconButton,
+  HeaderPill,
+  HomeTopBar,
+  type HomeView,
+} from "@/components/home-top-bar"
+import {
   ListIcon,
-  MapTrifoldIcon,
-  CalendarBlankIcon,
   NavigationArrowIcon,
   UserPlusIcon,
   XIcon,
@@ -46,7 +50,7 @@ export default function Home() {
 
 function SignedInHome() {
   const { showActionFeedback } = useActionFeedback()
-  const [view, setView] = useState<"map" | "calendar">("map")
+  const [view, setView] = useState<HomeView>("map")
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const [activeRoute, setActiveRoute] = useState<EventItem | null>(null)
   const [routeEta, setRouteEta] = useState<string | null>(null)
@@ -205,76 +209,44 @@ function SignedInHome() {
         )}
 
         {/* Floating header chips — overlay the map/calendar content */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-2 px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          {/* Hamburger pill */}
-          <button
-            type="button"
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
-            aria-expanded={menuOpen}
-            data-coach="menu"
-            onClick={() => {
-              haptic("selection")
-              setMenuOpen((v) => !v)
-            }}
-            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 shadow-sm backdrop-blur-md active:scale-95 dark:bg-background/90"
-          >
-            <ListIcon className="h-4 w-4" />
-          </button>
-
-          {/* View toggle pill */}
-          <div className="pointer-events-auto flex items-center rounded-full border border-border/60 bg-background/70 p-1 shadow-sm backdrop-blur-md">
-            <button
+        <HomeTopBar
+          view={view}
+          onViewChange={setView}
+          left={
+            <HeaderIconButton
+              aria-label={menuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={menuOpen}
+              data-coach="menu"
               onClick={() => {
                 haptic("selection")
-                setView("map")
+                setMenuOpen((v) => !v)
               }}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm active:scale-[0.97] ${
-                view === "map"
-                  ? "bg-card font-semibold text-foreground"
-                  : "text-muted-foreground"
-              }`}
             >
-              <MapTrifoldIcon className="h-4 w-4" />
-              <span>map</span>
-            </button>
-            <button
+              <ListIcon className="size-4" />
+            </HeaderIconButton>
+          }
+          right={
+            // #369: the invite pill, where the settings cog was (settings
+            // moved into the menu). Not peach: the nav's flare button is the
+            // screen's one peach call to action. Same shape as the signed-out
+            // "sign in".
+            <HeaderPill
               onClick={() => {
                 haptic("selection")
-                setView("calendar")
+                setInviteOpen(true)
               }}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm active:scale-[0.97] ${
-                view === "calendar"
-                  ? "bg-card font-semibold text-foreground"
-                  : "text-muted-foreground"
-              }`}
+              aria-haspopup="dialog"
             >
-              <CalendarBlankIcon className="h-4 w-4" />
-              <span>calendar</span>
-            </button>
-          </div>
-
-          {/* #369: the invite pill, where the settings cog was (settings
-              moved into the menu). Not peach: the nav's flare button is the
-              screen's one peach call to action. Same shape as the signed-out
-              "sign in". */}
-          <button
-            type="button"
-            onClick={() => {
-              haptic("selection")
-              setInviteOpen(true)
-            }}
-            aria-haspopup="dialog"
-            className="pointer-events-auto flex h-9 items-center justify-center gap-1.5 rounded-full border border-border/60 bg-background/80 px-3 text-sm font-medium shadow-sm backdrop-blur-md active:scale-95 dark:bg-background/90"
-          >
-            <UserPlusIcon className="h-4 w-4" />
-            invite
-          </button>
-        </div>
+              <UserPlusIcon className="size-4" />
+              invite
+            </HeaderPill>
+          }
+        />
 
         {/* Route active pill — tap to reopen details, X to clear.
-            top-16 clears the floating header chip row (~56px + gap). */}
+            top-[4.5rem] clears the floating header row (44px + inset + gap). */}
         {activeRoute && !selectedEvent && view === "map" && (
-          <div className="absolute top-16 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full bg-accent py-1.5 pr-1.5 pl-3 text-xs font-medium text-accent-foreground shadow-md">
+          <div className="absolute top-[4.5rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full bg-accent py-1.5 pr-1.5 pl-3 text-xs font-medium text-accent-foreground shadow-md">
             <button
               onClick={() => setSelectedEvent(activeRoute)}
               className="flex items-center gap-2"
@@ -311,13 +283,8 @@ function SignedInHome() {
       {/* #497 (behind `coachMarks`): the circles tab and the menu, once per
           device. Not over the checklist or any open sheet. */}
       <HomeCoachMarks
-        blocked={
-          view !== "map" ||
-          menuOpen ||
-          inviteOpen ||
-          !!selectedEvent ||
-          checklist !== null
-        }
+        blocked={view !== "map" || menuOpen || inviteOpen || !!selectedEvent}
+        onboardingCard={checklist !== null}
       />
 
       <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />

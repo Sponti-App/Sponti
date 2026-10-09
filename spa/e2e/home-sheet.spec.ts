@@ -458,10 +458,10 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
     ).toBeVisible()
 
     // The calendar view unmounts the map.
-    await page.getByRole("button", { name: "calendar" }).click()
+    await page.getByRole("button", { name: "soon", exact: true }).click()
     await expect(navFlare(page).locator("svg[data-icon='flame']")).toBeVisible()
 
-    await page.getByRole("button", { name: "map" }).click()
+    await page.getByRole("button", { name: "now", exact: true }).click()
     await chip(page, "food").click()
     await expect(
       navFlare(page).locator("svg[data-icon='fork-knife']")
