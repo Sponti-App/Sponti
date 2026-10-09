@@ -56,10 +56,9 @@ export const featureFlags = {
    * lands on the home map instead of /login. They see the idea spots and the
    * open-to-all pins from the public map endpoint (#425), and lighting a
    * flare, tapping a pin or an account-only nav tab asks them to sign up in a
-   * sheet that keeps their draft. Full profile only until the rest of the
-   * signed-out onboarding (coach marks #379, the location ask #408) lands.
+   * sheet that keeps their draft. On in both profiles.
    */
-  browseBeforeSignup: FEATURE_PROFILE === "full",
+  browseBeforeSignup: true,
 
   /**
    * The intro slides (#377, flare moments #370): three slides (what sponti
@@ -68,10 +67,9 @@ export const featureFlags = {
    * signed-out home, so they need `browseBeforeSignup` too. It also swaps
    * the post-sign-up first-run intro (#313) for a checklist in the map's
    * sheet (#459), and has a 0-friend account add its first friend before a
-   * kept draft is lit. Off, the first-run intro is unchanged. Full profile
-   * only.
+   * kept draft is lit. Off, the first-run intro is unchanged. On in both profiles.
    */
-  introV2: FEATURE_PROFILE === "full",
+  introV2: true,
 
   /**
    * The location ask (#408, flare moments #370): instead of the browser's
@@ -80,10 +78,11 @@ export const featureFlags = {
    * area chips. Denied or blocked turns it into "pick an area to start", with
    * a place search. The choice is remembered per device. It covers signed-out
    * visitors (after the intro slides) and signed-in users who haven't
-   * decided. Full profile only; off, the map asks the browser on mount as
-   * before and the signed-out map stays on berlin.
+   * decided. Off, the map asks the browser on mount as
+   * before and the signed-out map stays on berlin. On in both
+   * profiles.
    */
-  locationAsk: FEATURE_PROFILE === "full",
+  locationAsk: true,
 
   /**
    * Coach marks (#379, flare moments #370): three marks on the signed-out
@@ -91,10 +90,10 @@ export const featureFlags = {
    * ask: the idea spot ("ideas nearby"), the flare button ("light a flare")
    * and the map/calendar toggle ("soon lives here"). Each has "n of 3", skip
    * and next; there is no replay. They sit on #389's signed-out home, so they
-   * need `browseBeforeSignup` too. Full profile only; off, nothing shows and
+   * need `browseBeforeSignup` too. On in both profiles; off, nothing shows and
    * the location ask doesn't wait.
    */
-  coachMarks: FEATURE_PROFILE === "full",
+  coachMarks: true,
 
   /**
    * The mobile-only gate (#467): on a desktop-sized screen without touch,
