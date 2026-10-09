@@ -10,14 +10,15 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import {
-  BellIcon,
   CheckIcon,
+  ClockIcon,
   FlameIcon,
   GlobeIcon,
   LockIcon,
   MoonIcon,
   NavigationArrowIcon,
   PlusIcon,
+  UserPlusIcon,
   UsersIcon,
   WineIcon,
   type Icon,
@@ -664,18 +665,29 @@ export function CalendarScreen({ play = true }: { play?: boolean }) {
   )
 }
 
-/** Notifications, quiet by default: quiet hours on, and only close friends
- * get through. */
+/** Notifications, as the app's settings page has them: quiet hours (off
+ * until you turn them on, 22:00 – 08:00 to start), event reminders and
+ * invitations. Quiet hours switch on as it plays. */
 export function QuietScreen({ play = true }: { play?: boolean }) {
   const rows: { label: string; meta: string; on: boolean; Icon: Icon }[] = [
-    { label: "quiet hours", meta: "23:00 – 8:00", on: play, Icon: MoonIcon },
-    { label: "close friends", meta: "new flares", on: true, Icon: UsersIcon },
-    { label: "everyone else", meta: "new flares", on: false, Icon: BellIcon },
+    { label: "quiet hours", meta: "22:00 – 08:00", on: play, Icon: MoonIcon },
+    {
+      label: "reminders",
+      meta: "before a flare starts",
+      on: true,
+      Icon: ClockIcon,
+    },
+    {
+      label: "invitations",
+      meta: "when someone invites you",
+      on: true,
+      Icon: UserPlusIcon,
+    },
   ]
   return (
     <div className="absolute inset-0 flex flex-col bg-background px-4 pt-12 pb-4 text-foreground">
       <ScreenTitle>notifications</ScreenTitle>
-      <p className="text-xs text-muted-foreground">no read receipts. ever.</p>
+      <p className="text-xs text-muted-foreground">choose what reaches you.</p>
       <ul className="mt-4 flex flex-col gap-2">
         {rows.map(({ label, meta, on, Icon }) => (
           <li

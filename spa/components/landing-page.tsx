@@ -397,8 +397,15 @@ function Hero() {
             </h1>
           </Reveal>
           <Reveal delay={120}>
-            <p className="mx-auto mt-5 max-w-lg text-base font-medium lg:text-lg">
-              an app for making plans happen.
+            {/* White over the scene. A soft indigo scrim sits behind it: on a phone
+                the cream glow that lifts the dark headline would otherwise wash
+                white text out. */}
+            <p className="relative mx-auto mt-5 max-w-lg text-base font-medium text-white [text-shadow:0_1px_6px_rgb(46_32_95/0.55)] lg:text-lg">
+              <span
+                aria-hidden="true"
+                className="absolute -inset-x-5 -inset-y-2.5 -z-10 rounded-full bg-foreground/45 blur-xl"
+              />
+              host a gathering with your friends, or join one.
             </p>
           </Reveal>
           <Reveal
@@ -591,7 +598,7 @@ const HOW: Record<Role, HowStepContent[]> = {
     },
     {
       title: "your people see it",
-      body: "on their map, not in a muted chat.",
+      body: "on their map, where a muted chat can't bury it.",
       Screen: MapScreen,
     },
     {
@@ -898,11 +905,12 @@ const FEATURES: {
     eyebrow: "notifications",
     title: (
       <>
-        quiet <span className="lp-coral">by default.</span>
+        you set the <span className="lp-coral">volume.</span>
       </>
     ),
-    // Two short lines, one per sentence (the steps keep line breaks).
-    body: "no read receipts, no pings at 2am.\nquiet hours are built in.",
+    // From the settings page: reminders and invitations switch on and off,
+    // and quiet hours (off until you turn them on) take a start and an end.
+    body: "choose which reminders and invitations reach you, and set quiet hours for the night.",
     Screen: QuietScreen,
   },
   {
@@ -1223,8 +1231,9 @@ function Why() {
           </a>
         </p>
         <p className="mt-6 max-w-md text-muted-foreground lg:text-lg">
-          messages everywhere, and still no time to catch up with your best
-          friends. sponti is built to get you off your phone and out with them.
+          the world health organization found that 1 in 6 people worldwide is
+          affected by loneliness. sponti is built to get you off your phone and
+          out with people.
         </p>
       </Reveal>
       <Scene
