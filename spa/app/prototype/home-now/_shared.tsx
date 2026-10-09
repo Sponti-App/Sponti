@@ -2,8 +2,8 @@
 
 // PROTOTYPE (#522), throwaway. The frame the three takes share: a faux map
 // with idea spots, the #519 top bar (now/soon), the 2-flare rail and the
-// type chips, plus the prototype switcher. The sheets themselves (what the
-// question is about) live in _variants.tsx and are deliberately not shared.
+// type chips, plus the prototype switcher. The two takes themselves live in
+// _combined.tsx and _wildcard.tsx and are deliberately not shared.
 
 import type { ReactNode } from "react"
 import {
@@ -26,26 +26,37 @@ export const VIEWERS: { key: Viewer; label: string }[] = [
 ]
 
 export const VARIANTS = [
-  { key: "A", name: "copy-led" },
-  { key: "B", name: "idea-led" },
-  { key: "C", name: "people-led" },
+  { key: "combined", name: "1 combined" },
+  { key: "wildcard", name: "2 wildcard" },
 ] as const
 export type VariantKey = (typeof VARIANTS)[number]["key"]
 
 export type VariantProps = {
   viewer: Viewer
   flares: Flares
+  /** Wildcard only: start with mia and drinks picked (for screenshots). */
+  picked: boolean
   /** Stand-in for navigation the prototype doesn't do. */
   onStub: (what: string) => void
 }
 
 // ---- mock data --------------------------------------------------------------
 
+/** Newest connection first. `hue` stands in for the host colour on avatars. */
 export const FRIENDS = [
-  { name: "mia", hint: "lit a flare yesterday" },
-  { name: "jonas", hint: "joined sponti this week" },
-  { name: "lea", hint: "" },
+  { name: "mia", connected: "2 days ago", isNew: true, hue: 315 },
+  { name: "jonas", connected: "this week", isNew: true, hue: 185 },
+  { name: "lea", connected: "in may", isNew: false, hue: 260 },
+  { name: "sam", connected: "in april", isNew: false, hue: 140 },
 ]
+
+/** An avatar's initials on its host colour. */
+export function avatarStyle(hue: number) {
+  return {
+    backgroundColor: `oklch(0.88 0.06 ${hue})`,
+    color: `oklch(0.35 0.09 ${hue})`,
+  }
+}
 
 export type MockFlare = {
   id: string
@@ -337,7 +348,7 @@ export function PrototypeBar({
           className={pill(variant === v.key)}
           onClick={() => onChange({ variant: v.key })}
         >
-          {v.key} {v.name}
+          {v.name}
         </button>
       ))}
       <span className="mx-1 h-4 w-px bg-white/30" />

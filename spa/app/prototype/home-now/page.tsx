@@ -2,10 +2,12 @@
 
 // PROTOTYPE (#522), throwaway route, NOT production.
 // Question: when the home "now" map is quiet, what should its sheet say and
-// offer? Three takes (A copy-led, B idea-led, C people-led), switchable via
-// ?variant=A|B|C, with ?viewer=signedOut|new|friends and ?flares=0|2.
-// ?bar=0 hides the prototype bar (for screenshots). Once the team picks a
-// take: record it on #522, delete this folder, and build it in map-view.
+// offer? Round 2: two takes, ?variant=combined (round 1's A + B + C, with
+// the corrections) or ?variant=wildcard (no sheet, the map as the canvas),
+// with ?viewer=signedOut|new|friends and ?flares=0|2. ?picked=1 starts the
+// wildcard with mia and drinks picked. ?bar=0 hides the prototype bar (for
+// screenshots). Once the team picks: record it on #522, delete this
+// folder, and build it in map-view.
 
 import { Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -19,12 +21,12 @@ import {
   type VariantProps,
   type Viewer,
 } from "./_shared"
-import { VariantA, VariantB, VariantC } from "./_variants"
+import { Combined } from "./_combined"
+import { Wildcard } from "./_wildcard"
 
 const COMPONENTS: Record<VariantKey, (p: VariantProps) => React.ReactNode> = {
-  A: VariantA,
-  B: VariantB,
-  C: VariantC,
+  combined: Combined,
+  wildcard: Wildcard,
 }
 
 export default function HomeNowPrototypePage() {
@@ -58,7 +60,7 @@ function Prototype() {
   const variant = pick<VariantKey>(
     params.get("variant"),
     VARIANTS.map((v) => v.key),
-    "A"
+    "combined"
   )
   const viewer = pick<Viewer>(
     params.get("viewer"),
@@ -77,8 +79,10 @@ function Prototype() {
   return (
     <>
       <Variant
+        key={`${variant}-${viewer}-${flares}`}
         viewer={viewer}
         flares={flares}
+        picked={params.get("picked") === "1"}
         onStub={(what) => showActionFeedback(`prototype: ${what}`)}
       />
       {params.get("bar") !== "0" && (
