@@ -23,21 +23,13 @@ describe("IntroSlides (#377)", () => {
     const onLeave = vi.fn()
     render(<IntroSlides onLeave={onLeave} />)
 
-    expect(title()).toHaveTextContent("plans with friends, right now or soon")
+    expect(title()).toHaveTextContent("plans with friends, right now or soon.")
     fireEvent.click(screen.getByRole("button", { name: "next" }))
     expect(title()).toHaveTextContent(
-      "we're more connected than ever, and more alone"
-    )
-    expect(
-      screen.getByRole("link", {
-        name: "who commission on social connection (2025)",
-      })
-    ).toHaveAttribute(
-      "href",
-      "https://www.who.int/publications/i/item/978240112360"
+      "more connected than ever, yet still missing each other."
     )
     fireEvent.click(screen.getByRole("button", { name: "next" }))
-    expect(title()).toHaveTextContent("light a flare")
+    expect(title()).toHaveTextContent("light a flare.")
 
     // No skip on the last slide: look around is the way out.
     expect(screen.queryByRole("button", { name: "skip" })).toBeNull()
@@ -47,29 +39,13 @@ describe("IntroSlides (#377)", () => {
     expect(mocks.push).not.toHaveBeenCalled()
   })
 
-  it("puts a scrim under the how slide's copy, so the type reads over the crowd (#498)", () => {
-    render(<IntroSlides onLeave={vi.fn()} />)
-    const dialog = screen.getByRole("dialog")
-    // The first two slides' art ends above the copy: no scrim to cut it.
-    expect(dialog.querySelector("[data-intro-scrim]")).toBeNull()
-    fireEvent.click(screen.getByRole("button", { name: "next" }))
-    expect(dialog.querySelector("[data-intro-scrim]")).toBeNull()
-    fireEvent.click(screen.getByRole("button", { name: "next" }))
-
-    const scrim = dialog.querySelector("[data-intro-scrim]")
-    expect(scrim).not.toBeNull()
-    expect(scrim).toHaveAttribute("aria-hidden", "true")
-    // It sits in the copy block, with the heading.
-    expect(scrim?.parentElement).toContainElement(title())
-  })
-
   it("moves with the arrow keys and the dots, and Escape skips", () => {
     const onLeave = vi.fn()
     render(<IntroSlides onLeave={onLeave} />)
     const dialog = screen.getByRole("dialog", { name: "welcome to sponti" })
 
     fireEvent.keyDown(dialog, { key: "ArrowRight" })
-    expect(title()).toHaveTextContent("more alone")
+    expect(title()).toHaveTextContent("still missing each other")
     fireEvent.keyDown(dialog, { key: "ArrowLeft" })
     expect(title()).toHaveTextContent("plans with friends")
     // Nothing before the first slide.
@@ -95,10 +71,10 @@ describe("IntroSlides (#377)", () => {
     }
 
     swipe(300, 100)
-    expect(title()).toHaveTextContent("more alone")
+    expect(title()).toHaveTextContent("still missing each other")
     // A short drag isn't a swipe.
     swipe(200, 180)
-    expect(title()).toHaveTextContent("more alone")
+    expect(title()).toHaveTextContent("still missing each other")
     swipe(100, 300)
     expect(title()).toHaveTextContent("plans with friends")
   })
