@@ -28,6 +28,7 @@ import {
   XIcon,
 } from "@/components/icons"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { featureFlags } from "@/lib/feature-flags"
 import {
   distanceFromUser,
   eventCoords,
@@ -1388,11 +1389,17 @@ export function MapView({
         {/* Filter bar */}
         <div className="pointer-events-auto mx-3 space-y-2 rounded-2xl border border-border/60 bg-background/90 p-2 shadow-(--shadow-card) backdrop-blur-md">
           <div className="flex items-center gap-2">
-            <TimeTabs
-              value={timeFilter}
-              onChange={changeTimeFilter}
-              className="flex-1"
-            />
+            {featureFlags.timeTabs ? (
+              <TimeTabs
+                value={timeFilter}
+                onChange={changeTimeFilter}
+                className="flex-1"
+              />
+            ) : (
+              <p className="min-w-0 flex-1 truncate pl-1 text-sm font-semibold">
+                flares near you
+              </p>
+            )}
             <button
               type="button"
               onClick={() => snap(dock === "mid" ? "peek" : "mid")}
@@ -1499,7 +1506,9 @@ export function MapView({
               onRetry={geo.request}
             />
           )}
-          <TimeTabs value={timeFilter} onChange={changeTimeFilter} />
+          {featureFlags.timeTabs && (
+            <TimeTabs value={timeFilter} onChange={changeTimeFilter} />
+          )}
           <TypeChips
             active={typeFilters}
             onToggle={toggleType}

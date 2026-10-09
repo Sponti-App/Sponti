@@ -33,6 +33,7 @@ import {
   QuietFlareCard,
 } from "@/components/map-view"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { featureFlags } from "@/lib/feature-flags"
 import { isLive } from "@/lib/api/events"
 import type { PublicMapPin } from "@/lib/api/public-map"
 import { getIdeaPins, type FlareIdea } from "@/lib/flare-ideas"
@@ -236,25 +237,27 @@ export function SignedOutMap({
           <div className="pointer-events-auto mx-3 rounded-2xl border border-border/60 bg-background/90 p-3 shadow-(--shadow-card) backdrop-blur-md">
             <p className="text-base font-semibold">{title}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
-            <Tabs
-              value={timeFilter}
-              onValueChange={(next) => {
-                haptic("selection")
-                setTimeFilter(next as TimeFilter)
-              }}
-            >
-              <TabsList className="mt-3 h-8 w-full">
-                <TabsTrigger value="live" className="text-xs">
-                  live
-                </TabsTrigger>
-                <TabsTrigger value="upcoming" className="text-xs">
-                  soon
-                </TabsTrigger>
-                <TabsTrigger value="all" className="text-xs">
-                  all
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            {featureFlags.timeTabs && (
+              <Tabs
+                value={timeFilter}
+                onValueChange={(next) => {
+                  haptic("selection")
+                  setTimeFilter(next as TimeFilter)
+                }}
+              >
+                <TabsList className="mt-3 h-8 w-full">
+                  <TabsTrigger value="live" className="text-xs">
+                    live
+                  </TabsTrigger>
+                  <TabsTrigger value="upcoming" className="text-xs">
+                    soon
+                  </TabsTrigger>
+                  <TabsTrigger value="all" className="text-xs">
+                    all
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
           </div>
         )}
 

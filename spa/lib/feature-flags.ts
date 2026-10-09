@@ -45,6 +45,14 @@ export const featureFlags = {
    */
   plusOne: FEATURE_PROFILE === "full",
 
+  /**
+   * The live/soon/all tabs in the map's sheet and list, signed in and signed
+   * out. Off in both profiles: with the view toggle named "now" (the map) and
+   * "soon" (the calendar), a second live/soon split on the map confused
+   * testers. Off, the map shows every flare that hasn't ended ("all").
+   */
+  timeTabs: false,
+
   // #482: `browseBeforeSignup`, `introV2` and `locationAsk` below are the new
   // onboarding. A device can switch them all on at runtime ("new onboarding" in
   // settings), whatever the build profile. Read them through

@@ -121,13 +121,12 @@ test.describe("browse before sign-up (#389)", () => {
     // The area is in the sheet's heading, not a chip of its own (#496).
     await expect(page.getByText("berlin", { exact: true })).toHaveCount(0)
 
-    // The live / soon tabs narrow the pins.
-    await page.getByRole("tab", { name: "live" }).click()
-    await expect(flarePins(page)).toHaveCount(1)
+    // No live / soon tabs: the live and the later flare are both on the map.
+    await expect(page.locator("[data-map-dock]").getByRole("tab")).toHaveCount(
+      0
+    )
     await expect(page.locator('[data-flare-pin="public-live"]')).toBeVisible()
-    await page.getByRole("tab", { name: "soon" }).click()
     await expect(page.locator('[data-flare-pin="public-soon"]')).toBeVisible()
-    await expect(flarePins(page)).toHaveCount(1)
 
     // The pins came from the public endpoint, around berlin.
     expect(publicRequests.length).toBeGreaterThan(0)

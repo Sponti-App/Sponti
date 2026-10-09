@@ -82,4 +82,50 @@ test.describe("signed-in coach marks (#497)", () => {
     await checklist.getByRole("button", { name: "hide" }).click()
     await expect(mark(page)).toHaveAttribute("data-coach-mark", "circles")
   })
+
+  test("the circles mark sits over the nav, not under it", async ({ page }) => {
+    await openHome(page)
+    await expect(mark(page)).toHaveAttribute("data-coach-mark", "circles")
+
+    // The topmost element over the circles tab is the overlay: the home is
+    // a fixed layer of its own, so the marks are portalled above the nav.
+    const tab = page.locator(
+      'nav[aria-label="Primary"] button[aria-label="Circles"]'
+    )
+    const box = await tab.boundingBox()
+    expect(box).not.toBeNull()
+    const onTop = await page.evaluate(
+      ({ x, y }) =>
+        document.elementFromPoint(x, y)?.closest("[data-coach-mark]") !== null,
+      { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 }
+    )
+    expect(onTop).toBe(true)
+  })
+
+  test("they don't pop up after something the user opened closes", async ({
+    page,
+  }) => {
+    await openHome(page, { checklist: true })
+    const checklist = page.getByRole("region", { name: "get going" })
+    await expect(checklist).toBeVisible()
+
+    // The user opens the menu while the checklist is up, then closes it and
+    // hides the checklist: the marks wait for the next arrival.
+    await page.getByRole("button", { name: "Open menu" }).click()
+    // Close it on the scrim, to the right of the drawer.
+    await page.mouse.click(page.viewportSize()!.width - 8, 400)
+    await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible()
+    await checklist.getByRole("button", { name: "hide" }).click()
+    await expect(checklist).toBeHidden()
+    await page.waitForTimeout(600)
+    await expect(mark(page)).toHaveCount(0)
+
+    // The next arrival on the home (a reload would re-run the init script
+    // that makes the checklist pending again).
+    const nav = page.getByRole("navigation", { name: "Primary" })
+    await nav.getByRole("button", { name: "Circles" }).click()
+    await expect(page).toHaveURL(/\/circles/)
+    await nav.getByRole("button", { name: "Home" }).click()
+    await expect(mark(page)).toHaveAttribute("data-coach-mark", "circles")
+  })
 })
