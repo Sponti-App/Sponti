@@ -7,10 +7,17 @@
 
 import type { ReactNode } from "react"
 import {
+  BeerSteinIcon,
   CalendarBlankIcon,
+  CoffeeIcon,
+  FilmSlateIcon,
+  FlowerIcon,
   ListIcon,
   MapTrifoldIcon,
+  MountainsIcon,
+  PingPongIcon,
   UserPlusIcon,
+  WindIcon,
 } from "@/components/icons"
 import { FLARE_IDEAS, type FlareIdea } from "@/lib/flare-ideas.data"
 import { EVENT_TYPES } from "@/types/utils"
@@ -101,6 +108,19 @@ export const IDEAS: FlareIdea[] = (() => {
   return picked
 })()
 
+/** Round 3: an idea's own icon, so "climb the hill" isn't the circles
+ * icon. The build gives every idea an optional `icon`, falling back to its
+ * category's. */
+const IDEA_ICONS: Record<string, typeof MountainsIcon> = {
+  "climb the hill at viktoriapark": MountainsIcon,
+  "run, skate or fly a kite on tempelhofer feld": WindIcon,
+  "a beer by the neuer see": BeerSteinIcon,
+}
+
+export function ideaIcon(idea: FlareIdea) {
+  return IDEA_ICONS[idea.title] ?? typeOf(idea.category).icon
+}
+
 export function typeOf(value: string) {
   return EVENT_TYPES.find((t) => t.value === value) ?? EVENT_TYPES[0]
 }
@@ -108,22 +128,16 @@ export function typeOf(value: string) {
 // ---- the frame --------------------------------------------------------------
 
 /** Where the idea spots sit on the faux map (percent of the frame). */
-const SPOTS: { top: string; left: string; type: string }[] = [
-  { top: "24%", left: "14%", type: "sports" },
-  { top: "28%", left: "52%", type: "party" },
-  { top: "41%", left: "12%", type: "culture" },
-  { top: "40%", left: "66%", type: "hobby" },
-  { top: "48%", left: "38%", type: "hangout" },
+const SPOTS: { top: string; left: string; Icon: typeof MountainsIcon }[] = [
+  { top: "24%", left: "14%", Icon: PingPongIcon },
+  { top: "28%", left: "52%", Icon: MountainsIcon },
+  { top: "41%", left: "12%", Icon: FilmSlateIcon },
+  { top: "40%", left: "66%", Icon: FlowerIcon },
+  { top: "48%", left: "38%", Icon: CoffeeIcon },
 ]
 
 /** A map stand-in: streets, parks, the idea spots and the user's dot. */
-export function FauxMap({
-  flares,
-  ideasEmphasized = false,
-}: {
-  flares: Flares
-  ideasEmphasized?: boolean
-}) {
+export function FauxMap({ flares }: { flares: Flares }) {
   return (
     <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
       <svg className="absolute inset-0 size-full" preserveAspectRatio="none">
@@ -159,23 +173,17 @@ export function FauxMap({
         />
       </svg>
 
-      {SPOTS.map((spot) => {
-        const Icon = typeOf(spot.type).icon
-        return (
-          <span
-            key={spot.top + spot.left}
-            style={{ top: spot.top, left: spot.left }}
-            className={cn(
-              "absolute flex items-center justify-center rounded-full border border-dashed bg-background/80",
-              ideasEmphasized
-                ? "size-10 border-primary/70 text-foreground"
-                : "size-8 border-muted-foreground/60 text-muted-foreground"
-            )}
-          >
-            <Icon className="size-4" />
-          </span>
-        )
-      })}
+      {/* Round 3: every idea spot gets the peach dotted outline and the
+          larger size. */}
+      {SPOTS.map(({ top, left, Icon }) => (
+        <span
+          key={top + left}
+          style={{ top, left }}
+          className="absolute flex size-10 items-center justify-center rounded-full border-2 border-dashed border-primary/80 bg-background/85 text-foreground"
+        >
+          <Icon className="size-[18px]" />
+        </span>
+      ))}
 
       {flares === "2" &&
         MOCK_FLARES.map((flare, i) => {

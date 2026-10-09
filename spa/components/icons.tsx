@@ -25,6 +25,7 @@ import { ArrowsOutIcon as PhArrowsOut } from "@phosphor-icons/react/dist/ssr/Arr
 import { AtIcon as PhAt } from "@phosphor-icons/react/dist/ssr/At"
 import { BankIcon as PhBank } from "@phosphor-icons/react/dist/ssr/Bank"
 import { BarbellIcon as PhBarbell } from "@phosphor-icons/react/dist/ssr/Barbell"
+import { BeerSteinIcon as PhBeerStein } from "@phosphor-icons/react/dist/ssr/BeerStein"
 import { BellIcon as PhBell } from "@phosphor-icons/react/dist/ssr/Bell"
 import { BugIcon as PhBug } from "@phosphor-icons/react/dist/ssr/Bug"
 import { CalendarBlankIcon as PhCalendarBlank } from "@phosphor-icons/react/dist/ssr/CalendarBlank"
@@ -37,15 +38,18 @@ import { ChatTextIcon as PhChatText } from "@phosphor-icons/react/dist/ssr/ChatT
 import { CheckIcon as PhCheck } from "@phosphor-icons/react/dist/ssr/Check"
 import { CircleNotchIcon as PhCircleNotch } from "@phosphor-icons/react/dist/ssr/CircleNotch"
 import { ClockIcon as PhClock } from "@phosphor-icons/react/dist/ssr/Clock"
+import { CoffeeIcon as PhCoffee } from "@phosphor-icons/react/dist/ssr/Coffee"
 import { ConfettiIcon as PhConfetti } from "@phosphor-icons/react/dist/ssr/Confetti"
 import { CopyIcon as PhCopy } from "@phosphor-icons/react/dist/ssr/Copy"
 import { DotsThreeIcon as PhDotsThree } from "@phosphor-icons/react/dist/ssr/DotsThree"
 import { EnvelopeIcon as PhEnvelope } from "@phosphor-icons/react/dist/ssr/Envelope"
 import { EyeSlashIcon as PhEyeSlash } from "@phosphor-icons/react/dist/ssr/EyeSlash"
 import { FileTextIcon as PhFileText } from "@phosphor-icons/react/dist/ssr/FileText"
+import { FilmSlateIcon as PhFilmSlate } from "@phosphor-icons/react/dist/ssr/FilmSlate"
 import { FireIcon as PhFire } from "@phosphor-icons/react/dist/ssr/Fire"
 import { FlagIcon as PhFlag } from "@phosphor-icons/react/dist/ssr/Flag"
 import { FlameIcon as PhFlame } from "@phosphor-icons/react/dist/ssr/Flame"
+import { FlowerIcon as PhFlower } from "@phosphor-icons/react/dist/ssr/Flower"
 import { ForkKnifeIcon as PhForkKnife } from "@phosphor-icons/react/dist/ssr/ForkKnife"
 import { FunnelSimpleIcon as PhFunnelSimple } from "@phosphor-icons/react/dist/ssr/FunnelSimple"
 import { GearIcon as PhGear } from "@phosphor-icons/react/dist/ssr/Gear"
@@ -65,10 +69,12 @@ import { MapTrifoldIcon as PhMapTrifold } from "@phosphor-icons/react/dist/ssr/M
 import { MegaphoneIcon as PhMegaphone } from "@phosphor-icons/react/dist/ssr/Megaphone"
 import { MinusIcon as PhMinus } from "@phosphor-icons/react/dist/ssr/Minus"
 import { MoonIcon as PhMoon } from "@phosphor-icons/react/dist/ssr/Moon"
+import { MountainsIcon as PhMountains } from "@phosphor-icons/react/dist/ssr/Mountains"
 import { NavigationArrowIcon as PhNavigationArrow } from "@phosphor-icons/react/dist/ssr/NavigationArrow"
 import { PaletteIcon as PhPalette } from "@phosphor-icons/react/dist/ssr/Palette"
 import { PaperPlaneRightIcon as PhPaperPlaneRight } from "@phosphor-icons/react/dist/ssr/PaperPlaneRight"
 import { PencilSimpleIcon as PhPencilSimple } from "@phosphor-icons/react/dist/ssr/PencilSimple"
+import { PingPongIcon as PhPingPong } from "@phosphor-icons/react/dist/ssr/PingPong"
 import { PlusIcon as PhPlus } from "@phosphor-icons/react/dist/ssr/Plus"
 import { QuestionIcon as PhQuestion } from "@phosphor-icons/react/dist/ssr/Question"
 import { QrCodeIcon as PhQrCode } from "@phosphor-icons/react/dist/ssr/QrCode"
@@ -91,6 +97,7 @@ import { UserPlusIcon as PhUserPlus } from "@phosphor-icons/react/dist/ssr/UserP
 import { UsersIcon as PhUsers } from "@phosphor-icons/react/dist/ssr/Users"
 import { WarningIcon as PhWarning } from "@phosphor-icons/react/dist/ssr/Warning"
 import { WarningCircleIcon as PhWarningCircle } from "@phosphor-icons/react/dist/ssr/WarningCircle"
+import { WindIcon as PhWind } from "@phosphor-icons/react/dist/ssr/Wind"
 import { WineIcon as PhWine } from "@phosphor-icons/react/dist/ssr/Wine"
 import { XIcon as PhX } from "@phosphor-icons/react/dist/ssr/X"
 import { XCircleIcon as PhXCircle } from "@phosphor-icons/react/dist/ssr/XCircle"
@@ -119,6 +126,7 @@ export const ArrowsOutIcon = appIcon(PhArrowsOut, "arrows-out")
 export const AtIcon = appIcon(PhAt, "at")
 export const BankIcon = appIcon(PhBank, "bank")
 export const BarbellIcon = appIcon(PhBarbell, "barbell")
+export const BeerSteinIcon = appIcon(PhBeerStein, "beer-stein")
 export const BellIcon = appIcon(PhBell, "bell")
 export const BugIcon = appIcon(PhBug, "bug")
 export const CalendarBlankIcon = appIcon(PhCalendarBlank, "calendar-blank")
@@ -131,15 +139,18 @@ export const ChatTextIcon = appIcon(PhChatText, "chat-text")
 export const CheckIcon = appIcon(PhCheck, "check")
 export const CircleNotchIcon = appIcon(PhCircleNotch, "circle-notch")
 export const ClockIcon = appIcon(PhClock, "clock")
+export const CoffeeIcon = appIcon(PhCoffee, "coffee")
 export const ConfettiIcon = appIcon(PhConfetti, "confetti")
 export const CopyIcon = appIcon(PhCopy, "copy")
 export const DotsThreeIcon = appIcon(PhDotsThree, "dots-three")
 export const EnvelopeIcon = appIcon(PhEnvelope, "envelope")
 export const EyeSlashIcon = appIcon(PhEyeSlash, "eye-slash")
 export const FileTextIcon = appIcon(PhFileText, "file-text")
+export const FilmSlateIcon = appIcon(PhFilmSlate, "film-slate")
 export const FireIcon = appIcon(PhFire, "fire")
 export const FlagIcon = appIcon(PhFlag, "flag")
 export const FlameIcon = appIcon(PhFlame, "flame")
+export const FlowerIcon = appIcon(PhFlower, "flower")
 export const ForkKnifeIcon = appIcon(PhForkKnife, "fork-knife")
 export const FunnelSimpleIcon = appIcon(PhFunnelSimple, "funnel-simple")
 export const GearIcon = appIcon(PhGear, "gear")
@@ -162,6 +173,7 @@ export const MapTrifoldIcon = appIcon(PhMapTrifold, "map-trifold")
 export const MegaphoneIcon = appIcon(PhMegaphone, "megaphone")
 export const MinusIcon = appIcon(PhMinus, "minus")
 export const MoonIcon = appIcon(PhMoon, "moon")
+export const MountainsIcon = appIcon(PhMountains, "mountains")
 export const NavigationArrowIcon = appIcon(
   PhNavigationArrow,
   "navigation-arrow"
@@ -172,6 +184,7 @@ export const PaperPlaneRightIcon = appIcon(
   "paper-plane-right"
 )
 export const PencilSimpleIcon = appIcon(PhPencilSimple, "pencil-simple")
+export const PingPongIcon = appIcon(PhPingPong, "ping-pong")
 export const PlusIcon = appIcon(PhPlus, "plus")
 export const QuestionIcon = appIcon(PhQuestion, "question")
 export const QrCodeIcon = appIcon(PhQrCode, "qr-code")
@@ -194,6 +207,7 @@ export const UserPlusIcon = appIcon(PhUserPlus, "user-plus")
 export const UsersIcon = appIcon(PhUsers, "users")
 export const WarningIcon = appIcon(PhWarning, "warning")
 export const WarningCircleIcon = appIcon(PhWarningCircle, "warning-circle")
+export const WindIcon = appIcon(PhWind, "wind")
 export const WineIcon = appIcon(PhWine, "wine")
 export const XIcon = appIcon(PhX, "x")
 export const XCircleIcon = appIcon(PhXCircle, "x-circle")

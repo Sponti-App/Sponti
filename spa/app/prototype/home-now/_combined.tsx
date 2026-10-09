@@ -18,11 +18,11 @@ import {
   FauxMap,
   FlareRail,
   FRIENDS,
+  ideaIcon,
   IDEAS,
   Panel,
   TopBar,
   TypeChips,
-  typeOf,
   type VariantProps,
 } from "./_shared"
 
@@ -36,7 +36,7 @@ function IdeaCards({ onStub }: Pick<VariantProps, "onStub">) {
   return (
     <div className="scrollbar-none flex snap-x scroll-px-3 gap-2 overflow-x-auto px-3">
       {IDEAS.map((idea, i) => {
-        const Icon = typeOf(idea.category).icon
+        const Icon = ideaIcon(idea)
         return (
           <div
             key={idea.id}
@@ -50,9 +50,12 @@ function IdeaCards({ onStub }: Pick<VariantProps, "onStub">) {
                 type="button"
                 aria-label={`make "${idea.title}" a flare`}
                 onClick={() => onStub(`light: ${idea.title}`)}
-                className="flex size-9 items-center justify-center rounded-full bg-foreground text-background active:scale-95"
+                className="-m-1.5 flex size-10 items-center justify-center rounded-full active:scale-95"
               >
-                <PlusIcon className="size-4" />
+                {/* A light 28px disc in a 40px tap area. */}
+                <span className="flex size-7 items-center justify-center rounded-full bg-muted text-foreground">
+                  <PlusIcon className="size-3.5" />
+                </span>
               </button>
             </div>
             <p className="mt-3 line-clamp-2 text-sm leading-snug font-semibold">
@@ -192,7 +195,7 @@ export function Combined(props: VariantProps) {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-background">
-      <FauxMap flares={flares} ideasEmphasized={flares === "0"} />
+      <FauxMap flares={flares} />
       <TopBar viewer={viewer} />
       <Dock>{dock}</Dock>
     </div>
