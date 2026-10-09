@@ -209,9 +209,60 @@ test.describe("landing page (#467, #506)", () => {
       "href",
       "/menu/terms"
     )
+    // The footer's one extra: the app's own about page.
+    await expect(legal.getByRole("link", { name: "about" })).toHaveAttribute(
+      "href",
+      "/menu/about-sponti"
+    )
     await legal.getByRole("link", { name: "privacy" }).click()
     await expect(page).toHaveURL(/\/menu\/privacy$/)
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
+  })
+
+  test("the footer's about link opens the about page, signed out", async ({
+    page,
+  }) => {
+    await page.goto("/landing")
+    await page
+      .getByRole("navigation", { name: "legal" })
+      .getByRole("link", { name: "about" })
+      .click()
+    await expect(page).toHaveURL(/\/menu\/about-sponti$/)
+    await expect(
+      page.getByRole("heading", { level: 1, name: "about sponti" })
+    ).toBeVisible()
+    await expect(
+      page.getByText("sponti does not want your attention")
+    ).toBeVisible()
+  })
+
+  test("how it works tells it from the host's side, then the guest's", async ({
+    page,
+  }) => {
+    await page.goto("/landing")
+    const steps = page.locator("[data-landing-step]")
+    const host = page.getByRole("tab", { name: "as a host" })
+    const guest = page.getByRole("tab", { name: "as a guest" })
+
+    // The host's three steps come first.
+    await expect(host).toHaveAttribute("aria-selected", "true")
+    await expect(guest).toHaveAttribute("aria-selected", "false")
+    await expect(steps).toHaveCount(3)
+    await expect(steps.nth(0)).toContainText("say what you're up to")
+
+    await guest.click()
+    await expect(guest).toHaveAttribute("aria-selected", "true")
+    await expect(steps).toHaveCount(3)
+    await expect(steps.nth(0)).toContainText("check the map or calendar")
+    await expect(steps.nth(1)).toContainText("tap and join")
+    await expect(steps.nth(2)).toContainText("get the walking route")
+    await expect(steps.nth(2)).toContainText("on your way")
+
+    // Arrow keys move between the tabs, back to the host's.
+    await guest.press("ArrowLeft")
+    await expect(host).toHaveAttribute("aria-selected", "true")
+    await expect(host).toBeFocused()
+    await expect(steps.nth(0)).toContainText("say what you're up to")
   })
 })
 
@@ -225,12 +276,16 @@ test.describe("landing host routing (#467)", () => {
     expect(await response.text()).toContain("data-landing-cta")
   })
 
-  test("the landing host serves the legal pages", async ({ request }) => {
-    const response = await request.get("/menu/impressum", {
-      headers: HOST,
-      maxRedirects: 0,
-    })
-    expect(response.status()).toBe(200)
+  test("the landing host serves the legal pages and about", async ({
+    request,
+  }) => {
+    for (const path of ["/menu/impressum", "/menu/about-sponti"]) {
+      const response = await request.get(path, {
+        headers: HOST,
+        maxRedirects: 0,
+      })
+      expect(response.status(), path).toBe(200)
+    }
   })
 
   test("other paths on the landing host go to the app, path and query kept", async ({

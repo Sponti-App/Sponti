@@ -75,6 +75,9 @@ import { cn } from "@/lib/utils"
 
 const AppUrl = createContext("/")
 
+/** The footer's one page beyond the legal three: the app's own about page. */
+const FOOTER_EXTRA_LINKS = [{ href: "/menu/about-sponti", label: "about" }]
+
 export function LandingPage({ appUrl }: { appUrl: string }) {
   return (
     <AppUrl.Provider value={appUrl}>
@@ -97,7 +100,11 @@ export function LandingPage({ appUrl }: { appUrl: string }) {
         </main>
         <footer className="flex flex-col items-center gap-3 border-t border-border/60 px-6 pt-12 pb-6">
           <Waitlist />
-          <LegalLinks className="mt-8" />
+          <LegalLinks
+            className="mt-8"
+            navLabel="legal and about"
+            extraLinks={FOOTER_EXTRA_LINKS}
+          />
         </footer>
       </div>
     </AppUrl.Provider>
@@ -502,7 +509,9 @@ function Problem() {
     <section
       ref={ref}
       aria-labelledby="landing-problem"
-      className="mx-auto grid w-full max-w-6xl items-center gap-14 px-6 py-24 lg:grid-cols-2 lg:px-8 lg:py-36"
+      // No top padding: the section above (Why) already pads this join, so a
+      // top here would double the gap.
+      className="mx-auto grid w-full max-w-6xl items-center gap-14 px-6 pb-24 lg:grid-cols-2 lg:px-8 lg:pb-36"
     >
       <Reveal>
         <p className="lp-eyebrow">we&apos;ve all been there.</p>
@@ -516,7 +525,8 @@ function Problem() {
           a poll in the group chat, a link in an email, an event nobody opens, a
           calendar invite at midnight.
           <span className="mt-3 block font-semibold text-balance text-foreground">
-            basically, a group chat is where plans go to die.
+            sponti helps you easily gather your friends, or join them, without
+            all the noise.
           </span>
         </p>
       </Reveal>
@@ -558,26 +568,62 @@ function Problem() {
   )
 }
 
-const HOW = [
-  {
-    title: "say what you're up to",
-    body: "right now, or at a time you pick.",
-    Screen: ComposeScreen,
-  },
-  {
-    title: "your people see it",
-    body: "on their map, not in a muted chat.",
-    Screen: MapScreen,
-  },
-  {
-    title: "they tap join",
-    body: "and you see who's coming.",
-    Screen: JoinScreen,
-  },
+type Role = "host" | "guest"
+
+const ROLES: { id: Role; label: string }[] = [
+  { id: "host", label: "as a host" },
+  { id: "guest", label: "as a guest" },
 ]
 
-/** The page's one dark band: indigo, the app's phones, a coral glow. */
+type HowStepContent = {
+  title: string
+  body: string
+  Screen: (props: { play?: boolean }) => React.ReactNode
+}
+
+/** The same three beats from each side: lighting a flare, and joining one. */
+const HOW: Record<Role, HowStepContent[]> = {
+  host: [
+    {
+      title: "say what you're up to",
+      body: "right now, or at a time you pick.",
+      Screen: ComposeScreen,
+    },
+    {
+      title: "your people see it",
+      body: "on their map, not in a muted chat.",
+      Screen: MapScreen,
+    },
+    {
+      title: "they tap join",
+      body: "and you see who's coming.",
+      Screen: JoinScreen,
+    },
+  ],
+  guest: [
+    {
+      title: "check the map or calendar",
+      body: "to see what's happening right now, or what's coming up.",
+      Screen: MapScreen,
+    },
+    {
+      title: "tap and join",
+      body: "to see the details, like who else is going, and share updates.",
+      Screen: JoinScreen,
+    },
+    {
+      title: "get the walking route",
+      body: "and let the host know you're on your way.",
+      Screen: RouteScreen,
+    },
+  ],
+}
+
+/** The page's one dark band: indigo, the app's phones, a coral glow. A switch
+ * under the headline tells it from the host's side or the guest's; the
+ * steps (and their phones) swap with it. */
 function How() {
+  const [role, setRole] = useState<Role>("host")
   return (
     <section
       aria-labelledby="landing-how"
@@ -596,13 +642,83 @@ function How() {
         <h2 id="landing-how" className="lp-display mt-4 text-5xl lg:text-8xl">
           one tap. <span className="lp-coral">broadcast</span> or join.
         </h2>
+        <RoleTabs role={role} onChange={setRole} />
       </Reveal>
-      <ol className="mx-auto mt-14 grid max-w-6xl gap-6 lg:grid-cols-3">
-        {HOW.map((step, i) => (
-          <HowStep key={step.title} index={i} {...step} />
-        ))}
-      </ol>
+      <div
+        role="tabpanel"
+        id={`how-panel-${role}`}
+        aria-labelledby={`how-tab-${role}`}
+      >
+        {/* Keyed by role, so a switch replays each step's reveal and phone. */}
+        <ol
+          key={role}
+          className="mx-auto mt-10 grid max-w-6xl gap-6 lg:grid-cols-3"
+        >
+          {HOW[role].map((step, i) => (
+            <HowStep key={step.title} index={i} {...step} />
+          ))}
+        </ol>
+      </div>
     </section>
+  )
+}
+
+/** A two-way switch as ARIA tabs: arrows, Home and End move between them. */
+function RoleTabs({
+  role,
+  onChange,
+}: {
+  role: Role
+  onChange: (role: Role) => void
+}) {
+  function onKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    const at = ROLES.findIndex((r) => r.id === role)
+    const next =
+      event.key === "ArrowRight"
+        ? (at + 1) % ROLES.length
+        : event.key === "ArrowLeft"
+          ? (at - 1 + ROLES.length) % ROLES.length
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? ROLES.length - 1
+              : at
+    if (next === at) return
+    event.preventDefault()
+    onChange(ROLES[next].id)
+    document.getElementById(`how-tab-${ROLES[next].id}`)?.focus()
+  }
+  return (
+    <div
+      role="tablist"
+      aria-label="see how it works as"
+      className="mt-8 inline-flex rounded-full bg-white/10 p-1"
+    >
+      {ROLES.map(({ id, label }) => {
+        const selected = role === id
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            id={`how-tab-${id}`}
+            aria-selected={selected}
+            aria-controls={`how-panel-${id}`}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onChange(id)}
+            onKeyDown={onKeyDown}
+            className={cn(
+              "h-10 rounded-full px-5 text-sm font-medium transition-colors duration-300 outline-none focus-visible:ring-3 focus-visible:ring-ring/60",
+              selected
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {label}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -611,12 +727,7 @@ function HowStep({
   title,
   body,
   Screen,
-}: {
-  index: number
-  title: string
-  body: string
-  Screen: (props: { play?: boolean }) => React.ReactNode
-}) {
+}: HowStepContent & { index: number }) {
   const [ref, inView] = useInView<HTMLLIElement>(0.45)
   return (
     <li ref={ref} data-landing-step>
@@ -677,8 +788,7 @@ function Now() {
           what&apos;s happening <span className="lp-coral">now.</span>
         </h2>
         <p className="mt-5 max-w-md text-muted-foreground lg:text-lg">
-          every flare is a little light on your friends&apos; map. open the app
-          and see who&apos;s out, and where.
+          open the app and see who&apos;s up to something, and where.
         </p>
       </Reveal>
       <div ref={frame} className="mx-3 mt-12 lg:mx-auto lg:max-w-7xl">

@@ -37,7 +37,13 @@ describe("routeLandingHost (#467)", () => {
   })
 
   it("serves the legal pages on the landing host", () => {
-    for (const path of ["/menu/impressum", "/menu/privacy", "/menu/terms"]) {
+    for (const path of [
+      "/menu/impressum",
+      "/menu/privacy",
+      "/menu/terms",
+      // Not legal text, but the landing's footer links to it.
+      "/menu/about-sponti",
+    ]) {
       expect(route("sponti.fun", path)).toEqual({ action: "next" })
       expect(route("sponti.fun", `${path}/`)).toEqual({ action: "next" })
     }
