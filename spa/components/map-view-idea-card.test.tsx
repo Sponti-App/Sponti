@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { EventItem, EventType } from "@/lib/api/events"
 import type { FlareIdea } from "@/lib/flare-ideas"
+import type { AnywhereIdea } from "@/lib/flare-ideas-anywhere"
 import { EVENT_TYPES } from "@/types/utils"
 
 const mocks = vi.hoisted(() => ({
@@ -105,6 +106,52 @@ describe("ideaPrefill", () => {
         address: undefined,
         coordinates: [13.3872879, 52.5474434],
       },
+    })
+  })
+})
+
+const sofa: AnywhereIdea = {
+  id: "anywhere-sofa-no-plans",
+  title: "two friends, one sofa, zero plans",
+  blurb: "the best plan has no steps",
+  category: "hangout",
+}
+
+describe("ideaPrefill, place-less (#515)", () => {
+  it("carries the title and category and no place, so the composer keeps 'my location'", () => {
+    expect(ideaPrefill(sofa)).toEqual({
+      title: "two friends, one sofa, zero plans",
+      category: "hangout",
+    })
+    expect(ideaPrefill(sofa)).not.toHaveProperty("place")
+  })
+})
+
+describe("QuietFlareCard, place-less idea (#515)", () => {
+  it("shows no place name or distance, says where it happens and lights with no place", async () => {
+    const onLight = vi.fn()
+    render(
+      <QuietFlareCard
+        type={hangout}
+        idea={sofa}
+        center={BERLIN}
+        onLight={onLight}
+      />
+    )
+
+    expect(
+      screen.getByText("two friends, one sofa, zero plans")
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/at your place or wherever you are/)
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/ km| m$/)).not.toBeInTheDocument()
+    expect(screen.getByText("idea")).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole("button", { name: "light a flare" }))
+    expect(onLight).toHaveBeenCalledWith({
+      title: "two friends, one sofa, zero plans",
+      category: "hangout",
     })
   })
 })

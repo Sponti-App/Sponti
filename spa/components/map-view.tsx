@@ -51,6 +51,12 @@ import {
   getIdeasNearWidening,
   type FlareIdea,
 } from "@/lib/flare-ideas"
+import {
+  ANYWHERE_PLACE_LINE,
+  type FloatingIdea,
+  type Idea,
+} from "@/lib/flare-ideas-anywhere"
+import { useFloatingIdeas } from "@/lib/use-floating-ideas"
 import { haptic } from "@/lib/haptics"
 import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
 import { useOptionalActionFeedback } from "@/components/action-feedback"
@@ -81,7 +87,7 @@ export function IdeaPinMark({
   idea,
   selected,
 }: {
-  idea: FlareIdea
+  idea: Pick<Idea, "category">
   selected: boolean
 }) {
   const match = EVENT_TYPES.find((t) => t.value === idea.category)
@@ -112,6 +118,73 @@ export const IDEA_PIN_SLOTS = [
   { top: "47%", left: "36%" },
 ]
 
+// Where floating ideas (#515) sit on the static fallback: in the gaps around
+// the position dot (the centre) that the flare and idea slots leave free, so a
+// floating pin never covers a flare pin (a flare pin with its chips is about
+// 100 px tall, which is why they sit between the flare slots and not under
+// them) and stays above the dock.
+export const FLOATING_PIN_SLOTS = [
+  { top: "54%", left: "33%" },
+  { top: "54%", left: "57%" },
+  { top: "40%", left: "46%" },
+]
+
+// A floating idea's pin (#515). It reuses the idea pin look, so it reads as an
+// idea and never as a flare. `data-floating-idea` (not `data-idea-pin`) tells
+// it from a spot's pin.
+export function FloatingIdeaStaticPin({
+  idea,
+  index,
+  selected,
+  onSelect,
+}: {
+  idea: FloatingIdea
+  index: number
+  selected: boolean
+  onSelect: (idea: FloatingIdea) => void
+}) {
+  return (
+    <button
+      type="button"
+      data-floating-idea={idea.id}
+      aria-label={`idea: ${idea.title}`}
+      onClick={() => onSelect(idea)}
+      style={FLOATING_PIN_SLOTS[index % FLOATING_PIN_SLOTS.length]}
+      className="absolute z-[1]"
+    >
+      <IdeaPinMark idea={idea} selected={selected} />
+    </button>
+  )
+}
+
+export function FloatingIdeaMarker({
+  idea,
+  selected,
+  onSelect,
+}: {
+  idea: FloatingIdea
+  selected: boolean
+  onSelect: (idea: FloatingIdea) => void
+}) {
+  return (
+    <AdvancedMarker
+      position={idea.position}
+      anchorPoint={AdvancedMarkerAnchorPoint.CENTER}
+      title={idea.title}
+      zIndex={selected ? 400 : 0}
+      onClick={() => onSelect(idea)}
+    >
+      <div
+        data-floating-idea={idea.id}
+        role="button"
+        aria-label={`idea: ${idea.title}`}
+      >
+        <IdeaPinMark idea={idea} selected={selected} />
+      </div>
+    </AdvancedMarker>
+  )
+}
+
 // Where the fallback's flare pins sit: pseudo positions around the centre
 // (there is no real projection), percent from the top-left. All four stay
 // above the dock at mid, so every pin can be tapped.
@@ -137,6 +210,7 @@ function StaticMapFallback({
   setPreviewEvent,
   highlightId = null,
   ideas = [],
+  floatingIdeas = [],
   selectedIdeaId = null,
   onIdeaSelect,
 }: {
@@ -152,8 +226,9 @@ function StaticMapFallback({
   /** The flare whose rail card is centred; its pin grows. */
   highlightId?: string | null
   ideas?: FlareIdea[]
+  floatingIdeas?: FloatingIdea[]
   selectedIdeaId?: string | null
-  onIdeaSelect?: (idea: FlareIdea) => void
+  onIdeaSelect?: (idea: Idea) => void
 }) {
   const drawn = events.slice(0, FLARE_PIN_SLOTS.length)
   const previewIndex = previewEvent
@@ -193,6 +268,15 @@ function StaticMapFallback({
         >
           <IdeaPinMark idea={idea} selected={selectedIdeaId === idea.id} />
         </button>
+      ))}
+      {floatingIdeas.map((idea, i) => (
+        <FloatingIdeaStaticPin
+          key={idea.id}
+          idea={idea}
+          index={i}
+          selected={selectedIdeaId === idea.id}
+          onSelect={(picked) => onIdeaSelect?.(picked)}
+        />
       ))}
       {drawn.map((event, i) => {
         const dist = distanceFromUser(event, user)?.label ?? ""
@@ -339,6 +423,7 @@ function GoogleMapContent({
   recenterTick,
   highlightId,
   ideas,
+  floatingIdeas,
   selectedIdeaId,
   onIdeaSelect,
 }: {
@@ -358,8 +443,9 @@ function GoogleMapContent({
   /** The flare whose rail card is centred; its pin grows. */
   highlightId: string | null
   ideas: FlareIdea[]
+  floatingIdeas: FloatingIdea[]
   selectedIdeaId: string | null
-  onIdeaSelect: (idea: FlareIdea) => void
+  onIdeaSelect: (idea: Idea) => void
 }) {
   const status = useApiLoadingStatus()
   const map = useMap()
@@ -404,6 +490,7 @@ function GoogleMapContent({
         setPreviewEvent={setPreviewEvent}
         highlightId={highlightId}
         ideas={ideas}
+        floatingIdeas={floatingIdeas}
         selectedIdeaId={selectedIdeaId}
         onIdeaSelect={onIdeaSelect}
       />
@@ -452,6 +539,14 @@ function GoogleMapContent({
             <IdeaPinMark idea={idea} selected={selectedIdeaId === idea.id} />
           </div>
         </AdvancedMarker>
+      ))}
+      {floatingIdeas.map((idea) => (
+        <FloatingIdeaMarker
+          key={`floating:${idea.id}`}
+          idea={idea}
+          selected={selectedIdeaId === idea.id}
+          onSelect={onIdeaSelect}
+        />
       ))}
       {events.map((event) => {
         const coords = eventCoords(event)
@@ -581,7 +676,12 @@ export function quietIdea(
 }
 
 // What the composer opens with when an idea is lit.
-export function ideaPrefill(idea: FlareIdea): ComposerPrefill {
+// A spot fills in its place. An idea that is not tied to one (#515) leaves the
+// place out, and the composer then starts on "my location", its own default,
+// resolved when the flare is posted: nothing to invent here, and nothing wrong
+// to keep if the person's position isn't known yet.
+export function ideaPrefill(idea: Idea): ComposerPrefill {
+  if (!idea.place) return { title: idea.title, category: idea.category }
   return {
     title: idea.title,
     category: idea.category,
@@ -855,14 +955,31 @@ export function MapView({
       flarePositions,
     ]
   )
+  // Floating ideas (#515): place-less ideas around the person's own position
+  // (the camera's centre until there is one). They keep clear of the flares
+  // and of the idea spots above.
+  const floatingObstacles = useMemo(
+    () => [...flarePositions, ...ideaPins.map((i) => i.place)],
+    [flarePositions, ideaPins]
+  )
+  const floatingIdeas = useFloatingIdeas({
+    anchor: geo.coords ?? cameraCenter,
+    nowMs,
+    categories: typeFilters,
+    obstacles: floatingObstacles,
+    ready: !map.loading,
+  })
   // The idea the person tapped on the map. Looked up in the current pins, so
   // it closes by itself if a chip or the clock takes its pin away.
   const [tappedIdeaId, setTappedIdeaId] = useState<string | null>(null)
-  const tappedIdea = ideaPins.find((i) => i.id === tappedIdeaId) ?? null
+  const tappedIdea: Idea | null =
+    ideaPins.find((i) => i.id === tappedIdeaId) ??
+    floatingIdeas.find((i) => i.id === tappedIdeaId) ??
+    null
   const tappedIdeaType = tappedIdea
     ? EVENT_TYPES.find((t) => t.value === tappedIdea.category)
     : undefined
-  const selectIdeaPin = (pin: FlareIdea) => {
+  const selectIdeaPin = (pin: Idea) => {
     haptic("selection")
     setPreviewEvent(null)
     setTappedIdeaId((prev) => (prev === pin.id ? null : pin.id))
@@ -1104,6 +1221,7 @@ export function MapView({
             recenterTick={recenterTick}
             highlightId={highlightId}
             ideas={ideaPins}
+            floatingIdeas={floatingIdeas}
             selectedIdeaId={selectedIdeaId}
             onIdeaSelect={selectIdeaPin}
           />
@@ -1120,6 +1238,7 @@ export function MapView({
           setPreviewEvent={setPreviewEvent}
           highlightId={highlightId}
           ideas={ideaPins}
+          floatingIdeas={floatingIdeas}
           selectedIdeaId={selectedIdeaId}
           onIdeaSelect={selectIdeaPin}
         />
@@ -2046,7 +2165,7 @@ export function QuietFlareCard({
   onHideIdeas,
 }: {
   type: (typeof EVENT_TYPES)[number]
-  idea: FlareIdea | null
+  idea: Idea | null
   center: GeoCoords | null
   onLight: (prefill: ComposerPrefill) => void
   /** Only for a card opened from an idea pin: closes it back to the rail. The
@@ -2056,8 +2175,11 @@ export function QuietFlareCard({
   onHideIdeas?: () => void
 }) {
   const Icon = type.icon
+  // An idea that isn't tied to a spot (#515) has no place name or distance.
   const distance =
-    idea && center ? formatDistance(haversineMeters(center, idea.place)) : null
+    idea?.place && center
+      ? formatDistance(haversineMeters(center, idea.place))
+      : null
   return (
     <div
       data-quiet-card={idea ? "idea" : "generic"}
@@ -2079,9 +2201,16 @@ export function QuietFlareCard({
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {idea
-              ? [idea.place.name, distance].filter(Boolean).join(" · ")
+              ? idea.place
+                ? [idea.place.name, distance].filter(Boolean).join(" · ")
+                : ANYWHERE_PLACE_LINE
               : "start one and your circles will see it"}
           </p>
+          {idea && !idea.place && idea.blurb && (
+            <p className="truncate text-xs text-muted-foreground">
+              {idea.blurb}
+            </p>
+          )}
         </div>
         {idea && (
           <span className="shrink-0 self-start rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">

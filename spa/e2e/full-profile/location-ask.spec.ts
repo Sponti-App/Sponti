@@ -236,12 +236,15 @@ test.describe("location ask (#408)", () => {
     await expect(sheet(page)).toHaveCount(0)
     await expect(banner(page)).toContainText("showing hamburg")
     await expect.poll(() => centres.at(-1)).toEqual(HAMBURG)
+    // The spots are berlin-only; the place-less ideas (#515) still float
+    // around the map's centre, so the hint points at them.
     await expect(
       page.getByText(
-        "no flares yet, and no idea spots there yet: they're berlin-only for now."
+        "no flares yet, and no idea spots there yet. the dashed ones work anywhere, tap one."
       )
     ).toBeVisible()
     await expect(ideaPins(page)).toHaveCount(0)
+    await expect(page.locator("[data-floating-idea]")).toHaveCount(3)
   })
 
   test("without the place search, the chips are the search", async ({

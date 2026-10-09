@@ -26,6 +26,8 @@ import { LegalLinks } from "@/components/legal-links"
 import { FlarePin } from "@/components/map-flare-pin"
 import {
   FLARE_PIN_SLOTS,
+  FloatingIdeaMarker,
+  FloatingIdeaStaticPin,
   IDEA_PIN_SLOTS,
   IdeaPinMark,
   QuietFlareCard,
@@ -34,11 +36,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { isLive } from "@/lib/api/events"
 import type { PublicMapPin } from "@/lib/api/public-map"
 import { getIdeaPins, type FlareIdea } from "@/lib/flare-ideas"
+import { type FloatingIdea, type Idea } from "@/lib/flare-ideas-anywhere"
 import type { GeoCoords } from "@/lib/geolocation"
 import { hasIdeaSpots } from "@/lib/location-ask"
 import { BERLIN_START } from "@/lib/location-choice"
 import { haptic } from "@/lib/haptics"
 import { useIdeasHidden } from "@/lib/idea-preferences"
+import { useFloatingIdeas } from "@/lib/use-floating-ideas"
 import { usePublicMapPins } from "@/lib/use-public-map-pins"
 import { EVENT_TYPES } from "@/types/utils"
 
@@ -52,6 +56,11 @@ const SIGNED_OUT_ZOOM = 13
 type TimeFilter = "live" | "upcoming" | "all"
 
 const NO_IDEA_CATEGORIES = new Set<never>()
+
+// The map opens at zoom 13 (about 12 m per pixel), so the floating ideas'
+// ring (#515) is wider than the signed-in map's 220 m to keep the pins a
+// thumb apart.
+const FLOATING_RADIUS_METERS = 800
 
 function pinLabel(pin: PublicMapPin, now: number): string {
   const type = EVENT_TYPES.find((t) => t.value === pin.type)?.label ?? pin.type
@@ -78,7 +87,7 @@ export function SignedOutMap({
   /** An open-to-all pin was tapped. */
   onPin: (pin: PublicMapPin) => void
   /** An idea card's "light a flare". */
-  onLightIdea: (idea: FlareIdea) => void
+  onLightIdea: (idea: Idea) => void
 }) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   const [nowMs, setNowMs] = useState(0)
@@ -121,13 +130,29 @@ export function SignedOutMap({
         : [],
     [ideasHidden, nowMs, center, pins]
   )
+  // Floating ideas (#515) around the visitor's position, or the map's start
+  // until there is one, clear of the open-to-all pins and the idea spots.
+  const obstacles = useMemo(
+    () => [...pins.map((p) => p.position), ...ideas.map((i) => i.place)],
+    [pins, ideas]
+  )
+  const floatingIdeas = useFloatingIdeas({
+    anchor: center,
+    nowMs,
+    categories: NO_IDEA_CATEGORIES,
+    obstacles,
+    radiusMeters: FLOATING_RADIUS_METERS,
+  })
   const [tappedIdeaId, setTappedIdeaId] = useState<string | null>(null)
-  const tappedIdea = ideas.find((i) => i.id === tappedIdeaId) ?? null
+  const tappedIdea: Idea | null =
+    ideas.find((i) => i.id === tappedIdeaId) ??
+    floatingIdeas.find((i) => i.id === tappedIdeaId) ??
+    null
   const tappedIdeaType = tappedIdea
     ? EVENT_TYPES.find((t) => t.value === tappedIdea.category)
     : undefined
 
-  const selectIdea = (idea: FlareIdea) => {
+  const selectIdea = (idea: Idea) => {
     haptic("selection")
     setTappedIdeaId((prev) => (prev === idea.id ? null : idea.id))
   }
@@ -150,15 +175,21 @@ export function SignedOutMap({
         ? "open to all, live now and later today. tap one to see more."
         : ideas.length > 0
           ? "no flares yet. the dashed spots are ideas, tap one."
-          : hasIdeaSpots(center)
-            ? "no flares yet."
-            : "no flares yet, and no idea spots there yet: they're berlin-only for now."
+          : floatingIdeas.length > 0
+            ? // #515: the spots are berlin-only, the floating ideas work anywhere.
+              hasIdeaSpots(center)
+              ? "no flares yet. the dashed ones are ideas, tap one."
+              : "no flares yet, and no idea spots there yet. the dashed ones work anywhere, tap one."
+            : hasIdeaSpots(center)
+              ? "no flares yet."
+              : "no flares yet, and no idea spots there yet: they're berlin-only for now."
 
   const canvasProps = {
     center,
     now: nowMs,
     pins: visiblePins,
     ideas,
+    floatingIdeas,
     selectedIdeaId: tappedIdea?.id ?? null,
     onPin: selectPin,
     onIdea: selectIdea,
@@ -239,9 +270,10 @@ type CanvasProps = {
   now: number
   pins: PublicMapPin[]
   ideas: FlareIdea[]
+  floatingIdeas: FloatingIdea[]
   selectedIdeaId: string | null
   onPin: (pin: PublicMapPin) => void
-  onIdea: (idea: FlareIdea) => void
+  onIdea: (idea: Idea) => void
 }
 
 /** No maps key (local dev, e2e) or the SDK failed: a flat backdrop with the
@@ -250,6 +282,7 @@ function SignedOutStaticMap({
   now,
   pins,
   ideas,
+  floatingIdeas,
   selectedIdeaId,
   onPin,
   onIdea,
@@ -279,6 +312,15 @@ function SignedOutStaticMap({
           <IdeaPinMark idea={idea} selected={selectedIdeaId === idea.id} />
         </button>
       ))}
+      {floatingIdeas.map((idea, i) => (
+        <FloatingIdeaStaticPin
+          key={idea.id}
+          idea={idea}
+          index={i}
+          selected={selectedIdeaId === idea.id}
+          onSelect={onIdea}
+        />
+      ))}
       {pins.slice(0, FLARE_PIN_SLOTS.length).map((pin, i) => (
         <button
           key={pin.id}
@@ -296,7 +338,16 @@ function SignedOutStaticMap({
 }
 
 function SignedOutGoogleMap(props: CanvasProps) {
-  const { center, now, pins, ideas, selectedIdeaId, onPin, onIdea } = props
+  const {
+    center,
+    now,
+    pins,
+    ideas,
+    floatingIdeas,
+    selectedIdeaId,
+    onPin,
+    onIdea,
+  } = props
   const status = useApiLoadingStatus()
   const { resolvedTheme } = useTheme()
 
@@ -332,6 +383,14 @@ function SignedOutGoogleMap(props: CanvasProps) {
             <IdeaPinMark idea={idea} selected={selectedIdeaId === idea.id} />
           </div>
         </AdvancedMarker>
+      ))}
+      {floatingIdeas.map((idea) => (
+        <FloatingIdeaMarker
+          key={`floating:${idea.id}`}
+          idea={idea}
+          selected={selectedIdeaId === idea.id}
+          onSelect={onIdea}
+        />
       ))}
       {pins.map((pin) => (
         <AdvancedMarker

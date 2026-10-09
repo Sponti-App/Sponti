@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { ANYWHERE_IDEAS } from "./flare-ideas.anywhere.data"
 import { FLARE_IDEAS } from "./flare-ideas.data"
 import {
   KEPT_FLARE_DRAFT_KEY,
@@ -22,6 +23,15 @@ describe("kept flare draft (#389)", () => {
   it("round-trips an idea", () => {
     keepFlareDraft({ idea: IDEA })
     expect(readKeptFlareDraft()).toEqual({ idea: IDEA })
+  })
+
+  it("round-trips a place-less idea (#515) by its id alone", () => {
+    const anywhere = ANYWHERE_IDEAS[0]
+    keepFlareDraft({ idea: anywhere })
+    expect(window.sessionStorage.getItem(KEPT_FLARE_DRAFT_KEY)).toBe(
+      JSON.stringify({ ideaId: anywhere.id })
+    )
+    expect(readKeptFlareDraft()).toEqual({ idea: anywhere })
   })
 
   it("round-trips a blank flare", () => {

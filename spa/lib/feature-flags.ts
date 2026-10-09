@@ -105,4 +105,16 @@ export const featureFlags = {
    * `MOBILE_GATE_MODE` in lib/mobile-gate.ts.
    */
   mobileGate: process.env.NEXT_PUBLIC_MOBILE_GATE !== "off",
+
+  /**
+   * Floating ideas (#515): a few place-less ideas ("have some friends over",
+   * "a picnic blanket and nothing else") drawn as idea pins around the
+   * person's own position, on the signed-in and the signed-out map, so a
+   * quiet map still has something to tap. They follow the "show ideas on the
+   * map" setting. On in BOTH profiles, because a first visit with an empty
+   * map is what testers hit. The opt-out is a kill switch: set
+   * NEXT_PUBLIC_FLOATING_IDEAS=off. Anything else, including unset, leaves
+   * it on.
+   */
+  floatingIdeas: process.env.NEXT_PUBLIC_FLOATING_IDEAS !== "off",
 } as const
