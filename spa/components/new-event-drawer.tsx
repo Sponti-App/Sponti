@@ -451,6 +451,9 @@ export type ComposerPrefill = {
   category?: EventType
   // Lands as a picked place, as if it had been searched and selected.
   place?: DraftEventLocation
+  // #522: friends to invite, as a private flare to just them ("flare with
+  // mia" on the quiet home). Connection user ids.
+  inviteIds?: string[]
 }
 
 // `openDrawer` is also wired straight to onClick handlers, which hand it the
@@ -458,7 +461,7 @@ export type ComposerPrefill = {
 // prefill so those callers open the composer exactly as before.
 export function normalizePrefill(input: unknown): ComposerPrefill | null {
   if (!input || typeof input !== "object") return null
-  const { title, category, place } = input as Record<string, unknown>
+  const { title, category, place, inviteIds } = input as Record<string, unknown>
   const prefill: ComposerPrefill = {}
   if (typeof title === "string" && title.trim()) prefill.title = title
   if (EVENT_TYPES.some((t) => t.value === category)) {
@@ -466,6 +469,12 @@ export function normalizePrefill(input: unknown): ComposerPrefill | null {
   }
   if (place && typeof place === "object") {
     prefill.place = place as DraftEventLocation
+  }
+  if (Array.isArray(inviteIds)) {
+    const ids = inviteIds.filter(
+      (id): id is string => typeof id === "string" && id.length > 0
+    )
+    if (ids.length > 0) prefill.inviteIds = ids
   }
   return Object.keys(prefill).length > 0 ? prefill : null
 }
@@ -509,6 +518,7 @@ export function getInitialEventDraftState(
     ...defaults,
     title: prefill.title?.slice(0, TITLE_MAX_LENGTH) ?? defaults.title,
     eventType: prefill.category ?? defaults.eventType,
+    directlyInvitedIds: prefill.inviteIds ?? defaults.directlyInvitedIds,
     ...(place && {
       whereType: "search" as const,
       searchQuery: place.name,
@@ -532,6 +542,7 @@ type DraftFields = Pick<
   | "selectedLocation"
   | "searchQuery"
   | "guestLimit"
+  | "directlyInvitedIds"
 >
 
 const DRAFT_FIELD_KEYS: Array<keyof DraftFields> = [
@@ -547,20 +558,23 @@ const DRAFT_FIELD_KEYS: Array<keyof DraftFields> = [
   "selectedLocation",
   "searchQuery",
   "guestLimit",
+  "directlyInvitedIds",
 ]
 
 /**
  * Whether the person has not started a flare of their own: the draft is still
  * the empty one, or still exactly what a prefill put there. A prefill only
  * lands on an untouched draft; anything typed, picked or invited is theirs and
- * is kept as it was. `baselines` are the states that count as untouched.
+ * is kept as it was. `baselines` are the states that count as untouched. The
+ * invited friends are a field like the others (#522): a prefill can invite
+ * someone, and that draft stays untouched until the list changes.
  */
 export function isUntouchedDraft(
   current: DraftFields,
   baselines: Array<DraftFields | null>,
-  touched: { audience: boolean; invitedCount: number }
+  touched: { audience: boolean }
 ): boolean {
-  if (touched.audience || touched.invitedCount > 0) return false
+  if (touched.audience) return false
   return baselines.some(
     (baseline) =>
       baseline !== null &&
@@ -829,6 +843,7 @@ export function NewEventDrawer({
   const audiencePromptRef = useRef<HTMLDivElement>(null)
 
   const prefilledDraftRef = useRef<DraftFields | null>(null)
+  const audiencePinnedRef = useRef(false)
   const draftUntouchedRef = useRef(true)
 
   const resetEventDraft = useCallback(
@@ -872,7 +887,13 @@ export function NewEventDrawer({
       setAllowPlusOne(initialState.allowPlusOne)
       setSubmitError(initialState.submitError)
       audienceTouchedRef.current = false
-      if (connections.length === 0) {
+      // #522: a prefill that invites friends is a private flare to just them,
+      // and the friends list loading later doesn't switch it to "all".
+      audiencePinnedRef.current = initialState.directlyInvitedIds.length > 0
+      if (audiencePinnedRef.current) {
+        setIsOpen(false)
+        setAudience("")
+      } else if (connections.length === 0) {
         setIsOpen(true)
         setAudience(initialState.audience)
       } else {
@@ -901,12 +922,10 @@ export function NewEventDrawer({
         selectedLocation,
         searchQuery,
         guestLimit,
+        directlyInvitedIds,
       },
       [getInitialEventDraftState(), prefilledDraftRef.current],
-      {
-        audience: audienceTouchedRef.current,
-        invitedCount: directlyInvitedIds.length,
-      }
+      { audience: audienceTouchedRef.current }
     )
   })
 
@@ -968,7 +987,7 @@ export function NewEventDrawer({
         setCircles(nextCircles)
         setAudienceLoading(false)
         setAudienceError(null)
-        if (audienceTouchedRef.current) return
+        if (audienceTouchedRef.current || audiencePinnedRef.current) return
         if (nextConnections.length === 0) {
           setIsOpen(true)
         } else {

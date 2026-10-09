@@ -79,12 +79,21 @@ import { useAuth } from "@/components/auth-provider"
 import { eventDisplayTitle } from "@/lib/flare-title"
 import { useTheme } from "next-themes"
 import { IdeaIcon } from "@/components/idea-icon"
+import { InviteDialog } from "@/components/qr-share-sheet"
+import {
+  NoFriendsPanel,
+  pickQuietIdeas,
+  QuietIdeaCards,
+  RecentPeoplePanel,
+  useQuietPeople,
+} from "@/components/quiet-home"
+import { recentConnections } from "@/lib/quiet-home"
 
-// What the map draws for an idea (#244). Deliberately the opposite of a flare
-// pin: smaller, filled with the muted chip colour, a dashed outline and a grey
-// icon, and no peach anywhere (peach is the CTA colour and means "a real
-// flare"). The dashed outline reads as "a suggestion, nothing planned here" in
-// both light and dark. The padding is only a bigger touch target.
+// What the map draws for an idea (#244). Not a flare pin: a dashed ring with
+// the idea's own icon (#524) and no fill colour. #522 (Patrick, 2026-10-09):
+// the ring is peach and the pin a size up, so ideas read as an invitation on
+// a quiet map; dashed still says "a suggestion, nothing planned here", where
+// a real flare is a solid circle. The padding is only a bigger touch target.
 export function IdeaPinMark({
   idea,
   selected,
@@ -95,13 +104,11 @@ export function IdeaPinMark({
   return (
     <div className="flex cursor-pointer items-center justify-center p-2">
       <div
-        className={`flex h-7 w-7 items-center justify-center rounded-full border border-dashed bg-muted text-muted-foreground shadow-md transition-transform duration-200 ${
-          selected
-            ? "scale-125 border-foreground/70 text-foreground"
-            : "border-muted-foreground/70"
+        className={`flex h-9 w-9 items-center justify-center rounded-full border-2 border-dashed bg-background text-foreground shadow-md transition-transform duration-200 ${
+          selected ? "scale-125 border-primary" : "border-primary/80"
         }`}
       >
-        <IdeaIcon idea={idea} className="h-3.5 w-3.5" />
+        <IdeaIcon idea={idea} className="h-4 w-4" />
       </div>
     </div>
   )
@@ -996,7 +1003,60 @@ export function MapView({
   const selectedIdeaId = tappedIdea?.id ?? idea?.id ?? null
 
   const showDockCard = !!dockCard && dock === "mid" && !tappedIdea
-  const showRail = dock === "mid" && !quietType && !tappedIdea && !showDockCard
+
+  // #522 (behind `quietHome`): with no flares, the sheet shows the people you
+  // recently connected with (or an invite with none), and nearby idea cards.
+  // Only once the results are real, like the quiet card above.
+  const quietPeople = useQuietPeople(featureFlags.quietHome)
+  const recentPeople = useMemo(
+    () =>
+      quietPeople && nowMs > 0 ? recentConnections(quietPeople, nowMs) : [],
+    [quietPeople, nowMs]
+  )
+  const quietIdeas = useMemo(
+    () => pickQuietIdeas(ideaPins, floatingIdeas, cameraCenter),
+    [ideaPins, floatingIdeas, cameraCenter]
+  )
+  const quietPeopleBlock: "recent" | "none" | null =
+    recentPeople.length > 0
+      ? "recent"
+      : quietPeople && quietPeople.length === 0
+        ? "none"
+        : null
+  const showQuietHome =
+    featureFlags.quietHome &&
+    dock === "mid" &&
+    !quietType &&
+    !tappedIdea &&
+    !showDockCard &&
+    !!cameraCenter &&
+    nowMs > 0 &&
+    !map.loading &&
+    !mapFailedEmpty &&
+    visibleEvents.length === 0 &&
+    typeFilters.size === 0 &&
+    (quietPeopleBlock !== null || quietIdeas.length > 0)
+  const [quietInviteOpen, setQuietInviteOpen] = useState(false)
+  // The chips, the count and "list" wait until there is something to sort:
+  // two flares, or a chip already on (so it can be turned off).
+  const unfilteredActiveCount = useMemo(
+    () =>
+      nowMs > 0
+        ? mapEvents.filter((e) => new Date(e.endAt).getTime() >= nowMs).length
+        : 0,
+    [mapEvents, nowMs]
+  )
+  const showFilterBar =
+    !featureFlags.quietHome ||
+    unfilteredActiveCount >= 2 ||
+    typeFilters.size > 0
+
+  const showRail =
+    dock === "mid" &&
+    !quietType &&
+    !tappedIdea &&
+    !showDockCard &&
+    !showQuietHome
   const highlightId = showRail
     ? visibleEvents.some((e) => e.id === railFocusId)
       ? railFocusId
@@ -1326,6 +1386,23 @@ export function MapView({
             onLight={(prefill) => lightFlare(prefill)}
             onHideIdeas={hideIdeas}
           />
+        ) : showQuietHome ? (
+          <div data-quiet-home className="flex flex-col gap-2">
+            {quietPeopleBlock === "recent" ? (
+              <RecentPeoplePanel
+                people={recentPeople}
+                now={nowMs}
+                onFlareWith={(person) => openDrawer({ inviteIds: [person.id] })}
+              />
+            ) : quietPeopleBlock === "none" ? (
+              <NoFriendsPanel onInvite={() => setQuietInviteOpen(true)} />
+            ) : null}
+            <QuietIdeaCards
+              ideas={quietIdeas}
+              center={cameraCenter}
+              onLight={(next) => openDrawer(ideaPrefill(next))}
+            />
+          </div>
         ) : showRail ? (
           <div
             key={`${timeFilter}:${[...typeFilters].join(",")}`}
@@ -1386,58 +1463,68 @@ export function MapView({
         ) : null}
 
         {/* Filter bar */}
-        <div className="pointer-events-auto mx-3 space-y-2 rounded-2xl border border-border/60 bg-background/90 p-2 shadow-(--shadow-card) backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            {featureFlags.timeTabs ? (
-              <TimeTabs
-                value={timeFilter}
-                onChange={changeTimeFilter}
-                className="flex-1"
-              />
-            ) : (
-              <p className="min-w-0 flex-1 truncate pl-1 text-sm font-semibold">
-                flares near you
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => snap(dock === "mid" ? "peek" : "mid")}
-              aria-label={dock === "mid" ? "hide cards" : "show cards"}
-              className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 text-xs font-medium active:scale-[0.97]"
-            >
-              {dock === "mid" ? (
-                <>
-                  <CaretDownIcon className="h-3.5 w-3.5" />
-                  hide
-                </>
+        {showFilterBar && (
+          <div className="pointer-events-auto mx-3 space-y-2 rounded-2xl border border-border/60 bg-background/90 p-2 shadow-(--shadow-card) backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              {featureFlags.timeTabs ? (
+                <TimeTabs
+                  value={timeFilter}
+                  onChange={changeTimeFilter}
+                  className="flex-1"
+                />
               ) : (
-                <>
-                  {map.loading ? (
-                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-                  ) : (
-                    <span>{visibleEvents.length}</span>
-                  )}
-                  nearby
-                </>
+                <p className="min-w-0 flex-1 truncate pl-1 text-sm font-semibold">
+                  flares near you
+                </p>
               )}
-            </button>
-            <button
-              type="button"
-              onClick={() => snap("full")}
-              className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-card px-2.5 text-xs font-medium text-primary active:scale-[0.97]"
-            >
-              <ListBulletsIcon className="h-3.5 w-3.5" />
-              list
-            </button>
+              <button
+                type="button"
+                onClick={() => snap(dock === "mid" ? "peek" : "mid")}
+                aria-label={dock === "mid" ? "hide cards" : "show cards"}
+                className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 text-xs font-medium active:scale-[0.97]"
+              >
+                {dock === "mid" ? (
+                  <>
+                    <CaretDownIcon className="h-3.5 w-3.5" />
+                    hide
+                  </>
+                ) : (
+                  <>
+                    {map.loading ? (
+                      <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                    ) : (
+                      <span>{visibleEvents.length}</span>
+                    )}
+                    nearby
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => snap("full")}
+                className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-card px-2.5 text-xs font-medium text-primary active:scale-[0.97]"
+              >
+                <ListBulletsIcon className="h-3.5 w-3.5" />
+                list
+              </button>
+            </div>
+            <TypeChips
+              active={typeFilters}
+              onToggle={toggleType}
+              onClear={clearTypes}
+              className="mx-0 px-0"
+            />
           </div>
-          <TypeChips
-            active={typeFilters}
-            onToggle={toggleType}
-            onClear={clearTypes}
-            className="mx-0 px-0"
-          />
-        </div>
+        )}
       </div>
+
+      {quietInviteOpen && (
+        <InviteDialog
+          displayName={authUser?.displayName ?? "you"}
+          handle={authUser?.username ?? "you"}
+          onClose={() => setQuietInviteOpen(false)}
+        />
+      )}
 
       {/* Full: a plain list page between the header chips and the nav. The
           list scrolls natively; the handle and the title row drag it down to

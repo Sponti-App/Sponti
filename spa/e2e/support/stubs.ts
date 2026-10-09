@@ -254,6 +254,11 @@ type StubBackendOptions = {
    */
   friends?: number
   /**
+   * When those connections were accepted (their `updatedAt`), for the quiet
+   * home's "you recently connected" row (#522). Unset, they carry no date.
+   */
+  connectedAt?: string
+  /**
    * The flares GET /events/mine/upcoming lists as hosted by the user (#459's
    * "light your first flare" row). When set, even to [], a flare made with
    * POST /events joins the list. Unset, the list stays empty.
@@ -347,6 +352,7 @@ export async function stubBackend(
       requesterId: user.id,
       receiverId: `friend-${i}`,
       status: "accepted",
+      ...(options.connectedAt && { updatedAt: options.connectedAt }),
       otherUser: {
         _id: `friend-${i}`,
         username: `friend${i}`,

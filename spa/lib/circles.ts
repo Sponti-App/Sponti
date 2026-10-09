@@ -7,6 +7,10 @@ export type Connection = {
   displayName: string
   username: string
   note?: string
+  avatarUrl?: string | null
+  /** #522: when the connection was last updated, which for an accepted one
+   * is when it was accepted. */
+  connectedAt?: string
 }
 
 export type ConnectionRequest = {

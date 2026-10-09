@@ -27,9 +27,17 @@ async function openSignedOutMap(
   await expect(nav(page)).toBeVisible()
 }
 
+/** The highest floating idea: with no maps key the map is a static
+ * stand-in with fixed slots, and the lower ones sit under the quiet sheet
+ * (#522), where a person would pan the map first. */
 async function firstTitle(page: Page) {
-  const label = await floating(page).first().getAttribute("aria-label")
-  return (label ?? "").replace(/^idea: /, "")
+  let best: { top: number; label: string } | null = null
+  for (const pin of await floating(page).all()) {
+    const box = await pin.boundingBox()
+    const label = (await pin.getAttribute("aria-label")) ?? ""
+    if (box && (!best || box.y < best.top)) best = { top: box.y, label }
+  }
+  return (best?.label ?? "").replace(/^idea: /, "")
 }
 
 test.describe("floating ideas, signed out (#515)", () => {

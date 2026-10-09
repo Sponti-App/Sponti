@@ -507,6 +507,16 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
     })
   }
 
+  // #522: the chips only show with two flares or more, so the chip tests
+  // add flares of other types (party, culture) that leave drinks and food
+  // quiet.
+  const otherFlares = (
+    location: StubApiEvent["location"] = inBerlin
+  ): StubApiEvent[] => [
+    flareAt({ location, _id: "e-party", title: "house party", type: "party" }),
+    flareAt({ location, _id: "e-culture", title: "gallery", type: "culture" }),
+  ]
+
   const openBerlinMap = async (page: Page, mapEvents: StubApiEvent[]) => {
     await page.clock.setFixedTime(JUNE)
     await stubBackend(page, { mapEvents, coords: BERLIN_COORDS })
@@ -525,6 +535,7 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
         title: "sunset frisbee",
         type: "sports",
       }),
+      ...otherFlares(),
     ])
     await chip(page, "drinks").click()
 
@@ -555,7 +566,7 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
     // search widens to (#515), so even a busy category has nothing to offer.
     await page.clock.setFixedTime(JUNE)
     await stubBackend(page, {
-      mapEvents: [],
+      mapEvents: otherFlares({ type: "Point", coordinates: [13.1, 52.6] }),
       coords: { lat: 52.6, lng: 13.1 },
     })
     await page.goto("/")
@@ -575,7 +586,13 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
   })
 
   test("outside berlin the generic card stays", async ({ page }) => {
-    await stubBackend(page, { mapEvents: [] })
+    // makeStubFlare's own place is san francisco, where the stub user is.
+    await stubBackend(page, {
+      mapEvents: [
+        makeStubFlare({ _id: "e-party", type: "party" }),
+        makeStubFlare({ _id: "e-culture", type: "culture" }),
+      ],
+    })
     await page.goto("/")
     await chip(page, "drinks").click()
     await expect(quietCard(page)).toHaveAttribute("data-quiet-card", "generic")
@@ -589,6 +606,7 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
         title: "drinks after work",
         type: "drinks",
       }),
+      ...otherFlares(),
     ])
     await chip(page, "drinks").click()
     await expect(rail(page).getByText("drinks after work")).toBeVisible()
@@ -605,6 +623,7 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
         title: "sunset frisbee",
         type: "sports",
       }),
+      ...otherFlares(),
     ])
     const railCard = rail(page).locator('[data-rail-id="e-sports"]')
     // Not the colour: a rail card is tinted by who can join (#493), and an
@@ -622,18 +641,84 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
   })
 })
 
-test.describe("empty rail (#331)", () => {
-  test("no flares nearby: the rail shows the empty state with its one call to action", async ({
+test.describe("quiet home (#522)", () => {
+  const quietHome = (page: Page) => page.locator("[data-quiet-home]")
+
+  test("no flares and no friends: an invite and idea cards, no chips and no rail", async ({
     page,
   }) => {
     await stubBackend(page, { mapEvents: [] })
     await page.goto("/")
     await expect(nav(page)).toBeVisible()
 
-    await expect(rail(page).getByText(/no flares within \d+ km/)).toBeVisible()
+    await expect(quietHome(page)).toBeVisible()
     await expect(
-      rail(page).getByRole("button", { name: "connect with your friends" })
+      quietHome(page).getByText("sponti works with your people")
     ).toBeVisible()
-    await expect(rail(page).locator("[data-rail-id]")).toHaveCount(0)
+    await expect(
+      quietHome(page).getByRole("button", { name: "invite a friend" })
+    ).toBeVisible()
+    // Place-less ideas work anywhere, even in the stub's san francisco.
+    await expect(quietHome(page).locator("[data-quiet-idea]")).toHaveCount(3)
+    // The old empty state, the chips and the count are gone.
+    await expect(rail(page)).toHaveCount(0)
+    // (The list page, closed, still holds its own empty state.)
+    await expect(dock(page).getByText(/no flares within \d+ km/)).toHaveCount(0)
+    await expect(
+      dock(page).getByRole("button", { name: "drinks", exact: true })
+    ).toHaveCount(0)
+    // No peach in the sheet: the nav's flare button is the one.
+    await expect(quietHome(page).locator(".bg-accent")).toHaveCount(0)
+  })
+
+  test("recent connections: a flare with one of them opens the composer with them invited", async ({
+    page,
+  }) => {
+    await stubBackend(page, {
+      mapEvents: [],
+      friends: 2,
+      connectedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+    })
+    await page.goto("/")
+    await expect(nav(page)).toBeVisible()
+
+    const people = quietHome(page).locator("[data-quiet-people]")
+    await expect(people.getByText("you recently connected")).toBeVisible()
+    await expect(people.getByText("lena", { exact: true })).toBeVisible()
+    await expect(people.getByText("2 days ago").first()).toBeVisible()
+
+    await people.getByRole("button", { name: "light a flare with mia" }).click()
+    await expect(
+      page.getByPlaceholder("what's the plan? e.g. drinks after work")
+    ).toBeInViewport()
+    // A private flare to just mia: no circle, one invited friend.
+    await expect(
+      page.getByRole("button", { name: "friends · 1", exact: true })
+    ).toBeVisible()
+  })
+
+  test("friends, but none recent: just the idea cards", async ({ page }) => {
+    await stubBackend(page, { mapEvents: [], friends: 2 })
+    await page.goto("/")
+    await expect(nav(page)).toBeVisible()
+    await expect(quietHome(page).locator("[data-quiet-idea]")).toHaveCount(3)
+    await expect(quietHome(page).locator("[data-quiet-people]")).toHaveCount(0)
+    await expect(
+      quietHome(page).locator("[data-quiet-no-friends]")
+    ).toHaveCount(0)
+  })
+
+  test("an idea card opens the composer with the idea", async ({ page }) => {
+    await stubBackend(page, { mapEvents: [] })
+    await page.goto("/")
+    const card = quietHome(page).locator("[data-quiet-idea]").first()
+    const title = (await card.getAttribute("aria-label"))!.replace(
+      "light a flare: ",
+      ""
+    )
+    await card.click()
+    await expect(
+      page.getByPlaceholder("what's the plan? e.g. drinks after work")
+    ).toHaveValue(title)
   })
 })

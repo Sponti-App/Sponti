@@ -28,7 +28,35 @@ const ROSES = "roses are blooming at humboldthain"
 const BEER = "beer garden evening at prater"
 const FLEA = "hunt for treasure at the mauerpark flea market"
 
-async function openBerlinMap(page: Page, mapEvents: StubApiEvent[] = []) {
+// #522: the chips only show with two flares or more, and a quiet map shows
+// the quiet home instead of the rail. These tests are about the idea pins,
+// so the map gets two flares of other types about 1.5 km north, clear of
+// every idea spot.
+function otherFlares(at: string): StubApiEvent[] {
+  const now = new Date(at).getTime()
+  const north = {
+    type: "Point" as const,
+    coordinates: [BERLIN_COORDS.lng, BERLIN_COORDS.lat + 0.014] as [
+      number,
+      number,
+    ],
+  }
+  return (["party", "culture"] as const).map((type) =>
+    makeStubFlare({
+      _id: `e-${type}`,
+      title: `${type} up north`,
+      type,
+      startAt: new Date(now - 10 * 60_000).toISOString(),
+      endAt: new Date(now + 90 * 60_000).toISOString(),
+      location: north,
+    })
+  )
+}
+
+async function openBerlinMap(
+  page: Page,
+  mapEvents: StubApiEvent[] = otherFlares(JUNE)
+) {
   await page.clock.setFixedTime(JUNE)
   await stubBackend(page, { mapEvents, coords: BERLIN_COORDS })
   await page.goto("/")
@@ -47,23 +75,20 @@ test.describe("idea pins on the map (#244)", () => {
     // No chip is on and there is no quiet card yet.
     await expect(quietCard(page)).toBeHidden()
 
-    // Muted, dashed and without the peach that marks a flare.
+    // #522: a dashed peach ring, a size up; a flare pin is a solid circle.
     const style = await pin(page, ROSES)
       .locator("div > div")
       .evaluate((el) => {
         const cs = getComputedStyle(el)
-        return { border: cs.borderTopStyle, color: cs.borderTopColor }
+        return {
+          border: cs.borderTopStyle,
+          width: cs.borderTopWidth,
+          size: el.getBoundingClientRect().width,
+        }
       })
     expect(style.border).toBe("dashed")
-    const accent = await page.evaluate(() => {
-      const probe = document.createElement("span")
-      probe.style.color = "var(--accent)"
-      document.body.appendChild(probe)
-      const color = getComputedStyle(probe).color
-      probe.remove()
-      return color
-    })
-    expect(style.color).not.toBe(accent)
+    expect(style.width).toBe("2px")
+    expect(style.size).toBe(36)
   })
 
   test("with a chip on, only that category's ideas are pinned", async ({

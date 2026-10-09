@@ -29,6 +29,14 @@ test.describe("flare composer", () => {
   test("at peek the nav's flare button still opens the composer, and the map has no FAB (#491)", async ({
     page,
   }) => {
+    // "hide cards" sits in the filter bar, which waits for two flares (#522).
+    await stubBackend(page, {
+      mapEvents: [
+        makeStubFlare({ _id: "e-1" }),
+        makeStubFlare({ _id: "e-2", type: "food" }),
+      ],
+    })
+    await page.goto("/")
     await page.getByRole("button", { name: "hide cards" }).click()
     await expect(
       page.getByRole("button", { name: "Light a flare", exact: true })
