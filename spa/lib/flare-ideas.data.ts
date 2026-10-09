@@ -20,6 +20,7 @@
 // is the proper name of the place, as it would be stored on a flare.
 
 import type { EventType } from "@/lib/api/events"
+import type { IdeaIconKey } from "@/lib/idea-icons"
 
 export type FlareIdea = {
   /** Stable slug. */
@@ -27,6 +28,8 @@ export type FlareIdea = {
   title: string
   blurb?: string
   category: EventType
+  /** #524: its own icon; without one the category's shows. */
+  icon?: IdeaIconKey
   place: { name: string; lat: number; lng: number; address?: string }
   /** Yearly window as "MM-DD", both ends inclusive. `from` after `to` means
    * the window wraps the new year (e.g. "12-28" to "01-01"). */
@@ -39,6 +42,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "roses are blooming at humboldthain",
     blurb: "bring a blanket and a friend",
     category: "hangout",
+    icon: "flower",
     place: {
       name: "Humboldthain Rosengarten",
       lat: 52.5474434,
@@ -51,6 +55,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "cherry blossoms at gärten der welt",
     blurb: "walk under the blossoms",
     category: "hangout",
+    icon: "flower",
     place: { name: "Gärten der Welt", lat: 52.5372553, lng: 13.5749239 },
     season: { from: "04-01", to: "04-30" },
   },
@@ -59,6 +64,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "climb the hill at viktoriapark",
     blurb: "a view over kreuzberg and a waterfall on the way",
     category: "hangout",
+    icon: "mountains",
     place: { name: "Viktoriapark", lat: 52.4874665, lng: 13.3808123 },
   },
   {
@@ -66,6 +72,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "canal evening on the admiralbrücke",
     blurb: "grab a drink and sit on the bridge",
     category: "hangout",
+    icon: "waves",
     place: { name: "Admiralbrücke", lat: 52.4952677, lng: 13.4151439 },
   },
   {
@@ -73,6 +80,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "run, skate or fly a kite on tempelhofer feld",
     blurb: "an old runway with a lot of sky",
     category: "sports",
+    icon: "wind",
     place: { name: "Tempelhofer Feld", lat: 52.4744192, lng: 13.4026007 },
   },
   {
@@ -80,6 +88,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "swim at schlachtensee",
     blurb: "clear water, forest all around",
     category: "sports",
+    icon: "swim",
     place: { name: "Schlachtensee", lat: 52.4412683, lng: 13.208466 },
     season: { from: "06-01", to: "09-15" },
   },
@@ -88,6 +97,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "swim at plötzensee",
     blurb: "a quick lake dip in the north of the city",
     category: "sports",
+    icon: "swim",
     place: { name: "Plötzensee", lat: 52.5442537, lng: 13.3299692 },
     season: { from: "06-01", to: "09-15" },
   },
@@ -96,6 +106,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "laps and lounging at prinzenbad",
     blurb: "kreuzberg's outdoor pool",
     category: "sports",
+    icon: "swim",
     place: { name: "Sommerbad Kreuzberg", lat: 52.4975998, lng: 13.4026495 },
     season: { from: "05-15", to: "09-15" },
   },
@@ -104,6 +115,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "beer garden evening at prater",
     blurb: "berlin's oldest beer garden, chestnut trees included",
     category: "drinks",
+    icon: "beer",
     place: { name: "Prater Biergarten", lat: 52.5402446, lng: 13.4095113 },
     season: { from: "04-15", to: "09-30" },
   },
@@ -112,6 +124,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "sunset drinks on the klunkerkranich roof",
     blurb: "rooftop above the neukölln arcaden",
     category: "drinks",
+    icon: "sun-horizon",
     place: { name: "Klunkerkranich", lat: 52.4820706, lng: 13.4313317 },
     season: { from: "04-15", to: "10-15" },
   },
@@ -120,6 +133,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a beer by the neuer see",
     blurb: "beer garden on the lake in tiergarten",
     category: "drinks",
+    icon: "beer",
     place: { name: "Café am Neuen See", lat: 52.5105074, lng: 13.3442988 },
   },
   {
@@ -127,6 +141,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "glühwein at the gendarmenmarkt christmas market",
     blurb: "between the two cathedrals",
     category: "drinks",
+    icon: "evergreen",
     place: { name: "Gendarmenmarkt", lat: 52.5135698, lng: 13.392297 },
     season: { from: "11-20", to: "12-30" },
   },
@@ -135,6 +150,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "eat your way through markthalle neun",
     blurb: "street food thursday is the big one",
     category: "food",
+    icon: "bowl",
     place: { name: "Markthalle Neun", lat: 52.5021661, lng: 13.4314886 },
   },
   {
@@ -142,6 +158,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "market lunch at the maybachufer",
     blurb: "tuesdays and fridays along the canal",
     category: "food",
+    icon: "bowl",
     place: {
       name: "Wochenmarkt am Maybachufer",
       lat: 52.4952407,
@@ -153,6 +170,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "thai food picnic at preußenpark",
     blurb: "sundays, cash and a blanket",
     category: "food",
+    icon: "basket",
     place: { name: "Preußenpark", lat: 52.4924987, lng: 13.3131211 },
     season: { from: "04-15", to: "10-15" },
   },
@@ -161,6 +179,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "sing along at the mauerpark amphitheater",
     blurb: "open-air karaoke on sunday afternoons",
     category: "party",
+    icon: "mic",
     place: {
       name: "Amphitheater im Mauerpark",
       lat: 52.5428861,
@@ -173,6 +192,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "new year's eve at the brandenburger tor",
     blurb: "an open-air countdown at the gate",
     category: "party",
+    icon: "sparkle",
     place: { name: "Brandenburger Tor", lat: 52.5162699, lng: 13.3777034 },
     season: { from: "12-28", to: "01-01" },
   },
@@ -181,6 +201,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "sunset at teufelsberg",
     blurb: "graffiti, an old listening station and the whole city below",
     category: "culture",
+    icon: "sun-horizon",
     place: { name: "Teufelsberg", lat: 52.4977183, lng: 13.2429543 },
   },
   {
@@ -188,6 +209,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "walk the east side gallery",
     blurb: "the longest stretch of wall still standing",
     category: "culture",
+    icon: "paint-brush",
     place: { name: "East Side Gallery", lat: 52.5044542, lng: 13.4408392 },
   },
   {
@@ -195,6 +217,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "climb the siegessäule",
     blurb: "285 steps up for a view over tiergarten",
     category: "culture",
+    icon: "binoculars",
     place: { name: "Siegessäule", lat: 52.5145082, lng: 13.3501108 },
   },
   {
@@ -202,6 +225,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "hunt for treasure at the mauerpark flea market",
     blurb: "sundays, and worth going early",
     category: "hobby",
+    icon: "tag",
     place: { name: "Flohmarkt am Mauerpark", lat: 52.5415157, lng: 13.4023137 },
   },
   {
@@ -209,6 +233,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "get your hands dirty at prinzessinnengarten",
     blurb: "a community garden in the middle of kreuzberg",
     category: "hobby",
+    icon: "plant",
     place: { name: "Prinzessinnengarten", lat: 52.5030159, lng: 13.411087 },
     season: { from: "04-01", to: "10-31" },
   },
@@ -217,6 +242,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "wander the botanischer garten",
     blurb: "greenhouses for the days it rains",
     category: "hobby",
+    icon: "flower",
     place: { name: "Botanischer Garten Berlin", lat: 52.45414, lng: 13.306653 },
   },
 
@@ -226,6 +252,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "an afternoon on museum island",
     blurb: "five museums on one little island, pick the one you like",
     category: "culture",
+    icon: "bank",
     place: {
       name: "Museumsinsel",
       lat: 52.518017,
@@ -237,6 +264,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "up the fernsehturm",
     blurb: "go early, the queue grows with the sun",
     category: "culture",
+    icon: "binoculars",
     place: {
       name: "Berliner Fernsehturm",
       lat: 52.520828,
@@ -248,6 +276,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "say hello to the dinosaur at the naturkundemuseum",
     blurb: "one very tall skeleton and a lot of jars",
     category: "culture",
+    icon: "bank",
     place: {
       name: "Museum für Naturkunde",
       lat: 52.53049,
@@ -259,6 +288,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "wander the hackesche höfe",
     blurb: "courtyards, small shops and coffee somewhere in between",
     category: "hangout",
+    icon: "walk",
     place: {
       name: "Hackesche Höfe",
       lat: 52.524538,
@@ -270,6 +300,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "lazy afternoon in monbijoupark",
     blurb: "grass, the spree and museum island across the water",
     category: "hangout",
+    icon: "tree",
     place: {
       name: "Monbijoupark",
       lat: 52.523203,
@@ -281,6 +312,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "sunset at weinbergspark",
     blurb: "bring a drink, the hill fills up quickly",
     category: "hangout",
+    icon: "sun-horizon",
     place: {
       name: "Weinbergspark",
       lat: 52.532373,
@@ -292,6 +324,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "falafel at dada",
     blurb: "a linienstraße classic, napkins required",
     category: "food",
+    icon: "burger",
     place: {
       name: "Dada Falafel",
       lat: 52.526464,
@@ -303,6 +336,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "cinnamon roll at zeit für brot",
     blurb: "worth the line, and the line moves",
     category: "food",
+    icon: "bread",
     place: {
       name: "Zeit für Brot",
       lat: 52.527939,
@@ -314,6 +348,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "mulled wine under the fernsehturm",
     blurb: "the christmas market by the neptunbrunnen",
     category: "drinks",
+    icon: "evergreen",
     place: {
       name: "Neptunbrunnen",
       lat: 52.519595,
@@ -326,6 +361,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a film at babylon",
     blurb: "a 1920s cinema right on rosa-luxemburg-platz",
     category: "culture",
+    icon: "film",
     place: {
       name: "Babylon",
       lat: 52.525899,
@@ -337,6 +373,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "dance at tresor",
     blurb: "techno in an old power plant, bring stamina",
     category: "party",
+    icon: "disco",
     place: {
       name: "Tresor",
       lat: 52.510681,
@@ -348,6 +385,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "festival of lights at the brandenburger tor",
     blurb: "the gate glows for a week or so every october",
     category: "culture",
+    icon: "sparkle",
     place: {
       name: "Brandenburger Tor",
       lat: 52.51627,
@@ -362,6 +400,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "saturday market at kollwitzplatz",
     blurb: "farmers market food, eaten standing up",
     category: "food",
+    icon: "storefront",
     place: {
       name: "Wochenmarkt am Kollwitzplatz",
       lat: 52.536054,
@@ -373,6 +412,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "picnic at the wasserturm",
     blurb: "an old water tower and plenty of lawn",
     category: "hangout",
+    icon: "basket",
     place: {
       name: "Wasserturm Prenzlauer Berg",
       lat: 52.534185,
@@ -384,6 +424,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "poke around the kulturbrauerei",
     blurb: "an old brewery full of gigs, films and courtyards",
     category: "culture",
+    icon: "walk",
     place: {
       name: "Kulturbrauerei",
       lat: 52.538604,
@@ -395,6 +436,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "currywurst at konnopke's",
     blurb: "under the u-bahn tracks since forever",
     category: "food",
+    icon: "burger",
     place: {
       name: "Konnopke's Imbiss",
       lat: 52.540475,
@@ -406,6 +448,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "breakfast at café anna blume",
     blurb: "a flower shop with a serious breakfast habit",
     category: "food",
+    icon: "coffee",
     place: {
       name: "Café Anna Blume",
       lat: 52.538059,
@@ -417,6 +460,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "stars at the zeiss-großplanetarium",
     blurb: "lie back and let the ceiling do the work",
     category: "culture",
+    icon: "planet",
     place: {
       name: "Zeiss-Großplanetarium",
       lat: 52.543057,
@@ -428,6 +472,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "sunset drinks at deck 5",
     blurb: "sand underfoot on the roof of a shopping centre",
     category: "drinks",
+    icon: "sun-horizon",
     place: {
       name: "Deck 5",
       lat: 52.549473,
@@ -442,6 +487,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "long walk through volkspark rehberge",
     blurb: "hills, meadows and hardly a tourist",
     category: "hangout",
+    icon: "walk",
     place: {
       name: "Volkspark Rehberge",
       lat: 52.553382,
@@ -453,6 +499,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "poke around silent green",
     blurb: "an old crematorium turned into a culture hall",
     category: "culture",
+    icon: "walk",
     place: {
       name: "silent green Kulturquartier",
       lat: 52.545685,
@@ -464,6 +511,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "dig through the crates at plattenladen",
     blurb: "a neighbourhood record shop, no hurry",
     category: "hobby",
+    icon: "vinyl",
     place: {
       name: "Plattenladen",
       lat: 52.541199,
@@ -475,6 +523,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "swim laps at stadtbad wedding",
     blurb: "a proper old tiled pool",
     category: "sports",
+    icon: "swim",
     place: {
       name: "Stadtbad Wedding",
       lat: 52.544074,
@@ -486,6 +535,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "ice skating at the erika-heß-eisstadion",
     blurb: "round and round, rental skates available",
     category: "sports",
+    icon: "snowflake",
     place: {
       name: "Erika-Heß-Eisstadion",
       lat: 52.537529,
@@ -498,6 +548,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a film under the stars at freiluftkino rehberge",
     blurb: "bring a jumper, it cools down after sunset",
     category: "culture",
+    icon: "film",
     place: {
       name: "Freiluftkino Rehberge",
       lat: 52.554902,
@@ -510,6 +561,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a few rounds of ping pong at contra",
     blurb: "bring a friend and a competitive streak",
     category: "sports",
+    icon: "ping-pong",
     place: {
       name: "Contra Tischtennis-Zentrum",
       lat: 52.557746,
@@ -523,6 +575,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "walk up past the humboldthain flak tower",
     blurb: "bunker ruins, a city view and plenty of lawn",
     category: "hangout",
+    icon: "mountains",
     place: {
       name: "Humboldthain Flakturm",
       lat: 52.547348,
@@ -534,6 +587,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "go underground with berliner unterwelten",
     blurb: "bunkers and tunnels beneath gesundbrunnen",
     category: "culture",
+    icon: "bank",
     place: {
       name: "Berliner Unterwelten",
       lat: 52.547812,
@@ -545,6 +599,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "walk the wall memorial on bernauer straße",
     blurb: "a long, quiet stretch of history",
     category: "culture",
+    icon: "bank",
     place: {
       name: "Gedenkstätte Berliner Mauer",
       lat: 52.535824,
@@ -556,6 +611,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "bouldering at elektra",
     blurb: "bring a friend and your best grip",
     category: "sports",
+    icon: "climb",
     place: {
       name: "Elektra Boulderhalle",
       lat: 52.541036,
@@ -569,6 +625,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "lunch at the arminiusmarkthalle",
     blurb: "a proper old market hall in moabit",
     category: "food",
+    icon: "bowl",
     place: {
       name: "Arminiusmarkthalle",
       lat: 52.527833,
@@ -580,6 +637,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "lazy afternoon in fritz-schloss-park",
     blurb: "lawns, a pond and kids on every swing",
     category: "hangout",
+    icon: "tree",
     place: {
       name: "Fritz-Schloss-Park",
       lat: 52.528824,
@@ -591,6 +649,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "art in a former train station",
     blurb: "the hamburger bahnhof, plus an excuse for a spritz",
     category: "culture",
+    icon: "paint-brush",
     place: {
       name: "Hamburger Bahnhof",
       lat: 52.528632,
@@ -602,6 +661,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "climbing at the dav kletterhalle",
     blurb: "ropes, walls and a friend to belay",
     category: "sports",
+    icon: "climb",
     place: {
       name: "DAV Kletterhalle Berlin",
       lat: 52.528575,
@@ -615,6 +675,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "the reichstag dome",
     blurb: "book a free slot ahead, the view is worth it",
     category: "culture",
+    icon: "binoculars",
     place: {
       name: "Reichstag",
       lat: 52.518654,
@@ -626,6 +687,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "art at the neue nationalgalerie",
     blurb: "a glass box by mies van der rohe",
     category: "culture",
+    icon: "paint-brush",
     place: {
       name: "Neue Nationalgalerie",
       lat: 52.507041,
@@ -637,6 +699,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "an afternoon at the zoo",
     blurb: "pandas, monkeys and a very good ice cream",
     category: "hangout",
+    icon: "bird",
     place: {
       name: "Zoo Berlin",
       lat: 52.508449,
@@ -648,6 +711,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "cocktails at monkey bar",
     blurb: "a rooftop with a view straight onto the zoo",
     category: "drinks",
+    icon: "cocktail",
     place: {
       name: "Monkey Bar",
       lat: 52.505632,
@@ -659,6 +723,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "tea in the englischer garten",
     blurb: "a tea house hidden in the tiergarten",
     category: "drinks",
+    icon: "coffee",
     place: {
       name: "Teehaus im Englischen Garten",
       lat: 52.517051,
@@ -671,6 +736,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "rummage at the flea market on straße des 17. juni",
     blurb: "weekend treasure hunt under the trees",
     category: "hobby",
+    icon: "tag",
     place: {
       name: "Trödelmarkt Straße des 17. Juni",
       lat: 52.51367,
@@ -682,6 +748,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "take the lift up to the panoramapunkt",
     blurb: "one of the fastest lifts in europe",
     category: "culture",
+    icon: "binoculars",
     place: {
       name: "Panoramapunkt",
       lat: 52.508991,
@@ -693,6 +760,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "chase the autumn leaves in the tiergarten",
     blurb: "golden light and crunchy paths",
     category: "hangout",
+    icon: "leaf",
     place: {
       name: "Luiseninsel",
       lat: 52.510882,
@@ -707,6 +775,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "stroll the schloss charlottenburg garden",
     blurb: "baroque hedges and a pond for ducks",
     category: "hangout",
+    icon: "flower",
     place: {
       name: "Schloss Charlottenburg",
       lat: 52.519826,
@@ -718,6 +787,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "christmas market at schloss charlottenburg",
     blurb: "mulled wine in front of a palace",
     category: "drinks",
+    icon: "evergreen",
     place: {
       name: "Schloss Charlottenburg Weihnachtsmarkt",
       lat: 52.520642,
@@ -730,6 +800,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a night at zwiebelfisch",
     blurb: "an old savignyplatz bar with a lot of character",
     category: "drinks",
+    icon: "beer",
     place: {
       name: "Zwiebelfisch",
       lat: 52.506586,
@@ -741,6 +812,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "browse the art books at bücherbogen",
     blurb: "tucked under the s-bahn arches",
     category: "hobby",
+    icon: "books",
     place: {
       name: "Bücherbogen",
       lat: 52.505007,
@@ -752,6 +824,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "loop around the lietzensee",
     blurb: "a little lake beside the busy city",
     category: "hangout",
+    icon: "waves",
     place: {
       name: "Lietzensee",
       lat: 52.506423,
@@ -763,6 +836,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "saturday market at karl-august-platz",
     blurb: "tulips, cheese and a lot of dogs",
     category: "food",
+    icon: "storefront",
     place: {
       name: "Wochenmarkt Karl-August-Platz",
       lat: 52.508347,
@@ -774,6 +848,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a film at the delphi filmpalast",
     blurb: "a grand old cinema palace",
     category: "culture",
+    icon: "film",
     place: {
       name: "Delphi Filmpalast",
       lat: 52.506069,
@@ -787,6 +862,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "saturday at the winterfeldtmarkt",
     blurb: "cheese, flowers and a bratwurst",
     category: "food",
+    icon: "storefront",
     place: {
       name: "Winterfeldtmarkt",
       lat: 52.496529,
@@ -798,6 +874,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "flea market at the rathaus schöneberg",
     blurb: "sundays, old furniture and vinyl",
     category: "hobby",
+    icon: "tag",
     place: {
       name: "Flohmarkt Rathaus Schöneberg",
       lat: 52.484825,
@@ -809,6 +886,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "wander the natur-park südgelände",
     blurb: "an old rail yard being reclaimed by trees",
     category: "hangout",
+    icon: "walk",
     place: {
       name: "Natur-Park Südgelände",
       lat: 52.459052,
@@ -820,6 +898,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "breakfast at café berio",
     blurb: "a maaßenstraße classic",
     category: "food",
+    icon: "coffee",
     place: {
       name: "Café Berio",
       lat: 52.498007,
@@ -831,6 +910,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a film at the odeon",
     blurb: "original-language films on hauptstraße",
     category: "culture",
+    icon: "film",
     place: {
       name: "Odeon",
       lat: 52.482053,
@@ -842,6 +922,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "stroll through the park am gleisdreieck",
     blurb: "old tracks, new lawns and a lot of skateboards",
     category: "hangout",
+    icon: "walk",
     place: {
       name: "Park am Gleisdreieck",
       lat: 52.501644,
@@ -855,6 +936,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "climb mont klamott",
     blurb: "a hill made of rubble with a great view",
     category: "hangout",
+    icon: "mountains",
     place: {
       name: "Volkspark Friedrichshain",
       lat: 52.527159,
@@ -866,6 +948,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "sunset on the oberbaumbrücke",
     blurb: "red brick, trains overhead, the spree below",
     category: "hangout",
+    icon: "sun-horizon",
     place: {
       name: "Oberbaumbrücke",
       lat: 52.501729,
@@ -877,6 +960,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "flea market at boxhagener platz",
     blurb: "sundays, vinyl and old lamps",
     category: "hobby",
+    icon: "tag",
     place: {
       name: "Boxhagener Platz",
       lat: 52.510808,
@@ -888,6 +972,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "walk karl-marx-allee from frankfurter tor",
     blurb: "socialist wedding-cake architecture",
     category: "culture",
+    icon: "walk",
     place: {
       name: "Frankfurter Tor",
       lat: 52.515818,
@@ -899,6 +984,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "skate at the skatehalle",
     blurb: "an indoor park for rainy days",
     category: "sports",
+    icon: "sneaker",
     place: {
       name: "Skatehalle Berlin",
       lat: 52.507013,
@@ -910,6 +996,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a film at freiluftkino friedrichshain",
     blurb: "blankets, bugs and a big screen in the volkspark",
     category: "culture",
+    icon: "film",
     place: {
       name: "Freiluftkino Friedrichshain",
       lat: 52.525438,
@@ -922,6 +1009,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "sunset at the holzmarkt",
     blurb: "the river, a village and a bonfire feeling",
     category: "drinks",
+    icon: "sun-horizon",
     place: {
       name: "Holzmarkt 25",
       lat: 52.511459,
@@ -936,6 +1024,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "walk through the jüdisches museum",
     blurb: "daniel libeskind's building is half the story",
     category: "culture",
+    icon: "bank",
     place: {
       name: "Jüdisches Museum Berlin",
       lat: 52.502247,
@@ -947,6 +1036,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "lounge in the görlitzer park",
     blurb: "grass, grills and all of kreuzberg passing by",
     category: "hangout",
+    icon: "tree",
     place: {
       name: "Görlitzer Park",
       lat: 52.496579,
@@ -958,6 +1048,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "queue for mustafa's gemüse kebap",
     blurb: "a berlin legend, lemon on top",
     category: "food",
+    icon: "burger",
     place: {
       name: "Mustafa's Gemüse Kebap",
       lat: 52.493809,
@@ -969,6 +1060,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "burgers under the u-bahn at burgermeister",
     blurb: "a converted public toilet, strangely cosy",
     category: "food",
+    icon: "burger",
     place: {
       name: "Burgermeister",
       lat: 52.501121,
@@ -980,6 +1072,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a film at the moviemento",
     blurb: "one of berlin's oldest cinemas, still going",
     category: "culture",
+    icon: "film",
     place: {
       name: "Moviemento",
       lat: 52.490334,
@@ -991,6 +1084,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a film at freiluftkino kreuzberg",
     blurb: "an open-air screen in bethanien's courtyard",
     category: "culture",
+    icon: "film",
     place: {
       name: "Freiluftkino Kreuzberg",
       lat: 52.504061,
@@ -1003,6 +1097,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "cheesecake at five elephant",
     blurb: "coffee roasters with a berlin-famous slice",
     category: "food",
+    icon: "cake",
     place: {
       name: "Five Elephant",
       lat: 52.493382,
@@ -1014,6 +1109,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a gig at so36",
     blurb: "kreuzberg's punk and party institution",
     category: "party",
+    icon: "music",
     place: {
       name: "SO36",
       lat: 52.500391,
@@ -1025,6 +1121,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "minigolf at the landwehrkanal",
     blurb: "fairways, canal and a cold drink",
     category: "sports",
+    icon: "ball",
     place: {
       name: "Minigolf Brachvogel",
       lat: 52.496806,
@@ -1037,6 +1134,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "karneval der kulturen in kreuzberg",
     blurb: "a pentecost parade with half the city",
     category: "party",
+    icon: "mask-happy",
     place: {
       name: "Blücherplatz",
       lat: 52.49696,
@@ -1051,6 +1149,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "walk the hasenheide",
     blurb: "a big old park with a lot of picnickers",
     category: "hangout",
+    icon: "walk",
     place: {
       name: "Hasenheide",
       lat: 52.488286,
@@ -1062,6 +1161,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "coffee in the körnerpark",
     blurb: "a small baroque park with a gallery",
     category: "culture",
+    icon: "coffee",
     place: {
       name: "Körnerpark",
       lat: 52.471317,
@@ -1073,6 +1173,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a film at the rollberg",
     blurb: "a cosy cinema in the old brewery quarter",
     category: "culture",
+    icon: "film",
     place: {
       name: "Rollberg Kino",
       lat: 52.478797,
@@ -1084,6 +1185,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "swim at stadtbad neukölln",
     blurb: "a pool that looks like a palace",
     category: "sports",
+    icon: "swim",
     place: {
       name: "Stadtbad Neukölln",
       lat: 52.479195,
@@ -1095,6 +1197,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "christmas at richardplatz",
     blurb: "the rixdorf christmas market, a village feeling in the city",
     category: "drinks",
+    icon: "evergreen",
     place: {
       name: "Richardplatz",
       lat: 52.47419,
@@ -1107,6 +1210,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a film at freiluftkino hasenheide",
     blurb: "bring a jacket, stay for the second film",
     category: "culture",
+    icon: "film",
     place: {
       name: "Freiluftkino Hasenheide",
       lat: 52.483622,
@@ -1119,6 +1223,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "ice skating at the eisstadion neukölln",
     blurb: "an old rink beside tempelhofer feld",
     category: "sports",
+    icon: "snowflake",
     place: {
       name: "Eisstadion Neukölln",
       lat: 52.467805,
@@ -1133,6 +1238,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "tulips at the britzer garten",
     blurb: "a flower park, a mini train and lots of petals",
     category: "hangout",
+    icon: "flower",
     place: {
       name: "Britzer Garten",
       lat: 52.433781,
@@ -1147,6 +1253,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "visit the luftbrückendenkmal",
     blurb: "the airlift memorial, a berlin story",
     category: "culture",
+    icon: "bank",
     place: {
       name: "Luftbrückendenkmal",
       lat: 52.484135,
@@ -1158,6 +1265,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "stand next to the schwerbelastungskörper",
     blurb: "a giant concrete cylinder with a story",
     category: "culture",
+    icon: "bank",
     place: {
       name: "Schwerbelastungskörper",
       lat: 52.484019,
@@ -1169,6 +1277,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "swim at the columbiabad",
     blurb: "a big outdoor pool beside the airfield",
     category: "sports",
+    icon: "swim",
     place: {
       name: "Columbiabad",
       lat: 52.479588,
@@ -1181,6 +1290,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "stroll the alter park in tempelhof",
     blurb: "old trees and a surprisingly quiet corner of the city",
     category: "hangout",
+    icon: "walk",
     place: {
       name: "Alter Park",
       lat: 52.462398,
@@ -1192,6 +1302,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "wander bergmannstraße",
     blurb: "cafés, bookshops and a quiet cemetery to cut through",
     category: "hangout",
+    icon: "walk",
     place: {
       name: "Bergmannstraße",
       lat: 52.488822,
@@ -1205,6 +1316,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "walk through the soviet memorial",
     blurb: "monumental, quiet and free to enter",
     category: "culture",
+    icon: "bank",
     place: {
       name: "Sowjetisches Ehrenmal",
       lat: 52.487665,
@@ -1216,6 +1328,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "look through the archenhold telescope",
     blurb: "a giant telescope from 1896, tours and stargazing",
     category: "culture",
+    icon: "planet",
     place: {
       name: "Archenhold-Sternwarte",
       lat: 52.485855,
@@ -1227,6 +1340,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "wander the spreepark",
     blurb: "an old amusement park slowly waking up",
     category: "culture",
+    icon: "walk",
     place: {
       name: "Spreepark",
       lat: 52.484925,
@@ -1238,6 +1352,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "visit the molecule man",
     blurb: "three giant figures in the spree",
     category: "culture",
+    icon: "bank",
     place: {
       name: "Molecule Man",
       lat: 52.496976,
@@ -1249,6 +1364,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "swim at the badeschiff",
     blurb: "a pool floating in the spree",
     category: "sports",
+    icon: "swim",
     place: {
       name: "Badeschiff",
       lat: 52.497633,
@@ -1261,6 +1377,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "coffee on the insel der jugend",
     blurb: "a little island you reach by a bridge",
     category: "hangout",
+    icon: "coffee",
     place: {
       name: "Insel der Jugend",
       lat: 52.487286,
@@ -1275,6 +1392,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "explore the spandau zitadelle",
     blurb: "moat, bats and a very old fortress",
     category: "culture",
+    icon: "bank",
     place: {
       name: "Zitadelle Spandau",
       lat: 52.541034,
@@ -1286,6 +1404,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "christmas market in spandau's old town",
     blurb: "half-timbered houses and mulled wine",
     category: "drinks",
+    icon: "evergreen",
     place: {
       name: "Weihnachtsmarkt Spandau Altstadt",
       lat: 52.538425,
@@ -1298,6 +1417,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "swim at the müggelsee",
     blurb: "berlin's biggest lake, bring a bike",
     category: "sports",
+    icon: "swim",
     place: {
       name: "Strandbad Müggelsee",
       lat: 52.444937,
@@ -1310,6 +1430,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "a day at the strandbad wannsee",
     blurb: "europe's biggest inland beach, they say",
     category: "sports",
+    icon: "swim",
     place: {
       name: "Strandbad Wannsee",
       lat: 52.438169,
@@ -1322,6 +1443,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "swim at the teufelssee",
     blurb: "a forest lake deep in grunewald",
     category: "sports",
+    icon: "swim",
     place: {
       name: "Teufelssee",
       lat: 52.491142,
@@ -1334,6 +1456,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "lunch at the dong xuan center",
     blurb: "vietnamese food in a vast market hall",
     category: "food",
+    icon: "bowl",
     place: {
       name: "Dong Xuan Center",
       lat: 52.528791,
@@ -1345,6 +1468,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "an afternoon at the tierpark",
     blurb: "a huge park with animals from everywhere",
     category: "hangout",
+    icon: "bird",
     place: {
       name: "Tierpark Berlin",
       lat: 52.501554,
@@ -1356,6 +1480,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "asparagus at the domäne dahlem",
     blurb: "spargel season at the old farm estate",
     category: "food",
+    icon: "carrot",
     place: {
       name: "Domäne Dahlem",
       lat: 52.459165,
@@ -1368,6 +1493,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "dance at sisyphos",
     blurb: "an outdoor party village, bring sunglasses",
     category: "party",
+    icon: "disco",
     place: {
       name: "Sisyphos",
       lat: 52.493326,
@@ -1380,6 +1506,7 @@ export const FLARE_IDEAS: readonly FlareIdea[] = [
     title: "autumn loop around the schlachtensee",
     blurb: "reflections, leaves and a hot chocolate",
     category: "hangout",
+    icon: "leaf",
     place: {
       name: "Schlachtensee",
       lat: 52.43846,

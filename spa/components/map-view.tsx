@@ -78,6 +78,7 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { eventDisplayTitle } from "@/lib/flare-title"
 import { useTheme } from "next-themes"
+import { IdeaIcon } from "@/components/idea-icon"
 
 // What the map draws for an idea (#244). Deliberately the opposite of a flare
 // pin: smaller, filled with the muted chip colour, a dashed outline and a grey
@@ -88,11 +89,9 @@ export function IdeaPinMark({
   idea,
   selected,
 }: {
-  idea: Pick<Idea, "category">
+  idea: Pick<Idea, "category" | "icon">
   selected: boolean
 }) {
-  const match = EVENT_TYPES.find((t) => t.value === idea.category)
-  const Icon = match?.icon ?? MapPinIcon
   return (
     <div className="flex cursor-pointer items-center justify-center p-2">
       <div
@@ -102,7 +101,7 @@ export function IdeaPinMark({
             : "border-muted-foreground/70"
         }`}
       >
-        <Icon className="h-3.5 w-3.5" />
+        <IdeaIcon idea={idea} className="h-3.5 w-3.5" />
       </div>
     </div>
   )
@@ -2196,7 +2195,11 @@ export function QuietFlareCard({
     >
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
-          <Icon className="h-5 w-5" />
+          {idea ? (
+            <IdeaIcon idea={idea} className="h-5 w-5" />
+          ) : (
+            <Icon className="h-5 w-5" />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p
@@ -2245,7 +2248,11 @@ export function QuietFlareCard({
           }
           className="flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground active:scale-[0.98]"
         >
-          <Icon className="h-4 w-4 shrink-0" />
+          {idea ? (
+            <IdeaIcon idea={idea} className="h-4 w-4 shrink-0" />
+          ) : (
+            <Icon className="h-4 w-4 shrink-0" />
+          )}
           <span className="truncate">
             {idea ? "light a flare" : `light a ${type.label} flare`}
           </span>
