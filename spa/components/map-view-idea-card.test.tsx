@@ -25,6 +25,12 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }))
 vi.mock("next-themes", () => ({ useTheme: () => ({ resolvedTheme: "light" }) }))
+// The quiet-type card needs a chip on an empty map; with #522's quiet home
+// the chips wait for two flares, so this file covers the card on its own.
+vi.mock("@/lib/feature-flags", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/feature-flags")>()
+  return { featureFlags: { ...actual.featureFlags, quietHome: false } }
+})
 vi.mock("@/components/auth-provider", () => ({
   useAuth: () => ({ user: { id: "me" }, status: "authenticated" }),
 }))

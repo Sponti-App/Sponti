@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "@playwright/test"
 import { ANYWHERE_IDEAS } from "../lib/flare-ideas.anywhere.data"
-import { BERLIN_COORDS, stubBackend } from "./support/stubs"
+import {
+  BERLIN_COORDS,
+  makeStubFlare,
+  stubBackend,
+  type StubApiEvent,
+} from "./support/stubs"
 
 // #515: place-less "floating" ideas around the person's own position, so the
 // map is never empty. The signed-out map has its own spec in full-profile/
@@ -29,9 +34,34 @@ async function titlesOf(pins: ReturnType<typeof floating>) {
   return labels.map((l) => l.replace(/^idea: /, ""))
 }
 
+// #522: the chips only show with two flares or more, and a quiet map shows
+// the quiet home instead of the rail. These tests are about the idea pins,
+// so the map gets two flares of other types about 1.5 km north, clear of
+// every idea spot.
+function otherFlares(at: string): StubApiEvent[] {
+  const now = new Date(at).getTime()
+  const north = {
+    type: "Point" as const,
+    coordinates: [BERLIN_COORDS.lng, BERLIN_COORDS.lat + 0.014] as [
+      number,
+      number,
+    ],
+  }
+  return (["party", "culture"] as const).map((type) =>
+    makeStubFlare({
+      _id: `e-${type}`,
+      title: `${type} up north`,
+      type,
+      startAt: new Date(now - 10 * 60_000).toISOString(),
+      endAt: new Date(now + 90 * 60_000).toISOString(),
+      location: north,
+    })
+  )
+}
+
 async function openMap(page: Page, coords = BERLIN_COORDS) {
   await page.clock.setFixedTime(EVENING)
-  await stubBackend(page, { mapEvents: [], coords })
+  await stubBackend(page, { mapEvents: otherFlares(EVENING), coords })
   await page.goto("/")
   await expect(nav(page)).toBeVisible()
 }

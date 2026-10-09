@@ -34,6 +34,11 @@ import {
 } from "@/components/map-view"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { featureFlags } from "@/lib/feature-flags"
+import {
+  pickQuietIdeas,
+  QuietIdeaCards,
+  ValuePropPanel,
+} from "@/components/quiet-home"
 import { isLive } from "@/lib/api/events"
 import type { PublicMapPin } from "@/lib/api/public-map"
 import { getIdeaPins, type FlareIdea } from "@/lib/flare-ideas"
@@ -233,6 +238,20 @@ export function SignedOutMap({
             }}
             onDismiss={() => setTappedIdeaId(null)}
           />
+        ) : featureFlags.quietHome &&
+          !loading &&
+          !failed &&
+          count === 0 &&
+          nowMs > 0 ? (
+          // #522: what sponti is for, then ideas to light.
+          <div data-quiet-home className="flex flex-col gap-2">
+            <ValuePropPanel />
+            <QuietIdeaCards
+              ideas={pickQuietIdeas(ideas, floatingIdeas, center)}
+              center={center}
+              onLight={onLightIdea}
+            />
+          </div>
         ) : (
           <div className="pointer-events-auto mx-3 rounded-2xl border border-border/60 bg-background/90 p-3 shadow-(--shadow-card) backdrop-blur-md">
             <p className="text-base font-semibold">{title}</p>

@@ -53,6 +53,15 @@ export const featureFlags = {
    */
   timeTabs: false,
 
+  /**
+   * The quiet home (#522): when the map has no flares, its sheet shows the
+   * people you recently connected with (one tap from a flare with them), an
+   * invite for a 0-friend account, the value prop for a signed-out visitor,
+   * and nearby idea cards; the type chips wait until there are two flares.
+   * On in both profiles; off, the old "no flares within 10 km" card.
+   */
+  quietHome: true,
+
   // #482: `browseBeforeSignup`, `introV2` and `locationAsk` below are the new
   // onboarding. A device can switch them all on at runtime ("new onboarding" in
   // settings), whatever the build profile. Read them through

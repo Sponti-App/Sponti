@@ -8,6 +8,7 @@
 // short, no exclamation marks, friendly and a little witty.
 
 import type { EventType } from "@/lib/api/events"
+import type { IdeaIconKey } from "@/lib/idea-icons"
 
 export type TimeOfDay = "morning" | "afternoon" | "evening" | "night"
 
@@ -17,6 +18,8 @@ export type AnywhereIdea = {
   title: string
   blurb?: string
   category: EventType
+  /** #524: its own icon; without one the category's shows. */
+  icon?: IdeaIconKey
   /** Never set: it lets `idea.place` tell an anywhere idea from a spot (a
    * `FlareIdea` always has a place) without a cast. */
   place?: undefined
@@ -33,6 +36,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "have some friends over",
     blurb: "no cleaning, no menu, door open",
     category: "hangout",
+    icon: "house",
     timeOfDay: ["afternoon", "evening"],
   },
   {
@@ -40,6 +44,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "two friends, one sofa, zero plans",
     blurb: "the best plan has no steps",
     category: "hangout",
+    icon: "couch",
     timeOfDay: ["afternoon", "evening", "night"],
   },
   {
@@ -47,6 +52,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "go for a walk with a friend",
     blurb: "no destination needed",
     category: "hangout",
+    icon: "walk",
     timeOfDay: ["morning", "afternoon", "evening"],
   },
   {
@@ -54,6 +60,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "board game night at yours",
     blurb: "bring the box with the missing dice",
     category: "hangout",
+    icon: "dice",
     timeOfDay: ["evening", "night"],
   },
   {
@@ -61,6 +68,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "watch the sunset from the nearest high spot",
     blurb: "a roof, a hill, a very tall bench",
     category: "hangout",
+    icon: "sun-horizon",
     season: { from: "04-01", to: "09-30" },
     timeOfDay: ["evening"],
   },
@@ -69,6 +77,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "cook with friends",
     blurb: "one pot, too many cooks",
     category: "food",
+    icon: "bowl",
     timeOfDay: ["afternoon", "evening"],
   },
   {
@@ -76,6 +85,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "a potluck: everyone brings one thing",
     blurb: "dessert twice is a feature",
     category: "food",
+    icon: "bowl",
     timeOfDay: ["evening"],
   },
   {
@@ -83,6 +93,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "a picnic blanket and nothing else",
     blurb: "snacks optional, the grass is free",
     category: "food",
+    icon: "basket",
     season: { from: "04-15", to: "09-30" },
     timeOfDay: ["afternoon", "evening"],
   },
@@ -91,6 +102,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "a brunch that turns into lunch",
     blurb: "nobody checks the clock",
     category: "food",
+    icon: "coffee",
     timeOfDay: ["morning"],
   },
   {
@@ -98,6 +110,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "bake something and share the evidence",
     blurb: "friends make the best oven mitts",
     category: "food",
+    icon: "bread",
     timeOfDay: ["afternoon"],
   },
   {
@@ -105,6 +118,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "soup and blankets at yours",
     blurb: "a cold-weather classic",
     category: "food",
+    icon: "bowl",
     season: { from: "10-15", to: "03-15" },
     timeOfDay: ["afternoon", "evening"],
   },
@@ -113,6 +127,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "an ice cream and a bench",
     blurb: "the bench does the rest",
     category: "food",
+    icon: "ice-cream",
     season: { from: "05-01", to: "09-15" },
     timeOfDay: ["afternoon", "evening"],
   },
@@ -121,6 +136,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "have a little apéritif",
     blurb: "one bottle, a few snacks, an hour",
     category: "drinks",
+    icon: "cocktail",
     timeOfDay: ["evening"],
   },
   {
@@ -128,6 +144,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "cocktails from whatever is in the cupboard",
     blurb: "name them after each other",
     category: "drinks",
+    icon: "cocktail",
     timeOfDay: ["evening", "night"],
   },
   {
@@ -135,6 +152,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "coffee on the balcony",
     blurb: "a balcony counts as a cafe",
     category: "drinks",
+    icon: "coffee",
     season: { from: "04-01", to: "10-15" },
     timeOfDay: ["morning", "afternoon"],
   },
@@ -143,6 +161,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "a hot chocolate walk",
     blurb: "gloves on, mug in hand",
     category: "drinks",
+    icon: "coffee",
     season: { from: "11-01", to: "02-28" },
     timeOfDay: ["afternoon", "evening"],
   },
@@ -151,6 +170,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "mulled wine on the stoop",
     blurb: "the cold is part of the recipe",
     category: "drinks",
+    icon: "evergreen",
     season: { from: "11-15", to: "01-06" },
     timeOfDay: ["evening"],
   },
@@ -159,6 +179,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "karaoke in the living room",
     blurb: "the neighbours will understand",
     category: "party",
+    icon: "mic",
     timeOfDay: ["evening", "night"],
   },
   {
@@ -166,6 +187,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "dance in the kitchen",
     blurb: "whoever is closest to the speaker picks",
     category: "party",
+    icon: "disco",
     timeOfDay: ["evening", "night"],
   },
   {
@@ -173,6 +195,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "a tiny dinner party for four",
     blurb: "candles are the whole decor",
     category: "party",
+    icon: "bowl",
     timeOfDay: ["evening"],
   },
   {
@@ -180,6 +203,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "a run, then a coffee",
     blurb: "the coffee is the real goal",
     category: "sports",
+    icon: "run",
     timeOfDay: ["morning"],
   },
   {
@@ -187,6 +211,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "kick a ball around",
     blurb: "any ball, any patch of grass",
     category: "sports",
+    icon: "ball",
     season: { from: "04-01", to: "10-31" },
     timeOfDay: ["afternoon", "evening"],
   },
@@ -195,6 +220,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "a bike ride with no route",
     blurb: "left, left, right, who knows",
     category: "sports",
+    icon: "bike",
     season: { from: "03-15", to: "10-31" },
     timeOfDay: ["morning", "afternoon"],
   },
@@ -203,6 +229,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "stretch together, then lie on the floor",
     blurb: "yoga without the studio fee",
     category: "sports",
+    icon: "tai-chi",
     timeOfDay: ["morning", "evening"],
   },
   {
@@ -210,6 +237,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "movie night, you pick the snacks",
     blurb: "argue about the ending after",
     category: "culture",
+    icon: "film",
     timeOfDay: ["evening", "night"],
   },
   {
@@ -217,6 +245,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "read side by side in silence",
     blurb: "together, but quietly",
     category: "culture",
+    icon: "books",
     timeOfDay: ["afternoon", "evening"],
   },
   {
@@ -224,6 +253,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "a quiz at the kitchen table",
     blurb: "write the questions, fight about the answers",
     category: "culture",
+    icon: "question",
     timeOfDay: ["evening"],
   },
   {
@@ -231,6 +261,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "a jam session with whatever you own",
     blurb: "a pot and a wooden spoon count",
     category: "hobby",
+    icon: "music",
     timeOfDay: ["afternoon", "evening"],
   },
   {
@@ -238,6 +269,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "draw, doodle or colour in together",
     blurb: "bad drawings only",
     category: "hobby",
+    icon: "paint-brush",
     timeOfDay: ["afternoon", "evening"],
   },
   {
@@ -245,6 +277,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "swap books, clothes or plants",
     blurb: "leave with something new",
     category: "hobby",
+    icon: "swap",
     timeOfDay: ["afternoon"],
   },
   {
@@ -252,6 +285,7 @@ export const ANYWHERE_IDEAS: readonly AnywhereIdea[] = [
     title: "finish that thing from last year",
     blurb: "we all have one, bring yours",
     category: "hobby",
+    icon: "check",
     timeOfDay: ["evening"],
   },
 ]
