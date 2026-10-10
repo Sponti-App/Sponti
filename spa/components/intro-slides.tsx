@@ -129,22 +129,24 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
       <IntroStyles />
       <Backdrop index={index} />
 
-      <header className="relative flex items-center justify-between px-6 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <div className="flex items-center gap-2 rounded-full bg-background/80 py-1 pr-3 pl-1 shadow-sm backdrop-blur-md">
-          <span className="flex size-7 items-center justify-center rounded-full bg-accent/15 text-accent">
-            <FlameIcon className="size-3.5" />
-          </span>
-          <span className="text-sm font-semibold">sponti</span>
+      <header className="relative shrink-0 px-6 pt-[env(safe-area-inset-top)]">
+        <div className="flex h-14 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex size-7 items-center justify-center rounded-full bg-accent/15 text-accent">
+              <FlameIcon className="size-3.5" />
+            </span>
+            <span className="text-sm font-semibold">sponti</span>
+          </div>
+          {!last && (
+            <button
+              type="button"
+              onClick={lookAround}
+              className="min-h-11 px-2 text-sm font-medium text-foreground/80 hover:text-foreground"
+            >
+              skip
+            </button>
+          )}
         </div>
-        {!last && (
-          <button
-            type="button"
-            onClick={lookAround}
-            className="min-h-10 rounded-full bg-background/80 px-4 text-sm font-medium text-foreground shadow-sm backdrop-blur-md hover:bg-background"
-          >
-            skip
-          </button>
-        )}
       </header>
 
       <div className="relative mt-auto flex flex-col px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
@@ -203,7 +205,8 @@ function Copy({ index }: { index: number }) {
             className={cn("col-start-1 row-start-1", SLIDE_MOTION)}
             style={{ transform: slideX(i - index) }}
           >
-            <p className="inline-flex rounded-full bg-background/80 px-3 py-1 text-sm font-medium text-foreground shadow-sm backdrop-blur-md">
+            <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <span aria-hidden className="size-1.5 rounded-full bg-accent" />
               {copy.eyebrow}
             </p>
             <h1 className="mt-3 text-3xl leading-tight font-medium tracking-tight text-balance">
@@ -254,20 +257,20 @@ function Dots({
 
 // ---- the art -----------------------------------------------------------------
 
-/** The three illustrations, full-bleed in the top part of the screen, so the
- * motif sits high and clear. The bottom of each fades into the page under the
- * copy. The art is decorative, so it has no alt text. */
+/** The three illustrations, in the band between the header and the copy, so
+ * no type ever sits on the art. Each fades out at its bottom edge into the
+ * solid background. The art is decorative, so it has no alt text. */
 export function Backdrop({ index }: { index: number }) {
   return (
     <div
-      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+3.5rem)] -z-10 h-[58%] overflow-hidden"
       aria-hidden
     >
       {SLIDES.map((kind, i) => (
         <div
           key={kind}
           className={cn(
-            "absolute inset-x-0 top-0 h-[78%] [mask-image:linear-gradient(to_bottom,black_72%,transparent)]",
+            "absolute inset-0 [mask-image:linear-gradient(to_bottom,black_75%,transparent)]",
             SLIDE_MOTION
           )}
           style={{ transform: slideX(i - index) }}
@@ -278,17 +281,10 @@ export function Backdrop({ index }: { index: number }) {
             fill
             sizes="100vw"
             priority={i === 0}
-            className="intro-art object-cover object-top"
+            className="intro-art object-cover object-center"
           />
         </div>
       ))}
-      <div
-        className="absolute inset-x-0 bottom-0 h-[45%]"
-        style={{
-          background:
-            "linear-gradient(to top, var(--background) 30%, color-mix(in oklch, var(--background) 60%, transparent) 65%, transparent)",
-        }}
-      />
     </div>
   )
 }
