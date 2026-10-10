@@ -2,19 +2,17 @@
 
 // #377 (behind `introV2`): the intro slides a signed-out visitor sees on
 // this device's first open of the home map. Three slides: what sponti is, why
-// it exists, how lighting a flare works. Each slide is a full-bleed
-// illustration (`public/intro/*.jpg`) with the copy, progress dots and a
-// full-width button laid over it.
+// it exists, how lighting a flare works. Each slide is an animated scene
+// (`intro-scenes.tsx`) above its copy, progress dots and a full-width button.
 //
-// Readability: the art is the same in light and dark mode, so the type never
-// depends on it. Two fixed scrims in the dusk ink (`INTRO_INK`) darken the
-// bottom, where the copy sits, and the top, where the logo and skip sit; each
-// slide's art is framed so its subject lands above the copy. Type is warm
-// white, the logo badge and skip are frosted glass, and the peach button is
-// the only accent.
+// The whole screen is the dusk ink (`INTRO_INK`) in light and dark mode
+// alike, and the scenes fade into it at their edges, so nothing sits under
+// the type. Type is warm white, the logo badge and skip are frosted glass,
+// and the peach button is the only accent.
 //
-// Motion: one entrance (the art settles in, the copy block rises once). The
-// art follows a finger and slides between slides, the copy crossfades with a
+// Motion: one entrance (the scene settles in, the copy block rises once).
+// Each scene plays its story from the start when its slide comes on. The
+// scenes follow a finger and slide between slides, the copy crossfades with a
 // small drift, the dots stretch, the button's label swaps in place and skip
 // fades out on the last slide. Under prefers-reduced-motion nothing moves and
 // slides cut.
@@ -29,10 +27,10 @@
 
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { ArrowRightIcon, FlameIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
+import { IntroScene, INTRO_SCENE_CSS } from "@/components/intro-scenes"
 import { haptic } from "@/lib/haptics"
 import { INTRO_INK } from "@/lib/intro-slides"
 import { cn } from "@/lib/utils"
@@ -70,14 +68,6 @@ export const INTRO_COPY: Record<
   },
 }
 
-/** Where each illustration is anchored in its frame (0 = top, 100 = bottom),
- * so its subject, not its sky or foliage, sits above the copy. */
-const ART_FOCUS: Record<Kind, string> = {
-  what: "50% 78%",
-  why: "50% 100%",
-  how: "50% 62%",
-}
-
 // ---- motion ------------------------------------------------------------------
 
 /** Settles fast and gently, like a card coming to rest. */
@@ -101,6 +91,9 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
   const router = useRouter()
   const [index, setIndex] = useState(0)
   const [drag, setDrag] = useState(0)
+  /** How many times each slide has come on screen: its scene's key, so the
+   * scene starts its story over each time. */
+  const [visits, setVisits] = useState(() => SLIDES.map((_, i) => +(i === 0)))
   const dialogRef = useRef<HTMLDivElement | null>(null)
   const touchX = useRef<number | null>(null)
 
@@ -116,6 +109,7 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
     if (clamped === index) return
     haptic("selection")
     setIndex(clamped)
+    setVisits((v) => v.map((n, i) => (i === clamped ? n + 1 : n)))
   }
 
   /** "look around", skip and Escape: to the map. */
@@ -174,8 +168,6 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
       style={{ backgroundColor: INTRO_INK }}
     >
       <IntroStyles />
-      <Backdrop index={index} drag={drag} />
-      <Scrims />
 
       <header className="intro-fade relative shrink-0 px-6 pt-[env(safe-area-inset-top)]">
         <div className="flex h-14 items-center justify-between">
@@ -183,7 +175,7 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
             <span className="flex size-8 items-center justify-center rounded-full bg-white/15 text-accent ring-1 ring-white/25 backdrop-blur-md">
               <FlameIcon className="size-4" />
             </span>
-            <span className="intro-legible text-base font-semibold tracking-tight">
+            <span className="text-base font-semibold tracking-tight">
               sponti
             </span>
           </div>
@@ -204,7 +196,9 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
         </div>
       </header>
 
-      <div className="intro-rise relative mt-auto flex flex-col px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <Stage index={index} drag={drag} visits={visits} />
+
+      <div className="intro-rise relative flex flex-col px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <Copy index={index} drag={drag} />
 
         <Dots index={index} onPick={go} />
@@ -230,7 +224,7 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
             type="button"
             onClick={signIn}
             className={cn(
-              "intro-legible min-h-11 w-full rounded-full text-sm font-medium text-white/80 transition-colors hover:text-white motion-reduce:transition-none",
+              "min-h-11 w-full rounded-full text-sm font-medium text-white/80 transition-colors hover:text-white motion-reduce:transition-none",
               FOCUS_RING
             )}
           >
@@ -246,8 +240,7 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
 /** The three slides' copy, stacked in one grid cell. The one on screen settles
  * in; the others wait a short drift to the side, faded out. The cell takes the
  * height of the tallest and the copy sits on its floor, so the controls never
- * jump and the spare room goes above the copy, into the art. Only the one on screen is
- * in the accessibility tree. */
+ * jump. Only the one on screen is in the accessibility tree. */
 function Copy({ index, drag }: { index: number; drag: number }) {
   return (
     <div className="grid items-end" aria-live="polite">
@@ -274,14 +267,14 @@ function Copy({ index, drag }: { index: number; drag: number }) {
               transitionDelay: active ? "140ms" : "0ms",
             }}
           >
-            <p className="intro-legible flex items-center gap-2 text-sm font-medium text-white/80">
+            <p className="flex items-center gap-2 text-sm font-medium text-white/80">
               <span aria-hidden className="size-1.5 rounded-full bg-accent" />
               {copy.eyebrow}
             </p>
-            <h1 className="intro-legible intro-title mt-3 text-3xl leading-[1.1] font-semibold tracking-tight text-balance">
+            <h1 className="intro-title mt-3 text-3xl leading-[1.1] font-semibold tracking-tight text-balance">
               {copy.title}
             </h1>
-            <p className="intro-legible intro-body mt-3 text-base leading-snug text-white/85">
+            <p className="intro-body mt-3 text-base leading-snug text-white/85">
               {copy.body}
             </p>
           </div>
@@ -331,27 +324,28 @@ function Dots({
 
 // ---- the art -----------------------------------------------------------------
 
-/** The three illustrations, full-bleed but framed in the top three quarters,
- * so each subject lands above the copy. They slide with the finger and settle
- * with the same ease as the copy. The art fades out at its bottom edge, and
- * the scrims carry it into the ink. It is decorative, so it has no alt text. */
-export function Backdrop({
+/** The three scenes, between the header and the copy. They slide with the
+ * finger and settle with the same ease as the copy. Only the one on screen
+ * plays. Decorative: the copy says the same, so it is hidden from readers. */
+function Stage({
   index,
-  drag = 0,
+  drag,
+  visits,
 }: {
   index: number
-  drag?: number
+  drag: number
+  visits: number[]
 }) {
   return (
     <div
-      className="intro-reveal pointer-events-none absolute inset-x-0 top-0 -z-10 h-[76%] overflow-hidden [mask-image:linear-gradient(to_bottom,black_80%,transparent)]"
+      className="intro-reveal pointer-events-none relative -z-10 min-h-0 flex-1"
       aria-hidden
     >
       {SLIDES.map((kind, i) => (
         <div
           key={kind}
           className={cn(
-            "absolute inset-0 will-change-transform",
+            "absolute inset-0 py-2 will-change-transform",
             MOTION,
             drag !== 0 && "!transition-none"
           )}
@@ -359,45 +353,10 @@ export function Backdrop({
             transform: `translate3d(calc(${(i - index) * 100}% + ${drag}px), 0, 0)`,
           }}
         >
-          <Image
-            src={`/intro/${kind}.jpg`}
-            alt=""
-            fill
-            sizes="100vw"
-            priority={i === 0}
-            // Offscreen slides still load, so a swipe never meets a blank.
-            loading="eager"
-            style={{ objectPosition: ART_FOCUS[kind] }}
-            className="intro-art object-cover"
-          />
+          <IntroScene key={visits[i]} kind={kind} active={i === index} />
         </div>
       ))}
     </div>
-  )
-}
-
-/** Two fixed gradients in the ink, eased through several stops so they have no
- * visible edge. The bottom one is what the copy reads on: it is nearly solid
- * where the title starts. The top one is what the logo and skip read on. */
-function Scrims() {
-  const ink = (alpha: number) => `oklch(0.21 0.05 295 / ${alpha})`
-  return (
-    <>
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[calc(env(safe-area-inset-top)+7rem)]"
-        style={{
-          backgroundImage: `linear-gradient(to bottom, ${ink(0.6)}, ${ink(0.4)} 35%, ${ink(0.15)} 70%, ${ink(0)})`,
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-[72%]"
-        style={{
-          backgroundImage: `linear-gradient(to top, ${INTRO_INK} 0%, ${ink(0.97)} 38%, ${ink(0.85)} 52%, ${ink(0.55)} 66%, ${ink(0.22)} 80%, ${ink(0)} 100%)`,
-        }}
-      />
-    </>
   )
 }
 
@@ -408,10 +367,9 @@ function Scrims() {
 export function IntroStyles() {
   return (
     <style>{`
-      .intro-art { animation: intro-art 18s ease-in-out infinite alternate; transform-origin: 50% 40%; }
-      @keyframes intro-art { from { transform: scale(1); } to { transform: scale(1.04); } }
+      ${INTRO_SCENE_CSS}
 
-      /* The one entrance: the art settles in, then the copy block rises once. */
+      /* The one entrance: the scene settles in, then the copy block rises once. */
       .intro-reveal { animation: intro-reveal 1100ms ${EASE} both; }
       @keyframes intro-reveal { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: none; } }
       .intro-fade { animation: intro-fade 700ms ease-out 300ms both; }
@@ -423,17 +381,14 @@ export function IntroStyles() {
       .intro-label { animation: intro-label 320ms ease-out both; }
       @keyframes intro-label { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
 
-      /* A soft halo behind type that sits on art, on top of the scrim. */
-      .intro-legible { text-shadow: 0 1px 14px oklch(0.18 0.05 295 / 0.55); }
-
-      /* Short phones: the copy gives up a size so the art keeps room. */
+      /* Short phones: the copy gives up a size so the scene keeps room. */
       @media (max-height: 700px) {
         .intro-title { font-size: 1.5rem; }
         .intro-body { font-size: 0.875rem; }
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .intro-art, .intro-reveal, .intro-fade, .intro-rise, .intro-label { animation: none; }
+        .intro-reveal, .intro-fade, .intro-rise, .intro-label { animation: none; }
       }
     `}</style>
   )
