@@ -186,7 +186,17 @@ export const googleLogin = async (req: Request, res: Response) => {
   let isNewUser = false;
 
   if (user) {
-    if (!user.googleId) user.googleId = payload.sub;
+    if (!user.googleId) {
+      // #537: sign-up never proves the email belongs to whoever set the
+      // password, so someone could have registered this address first. Google
+      // just proved who owns it: drop that password and every session made
+      // with it. The owner can set a password again with "forgot password".
+      if (user.passwordHash) {
+        user.passwordHash = null;
+        await RefreshToken.deleteMany({ userId: user._id });
+      }
+      user.googleId = payload.sub;
+    }
     if (!user.avatarUrl && payload.picture) user.avatarUrl = payload.picture;
     await user.save();
   } else {
@@ -413,7 +423,7 @@ export const updateAvatar = async (req: Request, res: Response) => {
 };
 
 export const updateProfile = async (req: Request, res: Response) => {
-  const { displayName, username, email, profileVisibility, bio, instagram, telegram } = req.body;
+  const { displayName, username, email, currentPassword, profileVisibility, bio, instagram, telegram } = req.body;
   const user = await User.findById(req.userId);
 
   if (!user) {
@@ -430,6 +440,22 @@ export const updateProfile = async (req: Request, res: Response) => {
   }
 
   if (email && email.toLowerCase() !== user.email) {
+    // #537: the email is where password resets go, so moving it needs the
+    // current password, not just a session. 403, not 401: the SPA treats 401
+    // as an expired session.
+    if (!user.passwordHash) {
+      throw new Error(
+        "set a password first (use \"forgot password\" on the sign-in page), then change your email",
+        { cause: { status: 403, code: "PASSWORD_REQUIRED" } }
+      );
+    }
+
+    if (!currentPassword || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      throw new Error("current password is incorrect", {
+        cause: { status: 403, code: "CURRENT_PASSWORD_INCORRECT" },
+      });
+    }
+
     const normalizedEmail = email.toLowerCase();
     const emailExists = await User.exists({ email: normalizedEmail });
     if (emailExists) {

@@ -27,6 +27,8 @@ export type UpdateProfilePayload = {
   displayName?: string
   username?: string
   email?: string
+  // Required by the server when `email` changes (#537).
+  currentPassword?: string
   profileVisibility?: "public" | "private"
   // Self-authored profile fields (#289). The server normalises them (handle
   // from "@x" or a pasted link, one-line bio); null or "" clears one, and a
