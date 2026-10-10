@@ -96,6 +96,7 @@ test.describe("intro slides (#377)", () => {
     const artAnimation = () =>
       page
         .locator(".intro-art")
+        .first()
         .evaluate((el) => getComputedStyle(el).animationName)
 
     await firstOpen(page)

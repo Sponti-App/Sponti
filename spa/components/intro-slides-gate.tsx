@@ -8,7 +8,11 @@
 
 import dynamic from "next/dynamic"
 import { createPortal } from "react-dom"
-import { markIntroSlidesSeen, useShowIntroSlides } from "@/lib/intro-slides"
+import {
+  INTRO_INK,
+  markIntroSlidesSeen,
+  useShowIntroSlides,
+} from "@/lib/intro-slides"
 
 const IntroSlides = dynamic(
   () => import("@/components/intro-slides").then((m) => m.IntroSlides),
@@ -16,7 +20,11 @@ const IntroSlides = dynamic(
     ssr: false,
     loading: () =>
       createPortal(
-        <div aria-hidden className="fixed inset-0 z-[55] bg-background" />,
+        <div
+          aria-hidden
+          className="fixed inset-0 z-[55]"
+          style={{ backgroundColor: INTRO_INK }}
+        />,
         document.body
       ),
   }
