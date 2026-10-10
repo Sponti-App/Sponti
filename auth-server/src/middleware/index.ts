@@ -3,3 +3,4 @@ export { default as errorHandler } from "./errorHandler.ts";
 export { default as notFoundHandler } from "./notFoundHandler.ts";
 export { default as requireAuth } from "./requireAuth.ts";
 export { uploadAvatar } from "./uploadAvatar.ts";
+export { createAuthRateLimits, createRateLimiter } from "./rateLimit.ts";
