@@ -17,6 +17,7 @@ import {
   verifyRefreshToken,
 } from "#lib/tokens";
 import cloudinary from "#lib/cloudinary";
+import type { UploadApiResponse } from "cloudinary";
 import { toOwnProfileResponse } from "#lib/userResponse";
 import { env } from "#config/env";
 import streamfier from "streamifier";
@@ -370,6 +371,31 @@ export const resetPassword = async (req: Request, res: Response) => {
   res.json({ message: "Password updated successfully." });
 };
 
+// #539: the upload is awaited inside the handler, so a Cloudinary failure
+// reaches Express's error handler instead of crashing the process.
+const uploadAvatarImage = (buffer: Buffer, publicId: string) =>
+  new Promise<UploadApiResponse>((resolve, reject) => {
+    const upload = cloudinary.uploader.upload_stream(
+      {
+        folder: "avatars",
+        public_id: publicId,
+        overwrite: true,
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error || !result) {
+          console.error("Cloudinary upload error:", error);
+          reject(new Error("Failed to upload avatar", { cause: { status: 500 } }));
+          return;
+        }
+
+        resolve(result);
+      },
+    );
+
+    streamfier.createReadStream(buffer).pipe(upload);
+  });
+
 export const updateAvatar = async (req: Request, res: Response) => {
   const user = await User.findById(req.userId);
 
@@ -381,35 +407,21 @@ export const updateAvatar = async (req: Request, res: Response) => {
     throw new Error("No file uploaded", { cause: { status: 400 } });
   }
 
-  const fileBuffer = req.file.buffer;
-  const uploadResult = await cloudinary.uploader.upload_stream(
-    {
-      folder: "avatars",
-      public_id: `${user._id}-${Date.now()}`,
-      overwrite: true,
-      resource_type: "image",
-    },
-    async (error, result) => {
-      if (error || !result) {
-        console.error("Cloudinary upload error:", error);
-        throw new Error("Failed to upload avatar", { cause: { status: 500 } });
-      }
+  const result = await uploadAvatarImage(req.file.buffer, `${user._id}-${Date.now()}`);
+  const oldPublicId = user.avatarPublicId;
 
-      const oldPublicId = user.avatarPublicId;
+  user.avatarUrl = result.secure_url;
+  user.avatarPublicId = result.public_id;
+  await user.save();
 
-      user.avatarUrl = result.secure_url;
-      user.avatarPublicId = result.public_id;
-      await user.save();
+  // The new photo is saved; failing to tidy up the old one isn't the user's problem.
+  if (oldPublicId) {
+    await cloudinary.uploader.destroy(oldPublicId).catch((error: unknown) => {
+      console.error("Cloudinary destroy error:", error);
+    });
+  }
 
-      if (oldPublicId) {
-        await cloudinary.uploader.destroy(oldPublicId);
-      }
-
-      res.json({ avatarUrl: user.avatarUrl });
-    },
-  );
-
-  streamfier.createReadStream(fileBuffer).pipe(uploadResult);
+  res.json({ avatarUrl: user.avatarUrl });
 };
 
 export const updateProfile = async (req: Request, res: Response) => {
