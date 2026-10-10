@@ -93,23 +93,25 @@ test.describe("intro slides (#377)", () => {
   })
 
   test("nothing moves under reduced motion", async ({ page }) => {
-    const artAnimation = () =>
-      page
-        .locator(".intro-art")
-        .evaluate((el) => getComputedStyle(el).animationName)
+    const moving = () =>
+      slides(page).evaluate(
+        (root) =>
+          Array.from(root.querySelectorAll("*")).filter(
+            (el) => getComputedStyle(el).animationName !== "none"
+          ).length
+      )
 
     await firstOpen(page)
-    expect(await artAnimation()).toBe("intro-art")
+    // The scene on screen plays its story.
+    expect(
+      await page
+        .locator('[data-intro-scene="what"] [style*="s1-walk"]')
+        .first()
+        .evaluate((el) => getComputedStyle(el).animationName)
+    ).toMatch(/^s1-walk/)
 
     await page.emulateMedia({ reducedMotion: "reduce" })
-    expect(await artAnimation()).toBe("none")
-    const moving = await slides(page).evaluate(
-      (root) =>
-        Array.from(root.querySelectorAll("*")).filter(
-          (el) => getComputedStyle(el).animationName !== "none"
-        ).length
-    )
-    expect(moving).toBe(0)
+    expect(await moving()).toBe(0)
   })
 
   test("a signed-in user never sees them", async ({ page }) => {
