@@ -51,7 +51,7 @@ import {
   removeCircleMember as removeApiCircleMember,
 } from "@/lib/api/circles"
 import { fetchAcceptedConnections } from "@/lib/api/connections"
-import { HttpError } from "@/lib/http"
+import { HttpError, sessionFetch } from "@/lib/http"
 import { useGeolocation, type GeoStatus } from "@/lib/geolocation"
 import { emitEventsChanged } from "@/lib/use-events"
 import { type Circle, type Connection } from "@/lib/circles"
@@ -626,7 +626,7 @@ export function NewEventDrawer({
       lat: String(geoCoords.lat),
       lng: String(geoCoords.lng),
     })
-    fetch(`/api/geocode?${params}`, { signal: controller.signal })
+    sessionFetch(`/api/geocode?${params}`, { signal: controller.signal })
       .then((resp) => (resp.ok ? resp.json() : null))
       .then((data: unknown) => {
         if (currentLocationGeocodeRequestRef.current !== requestId) return
@@ -1134,7 +1134,7 @@ export function NewEventDrawer({
           params.set("lat", String(geoCoords.lat))
           params.set("lng", String(geoCoords.lng))
         }
-        const resp = await fetch(`/api/places?${params}`)
+        const resp = await sessionFetch(`/api/places?${params}`)
         if (!resp.ok) throw new Error("places error")
         const data = (await resp.json()) as { suggestions: PlaceSuggestion[] }
         if (placesSearchRequestRef.current !== requestId) return
@@ -1204,7 +1204,7 @@ export function NewEventDrawer({
     setPlaceDetailsLoading(true)
 
     try {
-      const resp = await fetch(
+      const resp = await sessionFetch(
         `/api/places/${encodeURIComponent(suggestion.placeId)}`
       )
       if (!resp.ok) throw new Error("Place details unavailable.")
