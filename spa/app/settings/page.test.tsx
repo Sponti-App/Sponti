@@ -121,6 +121,40 @@ describe("SettingsPage account tab", () => {
     expect(mocks.showActionFeedback).toHaveBeenCalledWith("profile saved")
   })
 
+  it("asks for the current password only when the email changes, and sends it (#537)", async () => {
+    const user = userEvent.setup()
+    render(<SettingsPage />)
+
+    expect(screen.queryByLabelText("current password")).not.toBeInTheDocument()
+
+    const email = screen.getByPlaceholderText("you@example.com")
+    await user.clear(email)
+    await user.type(email, "new@sponti.test")
+    await user.type(screen.getByLabelText("current password"), "hunter22hunter")
+    await user.click(screen.getByRole("button", { name: "save changes" }))
+
+    await waitFor(() =>
+      expect(mocks.updateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: "new@sponti.test",
+          currentPassword: "hunter22hunter",
+        })
+      )
+    )
+  })
+
+  it("sends no password when the email is unchanged (#537)", async () => {
+    const user = userEvent.setup()
+    render(<SettingsPage />)
+
+    await user.click(screen.getByRole("button", { name: "save changes" }))
+
+    await waitFor(() => expect(mocks.updateProfile).toHaveBeenCalled())
+    expect(mocks.updateProfile.mock.calls[0][0]).not.toHaveProperty(
+      "currentPassword"
+    )
+  })
+
   it("switches ideas on the map off and on, on this device only (#245)", async () => {
     const user = userEvent.setup()
     window.localStorage.removeItem("sponti.ideas.hidden.v1")

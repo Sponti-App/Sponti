@@ -45,6 +45,8 @@ export const updateProfileSchema = z.object({
     displayName: z.string().min(2).max(50).optional(),
     username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, underscores and hyphens").optional(),
     email: z.string().email().optional(),
+    // Required when `email` changes (#537); ignored otherwise.
+    currentPassword: z.string().min(1).max(100).optional(),
     profileVisibility: z.enum(["public", "private"]).optional(),
     bio: profileField(normalizeBio).optional(),
     instagram: profileField(normalizeInstagram).optional(),

@@ -160,6 +160,11 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
   const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [savingAccount, setSavingAccount] = useState(false)
+  // #537: moving the email needs the current password, so the field shows
+  // only while the email differs from the saved one.
+  const [currentPassword, setCurrentPassword] = useState("")
+  const emailChanged =
+    account.email.trim().toLowerCase() !== (user.email ?? "").toLowerCase()
 
   const avatarInitials = useMemo(
     () => initialsFromName(account.displayName),
@@ -285,8 +290,10 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
         displayName: account.displayName.trim(),
         username: normalizeUsername(account.username),
         email: account.email.trim(),
+        ...(emailChanged ? { currentPassword } : {}),
         profileVisibility: account.profileVisibility,
       })
+      setCurrentPassword("")
 
       const mergedUser: AuthUser = { ...updatedUser, avatarUrl: nextAvatarUrl }
       const token = getToken()
@@ -445,6 +452,18 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                     placeholder="you@example.com"
                   />
                 </Field>
+                {emailChanged && (
+                  <Field label="Current password">
+                    <Input
+                      type="password"
+                      autoComplete="current-password"
+                      aria-label="current password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="needed to change your email"
+                    />
+                  </Field>
+                )}
               </div>
             </Section>
 
