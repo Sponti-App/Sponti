@@ -40,6 +40,6 @@ describe("NotificationSettings indexes", () => {
       .filter(([fields]: [Record<string, unknown>, unknown]) => "userId" in fields);
 
     expect(declared).toHaveLength(1);
-    expect(declared[0][1]).toMatchObject({ unique: true });
+    expect(declared[0]?.[1]).toMatchObject({ unique: true });
   });
 });
