@@ -355,9 +355,14 @@ export const resetPassword = async (req: Request, res: Response) => {
   const { token, password } = req.body as { token: string; password: string };
 
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-  const record = await PasswordResetToken.findOne({ tokenHash, used: false });
+  // #536: used up in one atomic step, so a link works exactly once even when
+  // two requests arrive together.
+  const record = await PasswordResetToken.findOneAndUpdate(
+    { tokenHash, used: false, expiresAt: { $gt: new Date() } },
+    { used: true },
+  );
 
-  if (!record || record.expiresAt < new Date()) {
+  if (!record) {
     throw new Error("Reset link is invalid or has expired", {
       cause: { status: 400 },
     });
@@ -365,7 +370,9 @@ export const resetPassword = async (req: Request, res: Response) => {
 
   const passwordHash = await bcrypt.hash(password, 10);
   await User.findByIdAndUpdate(record.userId, { passwordHash });
-  await PasswordResetToken.findByIdAndUpdate(record._id, { used: true });
+  // #536: a reset is how someone locks out whoever else has their session, so
+  // it ends every session. Other devices drop out at their next refresh.
+  await RefreshToken.deleteMany({ userId: record.userId });
 
   res.json({ message: "Password updated successfully." });
 };
