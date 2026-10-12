@@ -93,10 +93,14 @@ export default function RootLayout({
           <AppChrome>{children}</AppChrome>
         </ThemeProvider>
         {/* Dev-only visual annotation toolbar; sends notes to the local
-            agentation MCP server so an agent can pick them up. */}
-        {process.env.NODE_ENV === "development" && (
-          <Agentation endpoint="http://localhost:4747" />
-        )}
+            agentation MCP server so an agent can pick them up. Not in the
+            e2e servers (they run in dev mode too): its toolbar sits over the
+            bottom nav and swallows taps, and its inputs break the specs that
+            count inputs on a page. */}
+        {process.env.NODE_ENV === "development" &&
+          !process.env.E2E_HIDE_DEV_INDICATOR && (
+            <Agentation endpoint="http://localhost:4747" />
+          )}
       </body>
     </html>
   )

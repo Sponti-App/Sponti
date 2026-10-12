@@ -38,6 +38,7 @@ import {
   type HostedEvent,
   type UpdateEventRequest,
 } from "@/lib/api/events"
+import { sessionFetch } from "@/lib/http"
 import { PLACE_SEARCH_UNAVAILABLE } from "@/lib/place-search"
 import { formatClock } from "@/lib/format-date"
 
@@ -133,7 +134,7 @@ export default function EventEditPage() {
     }
     setPlacesLoading(true)
     try {
-      const resp = await fetch(
+      const resp = await sessionFetch(
         `/api/places?input=${encodeURIComponent(query.trim())}`
       )
       if (!resp.ok) throw new Error("places error")
@@ -183,7 +184,7 @@ export default function EventEditPage() {
     setPlaceDetailsLoading(true)
 
     try {
-      const resp = await fetch(
+      const resp = await sessionFetch(
         `/api/places/${encodeURIComponent(suggestion.placeId)}`
       )
       if (!resp.ok) throw new Error("Place details unavailable.")

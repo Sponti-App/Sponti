@@ -6,12 +6,18 @@ import {
   reverseGeocodeUrl,
   type ReverseGeocodeResult,
 } from "./googleGeocode"
+import { requireSignedIn, signedInDenied } from "@/lib/server/require-signed-in"
 
 // Reverse-geocodes a lat/lng into a neighbourhood/locality name for #161.
 // Follows the sibling Places proxy's pattern (../places/route.ts): server-only
 // key, plain fetch, and a `null` result + `error` field on failure rather
 // than a bare 500, so the composer can fall back instead of looking broken.
 export async function GET(req: NextRequest) {
+  const access = await requireSignedIn(req)
+  if (!access.ok) {
+    return signedInDenied(access, { area: null, locality: null })
+  }
+
   const coords = parseLatLngParams(req.nextUrl.searchParams)
   if (!coords) {
     return NextResponse.json(

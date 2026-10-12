@@ -19,6 +19,7 @@ import {
 } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { haptic } from "@/lib/haptics"
+import { sessionFetch } from "@/lib/http"
 import { looksLikeBerlin, matchAreas } from "@/lib/location-ask"
 import type { StartArea } from "@/lib/location-choice"
 
@@ -60,7 +61,7 @@ function usePlaceSearch(query: string): Search {
     const ac = new AbortController()
     const timer = window.setTimeout(() => {
       setSearch({ state: "loading" })
-      fetch(`/api/places?${new URLSearchParams({ input: q })}`, {
+      sessionFetch(`/api/places?${new URLSearchParams({ input: q })}`, {
         signal: ac.signal,
       })
         .then(async (resp) => {
@@ -84,7 +85,7 @@ function usePlaceSearch(query: string): Search {
 }
 
 async function placeArea(suggestion: Suggestion): Promise<StartArea> {
-  const resp = await fetch(
+  const resp = await sessionFetch(
     `/api/places/${encodeURIComponent(suggestion.placeId)}`
   )
   if (!resp.ok) throw new Error("place details unavailable")
