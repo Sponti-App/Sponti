@@ -50,10 +50,10 @@ External services (all team-reachable; **not** the departed member's personal ac
 Source of truth: shared vault → mirrored into each host's env settings. `*.env.example` in each package is the authoritative key list.
 
 **`spa/` (Vercel project env):**
-`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_ID`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_AUTH_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL`, `GOOGLE_MAPS_API_KEY` (server-only Places proxy). Optional: `NEXT_PUBLIC_SEED_DEMO_DATA=true` for an offline demo build only — never set it in production.
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_ID`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_AUTH_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL`, `GOOGLE_MAPS_API_KEY` (server-only key for the Places and geocode routes; a different key from the browser one, saved as Sensitive). Optional: `NEXT_PUBLIC_SEED_DEMO_DATA=true` for an offline demo build only — never set it in production.
 
 **`api/`:**
-`MONGO_URI`, `DB_NAME`, `PORT`, `CLIENT_BASE_URL`, `CORS_ORIGINS`, `ACCESS_JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_ID`.
+`MONGO_URI`, `DB_NAME`, `PORT`, `CLIENT_BASE_URL`, `CORS_ORIGINS`, `ACCESS_JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`, `GOOGLE_MAPS_API_KEY` (server-only key for the Routes API; the browser key never goes here).
 
 **`auth-server/`:**
 `NODE_ENV`, `PORT`, `APP_URL`, `CORS_ORIGINS`, `MONGO_URI`, `DB_NAME`, `ACCESS_JWT_SECRET`, `REFRESH_JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
