@@ -34,6 +34,8 @@ type NavItem =
       onClick: () => void
       center?: boolean
       badge?: number
+      /** The flare button's circle is away, morphing (#376). */
+      circleHidden?: boolean
     }
 
 /**
@@ -62,7 +64,7 @@ export function BottomNav({
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const { openDrawer } = useNewEventDrawer()
+  const { openDrawer, flareButtonHidden } = useNewEventDrawer()
   const { hostedByMe, invited, pastHosted } = useMyFlares()
   const hostedIds = new Set([...hostedByMe, ...pastHosted].map((e) => e.id))
   const activeHosted = hostedByMe.filter((e) => e.apiStatus !== "cancelled")
@@ -94,6 +96,7 @@ export function BottomNav({
       label: "flare",
       onClick: () => openDrawer(),
       center: true,
+      circleHidden: flareButtonHidden,
     },
     { kind: "route", icon: UsersIcon, label: "Circles", href: "/circles" },
     {
@@ -204,6 +207,7 @@ function NavBar({ items }: { items: NavItem[] }) {
               key={item.label}
               icon={item.icon}
               label={item.label}
+              circleHidden={item.circleHidden}
               onClick={() => {
                 haptic("medium")
                 item.onClick()
@@ -263,10 +267,14 @@ export function NavFlareButton({
   icon: Icon = FlameIcon,
   label = "flare",
   onClick,
+  circleHidden = false,
 }: {
   icon?: Icon
   label?: string
   onClick: () => void
+  /** While the circle morphs into the composer's strike strip and back
+   * (#376), a clone stands in for it, so the circle itself is hidden. */
+  circleHidden?: boolean
 }) {
   return (
     <button
@@ -277,7 +285,8 @@ export function NavFlareButton({
     >
       <span
         data-nav-flare-circle
-        className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-foreground ring-2 ring-accent/35 ring-offset-2 ring-offset-background"
+        data-hidden={circleHidden || undefined}
+        className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-foreground ring-2 ring-accent/35 ring-offset-2 ring-offset-background data-[hidden]:invisible"
       >
         <Icon className="h-6 w-6" />
       </span>
