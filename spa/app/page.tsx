@@ -280,8 +280,8 @@ function SignedInHome() {
         onSeeRoute={handleSeeRoute}
       />
 
-      {/* #497 (behind `coachMarks`): the circles tab and the menu, once per
-          device. Not over the checklist or any open sheet. */}
+      {/* #497, #560 (behind `coachMarks`): the coach marks, once per device,
+          only after sign-in. Not over the checklist or any open sheet. */}
       <HomeCoachMarks
         blocked={view !== "map" || menuOpen || inviteOpen || !!selectedEvent}
         onboardingCard={checklist !== null}
