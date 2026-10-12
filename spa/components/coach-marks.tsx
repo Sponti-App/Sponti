@@ -1,15 +1,13 @@
 "use client"
 
-// #379 (behind `coachMarks`, flare moments #370): the coach marks on the
-// signed-out map. The screen dims except one thing, with a card beside it:
-// "n of 3", a title, one line, skip and next ("got it" on the last). Set A
-// from the intro prototype (#373, PR #407 section 2): the idea spot, the
-// flare button, then the map/calendar toggle. With no idea spot on screen
-// (none near, or ideas hidden) that mark is left out: "n of 2".
+// #379, #560 (behind `coachMarks`, flare moments #370): the coach marks on
+// the signed-in home map. The screen dims except one thing, with a card beside
+// it: "n of 5", a title, one line, skip and next ("got it" on the last). The
+// idea spot, the flare button, the now/soon toggle, the circles tab, then the
+// menu (`lib/coach-marks.ts`). With no idea spot on screen (none near, or
+// ideas hidden) that mark is left out: "n of 4".
 //
 // The overlay takes every tap, so nothing under it opens while it shows.
-// `SignedOutHome` mounts it only when no slide or sheet is up, and holds the
-// location ask until it's done.
 
 import {
   useCallback,
@@ -22,11 +20,10 @@ import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import {
   coachMarkSteps,
+  coachMarksVisible,
   firstBoxInside,
-  homeCoachMarksVisible,
-  HOME_COACH_MARKS,
-  markHomeCoachMarksSeen,
-  useHomeCoachMarksPending,
+  markCoachMarksSeen,
+  useCoachMarksPending,
   type Box,
   type CoachMark,
   type CoachMarkId,
@@ -67,12 +64,10 @@ function sameBox(a: Box | null, b: Box | null): boolean {
   )
 }
 
-/** The first idea spot the visitor can see, between the header and the dock. */
+/** The first idea spot the user can see, between the header and the dock. */
 function findIdeaOnScreen(): string | null {
   const pins = Array.from(
-    document.querySelectorAll<HTMLElement>(
-      "[data-signed-out-map] [data-idea-pin]"
-    )
+    document.querySelectorAll<HTMLElement>("[data-idea-pin]")
   )
   if (pins.length === 0) return null
   const dock = document.querySelector("[data-map-dock]")
@@ -115,31 +110,17 @@ function spotlight(target: Box): Box & { round: boolean } {
   }
 }
 
-/**
- * `run` picks the marks: the signed-out map's (the default) or, #497, the
- * signed-in home's circles tab and menu.
- */
-export function CoachMarks({
-  onDone,
-  run = "signedOut",
-}: {
-  onDone: () => void
-  run?: "signedOut" | "home"
-}) {
-  // Null while looking for an idea spot; then the marks to run. The signed-in
-  // run has no idea spot to wait for.
+export function CoachMarks({ onDone }: { onDone: () => void }) {
+  // Null while looking for an idea spot; then the marks to run.
   const [plan, setPlan] = useState<{
     steps: CoachMark[]
     ideaId: string | null
-  } | null>(() =>
-    run === "home" ? { steps: [...HOME_COACH_MARKS], ideaId: null } : null
-  )
+  } | null>(null)
   const [index, setIndex] = useState(0)
   const [target, setTarget] = useState<Box | null>(null)
   const [viewport, setViewport] = useState({ height: 0 })
 
   useEffect(() => {
-    if (run !== "signedOut") return
     // Counted, not timed: a frozen clock (tests, a paused tab) still ends it.
     let polls = 0
     const timer = window.setInterval(() => {
@@ -151,7 +132,7 @@ export function CoachMarks({
       }
     }, IDEA_POLL_MS)
     return () => window.clearInterval(timer)
-  }, [run])
+  }, [])
 
   const mark = plan?.steps[index] ?? null
   const selector = mark ? selectorFor(mark.id, plan?.ideaId ?? null) : null
@@ -296,7 +277,7 @@ export function CoachMarks({
   )
 }
 
-// ---- the signed-in run (#497) ----------------------------------------------
+// ---- when they run -----------------------------------------------------------
 
 /** Whether any dialog or sheet but the coach marks themselves is open. */
 function useDialogOpen(): boolean {
@@ -315,8 +296,8 @@ function useDialogOpen(): boolean {
 }
 
 /**
- * #497 (behind `coachMarks`): the circles tab and the menu, once per device,
- * on the signed-in home map. They wait for the post-sign-up checklist and
+ * #497, #560 (behind `coachMarks`): the marks, once per device, on the
+ * signed-in home map. They wait for the post-sign-up checklist and
  * first-friend step (#459), the first-run intro and every open sheet.
  * `blocked` is what the user opened on the home: the menu, the invite dialog,
  * a flare's detail sheet or the calendar. `onboardingCard` is the checklist
@@ -334,14 +315,14 @@ export function HomeCoachMarks({
   blocked: boolean
   onboardingCard: boolean
 }) {
-  const pending = useHomeCoachMarksPending()
+  const pending = useCoachMarksPending()
   const onboardingShowing = useShowOnboarding()
   const dialogOpen = useDialogOpen()
   const [missed, setMissed] = useState(false)
   const [started, setStarted] = useState(false)
   const visible =
     !missed &&
-    homeCoachMarksVisible({
+    coachMarksVisible({
       pending,
       onboardingShowing,
       blocked: blocked || onboardingCard,
@@ -354,7 +335,5 @@ export function HomeCoachMarks({
   const userBusy =
     blocked || (dialogOpen && !onboardingShowing && !onboardingCard)
   if (pending && !started && !missed && userBusy) setMissed(true)
-  return visible ? (
-    <CoachMarks run="home" onDone={markHomeCoachMarksSeen} />
-  ) : null
+  return visible ? <CoachMarks onDone={markCoachMarksSeen} /> : null
 }

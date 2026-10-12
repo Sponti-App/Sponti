@@ -1,24 +1,26 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
-import { stubBackend } from "../support/stubs"
+import { BERLIN_COORDS, stubBackend } from "../support/stubs"
 
-// #379: with `coachMarks` (the full profile), a signed-out visitor's first
-// open of the home map runs three coach marks after the intro slides and
-// before the location ask (#408): the idea spot, the flare button, then the
-// map/calendar toggle. Each has "n of 3", skip and next; skip or "got it"
-// goes on to the location ask. They show once per device. With no idea spot
-// on screen, that mark is left out ("n of 2").
+// #379, #497, #560: with `coachMarks` (the full profile), the coach marks run
+// once per device, only after sign-in, as one run on the home map: the idea
+// spot, the flare button, the now/soon toggle, the circles tab, then the
+// menu. Each has "n of 5", skip and next. With no idea spot on screen, that
+// mark is left out ("n of 4"). A signed-out visitor gets the intro slides and
+// the location ask, and no marks.
 
 // A day when the berlin idea spots are in season.
 const JUNE = "2026-06-15T12:00:00.000Z"
+const ONBOARDING_KEY = "sponti.onboarding.v1"
+const COACH_MARKS_KEY = "sponti.coach-marks.v2"
 
 const slides = (page: Page) => page.locator("[data-intro-slide]")
 const mark = (page: Page) => page.locator("[data-coach-mark]")
 const locationSheet = (page: Page) => page.locator('[data-sheet="location"]')
 const navNode = (page: Page) => page.locator('nav[aria-label="Primary"]')
 
-async function firstOpen(
+async function openHome(
   page: Page,
-  options: { introSlides?: boolean; ideasHidden?: boolean } = {}
+  options: { ideasHidden?: boolean; checklist?: boolean } = {}
 ) {
   await page.clock.setFixedTime(JUNE)
   if (options.ideasHidden) {
@@ -26,12 +28,13 @@ async function firstOpen(
       window.localStorage.setItem("sponti.ideas.hidden.v1", "1")
     )
   }
-  await stubBackend(page, {
-    signedOut: true,
-    introSlides: options.introSlides ?? true,
-    coachMarks: true,
-    locationAsk: true,
-  })
+  await stubBackend(page, { coords: BERLIN_COORDS, coachMarks: true })
+  if (options.checklist) {
+    await page.addInitScript(
+      (key) => window.localStorage.setItem(key, "pending"),
+      ONBOARDING_KEY
+    )
+  }
   await page.goto("/")
 }
 
@@ -57,39 +60,44 @@ async function expectSpotlightOn(page: Page, target: Locator) {
     .toBe(true)
 }
 
-test.describe("coach marks (#379)", () => {
-  test("slides → three marks → the location ask, and a second visit has no marks", async ({
+test.describe("coach marks (#560)", () => {
+  test("signed out: slides, then the location ask, and no marks", async ({
     page,
   }) => {
-    await firstOpen(page)
+    await page.clock.setFixedTime(JUNE)
+    await stubBackend(page, {
+      signedOut: true,
+      introSlides: true,
+      coachMarks: true,
+      locationAsk: true,
+    })
+    await page.goto("/")
 
-    // The marks wait for the slides.
     await expect(slides(page)).toBeVisible()
-    await expect(mark(page)).toHaveCount(0)
-    await slides(page).getByRole("button", { name: "next" }).click()
-    await slides(page).getByRole("button", { name: "next" }).click()
-    await slides(page).getByRole("button", { name: "look around" }).click()
+    await slides(page).getByRole("button", { name: "skip" }).click()
     await expect(slides(page)).toHaveCount(0)
 
-    // 1: the idea spot. The location ask waits.
-    await expect(mark(page)).toHaveAttribute("data-coach-mark", "idea")
-    await expect(mark(page).getByText("1 of 3")).toBeVisible()
     await expect(
-      mark(page).getByText("ideas nearby", { exact: true })
+      locationSheet(page).getByText("where should the map start?")
     ).toBeVisible()
+    await expect(mark(page)).toHaveCount(0)
+  })
+
+  test("signed in: five marks in order, once per device", async ({ page }) => {
+    await openHome(page)
+
+    // 1: the idea spot.
+    await expect(mark(page)).toHaveAttribute("data-coach-mark", "idea")
+    await expect(mark(page).getByText("1 of 5")).toBeVisible()
     await expect(
       page.getByRole("dialog", { name: "ideas nearby" })
     ).toBeVisible()
-    await expect(locationSheet(page)).toHaveCount(0)
     await expectSpotlightOn(page, page.locator("[data-idea-pin]").first())
 
     // 2: the flare button.
     await mark(page).getByRole("button", { name: "next" }).click()
     await expect(mark(page)).toHaveAttribute("data-coach-mark", "flare")
-    await expect(mark(page).getByText("2 of 3")).toBeVisible()
-    await expect(
-      mark(page).getByText("light a flare", { exact: true })
-    ).toBeVisible()
+    await expect(mark(page).getByText("2 of 5")).toBeVisible()
     await expect(
       mark(page).getByText(
         "say what you're up to, right now or at a time you pick."
@@ -100,78 +108,128 @@ test.describe("coach marks (#379)", () => {
       navNode(page).locator("[data-nav-flare-circle]")
     )
 
-    // 3: the map/calendar toggle, which ends on "got it".
+    // 3: the now/soon toggle.
     await mark(page).getByRole("button", { name: "next" }).click()
     await expect(mark(page)).toHaveAttribute("data-coach-mark", "calendar")
-    await expect(mark(page).getByText("3 of 3")).toBeVisible()
+    await expect(mark(page).getByText("3 of 5")).toBeVisible()
+    await expectSpotlightOn(page, page.locator('[data-coach="view-toggle"]'))
+
+    // 4: the circles tab.
+    await mark(page).getByRole("button", { name: "next" }).click()
+    await expect(mark(page)).toHaveAttribute("data-coach-mark", "circles")
+    await expect(mark(page).getByText("4 of 5")).toBeVisible()
     await expect(
-      mark(page).getByText("soon lives here", { exact: true })
+      mark(page).getByText(
+        "friends and circles live here, and it's where you add people."
+      )
     ).toBeVisible()
+    await expectSpotlightOn(
+      page,
+      navNode(page).getByRole("button", { name: "Circles" })
+    )
+
+    // 5: the menu, which ends on "got it".
+    await mark(page).getByRole("button", { name: "next" }).click()
+    await expect(mark(page)).toHaveAttribute("data-coach-mark", "menu")
+    await expect(mark(page).getByText("5 of 5")).toBeVisible()
     await expect(mark(page).getByRole("button", { name: "next" })).toHaveCount(
       0
     )
-    await expectSpotlightOn(page, page.locator('[data-coach="view-toggle"]'))
+    await expectSpotlightOn(page, page.locator('[data-coach="menu"]'))
 
     await mark(page).getByRole("button", { name: "got it" }).click()
     await expect(mark(page)).toHaveCount(0)
-    await expect(
-      locationSheet(page).getByText("where should the map start?")
-    ).toBeVisible()
 
-    // Once per device: the location ask is still undecided, the marks aren't.
     await page.reload()
-    await expect(
-      locationSheet(page).getByText("where should the map start?")
-    ).toBeVisible()
-    await expect(slides(page)).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible()
     await expect(mark(page)).toHaveCount(0)
   })
 
-  test("skip goes straight on to the location ask, and they don't come back", async ({
-    page,
-  }) => {
-    await firstOpen(page, { introSlides: false })
+  test("skip marks them seen", async ({ page }) => {
+    await openHome(page)
 
-    await expect(mark(page).getByText("1 of 3")).toBeVisible()
-    await expect(locationSheet(page)).toHaveCount(0)
-
+    await expect(mark(page).getByText("1 of 5")).toBeVisible()
     await mark(page).getByRole("button", { name: "skip" }).click()
     await expect(mark(page)).toHaveCount(0)
-    await expect(
-      locationSheet(page).getByText("where should the map start?")
-    ).toBeVisible()
-
-    await page.reload()
-    await expect(
-      locationSheet(page).getByText("where should the map start?")
-    ).toBeVisible()
-    await expect(mark(page)).toHaveCount(0)
+    expect(
+      await page.evaluate((k) => localStorage.getItem(k), COACH_MARKS_KEY)
+    ).toBe("seen")
   })
 
   test("Escape skips them too", async ({ page }) => {
-    await firstOpen(page, { introSlides: false })
+    await openHome(page)
 
-    await expect(mark(page).getByText("1 of 3")).toBeVisible()
+    await expect(mark(page).getByText("1 of 5")).toBeVisible()
     await page.keyboard.press("Escape")
     await expect(mark(page)).toHaveCount(0)
-    await expect(
-      locationSheet(page).getByText("where should the map start?")
-    ).toBeVisible()
   })
 
-  test("with no idea spot on screen, the idea mark is left out: n of 2", async ({
+  test("with no idea spot on screen, the idea mark is left out: n of 4", async ({
     page,
   }) => {
-    await firstOpen(page, { introSlides: false, ideasHidden: true })
+    await openHome(page, { ideasHidden: true })
 
     await expect(mark(page)).toHaveAttribute("data-coach-mark", "flare")
-    await expect(mark(page).getByText("1 of 2")).toBeVisible()
+    await expect(mark(page).getByText("1 of 4")).toBeVisible()
+  })
+
+  test("they wait for the post-sign-up checklist, and show once it's hidden", async ({
+    page,
+  }) => {
+    await openHome(page, { checklist: true })
+
+    const checklist = page.getByRole("region", { name: "get going" })
+    await expect(checklist).toBeVisible()
+    await expect(mark(page)).toHaveCount(0)
+
+    await checklist.getByRole("button", { name: "hide" }).click()
+    await expect(mark(page)).toBeVisible()
+  })
+
+  test("the circles mark sits over the nav, not under it", async ({ page }) => {
+    await openHome(page, { ideasHidden: true })
+    await expect(mark(page)).toHaveAttribute("data-coach-mark", "flare")
     await mark(page).getByRole("button", { name: "next" }).click()
-    await expect(mark(page)).toHaveAttribute("data-coach-mark", "calendar")
-    await expect(mark(page).getByText("2 of 2")).toBeVisible()
-    await mark(page).getByRole("button", { name: "got it" }).click()
-    await expect(
-      locationSheet(page).getByText("where should the map start?")
-    ).toBeVisible()
+    await mark(page).getByRole("button", { name: "next" }).click()
+    await expect(mark(page)).toHaveAttribute("data-coach-mark", "circles")
+
+    // The topmost element over the circles tab is the overlay: the home is
+    // a fixed layer of its own, so the marks are portalled above the nav.
+    const tab = navNode(page).locator('button[aria-label="Circles"]')
+    const box = await tab.boundingBox()
+    expect(box).not.toBeNull()
+    const onTop = await page.evaluate(
+      ({ x, y }) =>
+        document.elementFromPoint(x, y)?.closest("[data-coach-mark]") !== null,
+      { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 }
+    )
+    expect(onTop).toBe(true)
+  })
+
+  test("they don't pop up after something the user opened closes", async ({
+    page,
+  }) => {
+    await openHome(page, { checklist: true })
+    const checklist = page.getByRole("region", { name: "get going" })
+    await expect(checklist).toBeVisible()
+
+    // The user opens the menu while the checklist is up, then closes it and
+    // hides the checklist: the marks wait for the next arrival.
+    await page.getByRole("button", { name: "Open menu" }).click()
+    // Close it on the scrim, to the right of the drawer.
+    await page.mouse.click(page.viewportSize()!.width - 8, 400)
+    await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible()
+    await checklist.getByRole("button", { name: "hide" }).click()
+    await expect(checklist).toBeHidden()
+    await page.waitForTimeout(600)
+    await expect(mark(page)).toHaveCount(0)
+
+    // The next arrival on the home (a reload would re-run the init script
+    // that makes the checklist pending again).
+    const nav = page.getByRole("navigation", { name: "Primary" })
+    await nav.getByRole("button", { name: "Circles" }).click()
+    await expect(page).toHaveURL(/\/circles/)
+    await nav.getByRole("button", { name: "Home" }).click()
+    await expect(mark(page)).toBeVisible()
   })
 })
