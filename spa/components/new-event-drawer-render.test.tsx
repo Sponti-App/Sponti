@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -433,6 +434,53 @@ describe("NewEventDrawer no-friends audience prompt", () => {
 // #241: the composer stays mounted under the provider and initialises its
 // state once, so a prefill has to land each time the drawer opens.
 describe("NewEventDrawer prefill", () => {
+  // #562: the quiet home's "soon" card opens pick-a-time with the picker out
+  // and the inner circle suggested, even before the circles have loaded.
+  it("opens pick a time with the picker out and a default circle picked", async () => {
+    const friend = { id: "f1", displayName: "Friend", username: "friend" }
+    mocks.fetchAcceptedConnections.mockResolvedValue([friend])
+    mocks.fetchMyCircles.mockResolvedValue([
+      {
+        id: "all",
+        name: "all friends",
+        description: "",
+        type: "all" as const,
+        memberIds: ["f1"],
+      },
+      {
+        id: "inner",
+        name: "inner circle",
+        description: "",
+        type: "inner" as const,
+        memberIds: [],
+      },
+    ])
+    const { rerender } = render(
+      <NewEventDrawer open={false} onClose={vi.fn()} />
+    )
+    // Closed is how it sits in the app: its close-time reset has run.
+    await act(async () => {})
+    rerender(
+      <NewEventDrawer
+        open
+        onClose={vi.fn()}
+        prefill={{ mode: "scheduled", audienceCircle: "inner" }}
+      />
+    )
+    expect(
+      await screen.findByRole("tab", { name: "pick a time", selected: true })
+    ).toBeInTheDocument()
+    // The date and time picker is already out.
+    expect(screen.getByText("date", { exact: true })).toBeInTheDocument()
+    expect(screen.getByText("time", { exact: true })).toBeInTheDocument()
+    // An empty circle is still the suggestion.
+    expect(await screen.findByText(/inner circle · 0/i)).toBeInTheDocument()
+    expect(screen.getByRole("dialog")).toHaveAttribute(
+      "data-vaul-snap-points",
+      "true"
+    )
+  })
+
   const humboldthain = {
     source: "place" as const,
     name: "humboldthain",

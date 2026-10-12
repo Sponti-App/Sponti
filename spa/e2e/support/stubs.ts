@@ -19,6 +19,8 @@ const INTRO_SLIDES_KEY = "sponti.intro-slides.v1"
 const LOCATION_CHOICE_KEY = "sponti.location-choice.v1"
 // Mirrors spa/lib/coach-marks.ts's COACH_MARKS_KEY (#379, #560).
 const COACH_MARKS_KEY = "sponti.coach-marks.v2"
+// Mirrors spa/lib/quiet-home.ts's RECENT_PEOPLE_KEY (#561).
+const RECENT_PEOPLE_KEY = "sponti.recent-people.v1"
 
 export const STUB_USER = {
   id: "user-e2e-1",
@@ -252,6 +254,12 @@ type StubBackendOptions = {
    */
   connectedAt?: string
   /**
+   * Start as if the user just signed in (#561): the quiet home may show the
+   * "you recently connected" card, which only follows a fresh sign-in. Set
+   * once per test, so a reload doesn't sign in again. Off by default.
+   */
+  freshSignIn?: boolean
+  /**
    * The flares GET /events/mine/upcoming lists as hosted by the user (#459's
    * "light your first flare" row). When set, even to [], a flare made with
    * POST /events joins the list. Unset, the list stays empty.
@@ -369,7 +377,19 @@ export async function stubBackend(
       coachMarks,
       locationChoiceKey,
       locationAsk,
+      recentPeopleKey,
+      freshSignIn,
     }) => {
+      if (freshSignIn && window.localStorage.getItem(recentPeopleKey) === null)
+        window.localStorage.setItem(
+          recentPeopleKey,
+          JSON.stringify({
+            userId: user.id,
+            fresh: true,
+            lastAt: null,
+            batch: null,
+          })
+        )
       if (!introSlides) window.localStorage.setItem(introSlidesKey, "seen")
       if (!coachMarks) window.localStorage.setItem(coachMarksKey, "seen")
       if (
@@ -401,6 +421,8 @@ export async function stubBackend(
       coachMarks,
       locationChoiceKey: LOCATION_CHOICE_KEY,
       locationAsk,
+      recentPeopleKey: RECENT_PEOPLE_KEY,
+      freshSignIn: options.freshSignIn ?? false,
     }
   )
 

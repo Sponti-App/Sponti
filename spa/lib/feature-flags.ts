@@ -55,9 +55,10 @@ export const featureFlags = {
 
   /**
    * The quiet home (#522): when the map has no flares, its sheet shows the
-   * people you recently connected with (one tap from a flare with them), an
-   * invite for a 0-friend account, the value prop for a signed-out visitor,
-   * and nearby idea cards; the type chips wait until there are two flares.
+   * people you recently connected with (#561: compact, after a fresh
+   * sign-in), an invite for a 0-friend account, two flare cards (#562, right
+   * now and soon), and for a signed-out visitor the value prop and nearby
+   * idea cards; the type chips wait until there are two flares.
    * On in both profiles; off, the old "no flares within 10 km" card.
    */
   quietHome: true,

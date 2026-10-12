@@ -454,6 +454,11 @@ export type ComposerPrefill = {
   // #522: friends to invite, as a private flare to just them ("flare with
   // mia" on the quiet home). Connection user ids.
   inviteIds?: string[]
+  // #562: "pick a time" opens with the date and time picker expanded.
+  mode?: Mode
+  // #562: a default circle suggested as the audience, by type (the caller
+  // doesn't know the ids). Pre-selected even when it is empty; changeable.
+  audienceCircle?: "close" | "inner"
 }
 
 // `openDrawer` is also wired straight to onClick handlers, which hand it the
@@ -461,7 +466,8 @@ export type ComposerPrefill = {
 // prefill so those callers open the composer exactly as before.
 export function normalizePrefill(input: unknown): ComposerPrefill | null {
   if (!input || typeof input !== "object") return null
-  const { title, category, place, inviteIds } = input as Record<string, unknown>
+  const { title, category, place, inviteIds, mode, audienceCircle } =
+    input as Record<string, unknown>
   const prefill: ComposerPrefill = {}
   if (typeof title === "string" && title.trim()) prefill.title = title
   if (EVENT_TYPES.some((t) => t.value === category)) {
@@ -475,6 +481,10 @@ export function normalizePrefill(input: unknown): ComposerPrefill | null {
       (id): id is string => typeof id === "string" && id.length > 0
     )
     if (ids.length > 0) prefill.inviteIds = ids
+  }
+  if (mode === "now" || mode === "scheduled") prefill.mode = mode
+  if (audienceCircle === "close" || audienceCircle === "inner") {
+    prefill.audienceCircle = audienceCircle
   }
   return Object.keys(prefill).length > 0 ? prefill : null
 }
@@ -516,6 +526,7 @@ export function getInitialEventDraftState(
   const { place } = prefill
   return {
     ...defaults,
+    mode: prefill.mode ?? defaults.mode,
     title: prefill.title?.slice(0, TITLE_MAX_LENGTH) ?? defaults.title,
     eventType: prefill.category ?? defaults.eventType,
     directlyInvitedIds: prefill.inviteIds ?? defaults.directlyInvitedIds,
@@ -844,6 +855,8 @@ export function NewEventDrawer({
 
   const prefilledDraftRef = useRef<DraftFields | null>(null)
   const audiencePinnedRef = useRef(false)
+  // #562: the circle type a prefill suggested, applied once the circles load.
+  const preferredAudienceRef = useRef<"close" | "inner" | null>(null)
   const draftUntouchedRef = useRef(true)
 
   const resetEventDraft = useCallback(
@@ -858,8 +871,11 @@ export function NewEventDrawer({
       prefilledDraftRef.current = next ? initialState : null
       placesSearchRequestRef.current += 1
       placeDetailsRequestRef.current += 1
-      setExpandedSection(null)
-      setActiveSnap(SNAP_PEEK)
+      // #562: "pick a time" opens with its picker out, like tapping it does.
+      const section: ExpandedSection =
+        initialState.mode === "scheduled" ? "when" : null
+      setExpandedSection(section)
+      setActiveSnap(snapFloorForState(section, initialState.mode))
       setAudiencePromptDismissed(false)
       setMode(initialState.mode)
       setEventType(initialState.eventType)
@@ -889,10 +905,18 @@ export function NewEventDrawer({
       audienceTouchedRef.current = false
       // #522: a prefill that invites friends is a private flare to just them,
       // and the friends list loading later doesn't switch it to "all".
-      audiencePinnedRef.current = initialState.directlyInvitedIds.length > 0
-      if (audiencePinnedRef.current) {
+      const preferred = next?.audienceCircle ?? null
+      preferredAudienceRef.current = preferred
+      audiencePinnedRef.current =
+        initialState.directlyInvitedIds.length > 0 || preferred !== null
+      if (initialState.directlyInvitedIds.length > 0) {
         setIsOpen(false)
         setAudience("")
+      } else if (preferred) {
+        // #562: the suggested circle, even an empty one. Until the circles
+        // load it stays unset; the load below picks it then.
+        setIsOpen(false)
+        setAudience(circles.find((c) => c.type === preferred)?.id ?? "")
       } else if (connections.length === 0) {
         setIsOpen(true)
         setAudience(initialState.audience)
@@ -987,7 +1011,17 @@ export function NewEventDrawer({
         setCircles(nextCircles)
         setAudienceLoading(false)
         setAudienceError(null)
-        if (audienceTouchedRef.current || audiencePinnedRef.current) return
+        if (audienceTouchedRef.current) return
+        const preferred = preferredAudienceRef.current
+        if (preferred) {
+          const circle =
+            nextCircles.find((c) => c.type === preferred) ??
+            nextCircles.find((c) => c.type === "all")
+          setIsOpen(false)
+          if (circle) setAudience(circle.id)
+          return
+        }
+        if (audiencePinnedRef.current) return
         if (nextConnections.length === 0) {
           setIsOpen(true)
         } else {

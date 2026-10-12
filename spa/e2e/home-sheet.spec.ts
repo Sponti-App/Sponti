@@ -641,10 +641,34 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
   })
 })
 
-test.describe("quiet home (#522)", () => {
+test.describe("quiet home (#522, #561, #562)", () => {
   const quietHome = (page: Page) => page.locator("[data-quiet-home]")
+  const people = (page: Page) => quietHome(page).locator("[data-quiet-people]")
+  const cta = (page: Page, id: "now" | "soon") =>
+    quietHome(page).locator(`[data-quiet-cta="${id}"]`)
+  const twoDaysAgo = () => new Date(Date.now() - 2 * 86_400_000).toISOString()
+  const defaultCircles = [
+    {
+      _id: "circle-close",
+      name: "close friends",
+      type: "close" as const,
+      memberCount: 1,
+    },
+    {
+      _id: "circle-inner",
+      name: "inner circle",
+      type: "inner" as const,
+      memberCount: 0,
+    },
+    {
+      _id: "circle-all",
+      name: "all friends",
+      type: "all" as const,
+      memberCount: 2,
+    },
+  ]
 
-  test("no flares and no friends: an invite and idea cards, no chips and no rail", async ({
+  test("no flares and no friends: an invite and the two flare cards, no chips, no rail, no idea cards", async ({
     page,
   }) => {
     await stubBackend(page, { mapEvents: [] })
@@ -658,11 +682,13 @@ test.describe("quiet home (#522)", () => {
     await expect(
       quietHome(page).getByRole("button", { name: "invite a friend" })
     ).toBeVisible()
-    // Place-less ideas work anywhere, even in the stub's san francisco.
-    await expect(quietHome(page).locator("[data-quiet-idea]")).toHaveCount(3)
-    // The old empty state, the chips and the count are gone.
+    await expect(cta(page, "now")).toContainText(
+      "what are you up for right now?"
+    )
+    await expect(cta(page, "soon")).toContainText("got a plan for soon?")
+    // #562: the idea cards left the sheet (the pins stay on the map).
+    await expect(quietHome(page).locator("[data-quiet-idea]")).toHaveCount(0)
     await expect(rail(page)).toHaveCount(0)
-    // (The list page, closed, still holds its own empty state.)
     await expect(dock(page).getByText(/no flares within \d+ km/)).toHaveCount(0)
     await expect(
       dock(page).getByRole("button", { name: "drinks", exact: true })
@@ -671,54 +697,141 @@ test.describe("quiet home (#522)", () => {
     await expect(quietHome(page).locator(".bg-accent")).toHaveCount(0)
   })
 
-  test("recent connections: a flare with one of them opens the composer with them invited", async ({
+  test("after a fresh sign-in with two new connections: a compact card with profile links", async ({
     page,
   }) => {
     await stubBackend(page, {
       mapEvents: [],
       friends: 2,
-      connectedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+      connectedAt: twoDaysAgo(),
+      freshSignIn: true,
     })
     await page.goto("/")
     await expect(nav(page)).toBeVisible()
 
-    const people = quietHome(page).locator("[data-quiet-people]")
-    await expect(people.getByText("you recently connected")).toBeVisible()
-    await expect(people.getByText("lena", { exact: true })).toBeVisible()
-    await expect(people.getByText("2 days ago").first()).toBeVisible()
+    await expect(people(page).getByText("you recently connected")).toBeVisible()
+    // Compact: one line of people under the label.
+    expect((await box(people(page))).height).toBeLessThan(110)
+    await expect(
+      people(page).getByRole("link", { name: "lena" })
+    ).toHaveAttribute("href", "/profile/friend0")
+    await expect(people(page).getByRole("link", { name: "mia" })).toBeVisible()
+    // The flare cards below light flares; the card has no flame of its own.
+    await expect(
+      people(page).getByRole("button", { name: /flare/ })
+    ).toHaveCount(0)
 
-    await people.getByRole("button", { name: "light a flare with mia" }).click()
-    await expect(
-      page.getByPlaceholder("what's the plan? e.g. drinks after work")
-    ).toBeInViewport()
-    // A private flare to just mia: no circle, one invited friend.
-    await expect(
-      page.getByRole("button", { name: "friends · 1", exact: true })
-    ).toBeVisible()
+    // The card stays for this sign-in, across reloads.
+    await page.reload()
+    await expect(people(page)).toBeVisible()
   })
 
-  test("friends, but none recent: just the idea cards", async ({ page }) => {
-    await stubBackend(page, { mapEvents: [], friends: 2 })
+  test("without a fresh sign-in the card stays away", async ({ page }) => {
+    await stubBackend(page, {
+      mapEvents: [],
+      friends: 2,
+      connectedAt: twoDaysAgo(),
+    })
     await page.goto("/")
-    await expect(nav(page)).toBeVisible()
-    await expect(quietHome(page).locator("[data-quiet-idea]")).toHaveCount(3)
-    await expect(quietHome(page).locator("[data-quiet-people]")).toHaveCount(0)
+    await expect(cta(page, "now")).toBeVisible()
+    await expect(people(page)).toHaveCount(0)
     await expect(
       quietHome(page).locator("[data-quiet-no-friends]")
     ).toHaveCount(0)
   })
 
-  test("an idea card opens the composer with the idea", async ({ page }) => {
-    await stubBackend(page, { mapEvents: [] })
+  test("swipe the card away, and undo from the toast", async ({ page }) => {
+    await stubBackend(page, {
+      mapEvents: [],
+      friends: 2,
+      connectedAt: twoDaysAgo(),
+      freshSignIn: true,
+    })
     await page.goto("/")
-    const card = quietHome(page).locator("[data-quiet-idea]").first()
-    const title = (await card.getAttribute("aria-label"))!.replace(
-      "light a flare: ",
-      ""
-    )
-    await card.click()
+    const card = people(page)
+    await expect(card).toBeVisible()
+
+    const b = await box(card)
+    const y = b.y + 12
+    await page.mouse.move(b.x + b.width - 20, y)
+    await page.mouse.down()
+    for (let i = 1; i <= 8; i++) {
+      await page.mouse.move(b.x + b.width - 20 - i * 30, y)
+    }
+    await page.mouse.up()
+    await expect(card).toHaveCount(0)
+
+    await page.getByRole("button", { name: "undo" }).click()
+    await expect(people(page)).toBeVisible()
+
+    // Hidden for good this time: a reload doesn't bring it back.
+    await people(page).getByRole("button", { name: "hide" }).focus()
+    await page.keyboard.press("Enter")
+    await expect(people(page)).toHaveCount(0)
+    await page.reload()
+    await expect(cta(page, "now")).toBeVisible()
+    await expect(people(page)).toHaveCount(0)
+  })
+
+  test("group opens close friends with them ticked", async ({ page }) => {
+    await stubBackend(page, {
+      mapEvents: [],
+      friends: 3,
+      connectedAt: twoDaysAgo(),
+      freshSignIn: true,
+      circles: defaultCircles,
+    })
+    await page.goto("/")
+    await people(page)
+      .getByRole("button", { name: "group into a circle" })
+      .click()
+
+    await expect(page).toHaveURL(/\/circles\?add=friend-0,friend-1,friend-2/)
+    // lena (friend-0) is already in close friends, so mia and sam are offered.
+    const add = page.getByRole("button", { name: "add 2 to close friends" })
+    await expect(add).toBeVisible()
+    const group = page.locator("[data-circle-group]").filter({ has: add })
+    await expect(group.getByRole("checkbox", { name: /mia/ })).toBeChecked()
+    await expect(group.getByRole("checkbox", { name: /sam/ })).toBeChecked()
+  })
+
+  test("right now opens the composer in right now, close friends picked", async ({
+    page,
+  }) => {
+    await stubBackend(page, {
+      mapEvents: [],
+      friends: 2,
+      circles: defaultCircles,
+    })
+    await page.goto("/")
+    await cta(page, "now").click()
     await expect(
       page.getByPlaceholder("what's the plan? e.g. drinks after work")
-    ).toHaveValue(title)
+    ).toBeInViewport()
+    await expect(
+      page.getByRole("tab", { name: "right now", selected: true })
+    ).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "close friends · 1", exact: true })
+    ).toBeVisible()
+  })
+
+  test("soon opens pick a time with the picker out, inner circle picked even when empty", async ({
+    page,
+  }) => {
+    await stubBackend(page, {
+      mapEvents: [],
+      friends: 2,
+      circles: defaultCircles,
+    })
+    await page.goto("/")
+    await cta(page, "soon").click()
+    await expect(
+      page.getByRole("tab", { name: "pick a time", selected: true })
+    ).toBeVisible()
+    await expect(page.getByText("date", { exact: true })).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "inner circle · 0", exact: true })
+    ).toBeVisible()
   })
 })
