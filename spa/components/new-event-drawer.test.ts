@@ -427,6 +427,15 @@ describe("normalizePrefill", () => {
     expect(normalizePrefill({ inviteIds: [] })).toBeNull()
   })
 
+  it("keeps a mode and a suggested default circle (#562)", () => {
+    expect(
+      normalizePrefill({ mode: "scheduled", audienceCircle: "inner" })
+    ).toEqual({ mode: "scheduled", audienceCircle: "inner" })
+    expect(
+      normalizePrefill({ mode: "later", audienceCircle: "all" })
+    ).toBeNull()
+  })
+
   it("passes a valid prefill through", () => {
     expect(normalizePrefill({ title: "drinks", category: "drinks" })).toEqual({
       title: "drinks",

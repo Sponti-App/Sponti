@@ -81,13 +81,12 @@ import { useTheme } from "next-themes"
 import { IdeaIcon } from "@/components/idea-icon"
 import { InviteDialog } from "@/components/qr-share-sheet"
 import {
+  FlareCtaCards,
   NoFriendsPanel,
-  pickQuietIdeas,
-  QuietIdeaCards,
-  RecentPeoplePanel,
+  RecentPeopleCard,
   useQuietPeople,
+  useRecentPeople,
 } from "@/components/quiet-home"
-import { recentConnections } from "@/lib/quiet-home"
 
 // What the map draws for an idea (#244). Not a flare pin: a dashed ring with
 // the idea's own icon (#524) and no fill colour. #522 (Patrick, 2026-10-09):
@@ -1005,24 +1004,11 @@ export function MapView({
   const showDockCard = !!dockCard && dock === "mid" && !tappedIdea
 
   // #522 (behind `quietHome`): with no flares, the sheet shows the people you
-  // recently connected with (or an invite with none), and nearby idea cards.
-  // Only once the results are real, like the quiet card above.
+  // recently connected with (#561: after a fresh sign-in, see
+  // lib/quiet-home.ts) or an invite with none, and two flare cards (#562).
+  // Only once the results are real, like the quiet card above. The idea
+  // pins stay on the map (#563 handles ideas in the sheet).
   const quietPeople = useQuietPeople(featureFlags.quietHome)
-  const recentPeople = useMemo(
-    () =>
-      quietPeople && nowMs > 0 ? recentConnections(quietPeople, nowMs) : [],
-    [quietPeople, nowMs]
-  )
-  const quietIdeas = useMemo(
-    () => pickQuietIdeas(ideaPins, floatingIdeas, cameraCenter),
-    [ideaPins, floatingIdeas, cameraCenter]
-  )
-  const quietPeopleBlock: "recent" | "none" | null =
-    recentPeople.length > 0
-      ? "recent"
-      : quietPeople && quietPeople.length === 0
-        ? "none"
-        : null
   const showQuietHome =
     featureFlags.quietHome &&
     dock === "mid" &&
@@ -1034,8 +1020,26 @@ export function MapView({
     !map.loading &&
     !mapFailedEmpty &&
     visibleEvents.length === 0 &&
-    typeFilters.size === 0 &&
-    (quietPeopleBlock !== null || quietIdeas.length > 0)
+    typeFilters.size === 0
+  const recent = useRecentPeople({
+    connections: quietPeople,
+    userId: viewerId,
+    now: nowMs,
+    active: showQuietHome,
+  })
+  const quietPeopleBlock: "recent" | "none" | null =
+    recent.people.length > 0
+      ? "recent"
+      : quietPeople && quietPeople.length === 0
+        ? "none"
+        : null
+  const hideRecentPeople = () => {
+    haptic("light")
+    const before = recent.dismiss()
+    showActionFeedback("recent connections hidden", {
+      action: { label: "undo", onAction: () => recent.restore(before) },
+    })
+  }
   const [quietInviteOpen, setQuietInviteOpen] = useState(false)
   // The chips, the count and "list" wait until there is something to sort:
   // two flares, or a chip already on (so it can be turned off).
@@ -1389,18 +1393,25 @@ export function MapView({
         ) : showQuietHome ? (
           <div data-quiet-home className="flex flex-col gap-2">
             {quietPeopleBlock === "recent" ? (
-              <RecentPeoplePanel
-                people={recentPeople}
-                now={nowMs}
-                onFlareWith={(person) => openDrawer({ inviteIds: [person.id] })}
+              <RecentPeopleCard
+                people={recent.people}
+                onGroup={() =>
+                  router.push(
+                    `/circles?add=${recent.people.map((p) => p.id).join(",")}`
+                  )
+                }
+                onDismiss={hideRecentPeople}
               />
             ) : quietPeopleBlock === "none" ? (
               <NoFriendsPanel onInvite={() => setQuietInviteOpen(true)} />
             ) : null}
-            <QuietIdeaCards
-              ideas={quietIdeas}
-              center={cameraCenter}
-              onLight={(next) => openDrawer(ideaPrefill(next))}
+            <FlareCtaCards
+              onRightNow={() =>
+                openDrawer({ mode: "now", audienceCircle: "close" })
+              }
+              onSoon={() =>
+                openDrawer({ mode: "scheduled", audienceCircle: "inner" })
+              }
             />
           </div>
         ) : showRail ? (
