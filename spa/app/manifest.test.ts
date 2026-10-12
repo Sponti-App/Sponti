@@ -42,3 +42,29 @@ describe("web app manifest (#131)", () => {
     }
   })
 })
+
+describe("brand images (#558)", () => {
+  const appDir = __dirname
+
+  it("has a 180px apple icon and a multi-size favicon", () => {
+    expect(pngSize(path.join(publicDir, "apple-icon.png"))).toEqual({
+      width: 180,
+      height: 180,
+    })
+    const ico = readFileSync(path.join(appDir, "favicon.ico"))
+    expect(ico.readUInt16LE(2)).toBe(1) // icon type
+    expect(ico.readUInt16LE(4)).toBeGreaterThanOrEqual(2) // 16 and 32 at least
+  })
+
+  it("serves one static 1200x630 link-preview image for og and twitter", () => {
+    for (const name of ["opengraph-image", "twitter-image"]) {
+      expect(pngSize(path.join(appDir, `${name}.png`))).toEqual({
+        width: 1200,
+        height: 630,
+      })
+      expect(existsSync(path.join(appDir, `${name}.alt.txt`))).toBe(true)
+      // The generated routes would shadow the static files.
+      expect(existsSync(path.join(appDir, `${name}.tsx`))).toBe(false)
+    }
+  })
+})
