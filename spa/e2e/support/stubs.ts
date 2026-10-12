@@ -658,19 +658,21 @@ export async function stubBackend(
       return
     }
     if (route.request().method() === "POST" && path === "/events") {
-      const created = makeStubFlare({ title: "new flare" })
-      if (hostedFlares) {
-        const body = route.request().postDataJSON() as Partial<StubApiEvent>
-        hostedFlares.push({
-          ...created,
-          _id: `event-e2e-hosted-${hostedFlares.length}`,
-          hostId: user.id,
-          title: body.title ?? created.title,
-          startAt: body.startAt ?? created.startAt,
-          endAt: body.endAt ?? created.endAt,
-        })
+      const body = route.request().postDataJSON() as Partial<StubApiEvent>
+      const base = makeStubFlare({ title: "new flare" })
+      // What the api answers with: the new flare, as its host's, where and
+      // when the request said.
+      const created: StubApiEvent = {
+        ...base,
+        _id: `event-e2e-hosted-${hostedFlares?.length ?? 0}`,
+        hostId: user.id,
+        title: body.title ?? base.title,
+        startAt: body.startAt ?? base.startAt,
+        endAt: body.endAt ?? base.endAt,
+        location: body.location ?? base.location,
       }
-      await fulfillJson(route, { data: created }, 201)
+      hostedFlares?.push(created)
+      await fulfillJson(route, { data: { event: created, members: [] } }, 201)
       return
     }
 
