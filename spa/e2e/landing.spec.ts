@@ -142,6 +142,10 @@ test.describe("landing page (#467, #506)", () => {
     isMobile,
   }) => {
     test.skip(isMobile, "the desktop reveal")
+    // The hero is pinned and scroll-driven: with motion on, the button keeps
+    // moving while the page settles, so Playwright's "stable" check on the
+    // second click never passes under load. Reduced motion rests it.
+    await page.emulateMedia({ reducedMotion: "reduce" })
     await page.goto("/landing")
     const ctas = page.getByRole("link", { name: "open sponti" })
     // Collapsed, the qr's `visibility: hidden` takes it out of the
