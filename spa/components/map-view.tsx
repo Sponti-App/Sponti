@@ -730,6 +730,7 @@ export function MapView({
   onRouteReady,
   onSeeCalendar,
   dockCard,
+  holdLocationAsk = false,
 }: {
   onEventSelect: (event: EventItem) => void
   activeRoute: EventItem | null
@@ -742,6 +743,9 @@ export function MapView({
    * "hide" folds it away with the rail.
    */
   dockCard?: React.ReactNode
+  /** #479: something else is asking for the screen (the welcome-back sheet),
+   * so the location ask waits, as it does while the composer is open. */
+  holdLocationAsk?: boolean
 }) {
   const { open: composeOpen, openDrawer } = useNewEventDrawer()
   const router = useRouter()
@@ -812,7 +816,7 @@ export function MapView({
     useLastKnown: true,
     alwaysFallback: false,
     requestByDefault: true,
-    hold: composeOpen,
+    hold: composeOpen || holdLocationAsk,
   })
   const geo = start.geo
   const cameraCenter = start.camera

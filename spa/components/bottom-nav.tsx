@@ -22,6 +22,8 @@ type NavItem =
       icon: Icon
       label: string
       href: string
+      /** Replaces the prefix match on `href` (#356). */
+      isActive?: (pathname: string) => boolean
       center?: boolean
       badge?: number
     }
@@ -33,6 +35,21 @@ type NavItem =
       center?: boolean
       badge?: number
     }
+
+/**
+ * #356: "my flares" is lit on the list and on the page (and edit page) of a
+ * flare you host, not on someone else's flare opened from the map. The host
+ * ids come from the flares the nav already loads; until they have, a flare
+ * page leaves the tab off, so it never flashes on and then off for a guest.
+ */
+export function isMyFlaresActive(
+  pathname: string,
+  hostedIds: ReadonlySet<string>
+): boolean {
+  if (pathname === "/event") return true
+  const match = pathname.match(/^\/event\/([^/]+)(?:\/edit)?$/)
+  return !!match && hostedIds.has(decodeURIComponent(match[1]))
+}
 
 export function BottomNav({
   onOpenNotifications,
@@ -46,7 +63,8 @@ export function BottomNav({
   const router = useRouter()
   const pathname = usePathname()
   const { openDrawer } = useNewEventDrawer()
-  const { hostedByMe, invited } = useMyFlares()
+  const { hostedByMe, invited, pastHosted } = useMyFlares()
+  const hostedIds = new Set([...hostedByMe, ...pastHosted].map((e) => e.id))
   const activeHosted = hostedByMe.filter((e) => e.apiStatus !== "cancelled")
   // Badge counts hosted-by-me + invited so users see a heads-up when there's
   // something waiting in the hub (a new invitation, a flare they're hosting).
@@ -83,6 +101,7 @@ export function BottomNav({
       icon: FireIcon,
       label: "my flares",
       href: "/event",
+      isActive: (path) => isMyFlaresActive(path, hostedIds),
       badge: flaresBadge,
     },
   ]
@@ -143,8 +162,12 @@ function NavBar({ items }: { items: NavItem[] }) {
   const router = useRouter()
   const pathname = usePathname()
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href)
+  const isActive = (item: Extract<NavItem, { kind: "route" }>) =>
+    item.isActive
+      ? item.isActive(pathname)
+      : item.href === "/"
+        ? pathname === "/"
+        : pathname.startsWith(item.href)
 
   // Publish the actual rendered nav height (incl. safe-area inset) as a CSS
   // variable so the floating bottom sheet and the map's dock can sit flush above the bar
@@ -189,7 +212,7 @@ function NavBar({ items }: { items: NavItem[] }) {
           )
         }
         const Icon = item.icon
-        const active = item.kind === "route" && isActive(item.href)
+        const active = item.kind === "route" && isActive(item)
         const handleClick =
           item.kind === "route"
             ? () => {
