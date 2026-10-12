@@ -38,10 +38,13 @@ function svg(size, glyph) {
   )
 }
 
-const png = (size, glyph) =>
+// `rgba` keeps an (opaque) alpha channel: Turbopack's ico decoder rejects PNG
+// entries that aren't RGBA ("The PNG is not in RGBA format"), so the favicon's
+// need it. The app icons stay RGB, as iOS and maskable icons want no alpha.
+const png = (size, glyph, { rgba = false } = {}) =>
   sharp(svg(size * 4, glyph), { density: 72 })
     .resize(size, size)
-    .removeAlpha()
+    [rgba ? "ensureAlpha" : "removeAlpha"]()
     .png({ compressionLevel: 9 })
     .toBuffer()
 
@@ -59,7 +62,7 @@ for (const [file, size, glyph] of outputs) {
 
 // favicon.ico: PNG-compressed entries (supported by every current browser).
 const sizes = [16, 32, 48]
-const images = await Promise.all(sizes.map((s) => png(s, 0.7)))
+const images = await Promise.all(sizes.map((s) => png(s, 0.7, { rgba: true })))
 const header = Buffer.alloc(6)
 header.writeUInt16LE(1, 2) // type: icon
 header.writeUInt16LE(images.length, 4)
