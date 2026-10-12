@@ -440,6 +440,31 @@ async function request<T>(
   }
 }
 
+/**
+ * `fetch` for this app's own server routes that need a signed-in user (the
+ * Google proxies, #541). It sends the access token and, if the server says it
+ * has expired, refreshes the session once and retries, like `authFetch` does
+ * for the backends. It returns the raw Response so callers keep their own
+ * handling.
+ */
+export async function sessionFetch(
+  input: string,
+  init: RequestInit = {}
+): Promise<Response> {
+  const send = (token: string | null) => {
+    const headers = new Headers(init.headers)
+    if (token) headers.set("Authorization", `Bearer ${token}`)
+    return fetch(input, { ...init, headers })
+  }
+
+  const usedToken = getToken()
+  const res = await send(usedToken)
+  if (res.status !== 401 || !usedToken) return res
+
+  const refreshed = await refreshSession(usedToken)
+  return refreshed.status === "ok" ? send(refreshed.accessToken) : res
+}
+
 function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "")
 }
