@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { morphFrame } from "./morph"
+import { morphFrame, slotAt } from "./morph"
 
 // The nav's 44px circle, centred at (195, 790); the 343 × 56 strip above it.
 const button = { left: 173, top: 768, width: 44, height: 44 }
@@ -27,5 +27,28 @@ describe("morphFrame (#376): the nav button becomes the strike strip", () => {
     const f = morphFrame(button, slot, 0.5, knob)
     expect(f.transform).toBe("translate(75.5px, 1px) scale(0.96)")
     expect(f.clipPath).toBe("inset(0px 143.5px 0px 0px round 9999px)")
+  })
+})
+
+describe("slotAt (#376): the morph aims at where the strip will rest", () => {
+  // The sheet is still 600px below its resting place, so the live slot is
+  // below the screen.
+  const live = { left: 16, top: 1360, width: 343, height: 56 }
+
+  it("starts at the resting slot, not the live one", () => {
+    expect(slotAt(live, 600, 0).top).toBe(760)
+  })
+
+  it("meets the live strip as the morph ends", () => {
+    expect(slotAt(live, 600, 1).top).toBe(1360)
+    expect(slotAt(live, 0, 0.5).top).toBe(1360)
+  })
+
+  it("never swoops below the live slot or above the resting one", () => {
+    for (let p = 0; p <= 1; p += 0.05) {
+      const top = slotAt(live, 600, p).top
+      expect(top).toBeGreaterThanOrEqual(760)
+      expect(top).toBeLessThanOrEqual(1360)
+    }
   })
 })

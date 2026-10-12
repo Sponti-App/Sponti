@@ -194,6 +194,53 @@ test.describe("lighting moment", () => {
   })
 })
 
+test.describe("lighting moment, the morph and the map", () => {
+  test("the morph stays on screen while the sheet slides in", async ({
+    page,
+  }) => {
+    await stubBackend(page, { hostedFlares: [] })
+    await page.goto("/")
+    // The clone's top edge, every frame: it used to follow the strip's live
+    // slot down below the screen and back up with the sheet.
+    await page.evaluate(() => {
+      const tops: number[] = []
+      ;(window as unknown as { __tops: number[] }).__tops = tops
+      const sample = () => {
+        const el = document.querySelector("[data-flare-morph]")
+        if (el) tops.push(el.getBoundingClientRect().top)
+        requestAnimationFrame(sample)
+      }
+      requestAnimationFrame(sample)
+    })
+    await nav(page).getByRole("button", { name: "flare", exact: true }).click()
+    await expect(page.getByPlaceholder(TITLE)).toBeInViewport()
+    await expect(page.locator("[data-flare-morph]")).toHaveCount(0)
+    const tops = await page.evaluate(
+      () => (window as unknown as { __tops: number[] }).__tops
+    )
+    const height = page.viewportSize()!.height
+    expect(tops.length).toBeGreaterThan(3)
+    for (const top of tops) expect(top).toBeLessThan(height)
+  })
+
+  test("a flare lit to start in 15 minutes shows on the map", async ({
+    page,
+  }) => {
+    await openComposer(page, { hostedFlares: [hosted()] })
+    await page.getByRole("button", { name: /now · 1h/ }).click()
+    await page
+      .getByRole("group", { name: "starts" })
+      .getByRole("button", { name: "15m" })
+      .click()
+    await strike(page)
+    await expect(page.getByPlaceholder(TITLE)).toBeHidden()
+    // The stub's map list stays empty: this is the pin of the flare just lit.
+    await expect(
+      page.locator('[data-flare-pin="event-e2e-hosted-1"]')
+    ).toBeVisible()
+  })
+})
+
 test.describe("lighting moment, reduced motion", () => {
   test.use({ reducedMotion: "reduce" })
 

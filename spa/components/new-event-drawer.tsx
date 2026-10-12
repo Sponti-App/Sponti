@@ -45,6 +45,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import {
+  adaptApiEvent,
   createEvent,
   createEventRequestFromDraft,
   MAP_SOON_WINDOW_MS,
@@ -52,8 +53,10 @@ import {
   type DraftEvent,
   type DraftEventLocation,
   type EventAudienceTarget,
+  type EventItem,
   type EventType,
 } from "@/lib/api/events"
+import { announceLitFlare } from "@/lib/lit-flare"
 import {
   addCircleMember as addApiCircleMember,
   fetchMyCircles,
@@ -1463,6 +1466,7 @@ export function NewEventDrawer({
 
     setIsSubmitting(true)
     let created = false
+    let litEvent: EventItem | null = null
     const createdAt = new Date().toISOString()
     let eventAudience: EventAudienceTarget = { kind: "public" }
 
@@ -1538,8 +1542,9 @@ export function NewEventDrawer({
         timeRange
       )
       try {
-        await createEvent(requestBody)
+        const response = await createEvent(requestBody)
         created = true
+        litEvent = response?.event ? adaptApiEvent(response.event) : null
         emitEventsChanged()
       } catch (err) {
         if (err instanceof HttpError) {
@@ -1565,6 +1570,8 @@ export function NewEventDrawer({
         throw err
       }
       const toast = successToastForStart(timeRange.startAt, createdAt)
+      // The home map shows the new flare and moves to it (#376).
+      if (litEvent) announceLitFlare(litEvent)
       if (lightMoment) {
         // Only now that the api has confirmed it: the moment, then the
         // toast once the flare has caught (LightingMomentLayer's onLit).

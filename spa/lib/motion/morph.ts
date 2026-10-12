@@ -62,6 +62,30 @@ export function morphFrame(
   }
 }
 
+/**
+ * How far (px, downwards) the sheet around `el` still has to travel to reach
+ * where it rests: its current translateY less its resting one (vaul's
+ * `--snap-point-height`, 0 without snap points). The sheet slides in while the
+ * morph runs, so the strip's live position starts below the screen; the morph
+ * aims at where the strip will rest instead, and only meets the live strip as
+ * the sheet lands.
+ */
+export function sheetDisplacement(el: Element): number {
+  if (typeof DOMMatrixReadOnly === "undefined") return 0
+  const sheet = el.closest<HTMLElement>("[data-vaul-drawer]")
+  if (!sheet) return 0
+  const current = new DOMMatrixReadOnly(getComputedStyle(sheet).transform).m42
+  const rest =
+    parseFloat(sheet.style.getPropertyValue("--snap-point-height")) || 0
+  return Number.isFinite(current) ? current - rest : 0
+}
+
+/** The strip's slot for a frame: the resting slot, easing onto the live one. */
+export function slotAt(live: Rect, displacement: number, p: number): Rect {
+  const rest = displacement * (1 - p * p * p)
+  return { ...live, top: live.top - rest }
+}
+
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3)
 const easeInOut = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
@@ -123,10 +147,14 @@ export function runMorph(options: {
   const start = performance.now()
   const paint = (now: number) => {
     const t = Math.min(1, (now - start) / durationMs)
-    lastSlot = toRect(options.slot()?.getBoundingClientRect()) ?? lastSlot
+    const slotEl = options.slot()
+    lastSlot = toRect(slotEl?.getBoundingClientRect()) ?? lastSlot
     lastButton = toRect(options.button()?.getBoundingClientRect()) ?? lastButton
     const p = direction === "open" ? easeOut(t) : 1 - easeInOut(t)
-    const f = morphFrame(lastButton!, lastSlot!, p, knob)
+    const slot = slotEl
+      ? slotAt(lastSlot!, sheetDisplacement(slotEl), p)
+      : lastSlot!
+    const f = morphFrame(lastButton!, slot, p, knob)
     Object.assign(ghost.style, {
       left: `${f.left}px`,
       top: `${f.top}px`,

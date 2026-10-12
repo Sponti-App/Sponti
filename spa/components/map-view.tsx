@@ -43,6 +43,11 @@ import {
 import { type GeoCoords, type GeoStatus } from "@/lib/geolocation"
 import { AreaBanner, LocationAskSheet } from "@/components/location-ask"
 import { BERLIN_START } from "@/lib/location-choice"
+import {
+  subscribeToLitFlare,
+  withLitFlares,
+  type LitFlare,
+} from "@/lib/lit-flare"
 import { useLocationStart } from "@/lib/use-location-start"
 import { useMapEvents } from "@/lib/use-events"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
@@ -427,6 +432,8 @@ function GoogleMapContent({
   cameraCenter,
   currentLocation,
   recenterTick,
+  focus,
+  focusInsetPx,
   highlightId,
   ideas,
   floatingIdeas,
@@ -446,6 +453,10 @@ function GoogleMapContent({
   cameraCenter: GeoCoords
   currentLocation: GeoCoords | null
   recenterTick: number
+  /** A flare to move to (just lit), with the height of the dock over the
+   * map's lower part. */
+  focus: MapFocus | null
+  focusInsetPx: number
   /** The flare whose rail card is centred; its pin grows. */
   highlightId: string | null
   ideas: FlareIdea[]
@@ -482,6 +493,30 @@ function GoogleMapContent({
     map.panTo(currentLocation)
     if ((map.getZoom() ?? 0) < 14) map.setZoom(15)
   }, [map, currentLocation, recenterTick])
+
+  // Move to a flare that was just lit, so it sits in the part of the map the
+  // dock leaves free. Counts as the person's own navigation: the map won't
+  // pull back to their position afterwards.
+  useEffect(() => {
+    if (!map || !focus) return
+    userInteractedRef.current = true
+    autoCenteredRef.current = true
+    const zoom = Math.max(map.getZoom() ?? 0, 15)
+    let target: google.maps.LatLngLiteral = focus.coords
+    const projection = map.getProjection()
+    if (projection && focusInsetPx > 0) {
+      const point = projection.fromLatLngToPoint(focus.coords)
+      if (point) {
+        // The centre goes below the flare by half the dock's height.
+        point.y += focusInsetPx / 2 / Math.pow(2, zoom)
+        target = projection.fromPointToLatLng(point)?.toJSON() ?? target
+      }
+    }
+    map.panTo(target)
+    if ((map.getZoom() ?? 0) < zoom) map.setZoom(zoom)
+    // `focusInsetPx` is read once per focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, focus])
 
   if (status === APILoadingStatus.FAILED) {
     return (
@@ -843,9 +878,35 @@ export function MapView({
   // #171: the first flares fetch after a cold backend can take up to a
   // minute — say so instead of a "loading" label that just sits there.
   const mapWakingUp = useSlowRequestHint(map.loading)
+  // #376: a flare just lit shows at once and the map moves to it, instead of
+  // waiting for the refetch (and staying on the person's own position).
+  const [litFlares, setLitFlares] = useState<LitFlare[]>([])
+  const [focus, setFocus] = useState<MapFocus | null>(null)
   const mapEvents = useMemo(
-    () => map.events.filter((e) => !!e.location.coordinates),
-    [map.events]
+    () =>
+      withLitFlares(map.events, litFlares, nowMs).filter(
+        (e) => !!e.location.coordinates
+      ),
+    [map.events, litFlares, nowMs]
+  )
+
+  // A flare was just lit: show it, whatever the filters, and move to it.
+  useEffect(
+    () =>
+      subscribeToLitFlare((event) => {
+        const coords = eventCoords(event)
+        setLitFlares((prev) => [
+          ...prev.filter((l) => l.event.id !== event.id),
+          { event, litAt: Date.now() },
+        ])
+        setTypeFilters(new Set())
+        setTimeFilter("all")
+        setPreviewEvent(null)
+        setRailFocusId(event.id)
+        if (coords)
+          setFocus((prev) => ({ coords, tick: (prev?.tick ?? 0) + 1 }))
+      }),
+    []
   )
   const groupedEvents = useMemo(() => {
     const now = nowMs
@@ -1287,6 +1348,8 @@ export function MapView({
             cameraCenter={cameraCenter}
             currentLocation={geo.coords}
             recenterTick={recenterTick}
+            focus={focus}
+            focusInsetPx={dockPx}
             highlightId={highlightId}
             ideas={ideaPins}
             floatingIdeas={floatingIdeas}
@@ -2172,6 +2235,9 @@ function FilterChip({
 }
 
 type TimeFilter = "live" | "upcoming" | "all"
+
+/** Where to move the map to (#376); `tick` makes a repeat count. */
+type MapFocus = { coords: GeoCoords; tick: number }
 
 function TimeTabs({
   value,
