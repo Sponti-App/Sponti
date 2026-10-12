@@ -1417,7 +1417,7 @@ export function NewEventDrawer({
   // lighting moment before the success toast.
   const lightMoment = featureFlags.flareLightMoment
   const strikeStripRef = useRef<HTMLButtonElement>(null)
-  const { concealed: strikeStripConcealed } = useStrikeMorph({
+  useStrikeMorph({
     open,
     enabled: lightMoment,
     stripRef: strikeStripRef,
@@ -2034,7 +2034,6 @@ export function NewEventDrawer({
                     }
                     busy={isSubmitting}
                     disabled={ctaDisabled && !isSubmitting}
-                    concealed={strikeStripConcealed}
                     onLight={onCta}
                   />
                 ) : (

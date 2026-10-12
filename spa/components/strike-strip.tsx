@@ -31,12 +31,10 @@ export const StrikeStrip = forwardRef<
     disabled?: boolean
     /** The flare is being created: the knob glows and the strip waits. */
     busy?: boolean
-    /** Hidden while the morph's clone stands in for it. */
-    concealed?: boolean
     onLight: () => void
   }
 >(function StrikeStrip(
-  { label, disabled = false, busy = false, concealed = false, onLight },
+  { label, disabled = false, busy = false, onLight },
   ref
 ) {
   const start = useRef<{ x: number; t: number } | null>(null)
@@ -114,10 +112,7 @@ export const StrikeStrip = forwardRef<
         if (e.detail === 0 && ready) fire()
       }}
       onContextMenu={(e) => e.preventDefault()}
-      className={cn(
-        "relative h-14 w-full touch-none overflow-hidden rounded-full bg-muted select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60",
-        concealed && "opacity-0"
-      )}
+      className="relative h-14 w-full touch-none overflow-hidden rounded-full bg-muted select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60"
       style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
     >
       {/* The streak the match head leaves behind. */}

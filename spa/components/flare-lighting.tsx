@@ -6,7 +6,7 @@
 // The motion itself is in lib/motion (#375).
 
 import dynamic from "next/dynamic"
-import { useEffect, useRef, useState, type RefObject } from "react"
+import { useEffect, useRef, type RefObject } from "react"
 import type { Icon } from "@/components/icons"
 import { STRIP_KNOB } from "@/components/strike-strip"
 import { fetchMyFlares, type EventVisibility } from "@/lib/api/events"
@@ -18,11 +18,15 @@ import {
   type Point,
 } from "@/lib/motion/lighting"
 import { preloadGsap } from "@/lib/motion/load-gsap"
-import { runMorph } from "@/lib/motion/morph"
+import { runMorph, type Rect } from "@/lib/motion/morph"
 import { prefersReducedMotion } from "@/lib/motion/reduced-motion"
 import type { FlareMomentSpec } from "@/lib/motion/flare-moment"
 
-const MORPH_MS = 420
+// The sheet slides in and out in 500 ms on vaul's curve. Opening, the pill
+// lands with it; closing, the circle is home a little before the sheet has
+// gone, so the nav doesn't wait on it.
+const MORPH_OPEN_MS = 500
+const MORPH_CLOSE_MS = 420
 /** Whatever happens, the nav gets its button back after this long. */
 const MORPH_SAFETY_MS = 1500
 
@@ -47,11 +51,43 @@ export function flareButtonCenter(): Point {
 }
 
 /**
+ * Where the strike strip rests once the composer's sheet has landed: its
+ * footer sits on the bottom of the visual viewport (useSheetVisibleHeight
+ * sizes the card to what is on screen), so the strip's offset inside the
+ * footer gives its place even while the sheet is still sliding in.
+ */
+function stripRest(strip: HTMLElement): Rect | null {
+  const footer = strip.parentElement
+  if (!footer) return null
+  const s = strip.getBoundingClientRect()
+  const f = footer.getBoundingClientRect()
+  if (s.width === 0 || f.height === 0) return null
+  const vv = window.visualViewport
+  const bottom = vv ? vv.offsetTop + vv.height : window.innerHeight
+  return {
+    left: s.left,
+    top: bottom - (f.bottom - s.top),
+    width: s.width,
+    height: s.height,
+  }
+}
+
+/** Calls `then` once `ok` holds (checked every frame), or after `maxFrames`. */
+function whenPainted(ok: () => boolean, then: () => void, maxFrames = 6) {
+  let n = 0
+  const check = () => {
+    if (ok() || ++n >= maxFrames) then()
+    else requestAnimationFrame(check)
+  }
+  requestAnimationFrame(check)
+}
+
+/**
  * Morphs the nav's flare button into the strike strip when the composer
- * opens, and back when it closes (lib/motion/morph.ts). The strip stays
- * concealed while the clone stands in for it; the nav's circle stays hidden
- * from the open until the close morph lands on it. Reduced motion: no morph,
- * the strip is simply there and the nav keeps its button.
+ * opens, and back when it closes (lib/motion/morph.ts). The morph hides the
+ * strip while its clone stands in; the nav's circle stays hidden from the
+ * open until the close morph lands on it. Reduced motion: no morph, the strip
+ * is simply there and the nav keeps its button.
  */
 export function useStrikeMorph({
   open,
@@ -63,8 +99,7 @@ export function useStrikeMorph({
   enabled: boolean
   stripRef: RefObject<HTMLElement | null>
   onFlareButtonHidden?: (hidden: boolean) => void
-}): { concealed: boolean } {
-  const [concealed, setConcealed] = useState(false)
+}): void {
   const wasOpen = useRef(false)
   const hide = useRef(onFlareButtonHidden)
   useEffect(() => {
@@ -77,53 +112,55 @@ export function useStrikeMorph({
     const closing = !open && wasOpen.current
     wasOpen.current = open
     if (!opening && !closing) return
-    if (prefersReducedMotion() || !navCircle()) {
-      // No morph: the strip is simply there, and the nav keeps its button.
-      if (opening) queueMicrotask(() => setConcealed(false))
-      return
-    }
+    if (prefersReducedMotion() || !navCircle()) return
 
-    let cancel: () => void = () => {}
+    let finish: () => void = () => {}
     let cancelled = false
     const reveal = () => hide.current?.(false)
-    const safety = setTimeout(reveal, MORPH_SAFETY_MS)
-    hide.current?.(true)
+    // Closing: whatever happens to the morph, the nav gets its button back.
+    const safety = closing ? setTimeout(reveal, MORPH_SAFETY_MS) : undefined
 
-    // Let the sheet mount (opening) before measuring the strip's slot.
+    // Let the sheet mount (opening) before measuring the strip.
     const frame = requestAnimationFrame(() => {
       const strip = stripRef.current
       if (cancelled) return
-      if (!strip) {
+      if (!strip?.isConnected) {
         if (closing) reveal()
         return
       }
-      // The clone stands in for the strip both ways: on the way out the
-      // sheet still slides down with the strip in it.
-      setConcealed(true)
       const morph = runMorph({
         strip,
         button: navCircle,
-        slot: () => (strip.isConnected ? strip : null),
+        rest: () => (strip.isConnected ? stripRest(strip) : null),
         direction: opening ? "open" : "close",
         knob: STRIP_KNOB,
-        durationMs: MORPH_MS,
+        durationMs: opening ? MORPH_OPEN_MS : MORPH_CLOSE_MS,
       })
-      cancel = morph.cancel
+      finish = morph.finish
+      // The clone now covers the nav's circle, so hiding it can't flash.
+      if (opening) hide.current?.(true)
       void morph.done.then(() => {
-        if (opening) setConcealed(false)
-        else {
-          clearTimeout(safety)
-          reveal()
+        if (cancelled) return
+        if (opening) {
+          morph.finish()
+          return
         }
+        clearTimeout(safety)
+        reveal()
+        // The clone goes once the nav has drawn its circle again.
+        const circle = navCircle()
+        whenPainted(
+          () => !!circle && !circle.hasAttribute("data-hidden"),
+          morph.finish
+        )
       })
     })
 
     return () => {
       cancelled = true
       cancelAnimationFrame(frame)
-      cancel()
-      if (opening) queueMicrotask(() => setConcealed(false))
-      else {
+      finish()
+      if (closing) {
         clearTimeout(safety)
         reveal()
       }
@@ -132,8 +169,6 @@ export function useStrikeMorph({
 
   // Never leave the nav without its button.
   useEffect(() => () => hide.current?.(false), [])
-
-  return { concealed: enabled && concealed }
 }
 
 /**

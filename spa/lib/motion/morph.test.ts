@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { morphFrame, slotAt } from "./morph"
+import { cubicBezier, morphFrame, openSlotAt, SHEET_EASE } from "./morph"
 
 // The nav's 44px circle, centred at (195, 790); the 343 × 56 strip above it.
 const button = { left: 173, top: 768, width: 44, height: 44 }
@@ -30,25 +30,58 @@ describe("morphFrame (#376): the nav button becomes the strike strip", () => {
   })
 })
 
-describe("slotAt (#376): the morph aims at where the strip will rest", () => {
-  // The sheet is still 600px below its resting place, so the live slot is
-  // below the screen.
-  const live = { left: 16, top: 1360, width: 343, height: 56 }
+describe("openSlotAt (#376): the open morph aims at where the strip rests", () => {
+  const rest = { left: 16, top: 737, width: 343, height: 56 }
+  // The sheet is still sliding in: the live strip is below the screen.
+  const live = { left: 16, top: 919, width: 343, height: 56 }
 
-  it("starts at the resting slot, not the live one", () => {
-    expect(slotAt(live, 600, 0).top).toBe(760)
-  })
-
-  it("meets the live strip as the morph ends", () => {
-    expect(slotAt(live, 600, 1).top).toBe(1360)
-    expect(slotAt(live, 0, 0.5).top).toBe(1360)
-  })
-
-  it("never swoops below the live slot or above the resting one", () => {
-    for (let p = 0; p <= 1; p += 0.05) {
-      const top = slotAt(live, 600, p).top
-      expect(top).toBeGreaterThanOrEqual(760)
-      expect(top).toBeLessThanOrEqual(1360)
+  it("aims at the resting slot, not the live strip, for most of the way", () => {
+    for (const t of [0, 0.25, 0.5, 0.75]) {
+      expect(openSlotAt(rest, live, t).top).toBe(737)
     }
+  })
+
+  it("meets the live strip as the morph ends, so the hand-over can't jump", () => {
+    expect(openSlotAt(rest, { ...live, top: 739 }, 1).top).toBe(739)
+  })
+
+  it("eases onto it without overshooting either one", () => {
+    let prev = 737
+    for (let t = 0.75; t <= 1.0001; t += 0.05) {
+      const top = openSlotAt(rest, live, t).top
+      expect(top).toBeGreaterThanOrEqual(prev)
+      expect(top).toBeLessThanOrEqual(919)
+      prev = top
+    }
+  })
+
+  it("is the resting slot when there is no live strip", () => {
+    expect(openSlotAt(rest, null, 1)).toEqual(rest)
+  })
+})
+
+describe("cubicBezier (#376): the clone moves on the sheet's curve", () => {
+  it("runs from 0 to 1", () => {
+    expect(SHEET_EASE(0)).toBe(0)
+    expect(SHEET_EASE(1)).toBe(1)
+  })
+
+  it("never overshoots and only moves forward", () => {
+    let prev = 0
+    for (let t = 0; t <= 1; t += 0.01) {
+      const v = SHEET_EASE(t)
+      expect(v).toBeGreaterThanOrEqual(prev - 1e-9)
+      expect(v).toBeLessThanOrEqual(1)
+      prev = v
+    }
+  })
+
+  it("matches known points of a css curve", () => {
+    const linear = cubicBezier(0, 0, 1, 1)
+    expect(linear(0.3)).toBeCloseTo(0.3, 4)
+    // ease-out (0, 0, 0.58, 1) at x = 0.5 is about 0.6846.
+    expect(cubicBezier(0, 0, 0.58, 1)(0.5)).toBeCloseTo(0.6846, 3)
+    // vaul's curve is fast at first: most of the way by mid-time.
+    expect(SHEET_EASE(0.5)).toBeGreaterThan(0.9)
   })
 })

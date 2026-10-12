@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   APIProvider,
   Map,
@@ -433,7 +433,8 @@ function GoogleMapContent({
   currentLocation,
   recenterTick,
   focus,
-  focusInsetPx,
+  focusInset,
+  onFocused,
   highlightId,
   ideas,
   floatingIdeas,
@@ -453,10 +454,13 @@ function GoogleMapContent({
   cameraCenter: GeoCoords
   currentLocation: GeoCoords | null
   recenterTick: number
-  /** A flare to move to (just lit), with the height of the dock over the
-   * map's lower part. */
+  /** A flare to move to (just lit). */
   focus: MapFocus | null
-  focusInsetPx: number
+  /** How much of the map's lower part the dock and nav cover, in px, read
+   * when the map moves. */
+  focusInset: () => number
+  /** The map has moved to `focus`. */
+  onFocused: () => void
   /** The flare whose rail card is centred; its pin grows. */
   highlightId: string | null
   ideas: FlareIdea[]
@@ -495,26 +499,29 @@ function GoogleMapContent({
   }, [map, currentLocation, recenterTick])
 
   // Move to a flare that was just lit, so it sits in the part of the map the
-  // dock leaves free. Counts as the person's own navigation: the map won't
-  // pull back to their position afterwards.
+  // dock and the nav leave free. Counts as the person's own navigation: the
+  // map won't pull back to their position afterwards. Each focus is used
+  // once, so a remount (a picked area) doesn't move back to it.
   useEffect(() => {
     if (!map || !focus) return
     userInteractedRef.current = true
     autoCenteredRef.current = true
     const zoom = Math.max(map.getZoom() ?? 0, 15)
+    const inset = focusInset()
     let target: google.maps.LatLngLiteral = focus.coords
     const projection = map.getProjection()
-    if (projection && focusInsetPx > 0) {
+    if (projection && inset > 0) {
       const point = projection.fromLatLngToPoint(focus.coords)
       if (point) {
-        // The centre goes below the flare by half the dock's height.
-        point.y += focusInsetPx / 2 / Math.pow(2, zoom)
+        // The centre goes below the flare by half the covered height.
+        point.y += inset / 2 / Math.pow(2, zoom)
         target = projection.fromPointToLatLng(point)?.toJSON() ?? target
       }
     }
     map.panTo(target)
     if ((map.getZoom() ?? 0) < zoom) map.setZoom(zoom)
-    // `focusInsetPx` is read once per focus.
+    onFocused()
+    // The callbacks are read once per focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, focus])
 
@@ -882,6 +889,13 @@ export function MapView({
   // waiting for the refetch (and staying on the person's own position).
   const [litFlares, setLitFlares] = useState<LitFlare[]>([])
   const [focus, setFocus] = useState<MapFocus | null>(null)
+  const clearFocus = useCallback(() => setFocus(null), [])
+  // What the dock and the nav cover: everything below the dock's top edge
+  // (laid out even while the dock is faded out under the composer).
+  const focusInset = useCallback(() => {
+    const top = dockRef.current?.getBoundingClientRect().top
+    return top == null ? 0 : Math.max(0, window.innerHeight - top)
+  }, [])
   const mapEvents = useMemo(
     () =>
       withLitFlares(map.events, litFlares, nowMs).filter(
@@ -899,12 +913,14 @@ export function MapView({
           ...prev.filter((l) => l.event.id !== event.id),
           { event, litAt: Date.now() },
         ])
+        // The clock moves on too: a flare lit for "now" is live at once,
+        // not "soon" until the next minute tick.
+        setNowMs(Date.now())
         setTypeFilters(new Set())
         setTimeFilter("all")
         setPreviewEvent(null)
         setRailFocusId(event.id)
-        if (coords)
-          setFocus((prev) => ({ coords, tick: (prev?.tick ?? 0) + 1 }))
+        if (coords) setFocus({ coords })
       }),
     []
   )
@@ -1349,7 +1365,8 @@ export function MapView({
             currentLocation={geo.coords}
             recenterTick={recenterTick}
             focus={focus}
-            focusInsetPx={dockPx}
+            focusInset={focusInset}
+            onFocused={clearFocus}
             highlightId={highlightId}
             ideas={ideaPins}
             floatingIdeas={floatingIdeas}
@@ -1414,7 +1431,9 @@ export function MapView({
         onTouchStart={handleDockTouchStart}
         onTouchEnd={handleDockTouchEnd}
         style={{ bottom: NAV_RESERVED_CSS }}
-        className={`pointer-events-none fixed inset-x-0 z-20 flex flex-col gap-2 pb-2 transition-opacity duration-200 ${
+        // Visibility is transitioned with the opacity, so the dock fades out
+        // when the composer opens instead of vanishing on the tap (#376).
+        className={`pointer-events-none fixed inset-x-0 z-20 flex flex-col gap-2 pb-2 transition-[opacity,visibility] duration-200 ${
           dockHidden ? "invisible opacity-0" : ""
         }`}
       >
@@ -2236,8 +2255,8 @@ function FilterChip({
 
 type TimeFilter = "live" | "upcoming" | "all"
 
-/** Where to move the map to (#376); `tick` makes a repeat count. */
-type MapFocus = { coords: GeoCoords; tick: number }
+/** Where to move the map to (#376), once. */
+type MapFocus = { coords: GeoCoords }
 
 function TimeTabs({
   value,

@@ -42,6 +42,18 @@ async function openComposer(
   await expect(page.getByPlaceholder(TITLE)).toBeInViewport()
   await page.getByPlaceholder(TITLE).fill("park in a bit")
   await expect(strip(page)).toBeEnabled()
+  // The morph is over and the sheet has landed, so the strip stays put under
+  // the strike (a strike aimed at a strip still sliding in can miss it).
+  await expect(page.locator("[data-flare-morph]")).toHaveCount(0)
+  let lastY = NaN
+  await expect
+    .poll(async () => {
+      const y = (await strip(page).boundingBox())?.y ?? NaN
+      const settled = y === lastY
+      lastY = y
+      return settled
+    })
+    .toBe(true)
 }
 
 /** A fast flick along the strip, like striking a match. */
@@ -52,6 +64,77 @@ async function strike(page: Page) {
   await page.mouse.down()
   await page.mouse.move(box.x + box.width - 20, y, { steps: 3 })
   await page.mouse.up()
+}
+
+type Frame = {
+  clone: { left: number; top: number; bottom: number } | null
+  navShown: boolean
+  stripShown: boolean
+}
+
+/**
+ * Records, every frame, what of the morph is on screen: the clone's visible
+ * shape (its box after the transform and the clip), whether the nav's circle
+ * and the real strip show.
+ */
+async function samplePerFrame(page: Page) {
+  await page.evaluate(() => {
+    const w = window as unknown as { __frames: unknown[]; __run?: number }
+    const run = (w.__run ?? 0) + 1
+    w.__run = run
+    w.__frames = []
+    const num = (re: RegExp, str: string, i: number, fallback: number) => {
+      const m = re.exec(str)
+      return m ? Number(m[i]) : fallback
+    }
+    const shown = (el: Element | null) =>
+      !!el &&
+      getComputedStyle(el).visibility !== "hidden" &&
+      Number(getComputedStyle(el).opacity) > 0 &&
+      el.getBoundingClientRect().top < window.innerHeight
+    const tick = () => {
+      const g = document.querySelector<HTMLElement>("[data-flare-morph]")
+      let clone = null
+      if (g) {
+        const st = g.style
+        const left = parseFloat(st.left)
+        const top = parseFloat(st.top)
+        const width = parseFloat(st.width)
+        const height = parseFloat(st.height)
+        const tr = /translate\(([-\d.]+)px, ([-\d.]+)px\) scale\(([-\d.]+)\)/
+        const dx = num(tr, st.transform, 1, 0)
+        const dy = num(tr, st.transform, 2, 0)
+        const s = num(tr, st.transform, 3, 1)
+        const clip = /inset\(([-\d.]+)px ([-\d.]+)px/
+        const cy = num(clip, st.clipPath, 1, 0)
+        const cr = num(clip, st.clipPath, 2, 0)
+        const ox = parseFloat(st.transformOrigin)
+        const x = (v: number) => left + ox + (v - ox) * s + dx
+        const y = (v: number) => top + height / 2 + (v - height / 2) * s + dy
+        clone = {
+          left: x(0),
+          top: y(cy),
+          bottom: y(height - cy),
+          right: x(width - cr),
+        }
+      }
+      w.__frames.push({
+        clone,
+        navShown: shown(document.querySelector("[data-nav-flare-circle]")),
+        stripShown: shown(document.querySelector("[data-strike-strip]")),
+      })
+      if (w.__run === run) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+}
+
+async function takeSamples(page: Page): Promise<Frame[]> {
+  return page.evaluate(() => {
+    const w = window as unknown as { __frames: Frame[]; __run?: number }
+    w.__run = (w.__run ?? 0) + 1
+    return w.__frames
+  })
 }
 
 /** Holds POST /events until `release` is called (or fails it). */
@@ -173,7 +256,6 @@ test.describe("lighting moment", () => {
     // The clone has handed over: the strip is there, the nav's circle is away.
     await expect(page.locator("[data-flare-morph]")).toHaveCount(0)
     await expect(strip(page)).toBeVisible()
-    await expect(strip(page)).not.toHaveClass(/opacity-0/)
     await expect(navCircle(page)).toHaveAttribute("data-hidden", "true")
 
     await page.getByRole("button", { name: "Close", exact: true }).click()
@@ -195,32 +277,59 @@ test.describe("lighting moment", () => {
 })
 
 test.describe("lighting moment, the morph and the map", () => {
-  test("the morph stays on screen while the sheet slides in", async ({
+  test("the morph travels straight between the button and the strip, with one of them always on screen", async ({
     page,
   }) => {
     await stubBackend(page, { hostedFlares: [] })
     await page.goto("/")
-    // The clone's top edge, every frame: it used to follow the strip's live
-    // slot down below the screen and back up with the sheet.
-    await page.evaluate(() => {
-      const tops: number[] = []
-      ;(window as unknown as { __tops: number[] }).__tops = tops
-      const sample = () => {
-        const el = document.querySelector("[data-flare-morph]")
-        if (el) tops.push(el.getBoundingClientRect().top)
-        requestAnimationFrame(sample)
-      }
-      requestAnimationFrame(sample)
-    })
+    await expect(navCircle(page)).toBeVisible()
+    await samplePerFrame(page)
     await nav(page).getByRole("button", { name: "flare", exact: true }).click()
     await expect(page.getByPlaceholder(TITLE)).toBeInViewport()
     await expect(page.locator("[data-flare-morph]")).toHaveCount(0)
-    const tops = await page.evaluate(
-      () => (window as unknown as { __tops: number[] }).__tops
-    )
+    const rest = (await strip(page).boundingBox())!
+    const opening = await takeSamples(page)
     const height = page.viewportSize()!.height
-    expect(tops.length).toBeGreaterThan(3)
-    for (const top of tops) expect(top).toBeLessThan(height)
+
+    const clones = opening.filter((f) => f.clone)
+    expect(clones.length).toBeGreaterThan(3)
+    let prevTop = Infinity
+    for (const f of clones) {
+      const c = f.clone!
+      // On screen, never above where the strip rests, rising only: it used
+      // to follow the sliding sheet off the bottom of the screen and back
+      // (on device), then to swing up past the strip and drop back onto it.
+      expect(c.bottom).toBeLessThanOrEqual(height)
+      expect(c.top).toBeGreaterThanOrEqual(rest.y - 1)
+      expect(c.top).toBeLessThanOrEqual(prevTop + 0.5)
+      prevTop = c.top
+      // The clone stands in for the strip: never both at once.
+      expect(f.stripShown).toBe(false)
+    }
+    // Every frame shows the button, the clone or the strip.
+    for (const f of opening) {
+      expect(f.navShown || !!f.clone || f.stripShown).toBe(true)
+    }
+
+    await samplePerFrame(page)
+    await page.getByRole("button", { name: "Close", exact: true }).click()
+    await expect(page.getByPlaceholder(TITLE)).toBeHidden()
+    await expect(page.locator("[data-flare-morph]")).toHaveCount(0)
+    await expect(navCircle(page)).toBeVisible()
+    const closing = await takeSamples(page)
+    const back = closing.filter((f) => f.clone)
+    expect(back.length).toBeGreaterThan(3)
+    let prevLeft = -Infinity
+    for (const f of back) {
+      // Straight back to the button: the pill closes from the right.
+      expect(f.clone!.bottom).toBeLessThanOrEqual(height)
+      expect(f.clone!.left).toBeGreaterThanOrEqual(prevLeft - 0.5)
+      prevLeft = f.clone!.left
+    }
+    // No frame without the button or its clone, once the strip is gone.
+    for (const f of closing) {
+      expect(f.navShown || !!f.clone || f.stripShown).toBe(true)
+    }
   })
 
   test("a flare lit to start in 15 minutes shows on the map", async ({
@@ -238,6 +347,16 @@ test.describe("lighting moment, the morph and the map", () => {
     await expect(
       page.locator('[data-flare-pin="event-e2e-hosted-1"]')
     ).toBeVisible()
+  })
+
+  test("a flare lit for now is live on the map at once", async ({ page }) => {
+    await openComposer(page, { hostedFlares: [hosted()] })
+    await strike(page)
+    await expect(page.getByPlaceholder(TITLE)).toBeHidden()
+    // Not "soon" until the map's next minute tick.
+    await expect(
+      page.locator('[data-flare-pin="event-e2e-hosted-1"]')
+    ).toHaveAttribute("data-live", "true")
   })
 })
 
