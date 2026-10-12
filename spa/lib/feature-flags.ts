@@ -69,10 +69,13 @@ export const featureFlags = {
    * flare button morphs into, and once the api confirms the flare it plays
    * the launch (someone's first flare) or the wick (every flare after). See
    * docs/decisions/flare-lighting-motion.md. On in the full profile, off in
-   * the tester build until it passes review; off, the composer's "light a
-   * flare" button and success toast are exactly as before.
+   * the tester build (production) until it passes review, but on in the
+   * `dev` branch's Vercel deploy so it can be tried on a phone; off, the
+   * composer's "light a flare" button and success toast are exactly as before.
    */
-  flareLightMoment: FEATURE_PROFILE === "full",
+  flareLightMoment:
+    FEATURE_PROFILE === "full" ||
+    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF === "dev",
 
   // #482: `browseBeforeSignup`, `introV2` and `locationAsk` below are the new
   // onboarding. A device can switch them all on at runtime ("new onboarding" in
