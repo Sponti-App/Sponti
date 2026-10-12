@@ -1047,15 +1047,23 @@ export default function CirclesPage() {
                           key={d.id}
                           className="flex items-center gap-3 px-3 py-2"
                         >
-                          <Avatar name={d.displayName} />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">
-                              {d.displayName}
-                            </p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              @{d.username}
-                            </p>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              router.push(`/profile/${d.username}`)
+                            }
+                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                          >
+                            <Avatar name={d.displayName} />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">
+                                {d.displayName}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                @{d.username}
+                              </p>
+                            </div>
+                          </button>
                           <Button
                             size="sm"
                             onClick={() =>
@@ -1163,15 +1171,21 @@ export default function CirclesPage() {
                       key={r.id}
                       className="flex items-center gap-3 border-b border-border px-1 py-2 last:border-b-0"
                     >
-                      <Avatar name={r.displayName} muted />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-muted-foreground">
-                          {r.displayName}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          @{r.username}
-                        </p>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/profile/${r.username}`)}
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      >
+                        <Avatar name={r.displayName} muted />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-muted-foreground">
+                            {r.displayName}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            @{r.username}
+                          </p>
+                        </div>
+                      </button>
                       <Button
                         size="sm"
                         variant="outline"

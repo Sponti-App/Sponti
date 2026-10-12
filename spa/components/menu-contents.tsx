@@ -8,7 +8,7 @@ import { MenuProfile } from "@/components/menu-profile"
 import { cn } from "@/lib/utils"
 
 // #369: what the menu holds, shared by the home drawer (MenuDrawer) and the
-// /menu fallback page. The profile card (→ edit profile), a settings row,
+// /menu fallback page. The profile card (→ your profile, edit beside it), a settings row,
 // about / faq / support, and the legal pages as the quiet
 // "impressum · privacy · terms" row at the foot.
 
