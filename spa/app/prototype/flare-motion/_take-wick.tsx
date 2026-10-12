@@ -1,10 +1,11 @@
 "use client"
 
-// PROTOTYPE (#371, round 2) — throwaway. Take A, "wick": one rope runs from
-// the strike strip up to the flare. The spark eats the rope and leaves a
-// dotted trail of ash, then a small flame catches on top of the flare's
-// circle. Burnout mirrors it: the flame shrinks to a curl of smoke and a
-// dying ember runs back down the wick.
+// PROTOTYPE (#371, round 2) — throwaway. Take A, "wick", for every flare
+// after the first: one rope runs from the strike strip up to the flare. The
+// spark eats the rope and leaves nothing behind, then a small flame catches
+// on top of the flare's circle. Burnout: the flame sinks out, the flare greys
+// to the muted state and fades away. No ash, smoke or ember, so nothing is
+// left to clash with the map underneath.
 
 import { forwardRef, useImperativeHandle } from "react"
 import { IconLayer } from "./_icon"
@@ -35,7 +36,6 @@ const CROWN =
   "M160 70 C150 70 145 63 146 56 C147 48 154 44 156 36 C159 43 161 46 163 48 C165 44 166 40 166 38 C171 44 174 51 174 57 C174 65 168 70 160 70 Z"
 const CROWN_CORE =
   "M160 69 C155 69 152 65 153 61 C154 56 158 53 160 49 C162 53 166 56 167 61 C168 65 165 69 160 69 Z"
-const SMOKE = "M160 58 C152 48 170 40 161 30 C152 20 168 14 160 4"
 const CROWN_ORIGIN = "160 70"
 const DISC_ORIGIN = `${CX} ${CY}`
 
@@ -55,7 +55,6 @@ export const WickTake = forwardRef<TakeHandle, TakeProps>(function WickTake(
   ) => {
     const wick = $.get<SVGPathElement>("wick")
     gsap.set($.get("unburnt"), { drawSVG: `${p}% 100%` })
-    gsap.set($.get("ash"), { drawSVG: `0% ${Math.max(0, p - ember)}%` })
     gsap.set([$.get("ember"), $.get("emberGlow")], {
       drawSVG: `${Math.max(0, p - ember)}% ${p}%`,
     })
@@ -68,15 +67,13 @@ export const WickTake = forwardRef<TakeHandle, TakeProps>(function WickTake(
     async ignite() {
       const gsap = await loadGsap()
       if (reduced) {
-        // No travel: the rope turns to ash in place.
+        // No travel: the rope fades out in place.
         const tl = $.keep(gsap.timeline())
-        gsap.set($.get("ash"), { drawSVG: "0% 100%" })
         tl.to($.get("rope"), { opacity: 0, duration: 0.2 }, 0)
-        tl.to($.get("ashLayer"), { opacity: 1, duration: 0.2 }, 0)
         await tl
         return
       }
-      gsap.set([$.get("ashLayer"), $.get("emberLayer"), $.get("spark")], {
+      gsap.set([$.get("emberLayer"), $.get("spark")], {
         opacity: 1,
       })
       burnTo(gsap, 0)
@@ -123,7 +120,6 @@ export const WickTake = forwardRef<TakeHandle, TakeProps>(function WickTake(
         tl.to(lit, { opacity: 1, duration: 0.2 }, 0)
         tl.to($.get("litIcon"), { opacity: 1, duration: 0.2 }, 0)
         tl.to($.get("unlitIcon"), { opacity: 0, duration: 0.2 }, 0)
-        tl.to($.get("ashLayer"), { opacity: 0.35, duration: 0.2 }, 0)
         await tl
         return
       }
@@ -193,8 +189,6 @@ export const WickTake = forwardRef<TakeHandle, TakeProps>(function WickTake(
         at: 0.04,
         gravity: 14,
       })
-      // The wick is spent: its ash stays as a faint trail.
-      tl.to($.get("ashLayer"), { opacity: 0.35, duration: 1.2 }, 0.4)
       tl.fromTo(
         $.get("ring"),
         { opacity: 0 },
@@ -244,30 +238,24 @@ export const WickTake = forwardRef<TakeHandle, TakeProps>(function WickTake(
       const gsap = await loadGsap()
       gsap.killTweensOf([$.get("crown"), $.get("ring")])
       const tl = $.keep(gsap.timeline())
-      const fadeLit = (at: number, d: number) => {
-        tl.to(
-          [$.get("litDisc"), $.get("litIcon"), $.get("ring")],
-          { opacity: 0, duration: d },
-          at
-        )
-        tl.to(
-          [$.get("endedDisc"), $.get("unlitIcon")],
-          { opacity: 1, duration: d },
-          at
-        )
-        tl.to($.get("glow"), { opacity: 0, duration: d }, at)
-      }
+      const lit = [$.get("litDisc"), $.get("litIcon"), $.get("ring")]
+      const ended = [$.get("endedDisc"), $.get("unlitIcon")]
+      const all = [...ended, $.get("baseDisc")]
 
       if (reduced) {
-        gsap.set($.get("ash"), { drawSVG: "0% 100%" })
-        fadeLit(0, 0.3)
-        tl.to($.get("crown"), { opacity: 0, duration: 0.3 }, 0)
-        tl.to($.get("ashLayer"), { opacity: 0.5, duration: 0.3 }, 0)
+        // Cross-fades only: lit to muted, then muted to nothing.
+        tl.to(
+          [...lit, $.get("crown"), $.get("glow")],
+          { opacity: 0, duration: 0.3 },
+          0
+        )
+        tl.to(ended, { opacity: 1, duration: 0.3 }, 0)
+        tl.to(all, { opacity: 0, duration: 0.4 }, 1)
         await tl
         return
       }
 
-      // The flame sinks into a curl of smoke.
+      // The flame sinks out.
       tl.to(
         $.get("crown"),
         {
@@ -280,41 +268,20 @@ export const WickTake = forwardRef<TakeHandle, TakeProps>(function WickTake(
         },
         0
       )
-      tl.fromTo(
-        $.get("smoke"),
-        { opacity: 0.8, drawSVG: "0% 0%", y: 0 },
-        {
-          keyframes: [
-            { drawSVG: "0% 100%", duration: 0.7, ease: "power1.out" },
-            { drawSVG: "100% 100%", opacity: 0, y: -10, duration: 0.8 },
-          ],
-        },
-        0.45
-      )
-      fadeLit(0.3, 0.9)
-      // A dying ember runs back down the wick and leaves the ash behind.
-      gsap.set($.get("ash"), { drawSVG: "100% 100%" })
-      tl.set($.get("ashLayer"), { opacity: 0.7 }, 0.5)
-      tl.set($.get("spark"), { opacity: 0.8, scale: 0.55 }, 0.5)
-      const state = { p: 100 }
+      // The flare greys out to the muted state…
+      tl.to([...lit, $.get("glow")], { opacity: 0, duration: 0.8 }, 0.3)
+      tl.to(ended, { opacity: 1, duration: 0.8 }, 0.3)
+      // …and fades away.
       tl.to(
-        state,
+        all,
         {
-          p: 0,
-          duration: 1.2,
+          opacity: 0,
+          scale: 0.9,
+          svgOrigin: DISC_ORIGIN,
+          duration: 0.9,
           ease: "power1.in",
-          onUpdate: () => {
-            const pt = pointAt($.get<SVGPathElement>("wick"), state.p / 100)
-            gsap.set($.get("ash"), { drawSVG: `${state.p}% 100%` })
-            gsap.set($.get("spark"), { x: pt.x, y: pt.y })
-          },
         },
-        0.5
-      )
-      tl.to(
-        $.get("spark"),
-        { opacity: 0, duration: 1.2, ease: "power1.in" },
-        0.5
+        1.5
       )
       await tl
     },
@@ -341,15 +308,6 @@ export const WickTake = forwardRef<TakeHandle, TakeProps>(function WickTake(
           <mask id={`${id}-unburnt`} maskUnits="userSpaceOnUse">
             <path
               ref={$.ref("unburnt")}
-              d={WICK}
-              fill="none"
-              stroke="white"
-              strokeWidth={14}
-            />
-          </mask>
-          <mask id={`${id}-ash`} maskUnits="userSpaceOnUse">
-            <path
-              ref={$.ref("ash")}
               d={WICK}
               fill="none"
               stroke="white"
@@ -384,16 +342,6 @@ export const WickTake = forwardRef<TakeHandle, TakeProps>(function WickTake(
             strokeDasharray="1.2 4.8"
             style={{ stroke: "var(--background)" }}
             opacity={0.85}
-          />
-        </g>
-        <g ref={$.ref("ashLayer")} opacity={0} mask={`url(#${id}-ash)`}>
-          <path
-            d={WICK}
-            fill="none"
-            strokeWidth={2.2}
-            strokeLinecap="round"
-            strokeDasharray="0.01 7"
-            style={{ stroke: "var(--muted-foreground)" }}
           />
         </g>
         <g ref={$.ref("emberLayer")} opacity={0}>
@@ -444,6 +392,7 @@ export const WickTake = forwardRef<TakeHandle, TakeProps>(function WickTake(
           cx={CX}
           cy={CY}
           r={R}
+          ref={$.ref("baseDisc")}
           strokeWidth={1.5}
           style={{ fill: "var(--card)", stroke: "var(--border)" }}
         />
@@ -467,15 +416,6 @@ export const WickTake = forwardRef<TakeHandle, TakeProps>(function WickTake(
           <path d={CROWN} style={{ fill: "var(--primary)" }} />
           <path d={CROWN_CORE} style={{ fill: "var(--chart-1)" }} />
         </g>
-        <path
-          ref={$.ref("smoke")}
-          d={SMOKE}
-          fill="none"
-          strokeWidth={2}
-          strokeLinecap="round"
-          style={{ stroke: "var(--muted-foreground)" }}
-          opacity={0}
-        />
 
         {/* The fuse's head, its crackles and the burst's sparks. */}
         {Array.from({ length: 8 }, (_, i) => (

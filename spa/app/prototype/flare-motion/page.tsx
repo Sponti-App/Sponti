@@ -6,9 +6,13 @@
 // the scaled-up icon and the double-edged stroke fuse. This round tries three
 // different compositions, with the icon at its natural 24px inside each:
 //
+//   ?take=launch  C: a signal flare goes up (picked for the first flare)
 //   ?take=wick    A: a rope burns up to the flare, a small flame catches
+//                 (picked for every flare after the first)
 //   ?take=flame   B: the flare is a flame; the fuse climbs its one outline
-//   ?take=launch  C (wildcard): a signal flare goes up and lights your people
+//
+// Patrick's pick (2026-10-12, provisional until the real-phone check): C for
+// someone's first flare, then A for every flare after. The bar labels them so.
 //
 // Other params: ?type= (category), ?tone=peach|invite|open, ?burst=soft|full,
 // ?motion=system|reduced|full, ?api=fast|slow|fail, ?bar=0 hides the bar.
@@ -101,7 +105,7 @@ function Prototype() {
   const take = pick<TakeKey>(
     params.get("take"),
     ["wick", "flame", "launch"],
-    "wick"
+    "launch"
   )
   const tone = pick<Tone>(
     params.get("tone"),
@@ -334,9 +338,9 @@ function Bar(props: {
       <Group>
         {(
           [
-            ["wick", "a · wick"],
+            ["launch", "first flare"],
+            ["wick", "every flare after"],
             ["flame", "b · flame"],
-            ["launch", "c · launch"],
           ] as const
         ).map(([k, label]) => (
           <Chip key={k} on={props.take === k} onClick={() => onSet("take", k)}>

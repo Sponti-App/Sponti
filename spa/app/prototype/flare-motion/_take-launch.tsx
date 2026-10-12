@@ -1,11 +1,12 @@
 "use client"
 
-// PROTOTYPE (#371, round 2) — throwaway. Take C, "launch", the wildcard: a
-// real signal flare. The strike sends a spark up from the strip on one
-// curved trail; at the top it bursts into a bloom of streaks around the
-// flare's circle, and the light travels out to the dots around it (your
-// people) and lights them one by one. Burnout mirrors it: the dots go dark
-// from the farthest in, and a dying ember falls back down the trail.
+// PROTOTYPE (#371, round 2) — throwaway. Take C, "launch", for someone's
+// first flare: a real signal flare. The strike sends a spark up from the
+// strip on one curved trail; at the top it bursts into a bloom of streaks
+// around the flare's circle, and the light reaches a tight ring of dots and
+// lights them one by one. The dots are abstract (evenly spaced, close to the
+// circle, never where anyone is): they pulse once, then fade away, so they
+// never stay as markers. Burnout is take A's: grey out, then fade away.
 
 import { forwardRef, useImperativeHandle } from "react"
 import { IconLayer } from "./_icon"
@@ -33,13 +34,12 @@ const R = 26
 const ORIGIN = `${CX} ${CY}`
 
 const TRAIL = "M300 404 C304 320 250 210 160 130"
-const FRIENDS = [
-  [52, 70],
-  [266, 50],
-  [30, 214],
-  [104, 318],
-  [218, 300],
-] as const
+/** Five dots on a tight, even ring around the circle. */
+const DOT_RING = 62
+const FRIENDS = Array.from({ length: 5 }, (_, i) => {
+  const a = -Math.PI / 2 + (i / 5) * Math.PI * 2
+  return [CX + Math.cos(a) * DOT_RING, CY + Math.sin(a) * DOT_RING] as const
+})
 const BLOOM = {
   soft: { count: 10, len: [44, 62] },
   full: { count: 18, len: [74, 118] },
@@ -70,10 +70,8 @@ export const LaunchTake = forwardRef<TakeHandle, TakeProps>(function LaunchTake(
     return pt
   }
 
-  const friendDelay = (i: number) => {
-    const [x, y] = FRIENDS[i]
-    return Math.hypot(x - CX, y - CY) / 420
-  }
+  /** The light goes round the ring, one dot after the other. */
+  const friendDelay = (i: number) => 0.1 + i * 0.09
 
   useImperativeHandle(handle, () => ({
     async ignite() {
@@ -133,19 +131,19 @@ export const LaunchTake = forwardRef<TakeHandle, TakeProps>(function LaunchTake(
       const dots = $.all("lit")
 
       if (reduced) {
-        gsap.set(strands, { drawSVG: "35% 100%" })
         tl.to($.get("trailLayer"), { opacity: 0, duration: 0.2 }, 0)
         tl.to(
           [$.get("litDisc"), $.get("litIcon"), $.get("ring"), ...dots],
           { opacity: 1, duration: 0.2 },
           0
         )
-        tl.to(strands, { opacity: 0.45, duration: 0.2 }, 0)
         tl.to(
           [$.get("unlitIcon"), $.get("dashed")],
           { opacity: 0, duration: 0.2 },
           0
         )
+        // The dots fade away again; only the flare stays.
+        tl.to([...dots, $.get("dots")], { opacity: 0, duration: 0.4 }, 1.2)
         await tl
         return
       }
@@ -167,6 +165,7 @@ export const LaunchTake = forwardRef<TakeHandle, TakeProps>(function LaunchTake(
         0
       )
       tl.to($.get("dashed"), { opacity: 0, duration: 0.2 }, 0)
+      tl.set($.get("trailLayer"), { opacity: 0 }, 0)
       tl.fromTo(
         $.get("litDisc"),
         { opacity: 0, scale: 0.5, svgOrigin: ORIGIN },
@@ -199,7 +198,12 @@ export const LaunchTake = forwardRef<TakeHandle, TakeProps>(function LaunchTake(
           {
             keyframes: [
               { drawSVG: "0% 75%", duration: 0.32, ease: "power3.out" },
-              { drawSVG: "100% 100%", duration: 0.6, ease: "power1.in" },
+              {
+                drawSVG: "100% 100%",
+                opacity: 0,
+                duration: 0.6,
+                ease: "power1.in",
+              },
             ],
           },
           0.04 + jitter(i, 5) * 0.06
@@ -237,22 +241,34 @@ export const LaunchTake = forwardRef<TakeHandle, TakeProps>(function LaunchTake(
           0.04 + i * 0.16
         )
       })
-      // The light reaches your people: each dot pings and stays lit.
+      // The light goes round the ring: each dot pings, lights, pulses once,
+      // then every dot fades away. Nothing stays behind as a marker.
       FRIENDS.forEach(([x, y], i) => {
         const at = 0.12 + friendDelay(i)
         tl.fromTo(
           $.get(`ping${i}`),
           { opacity: 0.8, scale: 1, svgOrigin: `${x} ${y}` },
-          { opacity: 0, scale: 3.2, duration: 0.7, ease: "power2.out" },
+          { opacity: 0, scale: 2.6, duration: 0.6, ease: "power2.out" },
           at
         )
         tl.fromTo(
           $.get(`lit${i}`),
           { opacity: 0, scale: 0.4, svgOrigin: `${x} ${y}` },
-          { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(3)" },
+          {
+            keyframes: [
+              { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(3)" },
+              { scale: 1.35, duration: 0.25, ease: "sine.out" },
+              { scale: 1, duration: 0.3, ease: "sine.in" },
+            ],
+          },
           at
         )
       })
+      tl.to(
+        [...dots, $.get("dots")],
+        { opacity: 0, duration: 0.6, ease: "power1.in" },
+        1.6
+      )
       tl.to($.get("ring"), { opacity: 0.8, duration: 0.3 }, 0.3)
       await tl
       $.keep(
@@ -281,63 +297,33 @@ export const LaunchTake = forwardRef<TakeHandle, TakeProps>(function LaunchTake(
     },
 
     async burnout() {
+      // The same as take A: grey out to the muted state, then fade away.
       const gsap = await loadGsap()
       gsap.killTweensOf($.get("ring"))
       const tl = $.keep(gsap.timeline())
-      const fade = (at: number, d: number) => {
-        tl.to(
-          [$.get("litDisc"), $.get("litIcon"), $.get("ring")],
-          { opacity: 0, duration: d },
-          at
-        )
-        tl.to(
-          [$.get("endedDisc"), $.get("unlitIcon")],
-          { opacity: 1, duration: d },
-          at
-        )
-        tl.to($.get("sky"), { opacity: 0, duration: d }, at)
-      }
+      const lit = [$.get("litDisc"), $.get("litIcon"), $.get("ring")]
+      const ended = [$.get("endedDisc"), $.get("unlitIcon")]
 
       if (reduced) {
-        fade(0, 0.3)
-        tl.to($.all("lit"), { opacity: 0, duration: 0.3 }, 0)
-        tl.to($.all("strand"), { opacity: 0, duration: 0.3 }, 0)
+        tl.to([...lit, $.get("sky")], { opacity: 0, duration: 0.3 }, 0)
+        tl.to(ended, { opacity: 1, duration: 0.3 }, 0)
+        tl.to(ended, { opacity: 0, duration: 0.4 }, 1)
         await tl
         return
       }
 
-      fade(0, 0.9)
-      // The dots go dark, farthest first.
-      const far = Math.max(...FRIENDS.map((_, i) => friendDelay(i)))
-      FRIENDS.forEach((_, i) => {
-        tl.to(
-          $.get(`lit${i}`),
-          { opacity: 0, duration: 0.4 },
-          (far - friendDelay(i)) * 1.2
-        )
-      })
-      // A dying ember falls back down the trail.
-      tl.add(() => {
-        gsap.set($.get("trailLine"), { drawSVG: "100% 100%" })
-        gsap.set($.get("trailLayer"), { opacity: 0.6 })
-        gsap.set($.get("trailGlow"), { opacity: 0 })
-      }, 0.3)
-      tl.set($.get("spark"), { opacity: 0.8, scale: 0.55 }, 0.3)
-      const state = { t: 1 }
+      tl.to([...lit, $.get("sky")], { opacity: 0, duration: 0.8 }, 0)
+      tl.to(ended, { opacity: 1, duration: 0.8 }, 0)
       tl.to(
-        state,
+        ended,
         {
-          t: 0,
-          duration: 1.3,
-          ease: "power2.in",
-          onUpdate: () => flyTo(gsap, state.t, 0.2),
+          opacity: 0,
+          scale: 0.9,
+          svgOrigin: ORIGIN,
+          duration: 0.9,
+          ease: "power1.in",
         },
-        0.3
-      )
-      tl.to(
-        [$.get("spark"), $.get("trailLayer")],
-        { opacity: 0, duration: 1.3, ease: "power1.in" },
-        0.3
+        1.2
       )
       await tl
     },
@@ -371,36 +357,39 @@ export const LaunchTake = forwardRef<TakeHandle, TakeProps>(function LaunchTake(
           opacity={0}
         />
 
-        {/* Your people: quiet dots until the light reaches them. */}
-        {FRIENDS.map(([x, y], i) => (
-          <g key={i}>
-            <circle
-              cx={x}
-              cy={y}
-              r={5}
-              style={{ fill: "var(--muted-foreground)" }}
-              opacity={0.3}
-            />
-            <circle
-              ref={$.ref(`ping${i}`)}
-              cx={x}
-              cy={y}
-              r={5}
-              fill="none"
-              strokeWidth={1.5}
-              style={{ stroke: "var(--primary)" }}
-              opacity={0}
-            />
-            <circle
-              ref={$.ref(`lit${i}`)}
-              cx={x}
-              cy={y}
-              r={5}
-              style={{ fill: "var(--primary)" }}
-              opacity={0}
-            />
-          </g>
-        ))}
+        {/* Abstract dots on a ring, not anyone's position: faint until the
+            light reaches them, then gone. */}
+        <g ref={$.ref("dots")}>
+          {FRIENDS.map(([x, y], i) => (
+            <g key={i}>
+              <circle
+                cx={x}
+                cy={y}
+                r={3.5}
+                style={{ fill: "var(--muted-foreground)" }}
+                opacity={0.3}
+              />
+              <circle
+                ref={$.ref(`ping${i}`)}
+                cx={x}
+                cy={y}
+                r={3.5}
+                fill="none"
+                strokeWidth={1.5}
+                style={{ stroke: "var(--primary)" }}
+                opacity={0}
+              />
+              <circle
+                ref={$.ref(`lit${i}`)}
+                cx={x}
+                cy={y}
+                r={3.5}
+                style={{ fill: "var(--primary)" }}
+                opacity={0}
+              />
+            </g>
+          ))}
+        </g>
 
         <path ref={$.ref("trail")} d={TRAIL} fill="none" stroke="none" />
         <g ref={$.ref("trailLayer")} opacity={0}>
