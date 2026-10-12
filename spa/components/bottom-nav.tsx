@@ -232,7 +232,7 @@ function NavBar({ items }: { items: NavItem[] }) {
             aria-label={item.label}
             className={`relative flex min-h-11 max-w-20 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-xs font-medium active:scale-95 active:opacity-80 ${
               active
-                ? "text-accent"
+                ? "text-accent-ink"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >

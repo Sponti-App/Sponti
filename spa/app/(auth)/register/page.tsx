@@ -179,7 +179,7 @@ export default function RegisterPage() {
               sponti
             </span>
           </div>
-          <div className="mb-4 inline-flex items-center gap-2 text-xs font-medium tracking-normal text-accent">
+          <div className="mb-4 inline-flex items-center gap-2 text-xs font-medium tracking-normal text-accent-ink">
             <span className="h-px w-3.5 bg-accent" />
             last step
           </div>
@@ -225,7 +225,9 @@ export default function RegisterPage() {
               {usernameValid ? (
                 <p className="mt-1.5 text-xs text-muted-foreground">
                   your flares show as{" "}
-                  <span className="font-semibold text-accent">@{username}</span>
+                  <span className="font-semibold text-accent-ink">
+                    @{username}
+                  </span>
                 </p>
               ) : usernameError ? (
                 <p className="mt-1.5 text-xs text-destructive" role="alert">
@@ -325,7 +327,7 @@ export default function RegisterPage() {
               already have an account?{" "}
               <Link
                 href={`/login${redirectQuery}`}
-                className="font-medium text-accent"
+                className="font-medium text-accent-ink"
               >
                 sign in
               </Link>

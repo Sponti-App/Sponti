@@ -1910,7 +1910,7 @@ export function NewEventDrawer({
                   <div className="mt-1.5 flex gap-2">
                     <button
                       type="button"
-                      className="text-xs font-medium text-accent hover:underline"
+                      className="text-xs font-medium text-accent-ink hover:underline"
                       onClick={async () => {
                         const url =
                           (
@@ -2052,7 +2052,7 @@ function TypeInlineIndicator({
         <button
           type="button"
           onClick={onToggleOverride}
-          className="text-accent hover:underline"
+          className="text-accent-ink hover:underline"
         >
           {overrideOpen ? "done" : "change"}
         </button>
@@ -2944,7 +2944,7 @@ function DirectInviteSearch({
         <span className="text-xs text-muted-foreground">
           also invite specifically
           {hasSelection && (
-            <span className="ml-1 text-accent">
+            <span className="ml-1 text-accent-ink">
               · {directlyInvitedIds.length} selected
             </span>
           )}

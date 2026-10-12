@@ -253,7 +253,7 @@ export function CalendarView({
               <button
                 type="button"
                 onClick={goToday}
-                className="shrink-0 rounded-full border border-accent/40 px-2 py-0.5 text-xs font-medium text-accent"
+                className="shrink-0 rounded-full border border-accent/40 px-2 py-0.5 text-xs font-medium text-accent-ink"
               >
                 today
               </button>
@@ -331,7 +331,7 @@ export function CalendarView({
                       isSelected
                         ? "text-primary"
                         : isToday
-                          ? "text-accent"
+                          ? "text-accent-ink"
                           : "text-muted-foreground"
                     }`}
                   >
@@ -342,7 +342,7 @@ export function CalendarView({
                       isSelected
                         ? "text-primary"
                         : isToday
-                          ? "text-accent"
+                          ? "text-accent-ink"
                           : "text-foreground"
                     }`}
                   >
@@ -432,7 +432,7 @@ export function CalendarView({
                     plans from your friends show up here ·{" "}
                     <Link
                       href="/circles?tab=people"
-                      className="font-medium text-accent"
+                      className="font-medium text-accent-ink"
                     >
                       connect with friends
                     </Link>
@@ -454,7 +454,7 @@ export function CalendarView({
               <p className="mb-3 text-sm text-muted-foreground">{error}</p>
               <button
                 onClick={refresh}
-                className="text-sm font-medium text-accent"
+                className="text-sm font-medium text-accent-ink"
               >
                 try again
               </button>
@@ -476,7 +476,7 @@ export function CalendarView({
                     <button
                       type="button"
                       onClick={() => selectAgendaDay(day)}
-                      className="mb-2 text-sm font-medium transition-colors hover:text-accent"
+                      className="mb-2 text-sm font-medium transition-colors hover:text-accent-ink"
                     >
                       {formatSectionLabel(day, today)}
                       <span className="ml-2 text-xs text-muted-foreground">
@@ -496,7 +496,7 @@ export function CalendarView({
                         <button
                           type="button"
                           onClick={() => selectAgendaDay(day)}
-                          className="text-xs font-medium text-accent"
+                          className="text-xs font-medium text-accent-ink"
                         >
                           + {items.length - 2} more on{" "}
                           {formatSectionLabel(day, today)}

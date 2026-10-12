@@ -299,7 +299,7 @@ export function EventDetailSheet({
                           <span
                             className={
                               a.arrivalStatus === "running_late"
-                                ? "font-medium text-accent"
+                                ? "font-medium text-accent-ink"
                                 : undefined
                             }
                           >

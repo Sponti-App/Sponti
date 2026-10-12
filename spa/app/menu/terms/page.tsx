@@ -64,7 +64,7 @@ export default function TermsPage() {
     <MenuPageShell title="Terms of service">
       <article className="flex flex-col gap-6 pt-4 pb-8">
         <section className="flex flex-col gap-3">
-          <p className="text-sm font-medium text-accent">
+          <p className="text-sm font-medium text-accent-ink">
             Last updated: 30 Sep 2026
           </p>
           <h2 className="text-3xl leading-tight font-bold">

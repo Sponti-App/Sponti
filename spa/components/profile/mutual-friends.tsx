@@ -27,7 +27,7 @@ function PersonAvatar({
   return (
     <Avatar className={className}>
       {person.avatarUrl && <AvatarImage src={person.avatarUrl} alt="" />}
-      <AvatarFallback className="bg-card text-xs font-semibold text-accent">
+      <AvatarFallback className="bg-card text-xs font-semibold text-accent-ink">
         {initials(person.displayName)}
       </AvatarFallback>
     </Avatar>

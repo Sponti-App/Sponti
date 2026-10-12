@@ -88,7 +88,7 @@ export default function LoginPage() {
           no account?{" "}
           <Link
             href={`/register${redirectQuery}`}
-            className="font-medium text-accent"
+            className="font-medium text-accent-ink"
           >
             register
           </Link>
@@ -118,7 +118,7 @@ export default function LoginPage() {
             <Label htmlFor="password" className="text-xs text-muted-foreground">
               password
             </Label>
-            <Link href="/forgot-password" className="text-xs text-accent">
+            <Link href="/forgot-password" className="text-xs text-accent-ink">
               forgot password?
             </Link>
           </div>

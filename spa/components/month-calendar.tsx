@@ -241,7 +241,7 @@ export default function MonthCalendar({
                             isSelected
                               ? "text-primary"
                               : isToday
-                                ? "text-accent"
+                                ? "text-accent-ink"
                                 : "text-foreground"
                           }`}
                         >
