@@ -57,6 +57,8 @@ function SignedInHome() {
   const [joinedIds, setJoinedIds] = useState<Set<string>>(() => new Set())
   const [menuOpen, setMenuOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  // #479: the welcome-back sheet is up, so the map's location ask waits.
+  const [welcomeShowing, setWelcomeShowing] = useState(false)
   const { user } = useAuth()
   // #459: after sign-up, a checklist in the map's sheet (in place of #313's
   // intro, with `introV2`).
@@ -200,6 +202,7 @@ function SignedInHome() {
             onRouteReady={handleRouteReady}
             onSeeCalendar={() => setView("calendar")}
             dockCard={checklist}
+            holdLocationAsk={welcomeShowing}
           />
         ) : (
           <CalendarView
@@ -302,7 +305,7 @@ function SignedInHome() {
           #459: with `introV2` the checklist above replaces the intro. */}
       {browseBeforeSignup ? (
         <Suspense fallback={null}>
-          <KeptDraftWelcome />
+          <KeptDraftWelcome onShowingChange={setWelcomeShowing} />
         </Suspense>
       ) : introV2 ? null : (
         <FirstRunIntro />

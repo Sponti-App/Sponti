@@ -323,4 +323,29 @@ test.describe("location ask (#408)", () => {
     await expect(banner(page)).toContainText("showing friedrichshain")
     expect(await geoCalls(page)).toBe(0)
   })
+
+  test("the ask waits for the welcome-back sheet (#479)", async ({ page }) => {
+    await page.clock.setFixedTime(JUNE)
+    await spyOnGeolocation(page)
+    await page.addInitScript(() =>
+      window.sessionStorage.setItem(
+        "sponti.kept-flare-draft.v1",
+        JSON.stringify({ ideaId: null })
+      )
+    )
+    await stubBackend(page, { locationAsk: true })
+    await page.goto("/?resume=flare")
+
+    const welcome = page.getByRole("dialog", { name: "welcome in" })
+    await expect(
+      welcome.getByText("welcome in. here's the flare you started.")
+    ).toBeVisible()
+    await expect(sheet(page)).toHaveCount(0)
+
+    await welcome.getByRole("button", { name: "not now" }).click()
+    await expect(
+      sheet(page).getByText("where should the map start?")
+    ).toBeVisible()
+    expect(await geoCalls(page)).toBe(0)
+  })
 })
