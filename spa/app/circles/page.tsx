@@ -802,7 +802,9 @@ export default function CirclesPage() {
                       <CircleStackIcon
                         type={circle.type}
                         className={`h-6 w-6 shrink-0 ${
-                          isExpanded ? "text-accent" : "text-muted-foreground"
+                          isExpanded
+                            ? "text-accent-ink"
+                            : "text-muted-foreground"
                         }`}
                       />
                       <div className="min-w-0 flex-1">

@@ -1821,7 +1821,10 @@ function GeolocationBanner({
     >
       <MapPinIcon className="h-3.5 w-3.5 shrink-0 text-accent" />
       <span className="flex-1">{msg}</span>
-      <button onClick={onRetry} className="shrink-0 font-medium text-accent">
+      <button
+        onClick={onRetry}
+        className="shrink-0 font-medium text-accent-ink"
+      >
         retry
       </button>
     </div>
@@ -1868,7 +1871,7 @@ function LocationSheetState({
       </p>
       <button
         onClick={onRetry}
-        className="mt-3 text-sm font-medium text-accent"
+        className="mt-3 text-sm font-medium text-accent-ink"
       >
         try again
       </button>
@@ -1891,7 +1894,7 @@ function ErrorPanel({
         couldn&apos;t load flares
       </p>
       <p className="line-clamp-1 text-xs text-muted-foreground">{message}</p>
-      <button onClick={onRetry} className="text-sm font-medium text-accent">
+      <button onClick={onRetry} className="text-sm font-medium text-accent-ink">
         try again
       </button>
     </div>

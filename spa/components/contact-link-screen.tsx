@@ -219,7 +219,7 @@ function ContactLinkSignedIn({
                 <h1 className="text-lg font-semibold">
                   {result.profile.displayName}
                 </h1>
-                <p className="mt-1 text-sm font-medium text-accent">
+                <p className="mt-1 text-sm font-medium text-accent-ink">
                   @{result.profile.username}
                 </p>
               </Link>
@@ -254,7 +254,7 @@ function ContactLinkSignedIn({
                   </div>
                   <Link
                     href="/"
-                    className="mt-4 text-sm font-medium text-accent"
+                    className="mt-4 text-sm font-medium text-accent-ink"
                   >
                     open sponti
                   </Link>

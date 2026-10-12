@@ -272,7 +272,7 @@ function GuestRow({
         className={cn(
           "shrink-0 text-xs",
           guest.rsvpStatus === "going"
-            ? "font-medium text-accent"
+            ? "font-medium text-accent-ink"
             : "text-muted-foreground"
         )}
       >

@@ -17,7 +17,7 @@ const myFlaresTab = (page: import("@playwright/test").Page) =>
   nav(page).getByRole("button", { name: "my flares" })
 
 // The active tab takes the accent colour; the others are muted.
-const ACTIVE = /text-accent(?!-)/
+const ACTIVE = /text-accent-ink/
 
 test.describe("bottom nav: my flares (#356)", () => {
   test("lit on the list and on a flare you host, off on someone else's", async ({

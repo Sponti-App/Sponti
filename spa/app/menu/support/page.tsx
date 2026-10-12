@@ -109,7 +109,7 @@ export default function SupportPage() {
     <MenuPageShell title="support">
       <article className="flex flex-col gap-6 pt-4 pb-8">
         <section className="flex flex-col gap-3">
-          <p className="text-sm font-medium text-accent">sponti support</p>
+          <p className="text-sm font-medium text-accent-ink">sponti support</p>
           <h2 className="text-3xl leading-tight font-bold">
             get help, report a problem, or send feedback.
           </h2>
@@ -123,7 +123,7 @@ export default function SupportPage() {
         <Card className="border border-border bg-card p-4">
           <div className="flex items-start gap-3">
             <WarningIcon
-              className="mt-0.5 size-5 shrink-0 text-accent"
+              className="mt-0.5 size-5 shrink-0 text-accent-ink"
               aria-hidden="true"
             />
             <div className="flex flex-col gap-2">
@@ -167,7 +167,7 @@ export default function SupportPage() {
                         <p className="mt-1 text-sm leading-6 text-muted-foreground">
                           {item.description}
                         </p>
-                        <p className="mt-3 text-xs font-medium text-accent">
+                        <p className="mt-3 text-xs font-medium text-accent-ink">
                           {item.detail}
                         </p>
                       </div>
