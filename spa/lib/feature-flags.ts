@@ -63,6 +63,17 @@ export const featureFlags = {
    */
   quietHome: true,
 
+  /**
+   * The lighting moment (#376, flare moments #370; motion in lib/motion,
+   * #375): the composer lights a flare with the strike strip, which the nav's
+   * flare button morphs into, and once the api confirms the flare it plays
+   * the launch (someone's first flare) or the wick (every flare after). See
+   * docs/decisions/flare-lighting-motion.md. On in the full profile, off in
+   * the tester build until it passes review; off, the composer's "light a
+   * flare" button and success toast are exactly as before.
+   */
+  flareLightMoment: FEATURE_PROFILE === "full",
+
   // #482: `browseBeforeSignup`, `introV2` and `locationAsk` below are the new
   // onboarding. A device can switch them all on at runtime ("new onboarding" in
   // settings), whatever the build profile. Read them through

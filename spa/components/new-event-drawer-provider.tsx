@@ -14,6 +14,9 @@ type NewEventDrawerContextValue = {
   // a prefill it opens as it was left.
   openDrawer: (prefill?: ComposerPrefill) => void
   closeDrawer: () => void
+  /** The nav's flare button is morphing into or out of the composer's
+   * strike strip (#376), so the nav hides its own circle meanwhile. */
+  flareButtonHidden: boolean
 }
 
 const NewEventDrawerContext = createContext<NewEventDrawerContextValue | null>(
@@ -32,11 +35,19 @@ export function NewEventDrawerProvider({
     setOpen(true)
   }, [])
   const closeDrawer = useCallback(() => setOpen(false), [])
+  const [flareButtonHidden, setFlareButtonHidden] = useState(false)
 
   return (
-    <NewEventDrawerContext.Provider value={{ open, openDrawer, closeDrawer }}>
+    <NewEventDrawerContext.Provider
+      value={{ open, openDrawer, closeDrawer, flareButtonHidden }}
+    >
       {children}
-      <NewEventDrawer open={open} onClose={closeDrawer} prefill={prefill} />
+      <NewEventDrawer
+        open={open}
+        onClose={closeDrawer}
+        prefill={prefill}
+        onFlareButtonHidden={setFlareButtonHidden}
+      />
     </NewEventDrawerContext.Provider>
   )
 }

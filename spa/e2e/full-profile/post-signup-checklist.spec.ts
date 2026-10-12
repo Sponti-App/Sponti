@@ -188,9 +188,8 @@ test.describe("post-sign-up checklist (#459)", () => {
       .click()
     await expect(composerTitle(page)).toBeInViewport()
     await expect(composerTitle(page)).not.toHaveValue("")
-    await page
-      .getByRole("button", { name: "light a flare", exact: true })
-      .click()
+    // The strike strip (#376, on in the full profile); a tap lights it.
+    await page.getByTestId("strike-to-light").click()
     await expect(composerTitle(page)).toBeHidden()
 
     await expect(
