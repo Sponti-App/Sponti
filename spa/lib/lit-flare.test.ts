@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest"
 import type { EventItem } from "@/lib/api/events"
 import {
   announceLitFlare,
+  announceLitFocus,
   LIT_FLARE_HOLD_MS,
+  releaseLitPin,
   subscribeToLitFlare,
+  subscribeToLitFocus,
+  subscribeToLitPinRelease,
   withLitFlares,
 } from "./lit-flare"
 
@@ -39,5 +43,34 @@ describe("announceLitFlare", () => {
     off()
     announceLitFlare(flare("y"))
     expect(seen).toEqual(["x"])
+  })
+})
+
+describe("the takeover's messages (#376)", () => {
+  it("tells the map whether to hold the new pin", () => {
+    const seen: [string, boolean][] = []
+    const off = subscribeToLitFlare((e, o) => seen.push([e.id, !!o.held]))
+    announceLitFlare(flare("held"), { held: true })
+    announceLitFlare(flare("shown"))
+    off()
+    expect(seen).toEqual([
+      ["held", true],
+      ["shown", false],
+    ])
+  })
+
+  it("moves the map at the strike, and releases the pin at the hand-over", () => {
+    const focus: number[] = []
+    const released: string[] = []
+    const offFocus = subscribeToLitFocus((c) => focus.push(c.lat))
+    const offRelease = subscribeToLitPinRelease((id) => released.push(id))
+    announceLitFocus({ lat: 52.5, lng: 13.4 })
+    releaseLitPin("a")
+    offFocus()
+    offRelease()
+    announceLitFocus({ lat: 1, lng: 1 })
+    releaseLitPin("b")
+    expect(focus).toEqual([52.5])
+    expect(released).toEqual(["a"])
   })
 })

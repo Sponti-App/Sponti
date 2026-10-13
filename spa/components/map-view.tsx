@@ -44,7 +44,10 @@ import { type GeoCoords, type GeoStatus } from "@/lib/geolocation"
 import { AreaBanner, LocationAskSheet } from "@/components/location-ask"
 import { BERLIN_START } from "@/lib/location-choice"
 import {
+  LIT_PIN_HOLD_MAX_MS,
   subscribeToLitFlare,
+  subscribeToLitFocus,
+  subscribeToLitPinRelease,
   withLitFlares,
   type LitFlare,
 } from "@/lib/lit-flare"
@@ -210,6 +213,8 @@ export const FLARE_PIN_SLOTS: Array<{
   { top: "20%", right: "18%" },
 ]
 
+const NO_HELD: ReadonlySet<string> = new Set()
+
 function StaticMapFallback({
   events,
   onEventSelect,
@@ -224,10 +229,13 @@ function StaticMapFallback({
   floatingIdeas = [],
   selectedIdeaId = null,
   onIdeaSelect,
+  heldIds = NO_HELD,
 }: {
   events: EventItem[]
   onEventSelect: (event: EventItem) => void
   joinedIds: Set<string>
+  /** Flares just lit whose pins the lighting takeover holds hidden. */
+  heldIds?: ReadonlySet<string>
   user: GeoCoords
   viewerId: string | null
   /** The map's clock, in ms. */
@@ -299,7 +307,10 @@ function StaticMapFallback({
             onClick={() =>
               setPreviewEvent((prev) => (prev?.id === event.id ? null : event))
             }
-            style={FLARE_PIN_SLOTS[i]}
+            style={{
+              ...FLARE_PIN_SLOTS[i],
+              ...(heldIds.has(event.id) ? { visibility: "hidden" } : {}),
+            }}
             className={`absolute flex flex-col items-center ${
               highlightId === event.id ? "z-10" : ""
             }`}
@@ -309,6 +320,7 @@ function StaticMapFallback({
               own={own}
               joined={isJoined(event, joinedIds)}
               highlighted={highlightId === event.id}
+              held={heldIds.has(event.id)}
               now={now}
             />
             <span className="mt-1 rounded bg-card px-2 py-1 text-center text-xs shadow-md">
@@ -440,9 +452,12 @@ function GoogleMapContent({
   floatingIdeas,
   selectedIdeaId,
   onIdeaSelect,
+  heldIds,
 }: {
   events: EventItem[]
   onEventSelect: (event: EventItem) => void
+  /** Flares just lit whose pins the lighting takeover holds hidden. */
+  heldIds: ReadonlySet<string>
   previewEvent: EventItem | null
   setPreviewEvent: React.Dispatch<React.SetStateAction<EventItem | null>>
   routeResult: RouteResult | null
@@ -541,6 +556,7 @@ function GoogleMapContent({
         floatingIdeas={floatingIdeas}
         selectedIdeaId={selectedIdeaId}
         onIdeaSelect={onIdeaSelect}
+        heldIds={heldIds}
       />
     )
   }
@@ -613,6 +629,7 @@ function GoogleMapContent({
               own={!!viewerId && event.host.id === viewerId}
               joined={isJoined(event, joinedIds)}
               highlighted={highlightId === event.id}
+              held={heldIds.has(event.id)}
               now={now}
             />
           </AdvancedMarker>
@@ -904,14 +921,52 @@ export function MapView({
     [map.events, litFlares, nowMs]
   )
 
+  // #376: the lighting takeover's pin stands in for the new flare's own
+  // until it hands over, so the map draws that pin hidden ("held") till then.
+  const heldIds = useMemo(
+    () =>
+      new Set(
+        litFlares.filter((l) => l.held).map((l) => l.event.id)
+      ) as ReadonlySet<string>,
+    [litFlares]
+  )
+  const release = useCallback((id: string) => {
+    setLitFlares((prev) =>
+      prev.some((l) => l.event.id === id && l.held)
+        ? prev.map((l) => (l.event.id === id ? { ...l, held: false } : l))
+        : prev
+    )
+  }, [])
+  useEffect(() => subscribeToLitPinRelease(release), [release])
+  // A pin is never held for good, whatever became of the takeover.
+  useEffect(() => {
+    if (heldIds.size === 0) return
+    const ids = [...heldIds]
+    const timer = window.setTimeout(
+      () => ids.forEach(release),
+      LIT_PIN_HOLD_MAX_MS
+    )
+    return () => window.clearTimeout(timer)
+  }, [heldIds, release])
+  // A flare is being lit: the map moves to its spot at the strike, under the
+  // takeover, before the api has answered.
+  useEffect(
+    () =>
+      subscribeToLitFocus((coords) => {
+        setPreviewEvent(null)
+        setFocus({ coords })
+      }),
+    []
+  )
+
   // A flare was just lit: show it, whatever the filters, and move to it.
   useEffect(
     () =>
-      subscribeToLitFlare((event) => {
+      subscribeToLitFlare((event, options) => {
         const coords = eventCoords(event)
         setLitFlares((prev) => [
           ...prev.filter((l) => l.event.id !== event.id),
-          { event, litAt: Date.now() },
+          { event, litAt: Date.now(), held: !!options.held },
         ])
         // The clock moves on too: a flare lit for "now" is live at once,
         // not "soon" until the next minute tick.
@@ -1341,56 +1396,62 @@ export function MapView({
       onPointerCancel={handleMapPointerUp}
       onPointerLeave={handleMapPointerUp}
     >
-      {!cameraCenter ? (
-        <MapCameraPlaceholder
-          status={geo.status}
-          errorMessage={geo.errorMessage}
-          onRetry={geo.request}
-        />
-      ) : apiKey ? (
-        <APIProvider apiKey={apiKey}>
-          <GoogleMapContent
-            // A picked area remounts the map on its centre (#408).
-            key={start.cameraKey}
+      {/* #376: the lighting takeover zooms and tilts this layer (the map and
+          its pins only) with a CSS transform, and puts it back after. */}
+      <div data-lighting-map className="absolute inset-0">
+        {!cameraCenter ? (
+          <MapCameraPlaceholder
+            status={geo.status}
+            errorMessage={geo.errorMessage}
+            onRetry={geo.request}
+          />
+        ) : apiKey ? (
+          <APIProvider apiKey={apiKey}>
+            <GoogleMapContent
+              // A picked area remounts the map on its centre (#408).
+              key={start.cameraKey}
+              events={pinEvents}
+              onEventSelect={onEventSelect}
+              previewEvent={shownPreview}
+              setPreviewEvent={setPreviewEvent}
+              routeResult={routeResult}
+              routeDestination={routeDestination}
+              joinedIds={joinedIds}
+              viewerId={viewerId}
+              now={nowMs}
+              cameraCenter={cameraCenter}
+              currentLocation={geo.coords}
+              recenterTick={recenterTick}
+              focus={focus}
+              focusInset={focusInset}
+              onFocused={clearFocus}
+              highlightId={highlightId}
+              ideas={ideaPins}
+              floatingIdeas={floatingIdeas}
+              selectedIdeaId={selectedIdeaId}
+              onIdeaSelect={selectIdeaPin}
+              heldIds={heldIds}
+            />
+          </APIProvider>
+        ) : (
+          <StaticMapFallback
             events={pinEvents}
             onEventSelect={onEventSelect}
-            previewEvent={shownPreview}
-            setPreviewEvent={setPreviewEvent}
-            routeResult={routeResult}
-            routeDestination={routeDestination}
             joinedIds={joinedIds}
+            heldIds={heldIds}
+            user={cameraCenter}
             viewerId={viewerId}
             now={nowMs}
-            cameraCenter={cameraCenter}
-            currentLocation={geo.coords}
-            recenterTick={recenterTick}
-            focus={focus}
-            focusInset={focusInset}
-            onFocused={clearFocus}
+            previewEvent={shownPreview}
+            setPreviewEvent={setPreviewEvent}
             highlightId={highlightId}
             ideas={ideaPins}
             floatingIdeas={floatingIdeas}
             selectedIdeaId={selectedIdeaId}
             onIdeaSelect={selectIdeaPin}
           />
-        </APIProvider>
-      ) : (
-        <StaticMapFallback
-          events={pinEvents}
-          onEventSelect={onEventSelect}
-          joinedIds={joinedIds}
-          user={cameraCenter}
-          viewerId={viewerId}
-          now={nowMs}
-          previewEvent={shownPreview}
-          setPreviewEvent={setPreviewEvent}
-          highlightId={highlightId}
-          ideas={ideaPins}
-          floatingIdeas={floatingIdeas}
-          selectedIdeaId={selectedIdeaId}
-          onIdeaSelect={selectIdeaPin}
-        />
-      )}
+        )}
+      </div>
 
       {/* Under the floating header chips (top-16 clears them): the
           geolocation banner. With the list page open the banner moves into

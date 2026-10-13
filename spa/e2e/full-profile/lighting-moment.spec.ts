@@ -8,14 +8,26 @@ import {
 } from "../support/stubs"
 
 // #375/#376 with `flareLightMoment` (the full profile): the nav's flare button
-// morphs into the composer's strike strip, a strike lights the flare, and only
-// once the api has confirmed it does the lighting moment play: the launch for
-// someone's first flare, the wick for every flare after.
+// morphs into the composer's strike strip, and a strike starts the lighting
+// takeover ("night flare") at once. The flare only goes up and lands on the
+// map once the api has created it; a failure dismisses the takeover and the
+// composer is back. Someone's first flare gets the full burst, every flare
+// after it the soft one, and there is never a second pin for the new flare.
 
 const TITLE = "what's the plan? e.g. drinks after work"
 const nav = (page: Page) => page.getByRole("navigation", { name: "Primary" })
 const strip = (page: Page) => page.getByTestId("strike-to-light")
 const moment = (page: Page) => page.locator("[data-flare-moment]")
+const litPin = (page: Page, id: string) =>
+  page.locator(`[data-flare-pin="${id}"]`)
+/** The home map layer's own transform: "" whenever no takeover moves it. */
+const mapTransform = (page: Page) =>
+  page
+    .locator("[data-lighting-map]")
+    .evaluate((el) => (el as HTMLElement).style.transform)
+/** The created flare's id in the stub: one per flare the account hosted. */
+const FIRST_ID = "event-e2e-hosted-0"
+const LATER_ID = "event-e2e-hosted-1"
 const navCircle = (page: Page) => page.locator("[data-nav-flare-circle]")
 
 /** A flare the account already hosts, so the next one is not its first. */
@@ -153,8 +165,61 @@ async function holdCreate(page: Page) {
   return { release }
 }
 
+/**
+ * Records, every frame, how many pins for the new flare are on screen: the
+ * map's own (`id`) and the takeover's stand-in, each counted only while
+ * visible (no hidden ancestor, some opacity), plus the map layer's transform.
+ */
+async function samplePins(page: Page, id: string) {
+  await page.evaluate((litId) => {
+    const w = window as unknown as {
+      __pins: { pins: number; transform: string; moment: boolean }[]
+      __pinRun?: number
+    }
+    const run = (w.__pinRun ?? 0) + 1
+    w.__pinRun = run
+    w.__pins = []
+    const shown = (el: Element) => {
+      let a = 1
+      for (let n: Element | null = el; n; n = n.parentElement) {
+        const cs = getComputedStyle(n)
+        if (cs.display === "none" || cs.visibility === "hidden") return false
+        a *= Number(cs.opacity)
+      }
+      return a > 0.02
+    }
+    const tick = () => {
+      const circles = [
+        ...document.querySelectorAll(
+          `[data-flare-pin="${litId}"] [data-pin-circle], [data-flare-pin="lighting-takeover"] [data-pin-circle]`
+        ),
+      ]
+      w.__pins.push({
+        pins: circles.filter(shown).length,
+        transform:
+          document.querySelector<HTMLElement>("[data-lighting-map]")?.style
+            .transform ?? "",
+        moment: !!document.querySelector("[data-flare-moment]"),
+      })
+      if (w.__pinRun === run) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }, id)
+}
+
+async function takePins(page: Page) {
+  return page.evaluate(() => {
+    const w = window as unknown as {
+      __pins: { pins: number; transform: string; moment: boolean }[]
+      __pinRun?: number
+    }
+    w.__pinRun = (w.__pinRun ?? 0) + 1
+    return w.__pins
+  })
+}
+
 test.describe("lighting moment", () => {
-  test("a strike lights the first flare, and the launch plays only after the api confirms", async ({
+  test("a strike starts the takeover at once, and the flare lands only after the api confirms", async ({
     page,
   }) => {
     await openComposer(page, { hostedFlares: [] })
@@ -162,25 +227,44 @@ test.describe("lighting moment", () => {
     const create = await holdCreate(page)
 
     await strike(page)
-    await expect(strip(page)).toContainText("lighting…")
-    // Never optimistic: nothing plays while the api hasn't answered.
-    await page.waitForTimeout(600)
-    await expect(moment(page)).toHaveCount(0)
+    // The takeover starts at the strike, before the api has answered, with
+    // the full burst for someone's first flare.
+    await expect(moment(page)).toHaveAttribute("data-flare-moment", "takeover")
+    await expect(moment(page)).toHaveAttribute("data-burst", "full")
+    // Never optimistic: it holds, and nothing lands, while the api is out.
+    await page.waitForTimeout(1500)
+    await expect(moment(page)).toHaveCount(1)
+    await expect(litPin(page, FIRST_ID)).toHaveCount(0)
 
     create.release(true)
-    await expect(moment(page)).toHaveAttribute("data-flare-moment", "launch")
-    await expect(page.getByPlaceholder(TITLE)).toBeHidden()
-    // The toast follows once the flare has caught, and the moment cleans up.
-    await expect(page.getByText(/light it up|lit/).first()).toBeVisible()
+    // The flare lands on the map, the moment cleans up, the toast follows.
     await expect(moment(page)).toHaveCount(0, { timeout: 10_000 })
+    await expect(litPin(page, FIRST_ID)).toBeVisible()
+    await expect(page.getByText(/light it up/).first()).toBeVisible()
+    await expect(page.getByPlaceholder(TITLE)).toBeHidden()
+    // The map is put back as it was.
+    await expect.poll(() => mapTransform(page)).toBe("")
   })
 
-  test("every flare after the first plays the wick", async ({ page }) => {
+  test("there is never a second pin for the new flare, and the map's pin is there at the end", async ({
+    page,
+  }) => {
     await openComposer(page, { hostedFlares: [hosted()] })
+    await samplePins(page, LATER_ID)
     await strike(page)
-    await expect(moment(page)).toHaveAttribute("data-flare-moment", "wick")
-    // Nothing of the moment stays over the map.
+    await expect(moment(page)).toHaveAttribute("data-burst", "soft")
     await expect(moment(page)).toHaveCount(0, { timeout: 10_000 })
+    await expect(litPin(page, LATER_ID)).toBeVisible()
+    const frames = await takePins(page)
+    const during = frames.filter((f) => f.moment)
+    expect(during.length).toBeGreaterThan(30)
+    // The map really moved under it (zoom and tilt), and never two pins.
+    expect(during.some((f) => /rotateX/.test(f.transform))).toBe(true)
+    for (const f of frames) expect(f.pins).toBeLessThanOrEqual(1)
+    // The hand-over leaves exactly one pin, the map's, on an untouched map.
+    const after = frames.filter((f) => !f.moment).at(-1)!
+    expect(after.pins).toBe(1)
+    expect(after.transform).toBe("")
   })
 
   test("a tap lights it too, as the accessible alternative", async ({
@@ -188,7 +272,8 @@ test.describe("lighting moment", () => {
   }) => {
     await openComposer(page, { hostedFlares: [hosted()] })
     await strip(page).click()
-    await expect(moment(page)).toHaveAttribute("data-flare-moment", "wick")
+    await expect(moment(page)).toHaveAttribute("data-flare-moment", "takeover")
+    await expect(moment(page)).toHaveCount(0, { timeout: 10_000 })
   })
 
   test("a slow drag fizzles and lights nothing", async ({ page }) => {
@@ -212,19 +297,24 @@ test.describe("lighting moment", () => {
     await expect(moment(page)).toHaveCount(0)
   })
 
-  test("an api failure plays no moment and keeps today's error", async ({
+  test("an api failure dismisses the takeover and keeps today's error", async ({
     page,
   }) => {
     await openComposer(page, { hostedFlares: [] })
     // Registered after stubBackend's routes, so it answers POST /events first.
     const create = await holdCreate(page)
     await strike(page)
+    await expect(moment(page)).toHaveCount(1)
+    await page.waitForTimeout(400)
     create.release(false)
     await expect(page.getByText("couldn't light that flare")).toBeVisible()
+    // Never stuck on the veil: it goes, and the composer is back with the
+    // draft, ready to strike again.
+    await expect(moment(page)).toHaveCount(0, { timeout: 2_000 })
     await expect(page.getByPlaceholder(TITLE)).toBeInViewport()
-    await page.waitForTimeout(800)
-    await expect(moment(page)).toHaveCount(0)
+    await expect(page.getByPlaceholder(TITLE)).toHaveValue("park in a bit")
     await expect(strip(page)).toContainText(/swipe to light|go live/)
+    await expect.poll(() => mapTransform(page)).toBe("")
   })
 
   test("the nav button morphs into the strip and back, and the nav works after", async ({
@@ -363,13 +453,21 @@ test.describe("lighting moment, the morph and the map", () => {
 test.describe("lighting moment, reduced motion", () => {
   test.use({ reducedMotion: "reduce" })
 
-  test("no morph, and the moment is cross-fades only", async ({ page }) => {
+  test("no morph, and the takeover is cross-fades only: the map never moves", async ({
+    page,
+  }) => {
     await openComposer(page, { hostedFlares: [] })
     await expect(page.locator("[data-flare-morph]")).toHaveCount(0)
     await expect(navCircle(page)).not.toHaveAttribute("data-hidden", "true")
+    await samplePins(page, FIRST_ID)
     await strike(page)
-    await expect(moment(page)).toHaveAttribute("data-flare-moment", "launch")
     await expect(moment(page)).toHaveAttribute("data-reduced", "true")
     await expect(moment(page)).toHaveCount(0, { timeout: 10_000 })
+    await expect(litPin(page, FIRST_ID)).toBeVisible()
+    const frames = await takePins(page)
+    for (const f of frames) {
+      expect(f.transform).toBe("")
+      expect(f.pins).toBeLessThanOrEqual(1)
+    }
   })
 })
