@@ -18,9 +18,18 @@ import { NewEventDrawerProvider } from "@/components/new-event-drawer-provider"
 // server render and the client agree.
 export const LANDING_SEGMENT = "landing"
 
+// Design prototypes (app/prototype/*) run on mock data only, so they skip the
+// session and the gates. That lets a preview deploy, whose origin the backends
+// don't allow, show them on a phone without signing in. Each prototype page
+// still refuses to render in production itself.
+const PROTOTYPE_SEGMENT = "prototype"
+
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const segment = useSelectedLayoutSegment()
   if (segment === LANDING_SEGMENT) return <>{children}</>
+  if (segment === PROTOTYPE_SEGMENT) {
+    return <ActionFeedbackProvider>{children}</ActionFeedbackProvider>
+  }
 
   return (
     <MobileGate>
