@@ -120,17 +120,23 @@ export type Palette = {
   ember: string
   cream: string
   smoke: string
+  /** The white heart of a flash, in both themes. */
+  flash: string
 }
 
-export function readPalette(el: Element): Palette {
+export function readPalette(el: Element, dark: boolean): Palette {
   const css = getComputedStyle(el)
   const get = (name: string, fallback: string) =>
     css.getPropertyValue(name).trim() || fallback
   return {
     peach: get("--primary", "oklch(0.8041 0.126 52.09)"),
     ember: get("--chart-1", "oklch(0.8451 0.0972 53.3)"),
-    cream: "oklch(0.97 0.03 70)",
-    smoke: "oklch(0.93 0.012 60)",
+    // On the light veil, cream would vanish: the warm brown of the peach ink.
+    cream: dark
+      ? "oklch(0.97 0.03 70)"
+      : get("--accent-ink", "oklch(0.45 0.1 50)"),
+    smoke: dark ? "oklch(0.93 0.012 60)" : "oklch(0.7 0.02 346)",
+    flash: "oklch(0.99 0.015 80)",
   }
 }
 

@@ -251,6 +251,7 @@ export type SceneEls = {
   others: (HTMLDivElement | null)[]
   mapPin: HTMLDivElement | null
   sheet: HTMLDivElement | null
+  moment: HTMLDivElement | null
   scrim: HTMLDivElement | null
   night: HTMLDivElement | null
   tint: HTMLDivElement | null
@@ -258,9 +259,7 @@ export type SceneEls = {
   hero: HTMLDivElement | null
   heroScale: HTMLDivElement | null
   cover: HTMLDivElement | null
-  flame: SVGSVGElement | null
   text: HTMLDivElement | null
-  word: HTMLDivElement | null
 }
 
 export const emptyEls = (): SceneEls => ({
@@ -268,6 +267,7 @@ export const emptyEls = (): SceneEls => ({
   others: [],
   mapPin: null,
   sheet: null,
+  moment: null,
   scrim: null,
   night: null,
   tint: null,
@@ -275,30 +275,20 @@ export const emptyEls = (): SceneEls => ({
   hero: null,
   heroScale: null,
   cover: null,
-  flame: null,
   text: null,
-  word: null,
 })
 
-/** The navy of dark mode: the takeover dims to night in both modes. */
-export const NIGHT = "oklch(0.2178 0.0145 266.91)"
-const CREAM = "oklch(0.96 0.02 60)"
-
-// The small flame on top of the flare's circle, base at (0, 0) (the same
-// shape as the wick's, lib/motion/flare-moment.tsx).
-const CROWN =
-  "M0 0 C-10 0 -15 -7 -14 -14 C-13 -22 -6 -26 -4 -34 C-1 -27 1 -24 3 -22 C5 -26 6 -30 6 -32 C11 -26 14 -19 14 -13 C14 -5 8 0 0 0 Z"
-const CROWN_CORE =
-  "M0 -1 C-5 -1 -8 -5 -7 -9 C-6 -14 -2 -17 0 -21 C2 -17 6 -14 7 -9 C8 -5 5 -1 0 -1 Z"
+// The veil is the page's own background: navy night in dark mode, pale
+// pink-cream in light mode (lighter, at most VEIL_MAX[light]).
+const VEIL = "var(--background)"
 
 export function Scene({
   els,
   lit,
   Icon,
   title,
-  meta,
-  word,
   when,
+  chipWhen,
   busy,
   onLight,
   now,
@@ -309,11 +299,10 @@ export function Scene({
   lit: FlarePinEvent
   Icon: Icon
   title: string
-  /** "lit · live now" or "lit · starts in 15 min". */
-  meta: string
-  /** The take's oversized word (take C), or null. */
-  word: string | null
+  /** "live now" or "in 15 min". */
   when: string
+  /** The composer's when chip. */
+  chipWhen: string
   busy: boolean
   onLight: () => void
 }) {
@@ -374,101 +363,77 @@ export function Scene({
       <ComposerSheet
         ref={set("sheet")}
         title={title}
-        when={when}
+        when={chipWhen}
         busy={busy}
         onLight={onLight}
       />
 
-      {/* ---- the moment's layer, above everything ---- */}
+      {/* ---- the moment's layer, above everything, nav included ---- */}
       <div
-        ref={set("scrim")}
-        aria-hidden
-        className="pointer-events-none absolute top-0 left-0 rounded-full opacity-0"
-        style={{
-          width: 2400,
-          height: 2400,
-          marginLeft: -1200,
-          marginTop: -1200,
-          // A spotlight on the flare's spot: the map shows through around it.
-          background: `radial-gradient(circle, color-mix(in oklch, ${NIGHT} 30%, transparent) 0px, color-mix(in oklch, ${NIGHT} 45%, transparent) 70px, color-mix(in oklch, ${NIGHT} 85%, transparent) 140px, ${NIGHT} 250px)`,
-        }}
-      />
-      <div
-        ref={set("night")}
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-0"
-        style={{ background: NIGHT }}
-      />
-      <div
-        ref={set("tint")}
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-0"
-        style={{
-          background:
-            "radial-gradient(120% 70% at 50% 22%, color-mix(in oklch, var(--primary) 55%, transparent), transparent 70%)",
-        }}
-      />
-      <canvas
-        ref={set("canvas")}
-        aria-hidden
-        className="pointer-events-none absolute inset-0 h-full w-full"
-      />
-      <div
-        ref={set("hero")}
-        data-testid="hero-pin"
-        className="pointer-events-none absolute top-0 left-0 opacity-0"
+        ref={set("moment")}
+        data-flare-moment
+        className="pointer-events-none absolute inset-0"
       >
-        <div className="-translate-x-1/2 -translate-y-5">
-          <div ref={set("heroScale")} className="relative origin-[50%_20px]">
-            <svg
-              ref={set("flame")}
-              aria-hidden
-              viewBox="-16 -36 32 38"
-              className="absolute -top-8 left-1/2 h-[38px] w-8 origin-bottom -translate-x-1/2"
-              style={{ transform: "scale(0)" }}
-            >
-              <path d={CROWN} fill="var(--primary)" />
-              <path d={CROWN_CORE} fill={CREAM} />
-            </svg>
-            <FlarePin event={lit} own joined={false} now={now} />
-            {/* The flare before it catches: the same circle, unlit. */}
-            <div
-              ref={set("cover")}
-              className="absolute -top-0.5 left-1/2 flex size-11 -translate-x-1/2 items-center justify-center rounded-full border-4 border-card bg-card text-muted-foreground shadow-lg"
-            >
-              <Icon aria-hidden className="size-5" />
+        <div
+          ref={set("scrim")}
+          aria-hidden
+          className="absolute top-0 left-0 rounded-full opacity-0"
+          style={{
+            width: 2400,
+            height: 2400,
+            marginLeft: -1200,
+            marginTop: -1200,
+            // A spotlight on the flare's spot: the map shows through around it.
+            background: `radial-gradient(circle, color-mix(in oklch, ${VEIL} 30%, transparent) 0px, color-mix(in oklch, ${VEIL} 45%, transparent) 70px, color-mix(in oklch, ${VEIL} 85%, transparent) 140px, ${VEIL} 250px)`,
+          }}
+        />
+        <div
+          ref={set("night")}
+          aria-hidden
+          className="absolute inset-0 opacity-0"
+          style={{ background: VEIL }}
+        />
+        <div
+          ref={set("tint")}
+          aria-hidden
+          className="absolute inset-0 opacity-0"
+          style={{
+            background:
+              "radial-gradient(120% 70% at 50% 22%, color-mix(in oklch, var(--primary) 55%, transparent), transparent 70%)",
+          }}
+        />
+        <canvas
+          ref={set("canvas")}
+          aria-hidden
+          className="absolute inset-0 h-full w-full"
+        />
+        <div
+          ref={set("hero")}
+          data-testid="hero-pin"
+          className="absolute top-0 left-0 opacity-0"
+        >
+          <div className="-translate-x-1/2 -translate-y-5">
+            <div ref={set("heroScale")} className="relative origin-[50%_20px]">
+              <FlarePin event={lit} own joined={false} now={now} />
+              {/* The flare before it catches: the same circle, unlit. */}
+              <div
+                ref={set("cover")}
+                className="absolute -top-0.5 left-1/2 flex size-11 -translate-x-1/2 items-center justify-center rounded-full border-4 border-card bg-card text-muted-foreground shadow-lg"
+              >
+                <Icon aria-hidden className="size-5" />
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      <div
-        ref={set("text")}
-        aria-live="polite"
-        className="pointer-events-none absolute top-0 left-0 flex w-max max-w-72 flex-col items-center text-center opacity-0"
-      >
-        {title && (
-          <p className="text-lg font-semibold" style={{ color: CREAM }}>
-            {title}
-          </p>
-        )}
-        <p className="text-sm font-medium" style={{ color: "var(--primary)" }}>
-          {meta}
-        </p>
-      </div>
-      <div
-        ref={set("word")}
-        aria-hidden
-        className="pointer-events-none absolute top-0 left-0 font-extrabold opacity-0"
-        style={{
-          fontSize: 112,
-          lineHeight: 1,
-          letterSpacing: "-0.04em",
-          color: CREAM,
-          textShadow:
-            "0 0 24px color-mix(in oklch, var(--primary) 80%, transparent), 0 0 64px var(--primary)",
-        }}
-      >
-        {word}
+        {/* What was lit and when, in the app's own type: no "lit", no big word. */}
+        <div
+          ref={set("text")}
+          aria-live="polite"
+          className="absolute top-0 left-0 flex w-max max-w-72 flex-col items-center text-center opacity-0"
+        >
+          <p className="text-lg font-semibold text-foreground">{title}</p>
+          <p className="text-sm font-medium text-accent-ink">{when}</p>
+        </div>
       </div>
     </div>
   )

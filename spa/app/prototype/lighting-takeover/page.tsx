@@ -8,21 +8,21 @@
 // the flare's pin from its first frame, and the map's pin only shows when the
 // moment hands over to it, in the same frame, at the same spot.
 //
-//   ?take=a  match: night, the map rushes in, fuse, catch, smoke signals
-//   ?take=b  quiet: the same ingredients in about 1.6 s, for later flares
-//   ?take=c  night flare: the map tilts back, the flare shoots up and
-//            bursts over the map, lighting it, with an oversized "lit"
+// Round 2 (Patrick, 2026-10-13): take C, "night flare", for every flare (the
+// first flare ever on the device gets the full burst, later ones the soft
+// one). No "lit" text and no flame on the pin: the pin keeps its category
+// icon, and the only text is the flare's title and when. It starts at the
+// strike, holds until the api has created the flare, and a failure dismisses
+// it. Light mode gets a lighter veil; dark mode keeps the night.
 //
-// Other params: ?type= (category), ?join=invite|open, ?when=now|soon,
-// ?flare=first|later (full or soft burst), ?motion=system|reduced|full,
-// ?speed=1|0.25, ?bar=0 hides the controls. Keys: r replays, space lights.
+// Params: ?type= (category), ?join=invite|open, ?when=now|soon,
+// ?flare=first|later, ?api=fast|slow|fail, ?motion=system|reduced|full,
+// ?speed=1|0.25, ?bar=0 hides the controls. Keys: r replays.
 // window.__takeover.seek(ms) draws any frame (the screenshot run uses it).
 //
 // It runs on mock data only: no backend, no session (app-chrome.tsx lets
-// /prototype/* skip the auth gate), so a preview deploy shows it on a phone.
-// Once Patrick picks a direction: record it in
-// docs/decisions/flare-lighting-motion.md, close the PR, and build it for
-// real in spa/lib/motion/.
+// /prototype/* skip the auth gate). Once built for real in spa/lib/motion/,
+// close the PR.
 
 import {
   Suspense,
@@ -35,7 +35,8 @@ import {
 } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTheme } from "next-themes"
-import { CaretDownIcon, ArrowCounterClockwiseIcon } from "@/components/icons"
+import { useActionFeedback } from "@/components/action-feedback"
+import { ArrowCounterClockwiseIcon, CaretDownIcon } from "@/components/icons"
 import type { EventType } from "@/lib/api/events"
 import { haptic } from "@/lib/haptics"
 import { useReducedMotion } from "@/lib/motion/reduced-motion"
@@ -45,6 +46,7 @@ import {
   cameraTransform,
   project,
   readPalette,
+  seg,
   type Camera,
   type Point,
 } from "./_engine"
@@ -56,9 +58,11 @@ import {
   litEvent,
   type SceneEls,
 } from "./_scene"
-import { TAKES, type Burst, type Kit, type TakeKey } from "./_takes"
+import { NO_GATE, take, type Burst, type Gate, type Kit } from "./_takes"
 
-const API_MS = 350
+const API_MS = { fast: 350, slow: 2600, fail: 1100 } as const
+type Api = keyof typeof API_MS
+const DISMISS_MS = 320
 
 const TITLES: Record<EventType, string> = {
   hangout: "hang out at the park",
@@ -71,14 +75,14 @@ const TITLES: Record<EventType, string> = {
 }
 
 type Motion = "system" | "reduced" | "full"
-type Phase = "idle" | "busy" | "playing" | "done"
+type Phase = "idle" | "playing" | "done"
 
 declare global {
   interface Window {
     __takeover?: {
-      seek(ms: number): void
+      seek(ms: number, gate?: Partial<Gate>): void
       duration(): number
-      ignition(): number
+      gate(): number
     }
   }
 }
@@ -123,8 +127,8 @@ function Prototype() {
   const router = useRouter()
   const params = useSearchParams()
   const now = useSyncExternalStore(noSubscribe, getClock, () => null)
+  const { showActionFeedback } = useActionFeedback()
 
-  const takeKey = pick<TakeKey>(params.get("take"), ["a", "b", "c"], "a")
   const type = pick<EventType>(
     params.get("type"),
     EVENT_TYPES.map((t) => t.value),
@@ -133,6 +137,7 @@ function Prototype() {
   const join = pick(params.get("join"), ["invite", "open"] as const, "invite")
   const when = pick(params.get("when"), ["now", "soon"] as const, "now")
   const flare = pick(params.get("flare"), ["first", "later"] as const, "first")
+  const api = pick<Api>(params.get("api"), ["fast", "slow", "fail"], "fast")
   const motion = pick<Motion>(
     params.get("motion"),
     ["system", "reduced", "full"],
@@ -144,10 +149,8 @@ function Prototype() {
   const systemReduced = useReducedMotion()
   const reduced = motion === "reduced" || (motion === "system" && systemReduced)
   const burst: Burst = flare === "first" ? "full" : "soft"
-  const take = TAKES[takeKey]
   const Icon = EVENT_TYPES.find((t) => t.value === type)!.icon
   const title = TITLES[type]
-  const meta = when === "now" ? "lit · live now" : "lit · starts in 15 min"
 
   const set = (key: string, value: string) => {
     const next = new URLSearchParams(params.toString())
@@ -155,19 +158,20 @@ function Prototype() {
     router.replace(`?${next.toString()}`, { scroll: false })
   }
 
-  // One mutable bag of element refs, filled by the scene, stable for life.
   const elsRef = useRef<SceneEls>(emptyEls())
   const stageRef = useRef<HTMLDivElement>(null)
   const [phase, setPhase] = useState<Phase>("idle")
   const [panel, setPanel] = useState(false)
   const raf = useRef(0)
   const kitRef = useRef<Kit | null>(null)
+  const { resolvedTheme, setTheme } = useTheme()
+  const dark = resolvedTheme === "dark"
 
   // ---- the kit: setters over the scene's elements ----------------------------
 
   const buildKit = useCallback((): Kit | null => {
-    const stage = stageRef.current
     const els = elsRef.current
+    const stage = stageRef.current
     const canvas = els.canvas
     if (!stage || !canvas) return null
     const W = stage.clientWidth
@@ -180,12 +184,6 @@ function Prototype() {
     const ctx = canvas.getContext("2d")
     if (!ctx) return null
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    const navCircle = stage.querySelector("[data-nav-flare-circle]")
-    const r = navCircle?.getBoundingClientRect()
-    const s = stage.getBoundingClientRect()
-    const origin: Point = r
-      ? { x: r.left - s.left + r.width / 2, y: r.top - s.top + r.height / 2 }
-      : { x: W / 2, y: H - 40 }
     let focus: Point = { x: 0, y: 0 }
     // Read once here, never per frame.
     const textWidth = els.text?.offsetWidth ?? 0
@@ -198,9 +196,9 @@ function Prototype() {
       H,
       start: { focus: { x: W * 0.72, y: H * 0.6 }, scale: 1, tilt: 0 },
       final: { focus: { x: W / 2, y: H * 0.36 }, scale: 1, tilt: 0 },
-      origin,
-      palette: readPalette(stage),
+      palette: readPalette(stage, dark),
       burst,
+      dark,
       ctx,
       camera(c: Camera) {
         focus = c.focus
@@ -239,46 +237,36 @@ function Prototype() {
         if (ring) ring.style.visibility = o.lit > 0.5 ? "" : "hidden"
         const chip = heroChip()
         if (chip) chip.style.opacity = String(o.chip)
-        if (els.flame) {
-          const flicker =
-            1 + 0.07 * Math.sin(o.t / 60) + 0.04 * Math.sin(o.t / 23 + 1)
-          const sway = 3 * Math.sin(o.t / 90)
-          els.flame.style.transform = `rotate(${sway}deg) scale(${Math.max(0, o.flame) * flicker})`
-          els.flame.style.opacity = String(o.flameAlpha ?? 1)
-        }
       },
-      text(show, dy, below = 44) {
+      text(show, dy) {
         const el = els.text
         if (!el) return
         el.style.opacity = String(show)
         // Centred under the flare, but kept on screen with a 16px gutter.
         const half = textWidth / 2
         const x = Math.min(Math.max(focus.x, 16 + half), W - 16 - half)
-        el.style.transform = `translate3d(${x - half}px, ${focus.y + below + dy}px, 0)`
-      },
-      word(show, scale, at) {
-        const el = els.word
-        if (!el) return
-        el.style.opacity = String(show)
-        el.style.transform = `translate3d(${at.x}px, ${at.y}px, 0) translate(-50%, -50%) scale(${scale})`
+        el.style.transform = `translate3d(${x - half}px, ${focus.y + 30 + dy}px, 0)`
       },
       canvasAlpha(a) {
         if (els.canvas) els.canvas.style.opacity = String(a)
       },
+      fade(a) {
+        if (els.moment) els.moment.style.opacity = String(a)
+      },
     }
-  }, [burst])
+  }, [burst, dark])
 
   /** Draws the frame at `t` ms. Past the end, the map's pin takes over. */
   const frame = useCallback(
-    (t: number) => {
+    (t: number, gate: Gate = NO_GATE) => {
       const kit = kitRef.current
       if (!kit) return
       const dur = take.duration(reduced)
       kit.ctx.clearRect(0, 0, kit.W, kit.H)
-      take.render(Math.min(t, dur), kit, reduced)
+      take.render(Math.min(t, dur), kit, reduced, gate)
       handover(elsRef.current, t >= dur)
     },
-    [take, reduced]
+    [reduced]
   )
 
   const reset = useCallback(() => {
@@ -287,8 +275,8 @@ function Prototype() {
     frame(0)
   }, [buildKit, frame])
 
-  // Any change of take, flare or motion starts over.
-  const config = `${takeKey}|${type}|${join}|${when}|${flare}|${reduced}|${speed}|${now}`
+  // Any change of flare or motion starts over.
+  const config = `${type}|${join}|${when}|${flare}|${api}|${reduced}|${speed}|${dark}|${now}`
   const [seen, setSeen] = useState(config)
   if (seen !== config) {
     setSeen(config)
@@ -305,27 +293,55 @@ function Prototype() {
     }
   }, [config, now, reset])
 
-  // The theme changes the palette the canvas reads.
-  const { resolvedTheme, setTheme } = useTheme()
-  useEffect(() => {
-    if (now !== null) reset()
-  }, [resolvedTheme, now, reset])
-
-  const play = useCallback(() => {
+  /**
+   * The strike: the takeover starts at once and the "api" answers after
+   * API_MS. The timeline holds at the gate until it has; a failure fades the
+   * takeover out and brings the composer back with the error.
+   */
+  const light = useCallback(() => {
+    if (phase !== "idle") return
     cancelAnimationFrame(raf.current)
     kitRef.current = buildKit()
-    const dur = take.duration(reduced)
-    const ignition = take.ignition(reduced)
-    let fired = false
-    const t0 = performance.now()
-    setPhase("playing")
     setPanel(false)
+    setPhase("playing")
+    const dur = take.duration(reduced)
+    const gateAt = take.gate(reduced)
+    const ignition = take.ignition(reduced)
+    const t0 = performance.now()
+    let answered: number | null = null
+    let failed: number | null = null
+    window.setTimeout(() => {
+      if (api === "fail") failed = performance.now()
+      else answered = performance.now()
+    }, API_MS[api])
+    let fired = false
+    let frozen = 0
     const step = (nowMs: number) => {
-      const t = (nowMs - t0) * speed
-      frame(t)
+      const real = (nowMs - t0) * speed
+      const wait = Math.max(0, real - gateAt)
+      const waitEnd =
+        answered === null
+          ? Infinity
+          : Math.max(0, (answered - t0) * speed - gateAt)
+      let t = real <= gateAt ? real : gateAt + Math.max(0, wait - waitEnd)
+      let dismiss = 0
+      if (failed !== null) {
+        const failT = (failed - t0) * speed
+        frozen ||= Math.min(t, failT)
+        t = frozen
+        dismiss = seg(real, failT, failT + DISMISS_MS)
+      }
+      frame(t, { wait, waitEnd, dismiss })
       if (!fired && t >= ignition) {
         fired = true
         haptic("success")
+      }
+      if (dismiss >= 1) {
+        haptic("error")
+        showActionFeedback("couldn't light that flare", { tone: "error" })
+        setPhase("idle")
+        frame(0)
+        return
       }
       if (t >= dur) {
         setPhase("done")
@@ -334,14 +350,7 @@ function Prototype() {
       raf.current = requestAnimationFrame(step)
     }
     raf.current = requestAnimationFrame(step)
-  }, [buildKit, frame, take, reduced, speed])
-
-  const light = useCallback(() => {
-    if (phase !== "idle") return
-    // The api confirms the flare, then the moment plays.
-    setPhase("busy")
-    window.setTimeout(play, API_MS)
-  }, [phase, play])
+  }, [phase, buildKit, frame, reduced, speed, api, showActionFeedback])
 
   const replay = useCallback(() => {
     setPhase("idle")
@@ -350,14 +359,14 @@ function Prototype() {
 
   useEffect(() => {
     window.__takeover = {
-      seek(ms: number) {
+      seek(ms: number, gate?: Partial<Gate>) {
         cancelAnimationFrame(raf.current)
         kitRef.current = buildKit()
         setPanel(false)
-        frame(ms)
+        frame(ms, { ...NO_GATE, ...gate })
       },
       duration: () => take.duration(reduced),
-      ignition: () => take.ignition(reduced),
+      gate: () => take.gate(reduced),
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "r") replay()
@@ -367,7 +376,7 @@ function Prototype() {
       window.removeEventListener("keydown", onKey)
       delete window.__takeover
     }
-  }, [buildKit, frame, take, reduced, replay])
+  }, [buildKit, frame, reduced, replay])
 
   if (now === null) return <div className="fixed inset-0 bg-background" />
 
@@ -385,30 +394,25 @@ function Prototype() {
           now
         )}
         Icon={Icon}
-        title={takeKey === "b" ? "" : title}
-        meta={
-          takeKey === "c"
-            ? `${title} · ${when === "now" ? "live now" : "in 15 min"}`
-            : meta
-        }
-        word={takeKey === "c" ? "lit" : null}
-        when={when === "now" ? "now · 2h" : "in 15 min"}
-        busy={phase === "busy"}
+        title={title}
+        when={when === "now" ? "live now" : "in 15 min"}
+        chipWhen={when === "now" ? "now · 2h" : "in 15 min"}
+        busy={phase === "playing"}
         onLight={light}
         now={now}
       />
-      {showBar && phase !== "playing" && phase !== "busy" && (
+      {showBar && phase !== "playing" && (
         <Bar
           open={panel}
           onToggle={() => setPanel((p) => !p)}
-          takeKey={takeKey}
           type={type}
           join={join}
           when={when}
           flare={flare}
+          api={api}
           motion={motion}
           speed={speed}
-          theme={resolvedTheme === "dark" ? "dark" : "light"}
+          theme={dark ? "dark" : "light"}
           duration={take.duration(reduced)}
           onSet={set}
           onTheme={setTheme}
@@ -472,20 +476,14 @@ function Group({ children }: { children: React.ReactNode }) {
   )
 }
 
-const TAKE_LABEL: Record<TakeKey, string> = {
-  a: "a · match",
-  b: "b · quiet",
-  c: "c · night flare",
-}
-
 function Bar(props: {
   open: boolean
   onToggle: () => void
-  takeKey: TakeKey
   type: EventType
   join: "invite" | "open"
   when: "now" | "soon"
   flare: "first" | "later"
+  api: Api
   motion: Motion
   speed: number
   theme: "light" | "dark"
@@ -509,7 +507,7 @@ function Bar(props: {
           aria-expanded={props.open}
           className="flex h-9 items-center gap-1 rounded-full bg-foreground px-4 text-xs font-medium text-background shadow-lg"
         >
-          {TAKE_LABEL[props.takeKey]} · {props.flare} flare
+          night flare · {props.flare} flare
           <CaretDownIcon className={cn("size-4", props.open && "rotate-180")} />
         </button>
         {props.done && (
@@ -525,17 +523,6 @@ function Bar(props: {
       </div>
       {props.open && (
         <div className="flex w-full max-w-sm flex-col gap-2 rounded-2xl bg-background/95 p-3 shadow-xl">
-          <Group>
-            {(["a", "b", "c"] as const).map((k) => (
-              <Chip
-                key={k}
-                on={props.takeKey === k}
-                onClick={() => onSet("take", k)}
-              >
-                {TAKE_LABEL[k]}
-              </Chip>
-            ))}
-          </Group>
           <Group>
             {EVENT_TYPES.map(({ value, label, icon: I }) => (
               <Chip
@@ -585,6 +572,19 @@ function Bar(props: {
               ))}
             </Group>
             <Group>
+              {(["fast", "slow", "fail"] as const).map((k) => (
+                <Chip
+                  key={k}
+                  on={props.api === k}
+                  onClick={() => onSet("api", k)}
+                >
+                  {k === "fail" ? "api fails" : `api ${k}`}
+                </Chip>
+              ))}
+            </Group>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Group>
               {(["system", "reduced", "full"] as const).map((k) => (
                 <Chip
                   key={k}
@@ -595,8 +595,6 @@ function Bar(props: {
                 </Chip>
               ))}
             </Group>
-          </div>
-          <div className="flex flex-wrap gap-2">
             <Group>
               {(["light", "dark"] as const).map((k) => (
                 <Chip
@@ -629,7 +627,7 @@ function Bar(props: {
               step={10}
               defaultValue={0}
               onChange={(e) => props.onScrub(Number(e.target.value))}
-              className="flex-1 accent-(--primary)"
+              className="flex-1 accent-primary"
             />
           </label>
           <p className="text-xs text-muted-foreground">
