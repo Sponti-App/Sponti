@@ -6,11 +6,15 @@ import {
   normalizePlaceDetailsResponse,
   normalizePlaceId,
 } from "../googlePlaces"
+import { requireSignedIn, signedInDenied } from "@/lib/server/require-signed-in"
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ placeId?: string }> }
 ) {
+  const access = await requireSignedIn(req)
+  if (!access.ok) return signedInDenied(access, {})
+
   const { placeId: rawPlaceId } = await params
   const placeId = normalizePlaceId(rawPlaceId)
 

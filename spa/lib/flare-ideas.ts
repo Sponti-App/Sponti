@@ -12,6 +12,18 @@ export type { FlareIdea } from "./flare-ideas.data"
 
 export const DEFAULT_IDEA_RADIUS_KM = 2
 
+/** The radii (km) tried in turn when a quiet area has few ideas close by
+ * (#515): the first that yields enough candidates wins, else the last one. */
+export const IDEA_RADIUS_STEPS_KM: readonly number[] = [
+  DEFAULT_IDEA_RADIUS_KM,
+  4,
+  8,
+]
+
+/** How many candidate ideas the widening looks for before it stops growing
+ * the radius. */
+export const MIN_IDEA_CANDIDATES = 3
+
 // The curated list is berlin-only, so season windows are read against the
 // berlin calendar day, whatever timezone the device reports.
 const SEASON_TIME_ZONE = "Europe/Berlin"
@@ -87,6 +99,50 @@ export function getIdeasNear({
   return limit === undefined ? ranked : ranked.slice(0, Math.max(0, limit))
 }
 
+export type GetIdeasNearWideningOptions = Omit<
+  GetIdeasNearOptions,
+  "radiusKm"
+> & {
+  /** Radii to try, smallest first. Defaults to `IDEA_RADIUS_STEPS_KM`. */
+  radiusStepsKm?: readonly number[]
+  /** Stop growing once this many ideas are found. Defaults to
+   * `MIN_IDEA_CANDIDATES`. */
+  minCandidates?: number
+}
+
+/**
+ * Like `getIdeasNear`, but a quiet area is never empty (#515): tries each
+ * radius in `radiusStepsKm` and returns the ideas of the first one that has
+ * `minCandidates`, or of the widest one when none does. `limit` is applied
+ * after the choice, so it never makes the radius grow.
+ */
+export function getIdeasNearWidening({
+  radiusStepsKm = IDEA_RADIUS_STEPS_KM,
+  minCandidates = MIN_IDEA_CANDIDATES,
+  limit,
+  ...options
+}: GetIdeasNearWideningOptions): FlareIdea[] {
+  const found = widenUntil(radiusStepsKm, minCandidates, (radiusKm) =>
+    getIdeasNear({ ...options, radiusKm })
+  )
+  return limit === undefined ? found : found.slice(0, Math.max(0, limit))
+}
+
+/** Runs `pick` for each radius until it returns `min` items; returns the last
+ * attempt when none does. */
+function widenUntil<T>(
+  radiiKm: readonly number[],
+  min: number,
+  pick: (radiusKm: number) => T[]
+): T[] {
+  let found: T[] = []
+  for (const radiusKm of radiiKm) {
+    found = pick(radiusKm)
+    if (found.length >= min) break
+  }
+  return found
+}
+
 /** Most idea pins the map shows at once. The map opens at street level (about
  * a kilometre across on a phone), so more than this turns a quiet map into a
  * field of dots and makes ideas outnumber the real flares they sit beside. */
@@ -105,6 +161,11 @@ export type GetIdeaPinsOptions = {
   flarePositions: readonly GeoCoords[]
   cap?: number
   ideas?: readonly FlareIdea[]
+  /** Radii to try, smallest first (#515). Defaults to `IDEA_RADIUS_STEPS_KM`. */
+  radiusStepsKm?: readonly number[]
+  /** Candidates (after chips and flare clearance) the widening looks for
+   * before it stops growing the radius. Defaults to `MIN_IDEA_CANDIDATES`. */
+  minCandidates?: number
 }
 
 /**
@@ -113,6 +174,10 @@ export type GetIdeaPinsOptions = {
  * any that would sit on a real flare's pin, and at most `cap` of them, in
  * season first and then nearest. Overlapping ideas are dropped before the cap
  * is applied, so a hidden one gives its slot to the next idea.
+ *
+ * A quiet area is never empty (#515): when fewer than `minCandidates` ideas
+ * qualify within 2 km, the radius grows (2, 4, then 8 km) until enough do.
+ * The cap still holds, so a wider radius never means more pins.
  */
 export function getIdeaPins({
   center,
@@ -121,15 +186,19 @@ export function getIdeaPins({
   flarePositions,
   cap = MAX_IDEA_PINS,
   ideas,
+  radiusStepsKm = IDEA_RADIUS_STEPS_KM,
+  minCandidates = MIN_IDEA_CANDIDATES,
 }: GetIdeaPinsOptions): FlareIdea[] {
-  return getIdeasNear({ center, now, ideas })
-    .filter((idea) => categories.size === 0 || categories.has(idea.category))
-    .filter(
-      (idea) =>
-        !flarePositions.some(
-          (flare) =>
-            haversineMeters(flare, idea.place) < IDEA_PIN_CLEARANCE_METERS
-        )
-    )
-    .slice(0, Math.max(0, cap))
+  const pins = widenUntil(radiusStepsKm, minCandidates, (radiusKm) =>
+    getIdeasNear({ center, now, radiusKm, ideas })
+      .filter((idea) => categories.size === 0 || categories.has(idea.category))
+      .filter(
+        (idea) =>
+          !flarePositions.some(
+            (flare) =>
+              haversineMeters(flare, idea.place) < IDEA_PIN_CLEARANCE_METERS
+          )
+      )
+  )
+  return pins.slice(0, Math.max(0, cap))
 }

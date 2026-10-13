@@ -41,6 +41,12 @@ const nextConfig = {
       process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ??
       process.env.VERCEL_GIT_COMMIT_SHA ??
       "",
+    // The branch Vercel is building, so a flag can be on for the `dev`
+    // deploy only (feature-flags.ts, `flareLightMoment`). Empty locally.
+    NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF:
+      process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF ??
+      process.env.VERCEL_GIT_COMMIT_REF ??
+      "",
   },
   images: {
     unoptimized: true, // required for static export

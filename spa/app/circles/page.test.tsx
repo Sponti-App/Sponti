@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import CirclesPage from "./page"
 import type { Circle, Connection } from "@/lib/circles"
 
@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   fetchMyCircles: vi.fn(),
   fetchOutgoingConnectionRequests: vi.fn(),
   push: vi.fn(),
+  replace: vi.fn(),
+  searchParams: new URLSearchParams(),
   removeCircleMember: vi.fn(),
   respondToConnectionRequest: vi.fn(),
   searchUsers: vi.fn(),
@@ -23,8 +25,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mocks.push }),
-  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: mocks.push, replace: mocks.replace }),
+  useSearchParams: () => mocks.searchParams,
 }))
 
 vi.mock("@/components/action-feedback", () => ({
@@ -622,5 +624,120 @@ describe("CirclesPage circle chips after accepting", () => {
 
     expect(mocks.addCircleMember).not.toHaveBeenCalled()
     expect(screen.getByText("you’re connected")).toBeInTheDocument()
+  })
+})
+
+// #561: the home's "recently connected" card hands people over as
+// /circles?add=…: close friends opens with them ticked, nothing is added
+// until the person confirms, one POST per member.
+describe("CirclesPage group handed-over people (#561)", () => {
+  const bob: Connection = {
+    id: "user-2",
+    displayName: "Bob Ross",
+    username: "bob",
+  }
+  const cara: Connection = {
+    id: "user-3",
+    displayName: "Cara Mia",
+    username: "cara",
+  }
+  const close = circle({ id: "close-1", name: "close friends", type: "close" })
+  const inner = circle({ id: "inner-1", name: "inner circle", type: "inner" })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.searchParams = new URLSearchParams("add=user-1,user-2")
+    mocks.fetchAcceptedConnections.mockResolvedValue([ada, bob, cara])
+    mocks.fetchIncomingConnectionRequests.mockResolvedValue([])
+    mocks.fetchOutgoingConnectionRequests.mockResolvedValue([])
+    mocks.fetchBlockedUsers.mockResolvedValue([])
+    mocks.fetchMyCircles.mockResolvedValue([close, inner])
+    mocks.addCircleMember.mockResolvedValue(undefined)
+    mocks.createCircle.mockResolvedValue(
+      circle({ id: "circle-9", name: "new crew", memberIds: [ada.id, bob.id] })
+    )
+  })
+
+  afterEach(() => {
+    mocks.searchParams = new URLSearchParams()
+  })
+
+  it("opens close friends with them ticked, and adds the ticked ones on confirm", async () => {
+    const user = userEvent.setup()
+    renderCirclesPage()
+
+    const block = (
+      await screen.findByRole("button", { name: "add 2 to close friends" })
+    ).closest("[data-circle-group]") as HTMLElement
+    // Close friends is the circle that opens.
+    expect(block.closest(".border-accent")).not.toBeNull()
+    expect(
+      within(block).getByRole("checkbox", { name: /Ada Lovelace/ })
+    ).toBeChecked()
+    expect(
+      within(block).getByRole("checkbox", { name: /Bob Ross/ })
+    ).toBeChecked()
+    expect(
+      within(block).queryByRole("checkbox", { name: /Cara Mia/ })
+    ).not.toBeInTheDocument()
+    expect(mocks.addCircleMember).not.toHaveBeenCalled()
+
+    await user.click(within(block).getByRole("checkbox", { name: /Bob Ross/ }))
+    await user.click(
+      within(block).getByRole("button", { name: "add 1 to close friends" })
+    )
+
+    await waitFor(() =>
+      expect(mocks.showActionFeedback).toHaveBeenCalledWith("added to circle")
+    )
+    expect(mocks.addCircleMember).toHaveBeenCalledTimes(1)
+    expect(mocks.addCircleMember).toHaveBeenCalledWith("close-1", ada.id)
+    expect(mocks.replace).toHaveBeenCalledWith("/circles")
+    expect(screen.queryAllByText("recently connected")).toHaveLength(0)
+  })
+
+  it("keeps whoever failed ticked", async () => {
+    const user = userEvent.setup()
+    mocks.addCircleMember.mockImplementation((_: string, userId: string) =>
+      userId === bob.id ? Promise.reject(new Error("nope")) : Promise.resolve()
+    )
+    renderCirclesPage()
+
+    const block = (
+      await screen.findByRole("button", { name: "add 2 to close friends" })
+    ).closest("[data-circle-group]") as HTMLElement
+    await user.click(
+      within(block).getByRole("button", { name: "add 2 to close friends" })
+    )
+
+    await waitFor(() =>
+      expect(mocks.showActionFeedback).toHaveBeenCalledWith(
+        "couldn't add everyone",
+        { tone: "error" }
+      )
+    )
+    // Ada is in now, so only Bob is still offered.
+    expect(
+      within(block).getByRole("button", { name: "add 1 to close friends" })
+    ).toBeInTheDocument()
+    expect(mocks.replace).not.toHaveBeenCalled()
+  })
+
+  it("a new circle starts with them ticked", async () => {
+    const user = userEvent.setup()
+    renderCirclesPage()
+    await screen.findByRole("button", { name: "add 2 to close friends" })
+
+    await user.click(
+      screen.getByRole("button", { name: "create custom circle" })
+    )
+    await user.type(screen.getByPlaceholderText("studio crew"), "new crew")
+    await user.click(screen.getByRole("button", { name: "create circle" }))
+
+    expect(mocks.createCircle).toHaveBeenCalledWith({
+      name: "new crew",
+      type: "custom",
+      memberIds: [ada.id, bob.id],
+    })
   })
 })

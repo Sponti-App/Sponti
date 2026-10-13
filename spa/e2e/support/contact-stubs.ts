@@ -16,7 +16,13 @@ type ContactStubOptions = {
   previewName?: string | null
   /** #441: the QR code has run out, but is still inside the request window. */
   qrExpired?: boolean
+  /** #560: show the intro slides over the link. Off by default: the device
+   * counts as having seen them, like `stubBackend`'s `introSlides`. */
+  introSlides?: boolean
 }
+
+// Mirrors spa/lib/intro-slides.ts's INTRO_SLIDES_KEY (#377).
+const INTRO_SLIDES_KEY = "sponti.intro-slides.v1"
 
 export type ContactStubCalls = {
   previews: unknown[]
@@ -48,6 +54,13 @@ export async function stubSignedOutContactFlow(
     logins: [],
   }
   let relationship: "none" | "pending_outgoing" | "connected" = "none"
+
+  if (!options.introSlides) {
+    await page.addInitScript(
+      (key) => window.localStorage.setItem(key, "seen"),
+      INTRO_SLIDES_KEY
+    )
+  }
 
   await page.route(`${AUTH_BASE}/**`, async (route) => {
     const request = route.request()

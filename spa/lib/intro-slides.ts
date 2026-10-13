@@ -17,6 +17,11 @@ import { getOnboardingFlags, useOnboardingFlags } from "@/lib/onboarding-flags"
 
 export const INTRO_SLIDES_KEY = "sponti.intro-slides.v1"
 
+/** The slides' dusk ink: the deep plum the art fades into, so type, logo and
+ * skip always sit on one dark surface in light and dark mode alike. Shared
+ * with the gate's loading cover so nothing flashes cream before the slides. */
+export const INTRO_INK = "oklch(0.21 0.05 295)"
+
 const SEEN = "seen"
 
 let memory: boolean | undefined

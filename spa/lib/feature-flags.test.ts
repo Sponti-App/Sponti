@@ -20,9 +20,15 @@ describe("featureFlags profile", () => {
     const { featureFlags } = await loadFlags()
     expect(featureFlags.reshare).toBe(false)
     expect(featureFlags.plusOne).toBe(false)
-    expect(featureFlags.browseBeforeSignup).toBe(false)
-    expect(featureFlags.introV2).toBe(false)
-    expect(featureFlags.coachMarks).toBe(false)
+  })
+
+  it("keeps the new onboarding on in the tester profile (#274)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", undefined)
+    const { featureFlags } = await loadFlags()
+    expect(featureFlags.browseBeforeSignup).toBe(true)
+    expect(featureFlags.introV2).toBe(true)
+    expect(featureFlags.locationAsk).toBe(true)
+    expect(featureFlags.coachMarks).toBe(true)
   })
 
   it("stays on the tester profile for any value other than 'full'", async () => {
@@ -35,9 +41,6 @@ describe("featureFlags profile", () => {
     const { featureFlags: garbage } = await loadFlags()
     expect(garbage.reshare).toBe(false)
     expect(garbage.plusOne).toBe(false)
-    expect(garbage.browseBeforeSignup).toBe(false)
-    expect(garbage.introV2).toBe(false)
-    expect(garbage.coachMarks).toBe(false)
   })
 
   it("turns on full-app flags when set to 'full'", async () => {

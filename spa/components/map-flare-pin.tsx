@@ -147,6 +147,7 @@ export function FlarePin({
   own,
   joined,
   highlighted = false,
+  held = false,
   now,
 }: {
   event: FlarePinEvent
@@ -154,6 +155,9 @@ export function FlarePin({
   joined: boolean
   /** The flare whose rail card is centred; its pin grows. */
   highlighted?: boolean
+  /** A flare just lit (#376): drawn hidden while the lighting takeover's own
+   * pin stands in for it, so there is never a second pin on screen. */
+  held?: boolean
   /** The map's clock, in ms. */
   now: number
 }) {
@@ -164,6 +168,8 @@ export function FlarePin({
       data-flare-pin={event.id}
       data-visibility={event.visibility}
       data-live={live ? "true" : "false"}
+      data-held={held ? "true" : undefined}
+      style={held ? { visibility: "hidden" } : undefined}
       className="flex cursor-pointer flex-col items-center"
     >
       <div

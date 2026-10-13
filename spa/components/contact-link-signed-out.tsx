@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { CircleNotchIcon, FlameIcon } from "@/components/icons"
+import { IntroSlidesGate } from "@/components/intro-slides-gate"
 import { LegalLinks } from "@/components/legal-links"
 import { buttonVariants } from "@/components/ui/button"
 import { fetchContactPreviewName } from "@/lib/api/contact-preview"
@@ -20,6 +21,10 @@ import { cn } from "@/lib/utils"
 // Safari, where they never signed in) as a new one, so lead with who wants to
 // connect and offer sign in and create account as two equal choices. Both
 // keep the way back to the link. Same screen for both kinds of link.
+//
+// #560: on this device's first open, the intro slides show over this screen
+// first (same once-per-device key as on the home), so someone who arrives
+// through a friend's link learns what sponti is before signing up.
 
 // Same weight on purpose: neither choice is the "default" one, and the brand
 // keeps to one accent CTA per screen.
@@ -114,6 +119,11 @@ export function ContactLinkSignedOut({
 
         <LegalLinks className="mt-6" />
       </div>
+
+      <IntroSlidesGate
+        finishLabel="continue"
+        signInPath={buildLoginPath(path)}
+      />
     </main>
   )
 }

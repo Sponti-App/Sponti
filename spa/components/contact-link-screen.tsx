@@ -207,15 +207,22 @@ function ContactLinkSignedIn({
             </>
           ) : result ? (
             <>
-              <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-secondary text-lg font-semibold">
-                {result.profile.displayName.slice(0, 1).toUpperCase()}
-              </div>
-              <h1 className="text-lg font-semibold">
-                {result.profile.displayName}
-              </h1>
-              <p className="mt-1 text-sm font-medium text-accent">
-                @{result.profile.username}
-              </p>
+              {/* #559: the person's avatar and name open their profile. */}
+              <Link
+                href={`/profile/${encodeURIComponent(result.profile.username)}`}
+                aria-label={`${result.profile.displayName}, open profile`}
+                className="flex flex-col items-center rounded-2xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-secondary text-lg font-semibold">
+                  {result.profile.displayName.slice(0, 1).toUpperCase()}
+                </div>
+                <h1 className="text-lg font-semibold">
+                  {result.profile.displayName}
+                </h1>
+                <p className="mt-1 text-sm font-medium text-accent-ink">
+                  @{result.profile.username}
+                </p>
+              </Link>
               <p className="mt-4 max-w-xs text-sm text-muted-foreground">
                 {relationshipLabel(kind, result)}
               </p>
@@ -247,7 +254,7 @@ function ContactLinkSignedIn({
                   </div>
                   <Link
                     href="/"
-                    className="mt-4 text-sm font-medium text-accent"
+                    className="mt-4 text-sm font-medium text-accent-ink"
                   >
                     open sponti
                   </Link>

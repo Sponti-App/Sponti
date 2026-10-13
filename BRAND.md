@@ -28,54 +28,54 @@ A neutral base lets one warm accent carry all the brand weight. The CTA color is
 
 ### CTA & emphasis (both modes)
 
-| Token | oklch | Approx hex |
-|---|---|---|
-| `--primary`, `--accent`, `--ring` | `oklch(0.8041 0.126 52.09)` | `#f8b187` |
-| `--primary-foreground`, `--accent-foreground` | `oklch(0.25 0.06 50)` | `#3a2418` |
+| Token                                         | oklch                       | Approx hex |
+| --------------------------------------------- | --------------------------- | ---------- |
+| `--primary`, `--accent`, `--ring`             | `oklch(0.8041 0.126 52.09)` | `#ffa770`  |
+| `--primary-foreground`, `--accent-foreground` | `oklch(0.25 0.06 50)`       | `#3a2418`  |
 
 Use on: primary CTAs (light a flare, join), the live/active indicator strip, the "going" badge, focus rings.
-Do not use as: page backgrounds, large fills, body text.
+Do not use as: page backgrounds, large fills, text in light mode (use `text-accent-ink`, below).
 
-### Text on an accent tint
+### Peach text: use `text-accent-ink`
 
-Peach text on a peach tint (`bg-accent/5` to `/20`) fails WCAG AA in light mode (1.4 to 1.8:1, #406), so text and icons on a tint use `text-accent-ink` instead of `text-accent`:
+Plain peach text fails WCAG AA in light mode: 1.7:1 on `--background` and 1.85:1 on `--card` (#464). Peach text on a peach tint (`bg-accent/5` to `/20`) fails WCAG AA in light mode (1.4 to 1.8:1, #406), so all peach text (links, kickers, nav labels, the active tab) and icons on a tint use `text-accent-ink` instead of `text-accent`. Peach stays the fill for buttons, rings, pins and decorative icons:
 
-| Token | Light | Dark |
-|---|---|---|
+| Token          | Light                             | Dark                                           |
+| -------------- | --------------------------------- | ---------------------------------------------- |
 | `--accent-ink` | `oklch(0.45 0.1 50)` (warm brown) | `oklch(0.8041 0.126 52.09)` (the peach itself) |
 
-Contrast against every tint (5 to 20%) on `--background`, `--card` and `--muted`: light 5.7:1 or better, dark 4.6:1 or better, so AA for normal text. Plain peach text with no tint behind it (links, nav labels) is a separate case and is not covered by this recipe.
+Contrast against every tint (5 to 20%) on `--background`, `--card` and `--muted`: light 5.7:1 or better, dark 4.6:1 or better, so AA for normal text. On plain `--background` and `--card` it is 7.1:1 and 7.7:1 in light mode (measured, #464), and dark mode is unchanged because the token is the peach itself.
 
 ### Light mode
 
-| Token | oklch | Role |
-|---|---|---|
-| `--background` | `oklch(0.97 0.015 346)` | Pale pink-cream page bg |
-| `--foreground` | `oklch(0.25 0.06 346)` | Dark warm text |
-| `--card` | `oklch(0.99 0.007 346)` | Near-white card surface |
-| `--secondary` | `oklch(0.8451 0.0972 53.3)` | Soft peach (lighter than primary) |
-| `--muted` | `oklch(0.93 0.02 346)` | Chip/input fill |
-| `--muted-foreground` | `oklch(0.50 0.04 346)` | Secondary text |
-| `--border` | `oklch(0.88 0.025 346)` | Hairlines |
-| `--destructive` | `oklch(0.58 0.22 27)` | Delete, error |
-| `--flare-invite` / `--flare-invite-ink` | `oklch(0.87 0.07 315)` / `oklch(0.36 0.09 315)` | Map pin fill and icon: invite only (plum) |
-| `--flare-open` / `--flare-open-ink` | `oklch(0.87 0.07 185)` / `oklch(0.36 0.09 185)` | Map pin fill and icon: open to all (teal) |
+| Token                                       | oklch                                             | Role                                              |
+| ------------------------------------------- | ------------------------------------------------- | ------------------------------------------------- |
+| `--background`                              | `oklch(0.97 0.015 346)`                           | Pale pink-cream page bg                           |
+| `--foreground`                              | `oklch(0.25 0.06 346)`                            | Dark warm text                                    |
+| `--card`                                    | `oklch(0.99 0.007 346)`                           | Near-white card surface                           |
+| `--secondary`                               | `oklch(0.8451 0.0972 53.3)`                       | Soft peach (lighter than primary)                 |
+| `--muted`                                   | `oklch(0.93 0.02 346)`                            | Chip/input fill                                   |
+| `--muted-foreground`                        | `oklch(0.50 0.04 346)`                            | Secondary text                                    |
+| `--border`                                  | `oklch(0.88 0.025 346)`                           | Hairlines                                         |
+| `--destructive`                             | `oklch(0.58 0.22 27)`                             | Delete, error                                     |
+| `--flare-invite` / `--flare-invite-ink`     | `oklch(0.87 0.07 315)` / `oklch(0.36 0.09 315)`   | Map pin fill and icon: invite only (plum)         |
+| `--flare-open` / `--flare-open-ink`         | `oklch(0.87 0.07 185)` / `oklch(0.36 0.09 185)`   | Map pin fill and icon: open to all (teal)         |
 | `--flare-invite-tint` / `--flare-open-tint` | `oklch(0.94 0.035 315)` / `oklch(0.94 0.035 185)` | Map flare card background (#493), by who can join |
 
 ### Dark mode
 
-| Token | oklch | Role |
-|---|---|---|
-| `--background` | `oklch(0.2178 0.0145 266.91)` | Ink-black (cool navy) page bg |
-| `--foreground` | `oklch(0.96 0.02 60)` | Warm cream text |
-| `--card` | `oklch(0.3082 0.0255 262.72)` | Navy-tinted card (sits above bg) |
-| `--secondary` | `oklch(0.2704 0.0212 257.28)` | Dark navy (segmented controls, tabs) |
-| `--muted` | `oklch(0.28 0.02 266)` | Chip/input fill |
-| `--muted-foreground` | `oklch(0.74 0.025 60)` | Secondary text |
-| `--border` | `oklch(0.35 0.025 266)` | Hairlines |
-| `--destructive` | `oklch(0.62 0.22 22)` | Delete, error |
-| `--flare-invite` / `--flare-invite-ink` | `oklch(0.45 0.08 315)` / `oklch(0.95 0.03 315)` | Map pin fill and icon: invite only (plum) |
-| `--flare-open` / `--flare-open-ink` | `oklch(0.45 0.08 185)` / `oklch(0.95 0.03 185)` | Map pin fill and icon: open to all (teal) |
+| Token                                       | oklch                                           | Role                                              |
+| ------------------------------------------- | ----------------------------------------------- | ------------------------------------------------- |
+| `--background`                              | `oklch(0.2178 0.0145 266.91)`                   | Ink-black (cool navy) page bg                     |
+| `--foreground`                              | `oklch(0.96 0.02 60)`                           | Warm cream text                                   |
+| `--card`                                    | `oklch(0.3082 0.0255 262.72)`                   | Navy-tinted card (sits above bg)                  |
+| `--secondary`                               | `oklch(0.2704 0.0212 257.28)`                   | Dark navy (segmented controls, tabs)              |
+| `--muted`                                   | `oklch(0.28 0.02 266)`                          | Chip/input fill                                   |
+| `--muted-foreground`                        | `oklch(0.74 0.025 60)`                          | Secondary text                                    |
+| `--border`                                  | `oklch(0.35 0.025 266)`                         | Hairlines                                         |
+| `--destructive`                             | `oklch(0.62 0.22 22)`                           | Delete, error                                     |
+| `--flare-invite` / `--flare-invite-ink`     | `oklch(0.45 0.08 315)` / `oklch(0.95 0.03 315)` | Map pin fill and icon: invite only (plum)         |
+| `--flare-open` / `--flare-open-ink`         | `oklch(0.45 0.08 185)` / `oklch(0.95 0.03 185)` | Map pin fill and icon: open to all (teal)         |
 | `--flare-invite-tint` / `--flare-open-tint` | `oklch(0.34 0.05 315)` / `oklch(0.34 0.05 185)` | Map flare card background (#493), by who can join |
 
 ---
@@ -86,12 +86,12 @@ Contrast against every tint (5 to 20%) on `--background`, `--card` and `--muted`
 
 Strict 4-step scale. Hierarchy comes from **weight and color**, not from inventing intermediate sizes.
 
-| Role | Tailwind | Size | Weight |
-|---|---|---|---|
-| Title (screen, drawer, modal) | `text-lg` | 18 px | 600 |
-| Heading (cards, section) | `text-base` | 16 px | 600 |
-| Body / input / label | `text-sm` | 14 px | 400 / 500 |
-| Meta / caption / chip | `text-xs` | 12 px | 400 |
+| Role                          | Tailwind    | Size  | Weight    |
+| ----------------------------- | ----------- | ----- | --------- |
+| Title (screen, drawer, modal) | `text-lg`   | 18 px | 600       |
+| Heading (cards, section)      | `text-base` | 16 px | 600       |
+| Body / input / label          | `text-sm`   | 14 px | 400 / 500 |
+| Meta / caption / chip         | `text-xs`   | 12 px | 400       |
 
 **Minimum mobile size: 12 px.** Never `text-[10px]` / `text-[11px]` in product UI. If something feels like it needs to be smaller, drop **contrast** (`text-muted-foreground/70`) instead of size.
 
@@ -110,18 +110,18 @@ Strict 4-step scale. Hierarchy comes from **weight and color**, not from inventi
 
 Built on **shadcn (Nova preset)** + **Radix UI** + **Tailwind v4** + **Phosphor icons** (`@phosphor-icons/react`, through `spa/components/icons.tsx`).
 
-| Pattern | Implementation |
-|---|---|
-| Primary CTA | `bg-accent text-accent-foreground` (peach) |
-| Live / active indicator | `border-l-[3px] border-l-accent` on the card |
+| Pattern                                             | Implementation                                                                                                          |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Primary CTA                                         | `bg-accent text-accent-foreground` (peach)                                                                              |
+| Live / active indicator                             | `border-l-[3px] border-l-accent` on the card                                                                            |
 | Live / "going" chip, selected chip, avatar initials | Small `bg-accent/15 text-accent-ink` pill (`bg-accent/10` for chips and avatars). Never `text-accent` on an accent tint |
-| Segmented control | Radix `Tabs` with `h-8`/`h-9` `TabsList` — active = `bg-card text-primary` |
-| Selected day / tab | `bg-card text-primary` (subtle, not full accent) |
-| Ended / past | `bg-muted/30` surface, `text-muted-foreground` text, no border strip |
-| Mode toggles (`week/month`, `map/calendar`) | Pill chips with `bg-card text-primary` active state |
-| Filter chips | Outline by default, `bg-accent text-accent-foreground` when on, "× clear" appears only when ≥1 active |
-| Flare button | The peach circle in the middle of the bottom nav is the only flare button. No floating FAB on the map (#491) |
-| Sheets / drawers | Rounded-top `rounded-t-3xl`, `bg-background`, `shadow-(--shadow-sheet)` |
+| Segmented control                                   | Radix `Tabs` with `h-8`/`h-9` `TabsList` — active = `bg-card text-primary`                                              |
+| Selected day / tab                                  | `bg-card text-primary` (subtle, not full accent)                                                                        |
+| Ended / past                                        | `bg-muted/30` surface, `text-muted-foreground` text, no border strip                                                    |
+| Mode toggles (`week/month`, `map/calendar`)         | Pill chips with `bg-card text-primary` active state                                                                     |
+| Filter chips                                        | Outline by default, `bg-accent text-accent-foreground` when on, "× clear" appears only when ≥1 active                   |
+| Flare button                                        | The peach circle in the middle of the bottom nav is the only flare button. No floating FAB on the map (#491)            |
+| Sheets / drawers                                    | Rounded-top `rounded-t-3xl`, `bg-background`, `shadow-(--shadow-sheet)`                                                 |
 
 ---
 

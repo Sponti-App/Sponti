@@ -458,10 +458,10 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
     ).toBeVisible()
 
     // The calendar view unmounts the map.
-    await page.getByRole("button", { name: "calendar" }).click()
+    await page.getByRole("button", { name: "soon", exact: true }).click()
     await expect(navFlare(page).locator("svg[data-icon='flame']")).toBeVisible()
 
-    await page.getByRole("button", { name: "map" }).click()
+    await page.getByRole("button", { name: "now", exact: true }).click()
     await chip(page, "food").click()
     await expect(
       navFlare(page).locator("svg[data-icon='fork-knife']")
@@ -475,7 +475,8 @@ test.describe("quiet state: one type selected, nothing of it live (#223)", () =>
 })
 
 // #243: with a berlin position the quiet card is a real idea from the curated
-// list (2 km, nearest first), and lighting it opens the composer filled in.
+// list (nearest first, widening 2 to 8 km, #515), and lighting it opens the
+// composer filled in.
 // The idea list has date-dependent seasons (the drinks idea near humboldthain,
 // prater-beer-garden, runs 15 Apr to 30 Sep), so the browser clock is fixed to
 // a day inside them. Stub flares are stamped from Date.now() in node, which
@@ -506,6 +507,16 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
     })
   }
 
+  // #522: the chips only show with two flares or more, so the chip tests
+  // add flares of other types (party, culture) that leave drinks and food
+  // quiet.
+  const otherFlares = (
+    location: StubApiEvent["location"] = inBerlin
+  ): StubApiEvent[] => [
+    flareAt({ location, _id: "e-party", title: "house party", type: "party" }),
+    flareAt({ location, _id: "e-culture", title: "gallery", type: "culture" }),
+  ]
+
   const openBerlinMap = async (page: Page, mapEvents: StubApiEvent[]) => {
     await page.clock.setFixedTime(JUNE)
     await stubBackend(page, { mapEvents, coords: BERLIN_COORDS })
@@ -524,6 +535,7 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
         title: "sunset frisbee",
         type: "sports",
       }),
+      ...otherFlares(),
     ])
     await chip(page, "drinks").click()
 
@@ -550,8 +562,15 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
   test("no idea of the type in range: the generic card, opening the composer with the category only", async ({
     page,
   }) => {
-    await openBerlinMap(page, [])
-    // No curated food spot within 2 km of humboldthain.
+    // The north-west edge of berlin: no curated idea within the 8 km the
+    // search widens to (#515), so even a busy category has nothing to offer.
+    await page.clock.setFixedTime(JUNE)
+    await stubBackend(page, {
+      mapEvents: otherFlares({ type: "Point", coordinates: [13.1, 52.6] }),
+      coords: { lat: 52.6, lng: 13.1 },
+    })
+    await page.goto("/")
+    await expect(nav(page)).toBeVisible()
     await chip(page, "food").click()
 
     const card = quietCard(page)
@@ -567,7 +586,13 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
   })
 
   test("outside berlin the generic card stays", async ({ page }) => {
-    await stubBackend(page, { mapEvents: [] })
+    // makeStubFlare's own place is san francisco, where the stub user is.
+    await stubBackend(page, {
+      mapEvents: [
+        makeStubFlare({ _id: "e-party", type: "party" }),
+        makeStubFlare({ _id: "e-culture", type: "culture" }),
+      ],
+    })
     await page.goto("/")
     await chip(page, "drinks").click()
     await expect(quietCard(page)).toHaveAttribute("data-quiet-card", "generic")
@@ -581,6 +606,7 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
         title: "drinks after work",
         type: "drinks",
       }),
+      ...otherFlares(),
     ])
     await chip(page, "drinks").click()
     await expect(rail(page).getByText("drinks after work")).toBeVisible()
@@ -597,6 +623,7 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
         title: "sunset frisbee",
         type: "sports",
       }),
+      ...otherFlares(),
     ])
     const railCard = rail(page).locator('[data-rail-id="e-sports"]')
     // Not the colour: a rail card is tinted by who can join (#493), and an
@@ -614,18 +641,197 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
   })
 })
 
-test.describe("empty rail (#331)", () => {
-  test("no flares nearby: the rail shows the empty state with its one call to action", async ({
+test.describe("quiet home (#522, #561, #562)", () => {
+  const quietHome = (page: Page) => page.locator("[data-quiet-home]")
+  const people = (page: Page) => quietHome(page).locator("[data-quiet-people]")
+  const cta = (page: Page, id: "now" | "soon") =>
+    quietHome(page).locator(`[data-quiet-cta="${id}"]`)
+  const twoDaysAgo = () => new Date(Date.now() - 2 * 86_400_000).toISOString()
+  const defaultCircles = [
+    {
+      _id: "circle-close",
+      name: "close friends",
+      type: "close" as const,
+      memberCount: 1,
+    },
+    {
+      _id: "circle-inner",
+      name: "inner circle",
+      type: "inner" as const,
+      memberCount: 0,
+    },
+    {
+      _id: "circle-all",
+      name: "all friends",
+      type: "all" as const,
+      memberCount: 2,
+    },
+  ]
+
+  test("no flares and no friends: an invite and the two flare cards, no chips, no rail, no idea cards", async ({
     page,
   }) => {
     await stubBackend(page, { mapEvents: [] })
     await page.goto("/")
     await expect(nav(page)).toBeVisible()
 
-    await expect(rail(page).getByText(/no flares within \d+ km/)).toBeVisible()
+    await expect(quietHome(page)).toBeVisible()
     await expect(
-      rail(page).getByRole("button", { name: "connect with your friends" })
+      quietHome(page).getByText("sponti works with your people")
     ).toBeVisible()
-    await expect(rail(page).locator("[data-rail-id]")).toHaveCount(0)
+    await expect(
+      quietHome(page).getByRole("button", { name: "invite a friend" })
+    ).toBeVisible()
+    await expect(cta(page, "now")).toContainText(
+      "what are you up for right now?"
+    )
+    await expect(cta(page, "soon")).toContainText("got a plan for soon?")
+    // #562: the idea cards left the sheet (the pins stay on the map).
+    await expect(quietHome(page).locator("[data-quiet-idea]")).toHaveCount(0)
+    await expect(rail(page)).toHaveCount(0)
+    await expect(dock(page).getByText(/no flares within \d+ km/)).toHaveCount(0)
+    await expect(
+      dock(page).getByRole("button", { name: "drinks", exact: true })
+    ).toHaveCount(0)
+    // No peach in the sheet: the nav's flare button is the one.
+    await expect(quietHome(page).locator(".bg-accent")).toHaveCount(0)
+  })
+
+  test("after a fresh sign-in with two new connections: a compact card with profile links", async ({
+    page,
+  }) => {
+    await stubBackend(page, {
+      mapEvents: [],
+      friends: 2,
+      connectedAt: twoDaysAgo(),
+      freshSignIn: true,
+    })
+    await page.goto("/")
+    await expect(nav(page)).toBeVisible()
+
+    await expect(people(page).getByText("you recently connected")).toBeVisible()
+    // Compact: one line of people under the label.
+    expect((await box(people(page))).height).toBeLessThan(110)
+    await expect(
+      people(page).getByRole("link", { name: "lena" })
+    ).toHaveAttribute("href", "/profile/friend0")
+    await expect(people(page).getByRole("link", { name: "mia" })).toBeVisible()
+    // The flare cards below light flares; the card has no flame of its own.
+    await expect(
+      people(page).getByRole("button", { name: /flare/ })
+    ).toHaveCount(0)
+
+    // The card stays for this sign-in, across reloads.
+    await page.reload()
+    await expect(people(page)).toBeVisible()
+  })
+
+  test("without a fresh sign-in the card stays away", async ({ page }) => {
+    await stubBackend(page, {
+      mapEvents: [],
+      friends: 2,
+      connectedAt: twoDaysAgo(),
+    })
+    await page.goto("/")
+    await expect(cta(page, "now")).toBeVisible()
+    await expect(people(page)).toHaveCount(0)
+    await expect(
+      quietHome(page).locator("[data-quiet-no-friends]")
+    ).toHaveCount(0)
+  })
+
+  test("swipe the card away, and undo from the toast", async ({ page }) => {
+    await stubBackend(page, {
+      mapEvents: [],
+      friends: 2,
+      connectedAt: twoDaysAgo(),
+      freshSignIn: true,
+    })
+    await page.goto("/")
+    const card = people(page)
+    await expect(card).toBeVisible()
+
+    const b = await box(card)
+    const y = b.y + 12
+    await page.mouse.move(b.x + b.width - 20, y)
+    await page.mouse.down()
+    for (let i = 1; i <= 8; i++) {
+      await page.mouse.move(b.x + b.width - 20 - i * 30, y)
+    }
+    await page.mouse.up()
+    await expect(card).toHaveCount(0)
+
+    await page.getByRole("button", { name: "undo" }).click()
+    await expect(people(page)).toBeVisible()
+
+    // Hidden for good this time: a reload doesn't bring it back.
+    await people(page).getByRole("button", { name: "hide" }).focus()
+    await page.keyboard.press("Enter")
+    await expect(people(page)).toHaveCount(0)
+    await page.reload()
+    await expect(cta(page, "now")).toBeVisible()
+    await expect(people(page)).toHaveCount(0)
+  })
+
+  test("group opens close friends with them ticked", async ({ page }) => {
+    await stubBackend(page, {
+      mapEvents: [],
+      friends: 3,
+      connectedAt: twoDaysAgo(),
+      freshSignIn: true,
+      circles: defaultCircles,
+    })
+    await page.goto("/")
+    await people(page)
+      .getByRole("button", { name: "group into a circle" })
+      .click()
+
+    await expect(page).toHaveURL(/\/circles\?add=friend-0,friend-1,friend-2/)
+    // lena (friend-0) is already in close friends, so mia and sam are offered.
+    const add = page.getByRole("button", { name: "add 2 to close friends" })
+    await expect(add).toBeVisible()
+    const group = page.locator("[data-circle-group]").filter({ has: add })
+    await expect(group.getByRole("checkbox", { name: /mia/ })).toBeChecked()
+    await expect(group.getByRole("checkbox", { name: /sam/ })).toBeChecked()
+  })
+
+  test("right now opens the composer in right now, close friends picked", async ({
+    page,
+  }) => {
+    await stubBackend(page, {
+      mapEvents: [],
+      friends: 2,
+      circles: defaultCircles,
+    })
+    await page.goto("/")
+    await cta(page, "now").click()
+    await expect(
+      page.getByPlaceholder("what's the plan? e.g. drinks after work")
+    ).toBeInViewport()
+    await expect(
+      page.getByRole("tab", { name: "right now", selected: true })
+    ).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "close friends · 1", exact: true })
+    ).toBeVisible()
+  })
+
+  test("soon opens pick a time with the picker out, inner circle picked even when empty", async ({
+    page,
+  }) => {
+    await stubBackend(page, {
+      mapEvents: [],
+      friends: 2,
+      circles: defaultCircles,
+    })
+    await page.goto("/")
+    await cta(page, "soon").click()
+    await expect(
+      page.getByRole("tab", { name: "pick a time", selected: true })
+    ).toBeVisible()
+    await expect(page.getByText("date", { exact: true })).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "inner circle · 0", exact: true })
+    ).toBeVisible()
   })
 })

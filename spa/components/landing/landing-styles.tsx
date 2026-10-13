@@ -58,6 +58,12 @@ export function LandingStyles() {
         color: var(--foreground);
       }
 
+      /* No hanging words: headlines balance their lines, body text avoids a
+         lone last word, and short centred lines (.text-center) balance too. */
+      [data-landing] :is(h1, h2, h3) { text-wrap: balance; }
+      [data-landing] p { text-wrap: pretty; }
+      [data-landing] .text-center p, [data-landing] p.text-center { text-wrap: balance; }
+
       .lp-display {
         font-family: var(--font-display), var(--font-sans), sans-serif;
         font-stretch: 82%; font-variation-settings: "wdth" 82, "opsz" 96;
@@ -78,6 +84,33 @@ export function LandingStyles() {
         animation: lp-bloom 5.5s ease-in-out infinite;
       }
       @keyframes lp-bloom { 0%,100% { scale: .85; opacity: .65 } 50% { scale: 1.15; opacity: 1 } }
+
+      /* The hero's embers rise from the flare and fade. --dx spreads where
+         each starts, --drift bends it sideways, --rise sets how high. */
+      .lp-ember {
+        position: absolute; left: var(--dx); top: 0; border-radius: 9999px;
+        background: #fff3df; box-shadow: 0 0 8px 2px rgb(255 190 140 / .8);
+        mix-blend-mode: screen; opacity: 0;
+        animation: lp-ember 6s cubic-bezier(.3,.1,.6,1) infinite;
+      }
+      @keyframes lp-ember {
+        0% { translate: 0 0; opacity: 0 }
+        15% { opacity: 1 }
+        70% { opacity: .8 }
+        100% { translate: var(--drift) calc(-1 * var(--rise)); opacity: 0; scale: .4 }
+      }
+      /* The flare's light filling the frame over the hero's pin: a cream
+         circle centred on the flare that widens until it covers the frame,
+         its soft edge travelling outwards from the flare. */
+      .lp-hero-wash {
+        /* Sized from the frame (about its diagonal), not the image, so it
+           covers a tall phone and a wide desktop at the same pace. */
+        position: absolute; width: calc((100cqmax + 40cqmin) * 0.176); aspect-ratio: 1; translate: -50% -50%;
+        border-radius: 9999px; pointer-events: none;
+        background: radial-gradient(circle, var(--cream) 0 48%, color-mix(in oklch, var(--cream) 65%, transparent) 60%, transparent 71%);
+        opacity: clamp(0, calc((var(--q, 0) - 0.1) * 3), 1);
+        scale: calc(0.3 + clamp(0, calc(var(--q, 0) - 0.15), 1) * 9);
+      }
 
       .lp-reveal { opacity: 0; transform: translateY(24px); transition: opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1); }
       .lp-reveal[data-shown="true"] { opacity: 1; transform: none; }
@@ -112,6 +145,7 @@ export function LandingStyles() {
 
       @media (prefers-reduced-motion: reduce) {
         .lp-reveal { opacity: 1; transform: none; }
+        .lp-ember { display: none; }
         .lp-bloom, .lp-pop, .lp-float, .lp-caret, .lp-orb[data-lit="true"],
         .lp-orb[data-lit="true"] .lp-orb-ring, .lp-orb[data-lit="true"] .lp-orb-icon { animation: none; }
         [data-landing] * { transition-duration: 0s !important; transition-delay: 0s !important; }

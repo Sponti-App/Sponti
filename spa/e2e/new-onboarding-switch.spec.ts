@@ -10,7 +10,7 @@ const SWITCH_KEY = "sponti.new-onboarding.v1"
 const INTRO_SLIDES_KEY = "sponti.intro-slides.v1"
 const ONBOARDING_KEY = "sponti.onboarding.v1"
 const LOCATION_CHOICE_KEY = "sponti.location-choice.v1"
-const COACH_MARKS_KEY = "sponti.coach-marks.v1"
+const COACH_MARKS_KEY = "sponti.coach-marks.v2"
 
 const slides = (page: Page) => page.locator("[data-intro-slide]")
 const mark = (page: Page) => page.locator("[data-coach-mark]")
@@ -66,16 +66,15 @@ test.describe("new onboarding switch (#482)", () => {
     await signOut(page, /\/$/)
     await expect(slides(page)).toBeVisible()
     await slides(page).getByRole("button", { name: "skip" }).click()
-    // Then the coach marks (#379), then the location ask: the flags are on
-    // together.
-    await expect(mark(page)).toBeVisible()
-    await mark(page).getByRole("button", { name: "skip" }).click()
+    // Then the location ask. No coach marks while signed out (#560): they
+    // wait for an account.
     await expect(
       page.getByRole("dialog", { name: "where should the map start?" })
     ).toBeVisible()
     await page.getByRole("button", { name: "mitte" }).click()
     await expect(nav(page)).toBeVisible()
     await expect(page.getByRole("button", { name: "sign in" })).toBeVisible()
+    await expect(mark(page)).toHaveCount(0)
 
     // Kept on the device: still on after a reload.
     await page.reload()
@@ -83,7 +82,9 @@ test.describe("new onboarding switch (#482)", () => {
     expect(await stored(page, SWITCH_KEY)).toBe("on")
   })
 
-  test("off, the tester flow is unchanged: signed out goes to /login, no slides", async ({
+  // #274: the flags are on in the tester build too, so there is no "off" flow
+  // left to compare against.
+  test.skip("off, the tester flow is unchanged: signed out goes to /login, no slides", async ({
     page,
   }) => {
     await stubBackend(page, { introSlides: true, locationAsk: true })
@@ -125,7 +126,7 @@ test.describe("new onboarding switch (#482)", () => {
     expect(await stored(page, LOCATION_CHOICE_KEY)).not.toBeNull()
   })
 
-  test("replay map tips resets the coach marks and the location choice, and says to sign out", async ({
+  test("replay map tips resets the coach marks and the location choice", async ({
     page,
   }) => {
     await stubBackend(page)
@@ -137,7 +138,7 @@ test.describe("new onboarding switch (#482)", () => {
     await page.getByRole("button", { name: "replay map tips" }).click()
 
     await expect(
-      page.getByText("map tips reset. sign out to see them again")
+      page.getByText("map tips reset. they show on the home map")
     ).toBeVisible()
     expect(await stored(page, COACH_MARKS_KEY)).toBeNull()
     expect(await stored(page, LOCATION_CHOICE_KEY)).toBeNull()

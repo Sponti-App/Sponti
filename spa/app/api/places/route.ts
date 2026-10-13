@@ -7,8 +7,12 @@ import {
   normalizeAutocompleteResponse,
   parseBiasParams,
 } from "./googlePlaces"
+import { requireSignedIn, signedInDenied } from "@/lib/server/require-signed-in"
 
 export async function GET(req: NextRequest) {
+  const access = await requireSignedIn(req)
+  if (!access.ok) return signedInDenied(access, { suggestions: [] })
+
   const input = req.nextUrl.searchParams.get("input") ?? ""
   if (input.trim().length < 2) {
     return NextResponse.json({ suggestions: [] })

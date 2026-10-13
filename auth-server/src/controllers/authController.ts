@@ -17,6 +17,7 @@ import {
   verifyRefreshToken,
 } from "#lib/tokens";
 import cloudinary from "#lib/cloudinary";
+import type { UploadApiResponse } from "cloudinary";
 import { toOwnProfileResponse } from "#lib/userResponse";
 import { env } from "#config/env";
 import streamfier from "streamifier";
@@ -186,7 +187,17 @@ export const googleLogin = async (req: Request, res: Response) => {
   let isNewUser = false;
 
   if (user) {
-    if (!user.googleId) user.googleId = payload.sub;
+    if (!user.googleId) {
+      // #537: sign-up never proves the email belongs to whoever set the
+      // password, so someone could have registered this address first. Google
+      // just proved who owns it: drop that password and every session made
+      // with it. The owner can set a password again with "forgot password".
+      if (user.passwordHash) {
+        user.passwordHash = null;
+        await RefreshToken.deleteMany({ userId: user._id });
+      }
+      user.googleId = payload.sub;
+    }
     if (!user.avatarUrl && payload.picture) user.avatarUrl = payload.picture;
     await user.save();
   } else {
@@ -355,9 +366,14 @@ export const resetPassword = async (req: Request, res: Response) => {
   const { token, password } = req.body as { token: string; password: string };
 
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-  const record = await PasswordResetToken.findOne({ tokenHash, used: false });
+  // #536: used up in one atomic step, so a link works exactly once even when
+  // two requests arrive together.
+  const record = await PasswordResetToken.findOneAndUpdate(
+    { tokenHash, used: false, expiresAt: { $gt: new Date() } },
+    { used: true },
+  );
 
-  if (!record || record.expiresAt < new Date()) {
+  if (!record) {
     throw new Error("Reset link is invalid or has expired", {
       cause: { status: 400 },
     });
@@ -365,10 +381,37 @@ export const resetPassword = async (req: Request, res: Response) => {
 
   const passwordHash = await bcrypt.hash(password, 10);
   await User.findByIdAndUpdate(record.userId, { passwordHash });
-  await PasswordResetToken.findByIdAndUpdate(record._id, { used: true });
+  // #536: a reset is how someone locks out whoever else has their session, so
+  // it ends every session. Other devices drop out at their next refresh.
+  await RefreshToken.deleteMany({ userId: record.userId });
 
   res.json({ message: "Password updated successfully." });
 };
+
+// #539: the upload is awaited inside the handler, so a Cloudinary failure
+// reaches Express's error handler instead of crashing the process.
+const uploadAvatarImage = (buffer: Buffer, publicId: string) =>
+  new Promise<UploadApiResponse>((resolve, reject) => {
+    const upload = cloudinary.uploader.upload_stream(
+      {
+        folder: "avatars",
+        public_id: publicId,
+        overwrite: true,
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error || !result) {
+          console.error("Cloudinary upload error:", error);
+          reject(new Error("Failed to upload avatar", { cause: { status: 500 } }));
+          return;
+        }
+
+        resolve(result);
+      },
+    );
+
+    streamfier.createReadStream(buffer).pipe(upload);
+  });
 
 export const updateAvatar = async (req: Request, res: Response) => {
   const user = await User.findById(req.userId);
@@ -381,39 +424,25 @@ export const updateAvatar = async (req: Request, res: Response) => {
     throw new Error("No file uploaded", { cause: { status: 400 } });
   }
 
-  const fileBuffer = req.file.buffer;
-  const uploadResult = await cloudinary.uploader.upload_stream(
-    {
-      folder: "avatars",
-      public_id: `${user._id}-${Date.now()}`,
-      overwrite: true,
-      resource_type: "image",
-    },
-    async (error, result) => {
-      if (error || !result) {
-        console.error("Cloudinary upload error:", error);
-        throw new Error("Failed to upload avatar", { cause: { status: 500 } });
-      }
+  const result = await uploadAvatarImage(req.file.buffer, `${user._id}-${Date.now()}`);
+  const oldPublicId = user.avatarPublicId;
 
-      const oldPublicId = user.avatarPublicId;
+  user.avatarUrl = result.secure_url;
+  user.avatarPublicId = result.public_id;
+  await user.save();
 
-      user.avatarUrl = result.secure_url;
-      user.avatarPublicId = result.public_id;
-      await user.save();
+  // The new photo is saved; failing to tidy up the old one isn't the user's problem.
+  if (oldPublicId) {
+    await cloudinary.uploader.destroy(oldPublicId).catch((error: unknown) => {
+      console.error("Cloudinary destroy error:", error);
+    });
+  }
 
-      if (oldPublicId) {
-        await cloudinary.uploader.destroy(oldPublicId);
-      }
-
-      res.json({ avatarUrl: user.avatarUrl });
-    },
-  );
-
-  streamfier.createReadStream(fileBuffer).pipe(uploadResult);
+  res.json({ avatarUrl: user.avatarUrl });
 };
 
 export const updateProfile = async (req: Request, res: Response) => {
-  const { displayName, username, email, profileVisibility, bio, instagram, telegram } = req.body;
+  const { displayName, username, email, currentPassword, profileVisibility, bio, instagram, telegram } = req.body;
   const user = await User.findById(req.userId);
 
   if (!user) {
@@ -430,6 +459,22 @@ export const updateProfile = async (req: Request, res: Response) => {
   }
 
   if (email && email.toLowerCase() !== user.email) {
+    // #537: the email is where password resets go, so moving it needs the
+    // current password, not just a session. 403, not 401: the SPA treats 401
+    // as an expired session.
+    if (!user.passwordHash) {
+      throw new Error(
+        "set a password first (use \"forgot password\" on the sign-in page), then change your email",
+        { cause: { status: 403, code: "PASSWORD_REQUIRED" } }
+      );
+    }
+
+    if (!currentPassword || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      throw new Error("current password is incorrect", {
+        cause: { status: 403, code: "CURRENT_PASSWORD_INCORRECT" },
+      });
+    }
+
     const normalizedEmail = email.toLowerCase();
     const emailExists = await User.exists({ email: normalizedEmail });
     if (emailExists) {

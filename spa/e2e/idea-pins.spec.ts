@@ -8,7 +8,9 @@ import {
 
 // #244: the curated idea spots show as muted pins on the normal map, chip on
 // or off. The list has date-dependent seasons, so the clock is fixed to a
-// day when four spots near humboldthain are in season.
+// day when four spots near humboldthain are in season (roses, karaoke, the
+// prater beer garden and the deck 5 roof). With more than five ideas near, the
+// map shows the first five (MAX_IDEA_PINS): in-season first, then nearest.
 const JUNE = "2026-06-15T12:00:00.000Z"
 
 const nav = (page: Page) => page.getByRole("navigation", { name: "Primary" })
@@ -26,7 +28,35 @@ const ROSES = "roses are blooming at humboldthain"
 const BEER = "beer garden evening at prater"
 const FLEA = "hunt for treasure at the mauerpark flea market"
 
-async function openBerlinMap(page: Page, mapEvents: StubApiEvent[] = []) {
+// #522: the chips only show with two flares or more, and a quiet map shows
+// the quiet home instead of the rail. These tests are about the idea pins,
+// so the map gets two flares of other types about 1.5 km north, clear of
+// every idea spot.
+function otherFlares(at: string): StubApiEvent[] {
+  const now = new Date(at).getTime()
+  const north = {
+    type: "Point" as const,
+    coordinates: [BERLIN_COORDS.lng, BERLIN_COORDS.lat + 0.014] as [
+      number,
+      number,
+    ],
+  }
+  return (["party", "culture"] as const).map((type) =>
+    makeStubFlare({
+      _id: `e-${type}`,
+      title: `${type} up north`,
+      type,
+      startAt: new Date(now - 10 * 60_000).toISOString(),
+      endAt: new Date(now + 90 * 60_000).toISOString(),
+      location: north,
+    })
+  )
+}
+
+async function openBerlinMap(
+  page: Page,
+  mapEvents: StubApiEvent[] = otherFlares(JUNE)
+) {
   await page.clock.setFixedTime(JUNE)
   await stubBackend(page, { mapEvents, coords: BERLIN_COORDS })
   await page.goto("/")
@@ -39,53 +69,51 @@ test.describe("idea pins on the map (#244)", () => {
   }) => {
     await openBerlinMap(page)
 
-    await expect(pins(page)).toHaveCount(4)
+    await expect(pins(page)).toHaveCount(5)
     await expect(pin(page, ROSES)).toBeVisible()
     await expect(pin(page, BEER)).toBeVisible()
-    await expect(pin(page, FLEA)).toBeVisible()
     // No chip is on and there is no quiet card yet.
     await expect(quietCard(page)).toBeHidden()
 
-    // Muted, dashed and without the peach that marks a flare.
+    // #522: a dashed peach ring, a size up; a flare pin is a solid circle.
     const style = await pin(page, ROSES)
       .locator("div > div")
       .evaluate((el) => {
         const cs = getComputedStyle(el)
-        return { border: cs.borderTopStyle, color: cs.borderTopColor }
+        return {
+          border: cs.borderTopStyle,
+          width: cs.borderTopWidth,
+          size: el.getBoundingClientRect().width,
+        }
       })
     expect(style.border).toBe("dashed")
-    const accent = await page.evaluate(() => {
-      const probe = document.createElement("span")
-      probe.style.color = "var(--accent)"
-      document.body.appendChild(probe)
-      const color = getComputedStyle(probe).color
-      probe.remove()
-      return color
-    })
-    expect(style.color).not.toBe(accent)
+    expect(style.width).toBe("2px")
+    expect(style.size).toBe(36)
   })
 
   test("with a chip on, only that category's ideas are pinned", async ({
     page,
   }) => {
     await openBerlinMap(page)
-    await expect(pins(page)).toHaveCount(4)
+    await expect(pins(page)).toHaveCount(5)
 
     await chip(page, "hobby").click()
-    await expect(pins(page)).toHaveCount(1)
     await expect(pin(page, FLEA)).toBeVisible()
+    await expect(pin(page, BEER)).toHaveCount(0)
 
-    // A category with no idea nearby: no pins, and the generic card.
+    // Another category: its own pins, and its quiet card is an idea.
     await chip(page, "hobby").click()
     await chip(page, "food").click()
-    await expect(pins(page)).toHaveCount(0)
-    await expect(quietCard(page)).toHaveAttribute("data-quiet-card", "generic")
+    await expect(pins(page)).toHaveCount(5)
+    await expect(pin(page, FLEA)).toHaveCount(0)
+    await expect(quietCard(page)).toHaveAttribute("data-quiet-card", "idea")
 
     // Two chips: the union.
+    await chip(page, "food").click()
     await chip(page, "hobby").click()
     await expect(pin(page, FLEA)).toBeVisible()
     await chip(page, "drinks").click()
-    await expect(pins(page)).toHaveCount(2)
+    await expect(pin(page, FLEA)).toBeVisible()
     await expect(pin(page, BEER)).toBeVisible()
   })
 
@@ -135,21 +163,22 @@ test.describe("idea pins on the map (#244)", () => {
   test("a real flare wins: an idea under a flare's pin is not drawn", async ({
     page,
   }) => {
-    // A flare right on the flea market.
+    // A flare right on the prater beer garden.
     await openBerlinMap(page, [
       makeStubFlare({
-        _id: "e-flea",
-        title: "flea market run",
-        type: "hobby",
+        _id: "e-beer",
+        title: "beer run",
+        type: "drinks",
         location: {
           type: "Point",
-          coordinates: [13.4023137, 52.5415157],
+          coordinates: [13.4095113, 52.5402446],
         },
       }),
     ])
     await expect(pin(page, ROSES)).toBeVisible()
-    await expect(pin(page, FLEA)).toHaveCount(0)
-    await expect(pins(page)).toHaveCount(3)
+    await expect(pin(page, BEER)).toHaveCount(0)
+    // The hidden idea gives its slot to the next one.
+    await expect(pins(page)).toHaveCount(5)
   })
 })
 
@@ -164,7 +193,7 @@ test.describe("hide ideas (#245)", () => {
     page,
   }) => {
     await openBerlinMap(page)
-    await expect(pins(page)).toHaveCount(4)
+    await expect(pins(page)).toHaveCount(5)
 
     await pin(page, BEER).click()
     await hideButton(page).click()
@@ -229,12 +258,12 @@ test.describe("hide ideas (#245)", () => {
     await page.getByRole("button", { name: "Back", exact: true }).click()
     await expect(page).toHaveURL(/\/$/)
     await expect(nav(page)).toBeVisible()
-    await expect(pins(page)).toHaveCount(4)
+    await expect(pins(page)).toHaveCount(5)
   })
 
   test("the setting can also hide them", async ({ page }) => {
     await openBerlinMap(page)
-    await expect(pins(page)).toHaveCount(4)
+    await expect(pins(page)).toHaveCount(5)
 
     await page.goto("/settings")
     await expect(settingsSwitch(page)).toHaveAttribute("aria-checked", "true")

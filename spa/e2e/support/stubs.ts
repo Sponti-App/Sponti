@@ -17,10 +17,10 @@ const LAST_KNOWN_COORDS_KEY = "sponti.geo.last-known-coords.v1"
 const INTRO_SLIDES_KEY = "sponti.intro-slides.v1"
 // Mirrors spa/lib/location-choice.ts's LOCATION_CHOICE_KEY (#408).
 const LOCATION_CHOICE_KEY = "sponti.location-choice.v1"
-// Mirrors spa/lib/coach-marks.ts's COACH_MARKS_KEY (#379).
-const COACH_MARKS_KEY = "sponti.coach-marks.v1"
-// Mirrors HOME_COACH_MARKS_KEY (#497), the signed-in run.
-const HOME_COACH_MARKS_KEY = "sponti.coach-marks.home.v1"
+// Mirrors spa/lib/coach-marks.ts's COACH_MARKS_KEY (#379, #560).
+const COACH_MARKS_KEY = "sponti.coach-marks.v2"
+// Mirrors spa/lib/quiet-home.ts's RECENT_PEOPLE_KEY (#561).
+const RECENT_PEOPLE_KEY = "sponti.recent-people.v1"
 
 export const STUB_USER = {
   id: "user-e2e-1",
@@ -234,16 +234,11 @@ type StubBackendOptions = {
    */
   introSlides?: boolean
   /**
-   * Show the coach marks (#379, full profile only) on the signed-out map.
-   * Off by default: the device counts as having seen them, so specs about
-   * the signed-out map (and the location ask after them) aren't covered.
+   * Show the coach marks (#379, #560, full profile only) on the signed-in
+   * home map. Off by default: the device counts as having seen them, so
+   * specs about the home map aren't covered.
    */
   coachMarks?: boolean
-  /**
-   * Show the signed-in run of the coach marks (#497, full profile only) on
-   * the home map. Off by default, for the same reason as `coachMarks`.
-   */
-  homeCoachMarks?: boolean
   /** Leave this device's location choice undecided, so the location ask
    * (#408, full profile) shows. By default the device has chosen "use my
    * location", which keeps the map as it was before the ask. */
@@ -253,6 +248,17 @@ type StubBackendOptions = {
    * `setFriends` on the returned handle changes it mid-test.
    */
   friends?: number
+  /**
+   * When those connections were accepted (their `updatedAt`), for the quiet
+   * home's "you recently connected" row (#522). Unset, they carry no date.
+   */
+  connectedAt?: string
+  /**
+   * Start as if the user just signed in (#561): the quiet home may show the
+   * "you recently connected" card, which only follows a fresh sign-in. Set
+   * once per test, so a reload doesn't sign in again. Off by default.
+   */
+  freshSignIn?: boolean
   /**
    * The flares GET /events/mine/upcoming lists as hosted by the user (#459's
    * "light your first flare" row). When set, even to [], a flare made with
@@ -340,13 +346,13 @@ export async function stubBackend(
   const introSlides = options.introSlides ?? false
   const locationAsk = options.locationAsk ?? false
   const coachMarks = options.coachMarks ?? false
-  const homeCoachMarks = options.homeCoachMarks ?? false
   const makeConnections = (count: number) =>
     Array.from({ length: count }, (_, i) => ({
       _id: `conn-${i}`,
       requesterId: user.id,
       receiverId: `friend-${i}`,
       status: "accepted",
+      ...(options.connectedAt && { updatedAt: options.connectedAt }),
       otherUser: {
         _id: `friend-${i}`,
         username: `friend${i}`,
@@ -369,15 +375,23 @@ export async function stubBackend(
       introSlides,
       coachMarksKey,
       coachMarks,
-      homeCoachMarksKey,
-      homeCoachMarks,
       locationChoiceKey,
       locationAsk,
+      recentPeopleKey,
+      freshSignIn,
     }) => {
+      if (freshSignIn && window.localStorage.getItem(recentPeopleKey) === null)
+        window.localStorage.setItem(
+          recentPeopleKey,
+          JSON.stringify({
+            userId: user.id,
+            fresh: true,
+            lastAt: null,
+            batch: null,
+          })
+        )
       if (!introSlides) window.localStorage.setItem(introSlidesKey, "seen")
       if (!coachMarks) window.localStorage.setItem(coachMarksKey, "seen")
-      if (!homeCoachMarks)
-        window.localStorage.setItem(homeCoachMarksKey, "seen")
       if (
         !locationAsk &&
         window.localStorage.getItem(locationChoiceKey) === null
@@ -405,10 +419,10 @@ export async function stubBackend(
       introSlides,
       coachMarksKey: COACH_MARKS_KEY,
       coachMarks,
-      homeCoachMarksKey: HOME_COACH_MARKS_KEY,
-      homeCoachMarks,
       locationChoiceKey: LOCATION_CHOICE_KEY,
       locationAsk,
+      recentPeopleKey: RECENT_PEOPLE_KEY,
+      freshSignIn: options.freshSignIn ?? false,
     }
   )
 
@@ -644,19 +658,21 @@ export async function stubBackend(
       return
     }
     if (route.request().method() === "POST" && path === "/events") {
-      const created = makeStubFlare({ title: "new flare" })
-      if (hostedFlares) {
-        const body = route.request().postDataJSON() as Partial<StubApiEvent>
-        hostedFlares.push({
-          ...created,
-          _id: `event-e2e-hosted-${hostedFlares.length}`,
-          hostId: user.id,
-          title: body.title ?? created.title,
-          startAt: body.startAt ?? created.startAt,
-          endAt: body.endAt ?? created.endAt,
-        })
+      const body = route.request().postDataJSON() as Partial<StubApiEvent>
+      const base = makeStubFlare({ title: "new flare" })
+      // What the api answers with: the new flare, as its host's, where and
+      // when the request said.
+      const created: StubApiEvent = {
+        ...base,
+        _id: `event-e2e-hosted-${hostedFlares?.length ?? 0}`,
+        hostId: user.id,
+        title: body.title ?? base.title,
+        startAt: body.startAt ?? base.startAt,
+        endAt: body.endAt ?? base.endAt,
+        location: body.location ?? base.location,
       }
-      await fulfillJson(route, { data: created }, 201)
+      hostedFlares?.push(created)
+      await fulfillJson(route, { data: { event: created, members: [] } }, 201)
       return
     }
 

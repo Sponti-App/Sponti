@@ -11,7 +11,14 @@
 import { useEffect, useState, type ReactNode } from "react"
 import {
   CheckIcon,
+  ClockIcon,
   FlameIcon,
+  GlobeIcon,
+  LockIcon,
+  MoonIcon,
+  NavigationArrowIcon,
+  PlusIcon,
+  UserPlusIcon,
   UsersIcon,
   WineIcon,
   type Icon,
@@ -353,6 +360,363 @@ export function JoinScreen({ play = true }: { play?: boolean }) {
           )}
         </span>
       </div>
+    </div>
+  )
+}
+
+/** A screen's small title row, under the notch. */
+function ScreenTitle({ children }: { children: ReactNode }) {
+  return <p className="text-base font-semibold">{children}</p>
+}
+
+const CIRCLES = [
+  { name: "close friends", count: 6, faces: ["m", "j", "s"] },
+  { name: "climbing crew", count: 4, faces: ["a", "k"] },
+  { name: "flatmates", count: 3, faces: ["l", "t"] },
+  { name: "work lunch", count: 5, faces: ["r", "e", "p"] },
+]
+
+const FACE_TINTS = [
+  "var(--flare-invite)",
+  "var(--flare-open)",
+  "var(--primary)",
+  "var(--muted)",
+]
+
+/** Circles: the user's own groups, each one a set of friends a flare can go
+ * to. The last one pops in when it plays, as if just made. */
+export function CirclesScreen({ play = true }: { play?: boolean }) {
+  return (
+    <div className="absolute inset-0 flex flex-col bg-background px-4 pt-12 pb-4 text-foreground">
+      <ScreenTitle>circles</ScreenTitle>
+      <p className="text-xs text-muted-foreground">pick who sees each flare.</p>
+      <ul className="mt-4 flex flex-col gap-2">
+        {CIRCLES.map((circle, i) => (
+          <li
+            key={circle.name}
+            className={cn(
+              "flex items-center gap-3 rounded-2xl bg-card px-3 py-2.5 transition-[opacity,transform] duration-500",
+              i === CIRCLES.length - 1 && !play
+                ? "translate-y-2 opacity-0"
+                : "opacity-100"
+            )}
+            style={{ transitionDelay: play ? `${200 + i * 120}ms` : "0ms" }}
+          >
+            <span className="flex -space-x-2">
+              {circle.faces.map((face, f) => (
+                <span
+                  key={face}
+                  className="flex size-6 items-center justify-center rounded-full border-2 border-card text-[9px] font-semibold"
+                  style={{
+                    background: FACE_TINTS[(i + f) % FACE_TINTS.length],
+                  }}
+                >
+                  {face}
+                </span>
+              ))}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">
+                {circle.name}
+              </span>
+              <span className="block text-[11px] text-muted-foreground">
+                {circle.count} people
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <span className="mt-auto flex h-10 items-center justify-center gap-1.5 rounded-full border border-border text-xs font-medium">
+        <PlusIcon className="size-4" />
+        create circle
+      </span>
+    </div>
+  )
+}
+
+/** Who can join: invite only, or open to all. Playing flips it to open, and
+ * the pin on the little map turns teal. */
+export function OpenFlareScreen({ play = true }: { play?: boolean }) {
+  const now = useNow()
+  const open = play
+  return (
+    <div className="absolute inset-0 flex flex-col bg-background text-foreground">
+      <div className="relative h-[46%] overflow-hidden">
+        <MapBase />
+        {now !== null && (
+          <div className="absolute top-[58%] left-1/2 -translate-x-1/2 -translate-y-1/2">
+            <FlarePin
+              event={{
+                id: "picnic",
+                type: "food",
+                visibility: open ? "public" : "private",
+                startAt: new Date(now + 20 * MIN).toISOString(),
+                endAt: new Date(now + 180 * MIN).toISOString(),
+              }}
+              own
+              joined={false}
+              highlighted
+              now={now}
+            />
+          </div>
+        )}
+      </div>
+      <div className="relative z-10 -mt-6 flex flex-1 flex-col rounded-t-3xl bg-background px-4 pt-4 pb-4">
+        <p className="text-sm font-semibold">picnic on the hill</p>
+        <p className="mt-4 text-xs text-muted-foreground">who can join</p>
+        <div className="mt-1.5 grid grid-cols-2 rounded-full bg-muted p-1 text-center text-[11px]">
+          <span
+            className={cn(
+              "flex items-center justify-center gap-1 rounded-full py-1.5 transition-colors duration-300",
+              open
+                ? "text-muted-foreground"
+                : "bg-card font-medium text-primary"
+            )}
+          >
+            <LockIcon className="size-3" />
+            invite only
+          </span>
+          <span
+            className={cn(
+              "flex items-center justify-center gap-1 rounded-full py-1.5 transition-colors duration-300",
+              open
+                ? "bg-card font-medium text-primary"
+                : "text-muted-foreground"
+            )}
+          >
+            <GlobeIcon className="size-3" />
+            open to all
+          </span>
+        </div>
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          {open
+            ? "anyone who sees it can come along."
+            : "only the circles you pick."}
+        </p>
+        <span className="mt-auto flex h-10 items-center justify-center gap-1.5 rounded-full bg-accent text-xs font-medium text-accent-foreground">
+          <FlameIcon className="size-4" />
+          light it
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/** The walk to a flare: a dotted route from you to the pin that draws in as
+ * it plays, and the minutes it takes. */
+export function RouteScreen({ play = true }: { play?: boolean }) {
+  const now = useNow()
+  return (
+    <div className="absolute inset-0 bg-background text-foreground">
+      <MapBase />
+      <svg
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full"
+        viewBox="0 0 270 570"
+        preserveAspectRatio="xMidYMid slice"
+      >
+        <path
+          d="M78 430 C 90 380, 150 380, 150 330 S 190 250, 186 205"
+          fill="none"
+          className="stroke-primary"
+          strokeWidth="5"
+          strokeLinecap="round"
+          pathLength={1}
+          strokeDasharray="1"
+          style={{
+            strokeDashoffset: play ? 0 : 1,
+            transition: "stroke-dashoffset 1.4s cubic-bezier(.4,0,.2,1) .3s",
+          }}
+        />
+        <circle cx="78" cy="430" r="9" className="fill-card" />
+        <circle cx="78" cy="430" r="5.5" className="fill-foreground" />
+      </svg>
+      {now !== null && (
+        <div className="absolute top-[36%] left-[69%] -translate-x-1/2 -translate-y-1/2">
+          <FlarePin
+            event={{
+              id: "canal",
+              type: "drinks",
+              visibility: "private",
+              startAt: new Date(now - 20 * MIN).toISOString(),
+              endAt: new Date(now + 100 * MIN).toISOString(),
+            }}
+            own={false}
+            joined
+            highlighted
+            now={now}
+          />
+        </div>
+      )}
+      <div
+        className={cn(
+          "absolute inset-x-3 bottom-4 z-10 rounded-2xl bg-card p-3 shadow-lg transition-[opacity,transform] duration-500",
+          play ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
+        )}
+        style={{ transitionDelay: play ? "1200ms" : "0ms" }}
+      >
+        <p className="flex items-center gap-1.5 text-sm font-semibold">
+          <NavigationArrowIcon className="size-4 text-primary" />
+          14 min walk
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          to drinks at the canal · mia sees you&apos;re on the way
+        </p>
+      </div>
+    </div>
+  )
+}
+
+const WEEK = ["m", "t", "w", "t", "f", "s", "s"]
+const UPCOMING = [
+  {
+    day: "today",
+    items: [
+      { title: "drinks at the canal", meta: "live · 5 going", Icon: WineIcon },
+    ],
+  },
+  {
+    day: "saturday",
+    items: [
+      { title: "flea market run", meta: "11am · 3 going", Icon: UsersIcon },
+      {
+        title: "picnic on the hill",
+        meta: "2pm · open to all",
+        Icon: FlameIcon,
+      },
+    ],
+  },
+]
+
+/** Calendar = upcoming: flares with a picked time, by day. */
+export function CalendarScreen({ play = true }: { play?: boolean }) {
+  return (
+    <div className="absolute inset-0 flex flex-col bg-background px-4 pt-9 pb-4 text-foreground">
+      <div className="flex justify-center">
+        <span className="rounded-full bg-muted p-0.5 text-[11px]">
+          <span className="inline-block px-2.5 py-1 text-muted-foreground">
+            map
+          </span>
+          <span className="inline-block rounded-full bg-card px-2.5 py-1 font-medium text-primary">
+            calendar
+          </span>
+        </span>
+      </div>
+      <div className="mt-4 grid grid-cols-7 text-center text-[10px] text-muted-foreground">
+        {WEEK.map((d, i) => (
+          <span key={i} className="flex flex-col items-center gap-1">
+            {d}
+            <span
+              className={cn(
+                "flex size-6 items-center justify-center rounded-full text-[11px]",
+                i === 2 && "bg-accent font-semibold text-accent-foreground",
+                i !== 2 && "text-foreground"
+              )}
+            >
+              {14 + i}
+            </span>
+            <span
+              className={cn(
+                "size-1 rounded-full",
+                i === 2 || i === 5 ? "bg-primary" : "bg-transparent"
+              )}
+            />
+          </span>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-col gap-3">
+        {UPCOMING.map((group, g) => (
+          <div key={group.day}>
+            <p className="text-[11px] text-muted-foreground">{group.day}</p>
+            <div className="mt-1.5 flex flex-col gap-1.5">
+              {group.items.map(({ title, meta, Icon }, i) => (
+                <div
+                  key={title}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-xl bg-card px-3 py-2 transition-[opacity,transform] duration-500",
+                    play
+                      ? "translate-x-0 opacity-100"
+                      : "translate-x-4 opacity-0"
+                  )}
+                  style={{
+                    transitionDelay: play
+                      ? `${200 + (g * 2 + i) * 140}ms`
+                      : "0ms",
+                  }}
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-flare-invite text-flare-invite-ink">
+                    <Icon className="size-3.5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-medium">
+                      {title}
+                    </span>
+                    <span className="block text-[10px] text-muted-foreground">
+                      {meta}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Notifications, as the app's settings page has them: quiet hours (off
+ * until you turn them on, 22:00 – 08:00 to start), event reminders and
+ * invitations. Quiet hours switch on as it plays. */
+export function QuietScreen({ play = true }: { play?: boolean }) {
+  const rows: { label: string; meta: string; on: boolean; Icon: Icon }[] = [
+    { label: "quiet hours", meta: "22:00 – 08:00", on: play, Icon: MoonIcon },
+    {
+      label: "reminders",
+      meta: "before a flare starts",
+      on: true,
+      Icon: ClockIcon,
+    },
+    {
+      label: "invitations",
+      meta: "when someone invites you",
+      on: true,
+      Icon: UserPlusIcon,
+    },
+  ]
+  return (
+    <div className="absolute inset-0 flex flex-col bg-background px-4 pt-12 pb-4 text-foreground">
+      <ScreenTitle>notifications</ScreenTitle>
+      <p className="text-xs text-muted-foreground">choose what reaches you.</p>
+      <ul className="mt-4 flex flex-col gap-2">
+        {rows.map(({ label, meta, on, Icon }) => (
+          <li
+            key={label}
+            className="flex items-center gap-3 rounded-2xl bg-card px-3 py-2.5"
+          >
+            <Icon className="size-4 text-muted-foreground" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">{label}</span>
+              <span className="block text-[11px] text-muted-foreground">
+                {meta}
+              </span>
+            </span>
+            <span
+              className={cn(
+                "relative h-5 w-9 rounded-full transition-colors duration-300",
+                on ? "bg-accent" : "bg-muted"
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 size-4 rounded-full bg-card shadow transition-[left] duration-300",
+                  on ? "left-[1.125rem]" : "left-0.5"
+                )}
+              />
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

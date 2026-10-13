@@ -30,12 +30,23 @@ import { CircleStackIcon } from "@/components/circle-stack-icon"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { featureFlags } from "@/lib/feature-flags"
+import { StrikeStrip } from "@/components/strike-strip"
+import {
+  LightingTakeoverLayer,
+  takeoverSpecFor,
+  useHostedSnapshot,
+  useStrikeMorph,
+  type LightingTakeover,
+} from "@/components/flare-lighting"
+import type { TakeoverOutcome } from "@/components/flare-takeover"
+import { markLitOnDevice } from "@/lib/motion/lighting"
 import { composeFlareTitle } from "@/lib/flare-title"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import {
+  adaptApiEvent,
   createEvent,
   createEventRequestFromDraft,
   MAP_SOON_WINDOW_MS,
@@ -43,15 +54,17 @@ import {
   type DraftEvent,
   type DraftEventLocation,
   type EventAudienceTarget,
+  type EventItem,
   type EventType,
 } from "@/lib/api/events"
+import { announceLitFlare, announceLitFocus } from "@/lib/lit-flare"
 import {
   addCircleMember as addApiCircleMember,
   fetchMyCircles,
   removeCircleMember as removeApiCircleMember,
 } from "@/lib/api/circles"
 import { fetchAcceptedConnections } from "@/lib/api/connections"
-import { HttpError } from "@/lib/http"
+import { HttpError, sessionFetch } from "@/lib/http"
 import { useGeolocation, type GeoStatus } from "@/lib/geolocation"
 import { emitEventsChanged } from "@/lib/use-events"
 import { type Circle, type Connection } from "@/lib/circles"
@@ -451,6 +464,14 @@ export type ComposerPrefill = {
   category?: EventType
   // Lands as a picked place, as if it had been searched and selected.
   place?: DraftEventLocation
+  // #522: friends to invite, as a private flare to just them ("flare with
+  // mia" on the quiet home). Connection user ids.
+  inviteIds?: string[]
+  // #562: "pick a time" opens with the date and time picker expanded.
+  mode?: Mode
+  // #562: a default circle suggested as the audience, by type (the caller
+  // doesn't know the ids). Pre-selected even when it is empty; changeable.
+  audienceCircle?: "close" | "inner"
 }
 
 // `openDrawer` is also wired straight to onClick handlers, which hand it the
@@ -458,7 +479,8 @@ export type ComposerPrefill = {
 // prefill so those callers open the composer exactly as before.
 export function normalizePrefill(input: unknown): ComposerPrefill | null {
   if (!input || typeof input !== "object") return null
-  const { title, category, place } = input as Record<string, unknown>
+  const { title, category, place, inviteIds, mode, audienceCircle } =
+    input as Record<string, unknown>
   const prefill: ComposerPrefill = {}
   if (typeof title === "string" && title.trim()) prefill.title = title
   if (EVENT_TYPES.some((t) => t.value === category)) {
@@ -466,6 +488,16 @@ export function normalizePrefill(input: unknown): ComposerPrefill | null {
   }
   if (place && typeof place === "object") {
     prefill.place = place as DraftEventLocation
+  }
+  if (Array.isArray(inviteIds)) {
+    const ids = inviteIds.filter(
+      (id): id is string => typeof id === "string" && id.length > 0
+    )
+    if (ids.length > 0) prefill.inviteIds = ids
+  }
+  if (mode === "now" || mode === "scheduled") prefill.mode = mode
+  if (audienceCircle === "close" || audienceCircle === "inner") {
+    prefill.audienceCircle = audienceCircle
   }
   return Object.keys(prefill).length > 0 ? prefill : null
 }
@@ -507,8 +539,10 @@ export function getInitialEventDraftState(
   const { place } = prefill
   return {
     ...defaults,
+    mode: prefill.mode ?? defaults.mode,
     title: prefill.title?.slice(0, TITLE_MAX_LENGTH) ?? defaults.title,
     eventType: prefill.category ?? defaults.eventType,
+    directlyInvitedIds: prefill.inviteIds ?? defaults.directlyInvitedIds,
     ...(place && {
       whereType: "search" as const,
       searchQuery: place.name,
@@ -532,6 +566,7 @@ type DraftFields = Pick<
   | "selectedLocation"
   | "searchQuery"
   | "guestLimit"
+  | "directlyInvitedIds"
 >
 
 const DRAFT_FIELD_KEYS: Array<keyof DraftFields> = [
@@ -547,20 +582,23 @@ const DRAFT_FIELD_KEYS: Array<keyof DraftFields> = [
   "selectedLocation",
   "searchQuery",
   "guestLimit",
+  "directlyInvitedIds",
 ]
 
 /**
  * Whether the person has not started a flare of their own: the draft is still
  * the empty one, or still exactly what a prefill put there. A prefill only
  * lands on an untouched draft; anything typed, picked or invited is theirs and
- * is kept as it was. `baselines` are the states that count as untouched.
+ * is kept as it was. `baselines` are the states that count as untouched. The
+ * invited friends are a field like the others (#522): a prefill can invite
+ * someone, and that draft stays untouched until the list changes.
  */
 export function isUntouchedDraft(
   current: DraftFields,
   baselines: Array<DraftFields | null>,
-  touched: { audience: boolean; invitedCount: number }
+  touched: { audience: boolean }
 ): boolean {
-  if (touched.audience || touched.invitedCount > 0) return false
+  if (touched.audience) return false
   return baselines.some(
     (baseline) =>
       baseline !== null &&
@@ -574,9 +612,13 @@ export function NewEventDrawer({
   open,
   onClose,
   prefill = null,
+  onFlareButtonHidden,
 }: {
   open: boolean
   onClose: () => void
+  /** #376: the nav hides its flare button while it morphs into the strike
+   * strip and back (`flareLightMoment`). */
+  onFlareButtonHidden?: (hidden: boolean) => void
   // Applied each time the drawer opens with one, unless the person already has
   // an unsent draft of their own: that is kept as it was.
   prefill?: ComposerPrefill | null
@@ -612,7 +654,7 @@ export function NewEventDrawer({
       lat: String(geoCoords.lat),
       lng: String(geoCoords.lng),
     })
-    fetch(`/api/geocode?${params}`, { signal: controller.signal })
+    sessionFetch(`/api/geocode?${params}`, { signal: controller.signal })
       .then((resp) => (resp.ok ? resp.json() : null))
       .then((data: unknown) => {
         if (currentLocationGeocodeRequestRef.current !== requestId) return
@@ -829,6 +871,9 @@ export function NewEventDrawer({
   const audiencePromptRef = useRef<HTMLDivElement>(null)
 
   const prefilledDraftRef = useRef<DraftFields | null>(null)
+  const audiencePinnedRef = useRef(false)
+  // #562: the circle type a prefill suggested, applied once the circles load.
+  const preferredAudienceRef = useRef<"close" | "inner" | null>(null)
   const draftUntouchedRef = useRef(true)
 
   const resetEventDraft = useCallback(
@@ -843,8 +888,11 @@ export function NewEventDrawer({
       prefilledDraftRef.current = next ? initialState : null
       placesSearchRequestRef.current += 1
       placeDetailsRequestRef.current += 1
-      setExpandedSection(null)
-      setActiveSnap(SNAP_PEEK)
+      // #562: "pick a time" opens with its picker out, like tapping it does.
+      const section: ExpandedSection =
+        initialState.mode === "scheduled" ? "when" : null
+      setExpandedSection(section)
+      setActiveSnap(snapFloorForState(section, initialState.mode))
       setAudiencePromptDismissed(false)
       setMode(initialState.mode)
       setEventType(initialState.eventType)
@@ -872,7 +920,21 @@ export function NewEventDrawer({
       setAllowPlusOne(initialState.allowPlusOne)
       setSubmitError(initialState.submitError)
       audienceTouchedRef.current = false
-      if (connections.length === 0) {
+      // #522: a prefill that invites friends is a private flare to just them,
+      // and the friends list loading later doesn't switch it to "all".
+      const preferred = next?.audienceCircle ?? null
+      preferredAudienceRef.current = preferred
+      audiencePinnedRef.current =
+        initialState.directlyInvitedIds.length > 0 || preferred !== null
+      if (initialState.directlyInvitedIds.length > 0) {
+        setIsOpen(false)
+        setAudience("")
+      } else if (preferred) {
+        // #562: the suggested circle, even an empty one. Until the circles
+        // load it stays unset; the load below picks it then.
+        setIsOpen(false)
+        setAudience(circles.find((c) => c.type === preferred)?.id ?? "")
+      } else if (connections.length === 0) {
         setIsOpen(true)
         setAudience(initialState.audience)
       } else {
@@ -901,12 +963,10 @@ export function NewEventDrawer({
         selectedLocation,
         searchQuery,
         guestLimit,
+        directlyInvitedIds,
       },
       [getInitialEventDraftState(), prefilledDraftRef.current],
-      {
-        audience: audienceTouchedRef.current,
-        invitedCount: directlyInvitedIds.length,
-      }
+      { audience: audienceTouchedRef.current }
     )
   })
 
@@ -969,6 +1029,16 @@ export function NewEventDrawer({
         setAudienceLoading(false)
         setAudienceError(null)
         if (audienceTouchedRef.current) return
+        const preferred = preferredAudienceRef.current
+        if (preferred) {
+          const circle =
+            nextCircles.find((c) => c.type === preferred) ??
+            nextCircles.find((c) => c.type === "all")
+          setIsOpen(false)
+          if (circle) setAudience(circle.id)
+          return
+        }
+        if (audiencePinnedRef.current) return
         if (nextConnections.length === 0) {
           setIsOpen(true)
         } else {
@@ -1115,7 +1185,7 @@ export function NewEventDrawer({
           params.set("lat", String(geoCoords.lat))
           params.set("lng", String(geoCoords.lng))
         }
-        const resp = await fetch(`/api/places?${params}`)
+        const resp = await sessionFetch(`/api/places?${params}`)
         if (!resp.ok) throw new Error("places error")
         const data = (await resp.json()) as { suggestions: PlaceSuggestion[] }
         if (placesSearchRequestRef.current !== requestId) return
@@ -1185,7 +1255,7 @@ export function NewEventDrawer({
     setPlaceDetailsLoading(true)
 
     try {
-      const resp = await fetch(
+      const resp = await sessionFetch(
         `/api/places/${encodeURIComponent(suggestion.placeId)}`
       )
       if (!resp.ok) throw new Error("Place details unavailable.")
@@ -1343,6 +1413,32 @@ export function NewEventDrawer({
     return `${baseName} · ${inviteeCount}`
   }, [isOpen, selectedAudienceCircle, inviteeCount, guestLimit])
 
+  // #376 (`flareLightMoment`): the strike strip replaces the button, the
+  // nav's flare button morphs into it, and the strike starts the lighting
+  // takeover, which lands the flare on the map once the api has created it
+  // (or steps aside if it fails), before the success toast.
+  const lightMoment = featureFlags.flareLightMoment
+  const strikeStripRef = useRef<HTMLButtonElement>(null)
+  useStrikeMorph({
+    open,
+    enabled: lightMoment,
+    stripRef: strikeStripRef,
+    onFlareButtonHidden,
+  })
+  const hostedSnapshot = useHostedSnapshot(open, lightMoment)
+  const [takeover, setTakeover] = useState<LightingTakeover | null>(null)
+  // The takeover in flight, for the submit that started it (state is stale
+  // inside that async function). Cleared when it ends.
+  const takeoverRef = useRef<{ id: number; toast: string | null } | null>(null)
+  const endTakeover = (outcome: TakeoverOutcome) => {
+    const ended = takeoverRef.current
+    takeoverRef.current = null
+    setTakeover(null)
+    if (outcome === "landed" && ended?.toast) showActionFeedback(ended.toast)
+  }
+
+  const composerHidden = !!takeover && takeover.result?.ok !== false
+
   const handleSubmit = async (): Promise<void> => {
     if (isSubmitting) return
     setSubmitError(null)
@@ -1381,6 +1477,7 @@ export function NewEventDrawer({
 
     setIsSubmitting(true)
     let created = false
+    let litEvent: EventItem | null = null
     const createdAt = new Date().toISOString()
     let eventAudience: EventAudienceTarget = { kind: "public" }
 
@@ -1450,14 +1547,36 @@ export function NewEventDrawer({
         durationMin,
       })
 
+      if (lightMoment) {
+        // The strike starts the takeover now, before the api has answered:
+        // the map moves to the flare's spot under it.
+        const id = Date.now()
+        takeoverRef.current = { id, toast: null }
+        setTakeover({
+          id,
+          result: null,
+          spec: takeoverSpecFor({
+            hosted: hostedSnapshot.current,
+            type: effectiveType,
+            visibility: draft.visibility,
+            title: finalTitle,
+            startAt: timeRange.startAt,
+            endAt: timeRange.endAt,
+          }),
+        })
+        const [lng, lat] = draftLocation.coordinates
+        announceLitFocus({ lat, lng })
+      }
+
       const requestBody = createEventRequestFromDraft(
         draft,
         eventAudience,
         timeRange
       )
       try {
-        await createEvent(requestBody)
+        const response = await createEvent(requestBody)
         created = true
+        litEvent = response?.event ? adaptApiEvent(response.event) : null
         emitEventsChanged()
       } catch (err) {
         if (err instanceof HttpError) {
@@ -1482,9 +1601,33 @@ export function NewEventDrawer({
         }
         throw err
       }
-      showActionFeedback(successToastForStart(timeRange.startAt, createdAt))
+      const toast = successToastForStart(timeRange.startAt, createdAt)
+      if (lightMoment) markLitOnDevice()
+      const flight = takeoverRef.current
+      if (flight) {
+        // The takeover lands the flare: the map draws its pin hidden ("held")
+        // until the takeover hands over to it, and the toast follows then.
+        flight.toast = toast
+        if (litEvent) announceLitFlare(litEvent, { held: true })
+        const eventId = litEvent?.id ?? null
+        setTakeover((t) =>
+          t && t.id === flight.id ? { ...t, result: { ok: true, eventId } } : t
+        )
+      } else {
+        // The home map shows the new flare and moves to it (#376).
+        if (litEvent) announceLitFlare(litEvent)
+        showActionFeedback(toast)
+      }
       onClose()
     } catch (error) {
+      // The takeover steps aside (it fades out) and the composer is back
+      // with the draft, as without it.
+      const flight = takeoverRef.current
+      if (flight) {
+        setTakeover((t) =>
+          t && t.id === flight.id ? { ...t, result: { ok: false } } : t
+        )
+      }
       setSubmitError(formatSubmitError(error))
       showActionFeedback("couldn't light that flare", { tone: "error" })
     } finally {
@@ -1492,6 +1635,24 @@ export function NewEventDrawer({
       if (created) resetEventDraft()
     }
   }
+
+  const onCta = (): void => {
+    if (needsAudience) {
+      audienceTouchedRef.current = true
+      pendingPublicSubmit.current = true
+      setIsOpen(true)
+      haptic("selection")
+      return
+    }
+    void handleSubmit()
+  }
+  const ctaDisabled =
+    isSubmitting ||
+    (!isOpen &&
+      !needsAudience &&
+      (audienceLoading || Boolean(audienceError))) ||
+    (whereType === "search" && placeDetailsLoading) ||
+    (whereType === "current" && geoStatus === "requesting" && !currentLocation)
 
   useEffect(() => {
     if (!pendingPublicSubmit.current || !isOpen) return
@@ -1501,42 +1662,43 @@ export function NewEventDrawer({
   }, [isOpen])
 
   return (
-    <Drawer.Root
-      open={open}
-      onOpenChange={(next) => {
-        if (next) haptic("medium")
-        else {
-          haptic("light")
-          onClose()
-        }
-      }}
-      snapPoints={SNAP_POINTS}
-      activeSnapPoint={activeSnap}
-      setActiveSnapPoint={setActiveSnap}
-      fadeFromIndex={SNAP_OVERLAY_FROM}
-      modal
-      snapToSequentialPoint
-      dismissible
-      // vaul's keyboard repositioning is wrong for a snapped drawer and is what
-      // made the sheet vanish in issue #94. Its handler measures the sheet's
-      // *transformed* rect, so for a viewport-height sheet translated down to
-      // its snap point it computes a height of (visual viewport − snap offset)
-      // — tens of px — and then a `bottom` that pushes that sliver below the
-      // fold entirely. It also skips its own snap correction at the peek
-      // detent, because the guard tests `activeSnapPointIndex` for truthiness
-      // and peek is index 0. useViewportMetrics + sheetBottomCss do the lift
-      // instead. The scroll lock is unaffected: that comes from Radix's
-      // RemoveScroll under Dialog.Content, not from this flag.
-      repositionInputs={false}
-    >
-      <Drawer.Portal>
-        {/* Ladder: map sheet 50 < nav 40 … compose 60/61 … toast 70. The map's
+    <>
+      <Drawer.Root
+        open={open}
+        onOpenChange={(next) => {
+          if (next) haptic("medium")
+          else {
+            haptic("light")
+            onClose()
+          }
+        }}
+        snapPoints={SNAP_POINTS}
+        activeSnapPoint={activeSnap}
+        setActiveSnapPoint={setActiveSnap}
+        fadeFromIndex={SNAP_OVERLAY_FROM}
+        modal
+        snapToSequentialPoint
+        dismissible
+        // vaul's keyboard repositioning is wrong for a snapped drawer and is what
+        // made the sheet vanish in issue #94. Its handler measures the sheet's
+        // *transformed* rect, so for a viewport-height sheet translated down to
+        // its snap point it computes a height of (visual viewport − snap offset)
+        // — tens of px — and then a `bottom` that pushes that sliver below the
+        // fold entirely. It also skips its own snap correction at the peek
+        // detent, because the guard tests `activeSnapPointIndex` for truthiness
+        // and peek is index 0. useViewportMetrics + sheetBottomCss do the lift
+        // instead. The scroll lock is unaffected: that comes from Radix's
+        // RemoveScroll under Dialog.Content, not from this flag.
+        repositionInputs={false}
+      >
+        <Drawer.Portal>
+          {/* Ladder: map sheet 50 < nav 40 … compose 60/61 … toast 70. The map's
             expanded sheet is also z-50, and these live in different stacking
             contexts, so the ordering held only by portal position — state it.
             Bracket syntax deliberately: Tailwind's dynamic `z-70` does not
             emit here (verified against the built CSS), `z-[61]` always does. */}
-        <Drawer.Overlay className="fixed inset-0 z-[60] bg-black/40" />
-        {/* vaul's snap math assumes a bottom-anchored, viewport-height sheet:
+          <Drawer.Overlay className="fixed inset-0 z-[60] bg-black/40" />
+          {/* vaul's snap math assumes a bottom-anchored, viewport-height sheet:
             it slides the content down by (viewport − snap). Height stays full
             and keyboard-independent so that transform keeps landing where vaul
             intends; `bottom` alone absorbs the keyboard. vaul no longer writes
@@ -1547,392 +1709,398 @@ export function NewEventDrawer({
             as far as it can go, the remaining shortfall comes off the card's
             height. The CSS height below is only the first-paint value, before
             the first measurement lands. */}
-        <Drawer.Content
-          ref={sheetRef}
-          className="fixed inset-x-0 z-[61] h-full"
-          style={{ bottom: sheetBottomCss(activeSnap) }}
-        >
-          <div
-            ref={cardRef}
-            // The rendered height is measured, not declared, so the active
-            // detent is surfaced here for tests and for debugging on device.
-            data-snap={String(activeSnap)}
-            className="flex flex-col overflow-hidden rounded-t-3xl border-t border-border bg-card"
-            style={{ height: snapVisibleHeightCss(activeSnap) }}
+          <Drawer.Content
+            ref={sheetRef}
+            // Under the lighting takeover the composer fades away; a failed
+            // flare brings it straight back.
+            data-lighting={composerHidden ? "true" : undefined}
+            className={`fixed inset-x-0 z-[61] h-full transition-opacity duration-200 ${
+              composerHidden ? "opacity-0" : ""
+            }`}
+            style={{ bottom: sheetBottomCss(activeSnap) }}
           >
-            <Drawer.Handle className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
-            <Drawer.Title className="sr-only">light a flare</Drawer.Title>
-            <Drawer.Description className="sr-only">
-              compose a new flare
-            </Drawer.Description>
+            <div
+              ref={cardRef}
+              // The rendered height is measured, not declared, so the active
+              // detent is surfaced here for tests and for debugging on device.
+              data-snap={String(activeSnap)}
+              className="flex flex-col overflow-hidden rounded-t-3xl border-t border-border bg-card"
+              style={{ height: snapVisibleHeightCss(activeSnap) }}
+            >
+              <Drawer.Handle className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
+              <Drawer.Title className="sr-only">light a flare</Drawer.Title>
+              <Drawer.Description className="sr-only">
+                compose a new flare
+              </Drawer.Description>
 
-            {/* Header */}
-            <div className="flex shrink-0 items-center justify-between px-4 pt-2 pb-3">
-              <button
-                type="button"
-                onClick={handleClose}
-                aria-label="Close"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-secondary"
-              >
-                <XIcon className="h-4 w-4" />
-              </button>
-              <div className="flex items-center gap-1.5 text-lg font-semibold">
-                <SparkleIcon className="h-4.5 w-4.5" />
-                <span>light a flare</span>
+              {/* Header */}
+              <div className="flex shrink-0 items-center justify-between px-4 pt-2 pb-3">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  aria-label="Close"
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-secondary"
+                >
+                  <XIcon className="h-4 w-4" />
+                </button>
+                <div className="flex items-center gap-1.5 text-lg font-semibold">
+                  <SparkleIcon className="h-4.5 w-4.5" />
+                  <span>light a flare</span>
+                </div>
+                <div className="h-9 w-9" aria-hidden />
               </div>
-              <div className="h-9 w-9" aria-hidden />
-            </div>
 
-            {/* Scrollable compose area */}
-            {/* Always scrollable: at peek the compose area is short, and with
+              {/* Scrollable compose area */}
+              {/* Always scrollable: at peek the compose area is short, and with
                 the keyboard open it is shorter still. Clipping it there meant
                 the chips and mode toggle simply vanished instead of being
                 reachable (issue #94). */}
-            <div
-              ref={scrollRef}
-              className="min-h-0 flex-1 scroll-pt-3 overflow-y-auto overscroll-contain px-4 pt-1 pb-4"
-              data-vaul-no-drag
-            >
-              {/* Title input — hero of the compose card */}
-              <Input
-                value={title}
-                onChange={(e) =>
-                  setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))
-                }
-                placeholder="what's the plan? e.g. drinks after work"
-              />
-              {title.length > 60 && (
-                <p className="mt-1 text-right text-xs text-muted-foreground">
-                  {TITLE_MAX_LENGTH - title.length} left
-                </p>
-              )}
-              <TypeInlineIndicator
-                effectiveType={effectiveType}
-                manualType={eventType}
-                isInferred={eventType === null && inferredType !== null}
-                overrideOpen={typeOverrideOpen}
-                onToggleOverride={() => setTypeOverrideOpen((v) => !v)}
-                onPick={(t) => {
-                  setEventType(t)
-                  setTypeOverrideOpen(false)
-                }}
-                onClearManual={() => {
-                  setEventType(null)
-                  setTypeOverrideOpen(false)
-                }}
-                detailsExpanded={detailsExpanded}
-                onExpandDetails={() => setDetailsExpanded(true)}
-              />
-              {detailsExpanded && (
-                <>
-                  <textarea
-                    value={details}
-                    onChange={(e) => setDetails(e.target.value.slice(0, 200))}
-                    placeholder="dress code, what to bring, vibe…"
-                    rows={2}
-                    autoFocus
-                    className="mt-2 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  />
-                  {details.length > 160 && (
-                    <p className="mt-1 text-right text-xs text-muted-foreground">
-                      {200 - details.length} left
-                    </p>
-                  )}
-                </>
-              )}
+              <div
+                ref={scrollRef}
+                className="min-h-0 flex-1 scroll-pt-3 overflow-y-auto overscroll-contain px-4 pt-1 pb-4"
+                data-vaul-no-drag
+              >
+                {/* Title input — hero of the compose card */}
+                <Input
+                  value={title}
+                  onChange={(e) =>
+                    setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))
+                  }
+                  placeholder="what's the plan? e.g. drinks after work"
+                />
+                {title.length > 60 && (
+                  <p className="mt-1 text-right text-xs text-muted-foreground">
+                    {TITLE_MAX_LENGTH - title.length} left
+                  </p>
+                )}
+                <TypeInlineIndicator
+                  effectiveType={effectiveType}
+                  manualType={eventType}
+                  isInferred={eventType === null && inferredType !== null}
+                  overrideOpen={typeOverrideOpen}
+                  onToggleOverride={() => setTypeOverrideOpen((v) => !v)}
+                  onPick={(t) => {
+                    setEventType(t)
+                    setTypeOverrideOpen(false)
+                  }}
+                  onClearManual={() => {
+                    setEventType(null)
+                    setTypeOverrideOpen(false)
+                  }}
+                  detailsExpanded={detailsExpanded}
+                  onExpandDetails={() => setDetailsExpanded(true)}
+                />
+                {detailsExpanded && (
+                  <>
+                    <textarea
+                      value={details}
+                      onChange={(e) => setDetails(e.target.value.slice(0, 200))}
+                      placeholder="dress code, what to bring, vibe…"
+                      rows={2}
+                      autoFocus
+                      className="mt-2 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    />
+                    {details.length > 160 && (
+                      <p className="mt-1 text-right text-xs text-muted-foreground">
+                        {200 - details.length} left
+                      </p>
+                    )}
+                  </>
+                )}
 
-              {/* Tappable default chips — these ARE the form controls */}
-              <div className="mt-4 flex flex-wrap gap-1.5">
-                <SectionChip
-                  label={whenLabel}
-                  active={expandedSection === "when"}
-                  onClick={() => toggleSection("when")}
-                />
-                <SectionChip
-                  label={whereLabel ?? "my location"}
-                  active={expandedSection === "where"}
-                  onClick={() => toggleSection("where")}
-                />
-                <SectionChip
-                  label={whoLabel}
-                  active={expandedSection === "who"}
-                  onClick={() => toggleSection("who")}
-                />
+                {/* Tappable default chips — these ARE the form controls */}
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  <SectionChip
+                    label={whenLabel}
+                    active={expandedSection === "when"}
+                    onClick={() => toggleSection("when")}
+                  />
+                  <SectionChip
+                    label={whereLabel ?? "my location"}
+                    active={expandedSection === "where"}
+                    onClick={() => toggleSection("where")}
+                  />
+                  <SectionChip
+                    label={whoLabel}
+                    active={expandedSection === "who"}
+                    onClick={() => toggleSection("who")}
+                  />
+                </div>
+
+                {/* Mode toggle */}
+                <Tabs value={mode} onValueChange={handleModeChange}>
+                  <TabsList className="mt-3 h-8 w-full">
+                    <TabsTrigger value="now" className="text-xs">
+                      right now
+                    </TabsTrigger>
+                    <TabsTrigger value="scheduled" className="text-xs">
+                      pick a time
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                {/* Accordion: expanded section content */}
+                {expandedSection === "when" && (
+                  <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
+                    {mode === "now" ? (
+                      <>
+                        <p className="mb-2 text-xs font-medium text-muted-foreground">
+                          starts
+                        </p>
+                        <NowChipRow
+                          ariaLabel="starts"
+                          presets={NOW_START_PRESETS}
+                          value={startOffsetMin}
+                          onChange={(v) => {
+                            const next = nowRangeAfterStartPick(
+                              { startOffsetMin, endOffsetMin },
+                              v
+                            )
+                            setStartOffsetMin(next.startOffsetMin)
+                            setEndOffsetMin(next.endOffsetMin)
+                          }}
+                        />
+                        <p className="mt-3 mb-2 text-xs font-medium text-muted-foreground">
+                          how long?
+                        </p>
+                        <NowChipRow
+                          ariaLabel="how long?"
+                          presets={NOW_DURATION_PRESETS}
+                          value={
+                            endOffsetMin === OPEN_ENDED
+                              ? OPEN_ENDED
+                              : endOffsetMin - startOffsetMin
+                          }
+                          onChange={(v) => {
+                            const next = nowRangeAfterDurationPick(
+                              { startOffsetMin },
+                              v
+                            )
+                            setStartOffsetMin(next.startOffsetMin)
+                            setEndOffsetMin(next.endOffsetMin)
+                          }}
+                        />
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          starts {nowWhenLabel(startOffsetMin, endOffsetMin)}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mb-2 text-xs font-medium text-muted-foreground">
+                          date
+                        </p>
+                        <DateStrip
+                          days={dateStripDays}
+                          value={startDate}
+                          onChange={setStartDate}
+                        />
+                        <p className="mt-3 mb-2 text-xs font-medium text-muted-foreground">
+                          time
+                        </p>
+                        <TimeRange
+                          startOptions={scheduledStartOptions}
+                          endOptions={scheduledEndOptions}
+                          startValue={startTimeMin}
+                          endValue={endTimeMin}
+                          onStart={handleStartTime}
+                          onEnd={setEndTimeMin}
+                        />
+                        {durationMin !== null && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            lasts {formatRelative(durationMin)}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {expandedSection === "where" && (
+                  <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
+                    <WherePicker
+                      whereType={whereType}
+                      onWhereType={handleWhereType}
+                      searchQuery={searchQuery}
+                      onSearchQuery={handleSearchQuery}
+                      pickedSearchAddress={pickedSearchAddress}
+                      selectedLocation={selectedLocation}
+                      onPickSearch={(suggestion) => {
+                        void handlePickSearch(suggestion)
+                      }}
+                      placeResults={placeResults}
+                      placesLoading={placesLoading}
+                      placeDetailsLoading={placeDetailsLoading}
+                      placeDetailsError={placeDetailsError}
+                      geoStatus={geoStatus}
+                      geoErrorMessage={geoErrorMessage}
+                      onSearchFocusChange={setPlaceSearchFocused}
+                    />
+                  </div>
+                )}
+
+                {expandedSection === "who" && (
+                  <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
+                    {audienceLoading && (
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        loading your circles and friends…
+                      </p>
+                    )}
+                    {audienceError && (
+                      <p className="mb-2 text-xs text-destructive" role="alert">
+                        {audienceError}
+                      </p>
+                    )}
+                    <WhoBlock
+                      isOpen={isOpen}
+                      onOpen={(next) => {
+                        audienceTouchedRef.current = true
+                        setIsOpen(next)
+                      }}
+                      guestLimit={guestLimit}
+                      onGuestLimit={setGuestLimit}
+                      circles={circles}
+                      audience={audience}
+                      onSelectAudience={handleSelectAudience}
+                      connections={connections}
+                      directInviteConnections={directInviteConnections}
+                      editingCircleId={editingCircleId}
+                      onStartEditingCircle={setEditingCircleId}
+                      onCloseEditingCircle={() => setEditingCircleId(null)}
+                      onAddCircleMember={updateCircleMember}
+                      onRemoveCircleMember={removeCircleMember}
+                      directlyInvitedIds={directlyInvitedIds}
+                      onToggleDirectInvite={(id) => {
+                        if (selectedAudienceMemberIdSet.has(id)) return
+                        setDirectlyInvitedIds((prev) =>
+                          prev.includes(id)
+                            ? prev.filter((x) => x !== id)
+                            : [...prev, id]
+                        )
+                      }}
+                      allowForward={allowForward}
+                      onAllowForward={setAllowForward}
+                      allowPlusOne={allowPlusOne}
+                      onAllowPlusOne={setAllowPlusOne}
+                    />
+                  </div>
+                )}
               </div>
 
-              {/* Mode toggle */}
-              <Tabs value={mode} onValueChange={handleModeChange}>
-                <TabsList className="mt-3 h-8 w-full">
-                  <TabsTrigger value="now" className="text-xs">
-                    right now
-                  </TabsTrigger>
-                  <TabsTrigger value="scheduled" className="text-xs">
-                    pick a time
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-
-              {/* Accordion: expanded section content */}
-              {expandedSection === "when" && (
-                <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
-                  {mode === "now" ? (
-                    <>
-                      <p className="mb-2 text-xs font-medium text-muted-foreground">
-                        starts
-                      </p>
-                      <NowChipRow
-                        ariaLabel="starts"
-                        presets={NOW_START_PRESETS}
-                        value={startOffsetMin}
-                        onChange={(v) => {
-                          const next = nowRangeAfterStartPick(
-                            { startOffsetMin, endOffsetMin },
-                            v
-                          )
-                          setStartOffsetMin(next.startOffsetMin)
-                          setEndOffsetMin(next.endOffsetMin)
-                        }}
-                      />
-                      <p className="mt-3 mb-2 text-xs font-medium text-muted-foreground">
-                        how long?
-                      </p>
-                      <NowChipRow
-                        ariaLabel="how long?"
-                        presets={NOW_DURATION_PRESETS}
-                        value={
-                          endOffsetMin === OPEN_ENDED
-                            ? OPEN_ENDED
-                            : endOffsetMin - startOffsetMin
-                        }
-                        onChange={(v) => {
-                          const next = nowRangeAfterDurationPick(
-                            { startOffsetMin },
-                            v
-                          )
-                          setStartOffsetMin(next.startOffsetMin)
-                          setEndOffsetMin(next.endOffsetMin)
-                        }}
-                      />
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        starts {nowWhenLabel(startOffsetMin, endOffsetMin)}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="mb-2 text-xs font-medium text-muted-foreground">
-                        date
-                      </p>
-                      <DateStrip
-                        days={dateStripDays}
-                        value={startDate}
-                        onChange={setStartDate}
-                      />
-                      <p className="mt-3 mb-2 text-xs font-medium text-muted-foreground">
-                        time
-                      </p>
-                      <TimeRange
-                        startOptions={scheduledStartOptions}
-                        endOptions={scheduledEndOptions}
-                        startValue={startTimeMin}
-                        endValue={endTimeMin}
-                        onStart={handleStartTime}
-                        onEnd={setEndTimeMin}
-                      />
-                      {durationMin !== null && (
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          lasts {formatRelative(durationMin)}
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-
-              {expandedSection === "where" && (
-                <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
-                  <WherePicker
-                    whereType={whereType}
-                    onWhereType={handleWhereType}
-                    searchQuery={searchQuery}
-                    onSearchQuery={handleSearchQuery}
-                    pickedSearchAddress={pickedSearchAddress}
-                    selectedLocation={selectedLocation}
-                    onPickSearch={(suggestion) => {
-                      void handlePickSearch(suggestion)
-                    }}
-                    placeResults={placeResults}
-                    placesLoading={placesLoading}
-                    placeDetailsLoading={placeDetailsLoading}
-                    placeDetailsError={placeDetailsError}
-                    geoStatus={geoStatus}
-                    geoErrorMessage={geoErrorMessage}
-                    onSearchFocusChange={setPlaceSearchFocused}
-                  />
-                </div>
-              )}
-
-              {expandedSection === "who" && (
-                <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
-                  {audienceLoading && (
-                    <p className="mb-2 text-xs text-muted-foreground">
-                      loading your circles and friends…
-                    </p>
-                  )}
-                  {audienceError && (
-                    <p className="mb-2 text-xs text-destructive" role="alert">
-                      {audienceError}
-                    </p>
-                  )}
-                  <WhoBlock
-                    isOpen={isOpen}
-                    onOpen={(next) => {
-                      audienceTouchedRef.current = true
-                      setIsOpen(next)
-                    }}
-                    guestLimit={guestLimit}
-                    onGuestLimit={setGuestLimit}
-                    circles={circles}
-                    audience={audience}
-                    onSelectAudience={handleSelectAudience}
-                    connections={connections}
-                    directInviteConnections={directInviteConnections}
-                    editingCircleId={editingCircleId}
-                    onStartEditingCircle={setEditingCircleId}
-                    onCloseEditingCircle={() => setEditingCircleId(null)}
-                    onAddCircleMember={updateCircleMember}
-                    onRemoveCircleMember={removeCircleMember}
-                    directlyInvitedIds={directlyInvitedIds}
-                    onToggleDirectInvite={(id) => {
-                      if (selectedAudienceMemberIdSet.has(id)) return
-                      setDirectlyInvitedIds((prev) =>
-                        prev.includes(id)
-                          ? prev.filter((x) => x !== id)
-                          : [...prev, id]
-                      )
-                    }}
-                    allowForward={allowForward}
-                    onAllowForward={setAllowForward}
-                    allowPlusOne={allowPlusOne}
-                    onAllowPlusOne={setAllowPlusOne}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* CTA pinned at the bottom. The sheet now covers the bottom nav,
+              {/* CTA pinned at the bottom. The sheet now covers the bottom nav,
                 so it also owns the home-indicator inset. On a touch device it
                 steps aside while the location search has the keyboard up: the
                 slot above the keyboard is small, and the CTA took half of it
                 from the suggestions (#367). Tapping a suggestion, or dismissing
                 the keyboard, brings it back. */}
-            <div
-              data-place-searching={placeSearchFocused}
-              className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] data-[place-searching=true]:[@media(pointer:coarse)]:hidden"
-            >
-              {submitError && (
-                <p
-                  className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-                  role="alert"
-                >
-                  {submitError}
-                </p>
-              )}
-              {showAudiencePrompt && (
-                <div
-                  ref={audiencePromptRef}
-                  className="relative mb-2 rounded-xl border border-accent/30 bg-accent/5 py-2.5 pr-9 pl-3"
-                >
-                  <button
-                    type="button"
-                    aria-label="dismiss"
-                    onClick={() => setAudiencePromptDismissed(true)}
-                    className="absolute top-1 right-1 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
-                  >
-                    <XIcon className="h-3.5 w-3.5" />
-                  </button>
-                  <p className="text-xs text-muted-foreground">
-                    no friends on sponti yet? invite them or go public so anyone
-                    nearby can join.
-                  </p>
-                  <div className="mt-1.5 flex gap-2">
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-accent hover:underline"
-                      onClick={async () => {
-                        const url =
-                          (
-                            process.env.NEXT_PUBLIC_PUBLIC_APP_URL?.trim() || ""
-                          ).replace(/\/+$/, "") || "https://sponti.fun"
-                        const text = `join me on sponti! ${url}`
-                        try {
-                          if (navigator.share) {
-                            await navigator.share({
-                              title: "sponti",
-                              text,
-                              url,
-                            })
-                          } else {
-                            await navigator.clipboard.writeText(url)
-                            setInviteLinkCopied(true)
-                            setTimeout(() => setInviteLinkCopied(false), 1600)
-                          }
-                        } catch {
-                          /* share cancelled */
-                        }
-                      }}
-                    >
-                      {inviteLinkCopied ? (
-                        <CheckIcon className="mr-1 inline h-3 w-3" />
-                      ) : (
-                        <ShareNetworkIcon className="mr-1 inline h-3 w-3" />
-                      )}
-                      {inviteLinkCopied ? "copied!" : "share invite link"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled
-                      className="text-xs font-medium text-muted-foreground/50"
-                    >
-                      <UserPlusIcon className="mr-1 inline h-3 w-3" />
-                      import contacts (soon)
-                    </button>
-                  </div>
-                </div>
-              )}
-              <Button
-                onClick={() => {
-                  if (needsAudience) {
-                    audienceTouchedRef.current = true
-                    pendingPublicSubmit.current = true
-                    setIsOpen(true)
-                    haptic("selection")
-                    return
-                  }
-                  void handleSubmit()
-                }}
-                disabled={
-                  isSubmitting ||
-                  (!isOpen &&
-                    !needsAudience &&
-                    (audienceLoading || Boolean(audienceError))) ||
-                  (whereType === "search" && placeDetailsLoading) ||
-                  (whereType === "current" &&
-                    geoStatus === "requesting" &&
-                    !currentLocation)
-                }
-                className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
+              <div
+                data-place-searching={placeSearchFocused}
+                className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] data-[place-searching=true]:[@media(pointer:coarse)]:hidden"
               >
-                {isSubmitting
-                  ? "lighting…"
-                  : needsAudience
-                    ? "make it public & go live"
-                    : "light a flare"}
-              </Button>
+                {submitError && (
+                  <p
+                    className="mb-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                    role="alert"
+                  >
+                    {submitError}
+                  </p>
+                )}
+                {showAudiencePrompt && (
+                  <div
+                    ref={audiencePromptRef}
+                    className="relative mb-2 rounded-xl border border-accent/30 bg-accent/5 py-2.5 pr-9 pl-3"
+                  >
+                    <button
+                      type="button"
+                      aria-label="dismiss"
+                      onClick={() => setAudiencePromptDismissed(true)}
+                      className="absolute top-1 right-1 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+                    >
+                      <XIcon className="h-3.5 w-3.5" />
+                    </button>
+                    <p className="text-xs text-muted-foreground">
+                      no friends on sponti yet? invite them or go public so
+                      anyone nearby can join.
+                    </p>
+                    <div className="mt-1.5 flex gap-2">
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-accent-ink hover:underline"
+                        onClick={async () => {
+                          const url =
+                            (
+                              process.env.NEXT_PUBLIC_PUBLIC_APP_URL?.trim() ||
+                              ""
+                            ).replace(/\/+$/, "") || "https://sponti.fun"
+                          const text = `join me on sponti! ${url}`
+                          try {
+                            if (navigator.share) {
+                              await navigator.share({
+                                title: "sponti",
+                                text,
+                                url,
+                              })
+                            } else {
+                              await navigator.clipboard.writeText(url)
+                              setInviteLinkCopied(true)
+                              setTimeout(() => setInviteLinkCopied(false), 1600)
+                            }
+                          } catch {
+                            /* share cancelled */
+                          }
+                        }}
+                      >
+                        {inviteLinkCopied ? (
+                          <CheckIcon className="mr-1 inline h-3 w-3" />
+                        ) : (
+                          <ShareNetworkIcon className="mr-1 inline h-3 w-3" />
+                        )}
+                        {inviteLinkCopied ? "copied!" : "share invite link"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled
+                        className="text-xs font-medium text-muted-foreground/50"
+                      >
+                        <UserPlusIcon className="mr-1 inline h-3 w-3" />
+                        import contacts (soon)
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {lightMoment ? (
+                  <StrikeStrip
+                    ref={strikeStripRef}
+                    label={
+                      needsAudience
+                        ? "make it public & go live"
+                        : "swipe to light"
+                    }
+                    busy={isSubmitting}
+                    disabled={ctaDisabled && !isSubmitting}
+                    onLight={onCta}
+                  />
+                ) : (
+                  <Button
+                    onClick={onCta}
+                    disabled={ctaDisabled}
+                    className="w-full rounded-full bg-accent py-6 text-base text-accent-foreground hover:bg-accent/90"
+                  >
+                    {isSubmitting
+                      ? "lighting…"
+                      : needsAudience
+                        ? "make it public & go live"
+                        : "light a flare"}
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+      {lightMoment && (
+        <LightingTakeoverLayer takeover={takeover} onEnd={endTakeover} />
+      )}
+    </>
   )
 }
 
@@ -1999,7 +2167,7 @@ function TypeInlineIndicator({
         <button
           type="button"
           onClick={onToggleOverride}
-          className="text-accent hover:underline"
+          className="text-accent-ink hover:underline"
         >
           {overrideOpen ? "done" : "change"}
         </button>
@@ -2891,7 +3059,7 @@ function DirectInviteSearch({
         <span className="text-xs text-muted-foreground">
           also invite specifically
           {hasSelection && (
-            <span className="ml-1 text-accent">
+            <span className="ml-1 text-accent-ink">
               · {directlyInvitedIds.length} selected
             </span>
           )}

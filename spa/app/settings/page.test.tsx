@@ -121,6 +121,40 @@ describe("SettingsPage account tab", () => {
     expect(mocks.showActionFeedback).toHaveBeenCalledWith("profile saved")
   })
 
+  it("asks for the current password only when the email changes, and sends it (#537)", async () => {
+    const user = userEvent.setup()
+    render(<SettingsPage />)
+
+    expect(screen.queryByLabelText("current password")).not.toBeInTheDocument()
+
+    const email = screen.getByPlaceholderText("you@example.com")
+    await user.clear(email)
+    await user.type(email, "new@sponti.test")
+    await user.type(screen.getByLabelText("current password"), "hunter22hunter")
+    await user.click(screen.getByRole("button", { name: "save changes" }))
+
+    await waitFor(() =>
+      expect(mocks.updateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: "new@sponti.test",
+          currentPassword: "hunter22hunter",
+        })
+      )
+    )
+  })
+
+  it("sends no password when the email is unchanged (#537)", async () => {
+    const user = userEvent.setup()
+    render(<SettingsPage />)
+
+    await user.click(screen.getByRole("button", { name: "save changes" }))
+
+    await waitFor(() => expect(mocks.updateProfile).toHaveBeenCalled())
+    expect(mocks.updateProfile.mock.calls[0][0]).not.toHaveProperty(
+      "currentPassword"
+    )
+  })
+
   it("switches ideas on the map off and on, on this device only (#245)", async () => {
     const user = userEvent.setup()
     window.localStorage.removeItem("sponti.ideas.hidden.v1")
@@ -183,11 +217,10 @@ describe("SettingsPage account tab", () => {
     )
   })
 
-  it("replay map tips resets the coach marks and the location choice, and says to sign out (#482)", async () => {
+  it("replay map tips resets the coach marks and the location choice (#482, #560)", async () => {
     const user = userEvent.setup()
     window.localStorage.setItem("sponti.intro-slides.v1", "seen")
-    window.localStorage.setItem("sponti.coach-marks.v1", "seen")
-    window.localStorage.setItem("sponti.coach-marks.home.v1", "seen")
+    window.localStorage.setItem("sponti.coach-marks.v2", "seen")
     window.localStorage.setItem(
       "sponti.location-choice.v1",
       '{"kind":"location"}'
@@ -197,12 +230,11 @@ describe("SettingsPage account tab", () => {
     await user.click(screen.getByRole("switch", { name: "new onboarding" }))
     await user.click(screen.getByRole("button", { name: "replay map tips" }))
 
-    expect(window.localStorage.getItem("sponti.coach-marks.v1")).toBeNull()
-    expect(window.localStorage.getItem("sponti.coach-marks.home.v1")).toBeNull()
+    expect(window.localStorage.getItem("sponti.coach-marks.v2")).toBeNull()
     expect(window.localStorage.getItem("sponti.location-choice.v1")).toBeNull()
     expect(window.localStorage.getItem("sponti.intro-slides.v1")).toBe("seen")
     expect(mocks.showActionFeedback).toHaveBeenCalledWith(
-      "map tips reset. sign out to see them again"
+      "map tips reset. they show on the home map"
     )
   })
 

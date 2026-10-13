@@ -12,12 +12,12 @@ import {
 // sign-up sheet, and signing up brings them back to the flare they started.
 //
 // The idea list has date-dependent seasons, so the clock is fixed to a day
-// when five spots around kreuzberg (the signed-out centre) are in season.
+// when the five pins around kreuzberg (the signed-out centre) are mostly in season.
 const JUNE = "2026-06-15T12:00:00.000Z"
 const JUNE_MS = Date.parse(JUNE)
 const MIN = 60_000
 
-const MAYBACH = "market lunch at the maybachufer"
+const POOL = "laps and lounging at prinzenbad"
 
 const PUBLIC_PINS = [
   makeStubPublicPin({
@@ -109,7 +109,7 @@ test.describe("browse before sign-up (#389)", () => {
 
     await expect(ideaPins(page)).toHaveCount(5)
     await expect(
-      page.getByRole("button", { name: `idea: ${MAYBACH}` })
+      page.getByRole("button", { name: `idea: ${POOL}` })
     ).toBeVisible()
     await expect(flarePins(page)).toHaveCount(2)
     for (const pin of await flarePins(page).all()) {
@@ -121,13 +121,12 @@ test.describe("browse before sign-up (#389)", () => {
     // The area is in the sheet's heading, not a chip of its own (#496).
     await expect(page.getByText("berlin", { exact: true })).toHaveCount(0)
 
-    // The live / soon tabs narrow the pins.
-    await page.getByRole("tab", { name: "live" }).click()
-    await expect(flarePins(page)).toHaveCount(1)
+    // No live / soon tabs: the live and the later flare are both on the map.
+    await expect(page.locator("[data-map-dock]").getByRole("tab")).toHaveCount(
+      0
+    )
     await expect(page.locator('[data-flare-pin="public-live"]')).toBeVisible()
-    await page.getByRole("tab", { name: "soon" }).click()
     await expect(page.locator('[data-flare-pin="public-soon"]')).toBeVisible()
-    await expect(flarePins(page)).toHaveCount(1)
 
     // The pins came from the public endpoint, around berlin.
     expect(publicRequests.length).toBeGreaterThan(0)
@@ -217,14 +216,16 @@ test.describe("browse before sign-up (#389)", () => {
     // post-signup-checklist.spec.ts).
     const offending = await openSignedOutMap(page, { friends: 1 })
 
-    await page.getByRole("button", { name: `idea: ${MAYBACH}` }).click()
+    await page.getByRole("button", { name: `idea: ${POOL}` }).click()
     const card = page.locator("[data-quiet-card]")
-    await expect(card.getByText(MAYBACH)).toBeVisible()
+    await expect(card.getByText(POOL)).toBeVisible()
     await card.getByRole("button", { name: "light a flare" }).click()
 
     await expect(sheet(page).getByText("sign up to light it")).toBeVisible()
-    const kept = sheet(page).locator('[data-kept-draft="maybachufer-market"]')
-    await expect(kept).toContainText(MAYBACH)
+    const kept = sheet(page).locator(
+      '[data-kept-draft="prinzenbad-summer-pool"]'
+    )
+    await expect(kept).toContainText(POOL)
     await expect(kept).toContainText("kept for after sign-up")
 
     await sheet(page).getByRole("link", { name: "create an account" }).click()
@@ -241,7 +242,7 @@ test.describe("browse before sign-up (#389)", () => {
     await expect(
       welcome(page).getByText("welcome in. here's the flare you started.")
     ).toBeVisible()
-    await expect(welcome(page)).toContainText(MAYBACH)
+    await expect(welcome(page)).toContainText(POOL)
     // The trip back is used up, and the welcome replaces the first-run intro.
     await expect(page).toHaveURL(/\/$/)
     await expect(
@@ -252,9 +253,9 @@ test.describe("browse before sign-up (#389)", () => {
       .getByRole("button", { name: "let's light it up" })
       .click()
     await expect(composerTitle(page)).toBeInViewport()
-    await expect(composerTitle(page)).toHaveValue(MAYBACH)
+    await expect(composerTitle(page)).toHaveValue(POOL)
     await expect(
-      page.getByRole("button", { name: "Wochenmarkt am Maybachufer" })
+      page.getByRole("button", { name: "Sommerbad Kreuzberg" })
     ).toBeVisible()
   })
 

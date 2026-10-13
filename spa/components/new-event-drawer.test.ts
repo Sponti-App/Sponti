@@ -420,6 +420,22 @@ describe("getInitialEventDraftState with a prefill", () => {
 })
 
 describe("normalizePrefill", () => {
+  it("keeps invited friend ids, dropping anything that isn't one (#522)", () => {
+    expect(normalizePrefill({ inviteIds: ["mia", "", 3] })).toEqual({
+      inviteIds: ["mia"],
+    })
+    expect(normalizePrefill({ inviteIds: [] })).toBeNull()
+  })
+
+  it("keeps a mode and a suggested default circle (#562)", () => {
+    expect(
+      normalizePrefill({ mode: "scheduled", audienceCircle: "inner" })
+    ).toEqual({ mode: "scheduled", audienceCircle: "inner" })
+    expect(
+      normalizePrefill({ mode: "later", audienceCircle: "all" })
+    ).toBeNull()
+  })
+
   it("passes a valid prefill through", () => {
     expect(normalizePrefill({ title: "drinks", category: "drinks" })).toEqual({
       title: "drinks",
@@ -446,7 +462,7 @@ describe("isUntouchedDraft", () => {
     title: "roses",
     category: "hangout",
   })
-  const none = { audience: false, invitedCount: 0 }
+  const none = { audience: false }
 
   it("is true for the empty draft, and for a prefill left exactly as applied", () => {
     expect(isUntouchedDraft(empty, [empty, null], none)).toBe(true)
@@ -473,11 +489,26 @@ describe("isUntouchedDraft", () => {
   })
 
   it("is false when the audience was picked or friends were invited", () => {
+    expect(isUntouchedDraft(empty, [empty], { audience: true })).toBe(false)
     expect(
-      isUntouchedDraft(empty, [empty], { audience: true, invitedCount: 0 })
+      isUntouchedDraft(
+        { ...empty, directlyInvitedIds: ["a", "b"] },
+        [empty],
+        none
+      )
     ).toBe(false)
+  })
+
+  it("keeps a prefill's invites untouched until the list changes (#522)", () => {
+    const withMia = getInitialEventDraftState({ inviteIds: ["mia"] })
+    expect(withMia.directlyInvitedIds).toEqual(["mia"])
+    expect(isUntouchedDraft(withMia, [empty, withMia], none)).toBe(true)
     expect(
-      isUntouchedDraft(empty, [empty], { audience: false, invitedCount: 2 })
+      isUntouchedDraft(
+        { ...withMia, directlyInvitedIds: ["mia", "jo"] },
+        [empty, withMia],
+        none
+      )
     ).toBe(false)
   })
 

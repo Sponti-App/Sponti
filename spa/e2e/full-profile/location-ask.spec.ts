@@ -236,12 +236,14 @@ test.describe("location ask (#408)", () => {
     await expect(sheet(page)).toHaveCount(0)
     await expect(banner(page)).toContainText("showing hamburg")
     await expect.poll(() => centres.at(-1)).toEqual(HAMBURG)
+    // The spots are berlin-only; the place-less ideas (#515) still float
+    // around the map's centre, and the quiet sheet (#522) offers them.
     await expect(
-      page.getByText(
-        "no flares yet, and no idea spots there yet: they're berlin-only for now."
-      )
+      page.getByText("less coordinating. more living.")
     ).toBeVisible()
+    await expect(page.locator("[data-quiet-idea]")).toHaveCount(3)
     await expect(ideaPins(page)).toHaveCount(0)
+    await expect(page.locator("[data-floating-idea]")).toHaveCount(3)
   })
 
   test("without the place search, the chips are the search", async ({
@@ -319,6 +321,31 @@ test.describe("location ask (#408)", () => {
     await sheet(page).getByRole("button", { name: "friedrichshain" }).click()
     await expect(sheet(page)).toHaveCount(0)
     await expect(banner(page)).toContainText("showing friedrichshain")
+    expect(await geoCalls(page)).toBe(0)
+  })
+
+  test("the ask waits for the welcome-back sheet (#479)", async ({ page }) => {
+    await page.clock.setFixedTime(JUNE)
+    await spyOnGeolocation(page)
+    await page.addInitScript(() =>
+      window.sessionStorage.setItem(
+        "sponti.kept-flare-draft.v1",
+        JSON.stringify({ ideaId: null })
+      )
+    )
+    await stubBackend(page, { locationAsk: true })
+    await page.goto("/?resume=flare")
+
+    const welcome = page.getByRole("dialog", { name: "welcome in" })
+    await expect(
+      welcome.getByText("welcome in. here's the flare you started.")
+    ).toBeVisible()
+    await expect(sheet(page)).toHaveCount(0)
+
+    await welcome.getByRole("button", { name: "not now" }).click()
+    await expect(
+      sheet(page).getByText("where should the map start?")
+    ).toBeVisible()
     expect(await geoCalls(page)).toBe(0)
   })
 })

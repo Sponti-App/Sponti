@@ -25,24 +25,16 @@ test.describe("intro slides (#377)", () => {
     await expect(slides(page)).toHaveAttribute("data-intro-slide", "what")
     await expect(slides(page).getByText("what sponti is")).toBeVisible()
     await expect(title(page)).toHaveText(
-      "plans with friends, right now or soon"
+      "plans with friends, right now or soon."
     )
 
     await slides(page).getByRole("button", { name: "next" }).click()
     await expect(title(page)).toHaveText(
-      "we're more connected than ever, and more alone"
-    )
-    await expect(
-      slides(page).getByRole("link", {
-        name: "who commission on social connection (2025)",
-      })
-    ).toHaveAttribute(
-      "href",
-      "https://www.who.int/publications/i/item/978240112360"
+      "more connected than ever, yet still missing each other."
     )
 
     await slides(page).getByRole("button", { name: "next" }).click()
-    await expect(title(page)).toHaveText("light a flare")
+    await expect(title(page)).toHaveText("light a flare.")
     await expect(
       slides(page).getByRole("button", { name: "skip" })
     ).toHaveCount(0)
@@ -101,23 +93,25 @@ test.describe("intro slides (#377)", () => {
   })
 
   test("nothing moves under reduced motion", async ({ page }) => {
-    const grainAnimation = () =>
-      page
-        .locator(".intro-grain")
-        .evaluate((el) => getComputedStyle(el).animationName)
+    const moving = () =>
+      slides(page).evaluate(
+        (root) =>
+          Array.from(root.querySelectorAll("*")).filter(
+            (el) => getComputedStyle(el).animationName !== "none"
+          ).length
+      )
 
     await firstOpen(page)
-    expect(await grainAnimation()).toBe("intro-grain")
+    // The scene on screen plays its story.
+    expect(
+      await page
+        .locator('[data-intro-scene="what"] [style*="s1-walk"]')
+        .first()
+        .evaluate((el) => getComputedStyle(el).animationName)
+    ).toMatch(/^s1-walk/)
 
     await page.emulateMedia({ reducedMotion: "reduce" })
-    expect(await grainAnimation()).toBe("none")
-    const moving = await slides(page).evaluate(
-      (root) =>
-        Array.from(root.querySelectorAll("*")).filter(
-          (el) => getComputedStyle(el).animationName !== "none"
-        ).length
-    )
-    expect(moving).toBe(0)
+    expect(await moving()).toBe(0)
   })
 
   test("a signed-in user never sees them", async ({ page }) => {

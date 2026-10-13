@@ -253,7 +253,7 @@ describe("EventDetailSheet", () => {
 
     const late = await screen.findByText("running late")
     const onTime = screen.getByText("on time")
-    expect(late).toHaveClass("text-accent")
-    expect(onTime).not.toHaveClass("text-accent")
+    expect(late).toHaveClass("text-accent-ink")
+    expect(onTime).not.toHaveClass("text-accent-ink")
   })
 })

@@ -49,15 +49,34 @@ export const LANDING_SCENES = {
     alt: "three friends and a dog walking along the river towards the sun",
     glow: [{ x: 62, y: 35.5, size: 26 }],
   },
-  crowd: {
-    src: "/landing/brand/crowd.webp",
-    ratio: 1122 / 1402,
-    alt: "a crowd with raised hands, turned towards a bright light",
-    glow: [{ x: 54.5, y: 41.5, size: 30 }],
+  lounge: {
+    src: "/landing/brand/lounge.webp",
+    ratio: 1672 / 941,
+    alt: "friends on a sunset lounge, gathered on cushions around a glowing flare with the city through the window",
+    glow: [{ x: 51.3, y: 70.4, size: 18 }],
   },
 } satisfies Record<string, LandingScene> as Record<
-  "rooftop" | "park" | "walk" | "crowd",
+  "rooftop" | "park" | "walk" | "lounge",
   LandingScene
 >
 
 export type LandingSceneName = keyof typeof LANDING_SCENES
+
+// The hero: a Berlin rooftop at dusk, 1672 × 941, friends around a flare
+// whose light swirls up past the TV tower. One flat image: the page gets its
+// depth from what sits over it. Real cut-outs (sky, city, people) of the
+// same canvas can be added to `layers` back to front, each with a `depth`
+// (0 still, 1 moves the most). `flare` is where the painted flare burns, in
+// % of the image: the hero centres it across the frame, zooms towards it,
+// and its light spreads out from it.
+export const LANDING_HERO: {
+  ratio: number
+  alt: string
+  flare: { x: number; y: number }
+  layers: LandingLayer[]
+} = {
+  ratio: 1672 / 941,
+  alt: "friends on a berlin rooftop at dusk, gathered around a flare whose light swirls up past the tv tower",
+  flare: { x: 48.5, y: 68.1 },
+  layers: [{ src: "/landing/brand/hero-berlin.webp", depth: 0 }],
+}

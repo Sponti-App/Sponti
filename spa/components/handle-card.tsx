@@ -10,6 +10,7 @@ import type { AuthUser } from "@/lib/auth-store"
 // #369: your @handle at the top of the friends screen (circles), with share
 // (the invite link) and qr code. It replaces the lone QR icon that used to
 // sit in the circles header, and gives the empty state something to point at.
+// #486: the line under it follows the discovery setting (#88).
 export function HandleCard({
   user,
   onShare,
@@ -58,8 +59,9 @@ export function HandleCard({
         </div>
       </div>
       <p className="mt-2 px-1 text-xs text-muted-foreground">
-        anyone with your @handle can find you and send a request. who can find
-        you is in{" "}
+        {user?.profileVisibility === "private"
+          ? "you're hidden from search, so friends need your link or qr code. who can find you is in"
+          : "anyone with your @handle can find you and send a request. who can find you is in"}{" "}
         <Link
           href="/settings"
           className="font-medium text-foreground underline underline-offset-2"

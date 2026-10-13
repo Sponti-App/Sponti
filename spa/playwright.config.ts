@@ -109,8 +109,13 @@ export default defineConfig({
       name: "mobile-full-profile",
       testMatch: FULL_PROFILE_DIR,
       use: { ...MOBILE, baseURL: FULL_BASE_URL },
-      // Only what these specs visit, warmed by global-setup.ts.
-      metadata: { warmRoutes: ["/", "/register", "/login"] },
+      // Only what these specs visit, warmed by global-setup.ts, the api
+      // routes the composer calls included: compiled cold mid-run, their
+      // rebuild hot-reloads (sometimes fully reloads) the pages of the specs
+      // running beside them, and a reload loses a flare just lit (#376).
+      metadata: {
+        warmRoutes: ["/", "/register", "/login", "/event", "/api/geocode"],
+      },
     },
   ],
   webServer: [

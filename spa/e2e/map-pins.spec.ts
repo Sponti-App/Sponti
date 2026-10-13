@@ -328,19 +328,18 @@ test.describe("pins follow the filters (#364)", () => {
     await expect(pins(page)).toHaveCount(4)
   })
 
-  test("the live and soon tabs narrow the pins", async ({ page }) => {
+  test("the map has no live / soon / all tabs: now and soon are the views", async ({
+    page,
+  }) => {
     await openMap(page, ALL)
-
-    await dock(page).getByRole("tab", { name: "soon" }).click()
-    await expect(pins(page)).toHaveCount(1)
-    await expect(pin(page, OPEN_SOON._id)).toBeVisible()
-
-    await dock(page).getByRole("tab", { name: "live" }).click()
-    await expect(pins(page)).toHaveCount(3)
-    await expect(pin(page, OPEN_SOON._id)).toHaveCount(0)
-
-    await dock(page).getByRole("tab", { name: "all" }).click()
     await expect(pins(page)).toHaveCount(4)
+    await expect(dock(page).getByRole("tab")).toHaveCount(0)
+    await expect(
+      page.getByRole("button", { name: "now", exact: true })
+    ).toHaveAttribute("aria-pressed", "true")
+    await expect(
+      page.getByRole("button", { name: "soon", exact: true })
+    ).toHaveAttribute("aria-pressed", "false")
   })
 
   test("an ended flare has a pin only while the list shows it", async ({
@@ -356,9 +355,6 @@ test.describe("pins follow the filters (#364)", () => {
     await list.getByRole("button", { name: /show 1 ended/ }).click()
     await list.getByRole("button", { name: "map", exact: true }).click()
     await expect(pin(page, ENDED._id)).toBeVisible()
-
-    await dock(page).getByRole("tab", { name: "live" }).click()
-    await expect(pin(page, ENDED._id)).toHaveCount(0)
   })
 
   test("a popover closes when a chip takes its pin away", async ({ page }) => {

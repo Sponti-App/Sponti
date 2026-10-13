@@ -6,6 +6,7 @@
 // update". `useEventThread` owns the data so both halves stay in sync.
 // Everyone else gets `EventThreadLocked`.
 
+import Link from "next/link"
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react"
 import {
   LockIcon,
@@ -214,6 +215,18 @@ function EventUpdateRow({
       <TrashIcon className="h-3.5 w-3.5" />
     </button>
   )
+  // #559: the author's avatar and name open their profile.
+  const profileHref = update.author.username
+    ? `/profile/${encodeURIComponent(update.author.username)}`
+    : null
+  const avatar = (
+    <Avatar className="size-7">
+      {update.author.avatarUrl && (
+        <AvatarImage src={update.author.avatarUrl} alt="" />
+      )}
+      <AvatarFallback className="text-xs">{initials(name)}</AvatarFallback>
+    </Avatar>
+  )
   const body = (
     <p className="mt-0.5 text-sm leading-relaxed break-words whitespace-pre-wrap">
       {update.body}
@@ -242,17 +255,31 @@ function EventUpdateRow({
 
   return (
     <li className="flex gap-2.5">
-      <Avatar className="size-7">
-        {update.author.avatarUrl && (
-          <AvatarImage src={update.author.avatarUrl} alt="" />
-        )}
-        <AvatarFallback className="text-xs">{initials(name)}</AvatarFallback>
-      </Avatar>
+      {profileHref ? (
+        <Link
+          href={profileHref}
+          aria-label={`${name}, open profile`}
+          className="shrink-0 rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          {avatar}
+        </Link>
+      ) : (
+        avatar
+      )}
       <div className="min-w-0 flex-1">
         <p className="text-xs text-muted-foreground">
-          <span className="font-semibold text-foreground">
-            {byViewer ? "you" : firstName}
-          </span>{" "}
+          {profileHref ? (
+            <Link
+              href={profileHref}
+              className="font-semibold text-foreground hover:underline"
+            >
+              {byViewer ? "you" : firstName}
+            </Link>
+          ) : (
+            <span className="font-semibold text-foreground">
+              {byViewer ? "you" : firstName}
+            </span>
+          )}{" "}
           · {age}
         </p>
         {body}

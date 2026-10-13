@@ -7,18 +7,24 @@ import { landingDisplay } from "./fonts"
 // rewrites "/" here; anywhere else it is reachable at /landing for review.
 // Statically rendered at build time: APP_ORIGIN (or NEXT_PUBLIC_SITE_URL) is
 // read then, so changing it needs a redeploy. The link-preview image is the
-// app's own (app/opengraph-image.tsx, app/twitter-image.tsx).
+// app's own (app/opengraph-image.png, app/twitter-image.png).
 export const dynamic = "force-static"
 
-const title = "sponti"
+// Search and share cards read the title cold: it says what sponti is. The
+// description says how it works.
+const title = "sponti: plans with friends, right now or soon"
 const description =
-  "plans with friends, right now or soon. light a flare, and whoever's free comes along."
+  "host a gathering with your friends, or join one. the map shows what's happening now, the calendar what's coming up."
+
+// The page's own openGraph / twitter objects replace the root layout's, and
+// with them the file-convention image, so the link preview is named here.
+const images = ["/opengraph-image.png"]
 
 export const metadata: Metadata = {
   title,
   description,
-  openGraph: { title, description, siteName: title, type: "website" },
-  twitter: { card: "summary_large_image", title, description },
+  openGraph: { title, description, siteName: title, type: "website", images },
+  twitter: { card: "summary_large_image", title, description, images },
 }
 
 export default function Landing() {

@@ -4,15 +4,10 @@ import {
   coachMarkSteps,
   coachMarksVisible,
   firstBoxInside,
-  HOME_COACH_MARKS,
-  HOME_COACH_MARKS_KEY,
-  homeCoachMarksVisible,
   markCoachMarksSeen,
-  markHomeCoachMarksSeen,
   resetCoachMarks,
   resetCoachMarksMemory,
   shouldShowCoachMarks,
-  shouldShowHomeCoachMarks,
 } from "./coach-marks"
 import { INTRO_SLIDES_KEY } from "./intro-slides"
 import {
@@ -20,9 +15,8 @@ import {
   resetNewOnboardingMemory,
 } from "./onboarding-flags"
 
-// #379: the coach marks show once per device on the signed-out map, after
-// the intro slides and before the location ask, only with `coachMarks` on
-// (the full profile).
+// #379, #497, #560: the coach marks show once per device, as one run on the
+// signed-in home map, only with `coachMarks` on (the full profile).
 
 const mocks = vi.hoisted(() => ({ flags: { coachMarks: true } }))
 
@@ -39,7 +33,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe("coach marks seen state (#379)", () => {
+describe("coach marks seen state", () => {
   it("shows on a device that hasn't seen them", () => {
     expect(shouldShowCoachMarks()).toBe(true)
   })
@@ -110,16 +104,20 @@ describe("coach marks seen state (#379)", () => {
 })
 
 describe("which marks run", () => {
-  it("runs set A in order: idea spot, flare button, map/calendar toggle", () => {
+  it("runs five in order: idea spot, flare, now/soon toggle, circles, menu", () => {
     expect(coachMarkSteps(true).map((m) => m.id)).toEqual([
       "idea",
       "flare",
       "calendar",
+      "circles",
+      "menu",
     ])
     expect(coachMarkSteps(true).map((m) => m.title)).toEqual([
       "ideas nearby",
       "light a flare",
       "soon lives here",
+      "your circles",
+      "menu",
     ])
   })
 
@@ -127,6 +125,8 @@ describe("which marks run", () => {
     expect(coachMarkSteps(false).map((m) => m.id)).toEqual([
       "flare",
       "calendar",
+      "circles",
+      "menu",
     ])
   })
 
@@ -141,25 +141,22 @@ describe("which marks run", () => {
 describe("when the marks show", () => {
   const base = {
     pending: true,
-    slidesShowing: false,
-    sheetOpen: false,
-    onMap: true,
+    onboardingShowing: false,
+    blocked: false,
+    dialogOpen: false,
   }
 
-  it("shows on the map once the slides are gone", () => {
+  it("shows on a quiet home map", () => {
     expect(coachMarksVisible(base)).toBe(true)
   })
 
-  it("never covers the intro slides", () => {
-    expect(coachMarksVisible({ ...base, slidesShowing: true })).toBe(false)
+  it("waits for the checklist, first-friend step or first-run intro", () => {
+    expect(coachMarksVisible({ ...base, onboardingShowing: true })).toBe(false)
   })
 
-  it("never covers an open sheet (the sign-up sheet)", () => {
-    expect(coachMarksVisible({ ...base, sheetOpen: true })).toBe(false)
-  })
-
-  it("only runs on the map, not the calendar", () => {
-    expect(coachMarksVisible({ ...base, onMap: false })).toBe(false)
+  it("waits for the home's own sheets and any open dialog", () => {
+    expect(coachMarksVisible({ ...base, blocked: true })).toBe(false)
+    expect(coachMarksVisible({ ...base, dialogOpen: true })).toBe(false)
   })
 
   it("doesn't show once seen", () => {
@@ -207,65 +204,11 @@ describe("finding an idea spot on screen", () => {
   })
 })
 
-describe("the signed-in run (#497)", () => {
-  it("is two marks: the circles tab, then the menu, in lowercase", () => {
-    expect(HOME_COACH_MARKS.map((m) => m.id)).toEqual(["circles", "menu"])
-    for (const mark of HOME_COACH_MARKS) {
-      expect(mark.title).toBe(mark.title.toLowerCase())
-      expect(mark.body).toBe(mark.body.toLowerCase())
-    }
-  })
+describe("the old split runs (#560)", () => {
+  it("a device that saw either old run still sees the whole run once", () => {
+    window.localStorage.setItem("sponti.coach-marks.v1", "seen")
+    window.localStorage.setItem("sponti.coach-marks.home.v1", "seen")
 
-  it("has its own seen key: neither run blocks the other", () => {
-    markCoachMarksSeen()
-    expect(shouldShowCoachMarks()).toBe(false)
-    expect(shouldShowHomeCoachMarks()).toBe(true)
-
-    markHomeCoachMarksSeen()
-    expect(shouldShowHomeCoachMarks()).toBe(false)
-    expect(window.localStorage.getItem(HOME_COACH_MARKS_KEY)).toBe("seen")
-  })
-
-  it("replay map tips resets both runs", () => {
-    markCoachMarksSeen()
-    markHomeCoachMarksSeen()
-    resetCoachMarks()
-    expect(window.localStorage.getItem(COACH_MARKS_KEY)).toBeNull()
-    expect(window.localStorage.getItem(HOME_COACH_MARKS_KEY)).toBeNull()
     expect(shouldShowCoachMarks()).toBe(true)
-    expect(shouldShowHomeCoachMarks()).toBe(true)
-  })
-
-  it("never shows with coachMarks off", () => {
-    mocks.flags.coachMarks = false
-    expect(shouldShowHomeCoachMarks()).toBe(false)
-  })
-
-  describe("visibility", () => {
-    const base = {
-      pending: true,
-      onboardingShowing: false,
-      blocked: false,
-      dialogOpen: false,
-    }
-
-    it("shows on a quiet home map", () => {
-      expect(homeCoachMarksVisible(base)).toBe(true)
-    })
-
-    it("waits for the checklist, first-friend step or first-run intro", () => {
-      expect(homeCoachMarksVisible({ ...base, onboardingShowing: true })).toBe(
-        false
-      )
-    })
-
-    it("waits for the home's own sheets and any open dialog", () => {
-      expect(homeCoachMarksVisible({ ...base, blocked: true })).toBe(false)
-      expect(homeCoachMarksVisible({ ...base, dialogOpen: true })).toBe(false)
-    })
-
-    it("doesn't show once seen", () => {
-      expect(homeCoachMarksVisible({ ...base, pending: false })).toBe(false)
-    })
   })
 })

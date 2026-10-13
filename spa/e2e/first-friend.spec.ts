@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 import { INVITER, stubSignedOutContactFlow } from "./support/contact-stubs"
 
 // #124 / #441: someone without a session opens a friend's QR code or invite
@@ -181,5 +181,44 @@ test.describe("first friend from a link (#124, #441)", () => {
       "href",
       "/register?redirectTo=%2Finvite%2Fabc123"
     )
+  })
+})
+
+test.describe("the intro over a friend's link (#560)", () => {
+  const slides = (page: Page) => page.locator("[data-intro-slide]")
+
+  test("a first open of an invite link shows the slides, then the link", async ({
+    page,
+  }) => {
+    await stubSignedOutContactFlow(page, { introSlides: true })
+
+    await page.goto("/invite/abc123")
+
+    await expect(slides(page)).toBeVisible()
+    await slides(page).getByRole("button", { name: "next" }).click()
+    await slides(page).getByRole("button", { name: "next" }).click()
+    await slides(page).getByRole("button", { name: "continue" }).click()
+    await expect(slides(page)).toHaveCount(0)
+
+    await expect(page).toHaveURL(/\/invite\/abc123$/)
+    await expect(page.getByRole("heading", { name: WANTS })).toBeVisible()
+
+    // Once per device.
+    await page.reload()
+    await expect(page.getByRole("heading", { name: WANTS })).toBeVisible()
+    await expect(slides(page)).toHaveCount(0)
+  })
+
+  test("'i have an account' on the slides keeps the way back to the link", async ({
+    page,
+  }) => {
+    await stubSignedOutContactFlow(page, { introSlides: true })
+
+    await page.goto("/qr/scan123")
+    await slides(page)
+      .getByRole("button", { name: "i have an account" })
+      .click()
+
+    await expect(page).toHaveURL(/\/login\?redirectTo=%2Fqr%2Fscan123$/)
   })
 })

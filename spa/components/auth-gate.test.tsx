@@ -171,6 +171,7 @@ describe("AuthGate on a cold load or refresh (#219)", () => {
     for (const path of [
       "/menu/terms",
       "/menu/impressum",
+      "/menu/about-sponti",
       "/qr/abc123",
       "/invite/abc123",
       "/login",

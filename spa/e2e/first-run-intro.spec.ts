@@ -46,7 +46,10 @@ async function walkToLastScreen(page: Page) {
   ).toBeVisible()
 }
 
-test.describe("first-run intro (#313)", () => {
+// #274: the new onboarding (`introV2`) is on in every build, and it replaces this
+// intro with the checklist (e2e/full-profile/post-signup-checklist.spec.ts).
+// Skipped, not removed: the intro stays in the tree behind the flag.
+test.describe.skip("first-run intro (#313)", () => {
   test("register → intro → add your first friend → map, and only once", async ({
     page,
   }) => {

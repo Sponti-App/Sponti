@@ -12,11 +12,11 @@ const inviteDialog = (page: Page) =>
 
 async function expectMenuContents(menu: Locator) {
   await expect(
-    menu.getByRole("link", { name: new RegExp(STUB_USER.displayName) })
-  ).toHaveAttribute("href", "/settings/profile")
+    menu.getByRole("link", { name: /@flaretester · view profile/ })
+  ).toHaveAttribute("href", `/profile/${STUB_USER.username}`)
   await expect(
-    menu.getByRole("link", { name: /@flaretester · edit profile/ })
-  ).toBeVisible()
+    menu.getByRole("link", { name: "edit profile" })
+  ).toHaveAttribute("href", "/settings/profile")
   await expect(menu.getByRole("link", { name: /^settings/ })).toHaveAttribute(
     "href",
     "/settings"
@@ -63,13 +63,19 @@ test.describe("top bar (#369)", () => {
     await expect(page).toHaveURL(/\/settings$/)
   })
 
-  test("the drawer's profile card opens edit profile", async ({ page }) => {
+  test("the drawer's profile card opens your profile, and edit profile edits it", async ({
+    page,
+  }) => {
     await page.goto("/")
     await page.getByRole("button", { name: "Open menu" }).click()
     await drawer(page)
-      .getByRole("link", { name: new RegExp(STUB_USER.displayName) })
+      .getByRole("link", { name: /view profile/ })
       .click()
+    await expect(page).toHaveURL(new RegExp(`/profile/${STUB_USER.username}$`))
 
+    await page.goto("/")
+    await page.getByRole("button", { name: "Open menu" }).click()
+    await drawer(page).getByRole("link", { name: "edit profile" }).click()
     await expect(page).toHaveURL(/\/settings\/profile$/)
   })
 

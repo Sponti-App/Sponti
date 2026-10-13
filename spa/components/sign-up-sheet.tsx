@@ -11,6 +11,7 @@ import type { AccountOnlyTab } from "@/components/bottom-nav"
 import { MapPinIcon } from "@/components/icons"
 import { LegalLinks } from "@/components/legal-links"
 import { Button } from "@/components/ui/button"
+import { ANYWHERE_PLACE_LINE } from "@/lib/flare-ideas-anywhere"
 import { haptic } from "@/lib/haptics"
 import {
   RESUME_REDIRECT_QUERY,
@@ -66,7 +67,10 @@ export function KeptDraftRow({
 }) {
   const category = draft.idea?.category ?? "hangout"
   const Icon = EVENT_TYPES.find((t) => t.value === category)?.icon ?? MapPinIcon
-  const place = draft.idea?.place.name.toLowerCase()
+  // An idea that isn't tied to a spot (#515) has no place name.
+  const place = draft.idea
+    ? (draft.idea.place?.name ?? ANYWHERE_PLACE_LINE).toLowerCase()
+    : undefined
   const line = [place, hint].filter(Boolean).join(" · ")
   return (
     <div

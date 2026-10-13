@@ -86,7 +86,7 @@ export function FlareHeader({
         <p
           className={cn(
             "mt-0.5 flex items-center gap-1 text-sm",
-            live ? "text-accent" : "text-muted-foreground"
+            live ? "text-accent-ink" : "text-muted-foreground"
           )}
         >
           {live && <FlameIcon className="h-4 w-4" />}

@@ -5,6 +5,7 @@ type ApiUserSummary = {
   _id: string
   username: string
   displayName?: string
+  avatarUrl?: string | null
 }
 
 type ApiConnection = {
@@ -14,6 +15,7 @@ type ApiConnection = {
   status: "pending" | "accepted" | "rejected"
   type?: "qr" | "shared_invitation" | "email_invitation"
   createdAt?: string
+  updatedAt?: string
   otherUser?: ApiUserSummary | null
 }
 
@@ -30,6 +32,8 @@ function adaptApiConnection(connection: ApiConnection): Connection | null {
     connectionId: connection._id,
     displayName: user.displayName || user.username,
     username: user.username,
+    avatarUrl: user.avatarUrl ?? null,
+    connectedAt: connection.updatedAt ?? connection.createdAt,
   }
 }
 
@@ -85,7 +89,12 @@ export function fetchAcceptedConnections(
     const byId = new Map<string, Connection>()
     for (const connection of connections) {
       const adapted = adaptApiConnection(connection)
-      if (adapted) byId.set(adapted.id, adapted)
+      if (!adapted) continue
+      // An accepted pair can have a row each way: keep the latest date.
+      const seen = byId.get(adapted.id)
+      if (!seen || (adapted.connectedAt ?? "") > (seen.connectedAt ?? "")) {
+        byId.set(adapted.id, adapted)
+      }
     }
     return Array.from(byId.values())
   })
