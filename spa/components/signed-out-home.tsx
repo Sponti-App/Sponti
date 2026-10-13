@@ -6,15 +6,14 @@
 // that loads account data. Everything that needs an account opens one sign-up
 // sheet over the map.
 //
-// The first-run order on #370: the intro slides (#377), then the coach marks
-// (#379, behind `coachMarks`), then the location ask (#408, behind
-// `locationAsk`), which sets SignedOutMap's centre. The top bar rework (#369)
-// replaces the header row.
+// The first-run order on #370: the intro slides (#377), then the location ask
+// (#408, behind `locationAsk`), which sets SignedOutMap's centre. The coach
+// marks wait for an account (#560), so they run on the signed-in home. The top
+// bar rework (#369) replaces the header row.
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { SignedOutBottomNav } from "@/components/bottom-nav"
-import { CoachMarks } from "@/components/coach-marks"
 import { CalendarBlankIcon } from "@/components/icons"
 import {
   HeaderPill,
@@ -29,11 +28,6 @@ import {
   SIGNED_OUT_CENTER,
   SignedOutMap,
 } from "@/components/signed-out-map"
-import {
-  coachMarksVisible,
-  markCoachMarksSeen,
-  useCoachMarksPending,
-} from "@/lib/coach-marks"
 import { haptic } from "@/lib/haptics"
 import { useShowIntroSlides } from "@/lib/intro-slides"
 import { useLocationStart } from "@/lib/use-location-start"
@@ -44,18 +38,9 @@ export function SignedOutHome() {
   const [ask, setAsk] = useState<SignUpAsk | null>(null)
   const [askOpen, setAskOpen] = useState(false)
   const slidesShowing = useShowIntroSlides()
-  // #379: the coach marks, once per device, after the slides. Never over the
-  // slides, the sign-up sheet or the calendar.
-  const marksPending = useCoachMarksPending()
-  const marksShowing = coachMarksVisible({
-    pending: marksPending,
-    slidesShowing,
-    sheetOpen: askOpen,
-    onMap: view === "map",
-  })
 
-  // #408: where the map starts. The ask waits for the intro slides, the
-  // coach marks and the sign-up sheet. With `locationAsk` off the map never
+  // #408: where the map starts. The ask waits for the intro slides and the
+  // sign-up sheet. With `locationAsk` off the map never
   // asks the browser and stays on berlin, as before. A last known position
   // isn't used: it may be from whoever was signed in on this device before.
   const start = useLocationStart({
@@ -63,7 +48,7 @@ export function SignedOutHome() {
     useLastKnown: false,
     alwaysFallback: true,
     requestByDefault: false,
-    hold: slidesShowing || marksPending || askOpen || view !== "map",
+    hold: slidesShowing || askOpen || view !== "map",
   })
   const located = start.geo.coords != null
 
@@ -131,9 +116,6 @@ export function SignedOutHome() {
         onUseLocation={start.requestLocation}
         onPick={start.pickArea}
       />
-
-      {/* #379 (behind `coachMarks`): the coach marks, once per device. */}
-      {marksShowing && <CoachMarks onDone={markCoachMarksSeen} />}
 
       {/* #377 (behind `introV2`): the intro slides, once per device. */}
       <IntroSlidesGate />

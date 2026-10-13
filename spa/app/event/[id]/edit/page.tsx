@@ -661,7 +661,7 @@ export default function EventEditPage() {
                 variant="outline"
                 onClick={() => void handleReactivateEvent()}
                 disabled={saving}
-                className="w-full rounded-full border-accent/30 text-accent hover:bg-accent/5"
+                className="w-full rounded-full border-accent/30 text-accent-ink hover:bg-accent/5"
               >
                 <ArrowCounterClockwiseIcon className="mr-1.5 h-4 w-4" />
                 reactivate this flare

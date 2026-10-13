@@ -81,6 +81,14 @@ describe("EventGuestsSection", () => {
     expect(names[1]).toContain("sam")
   })
 
+  it("opens a guest's profile from their row (#559)", async () => {
+    render(<EventGuestsSection eventId="e1" canInvite />)
+
+    expect(
+      await screen.findByRole("link", { name: "ana, open profile" })
+    ).toHaveAttribute("href", "/profile/ana")
+  })
+
   it("only offers friends who aren't on the flare and sends the invite", async () => {
     const user = userEvent.setup()
     render(<EventGuestsSection eventId="e1" canInvite />)

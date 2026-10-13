@@ -19,6 +19,7 @@ import {
   subscribeSession,
 } from "@/lib/auth-store"
 import { dropPendingOnboarding, markOnboardingPending } from "@/lib/onboarding"
+import { markFreshSignIn } from "@/lib/quiet-home"
 
 type Status = "loading" | "authenticated" | "unauthenticated"
 
@@ -175,6 +176,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = await authApi.login({ email, password })
     setSession(accessToken, refreshToken, nextUser)
     setRevalidatedFor(accessToken)
+    // #561: a fresh sign-in may bring back the "recently connected" card.
+    markFreshSignIn(nextUser.id)
     // #313: an existing account never gets the first-run intro.
     dropPendingOnboarding()
   }, [])
@@ -188,6 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = await authApi.googleLogin(credential)
     setSession(accessToken, refreshToken, nextUser)
     setRevalidatedFor(accessToken)
+    markFreshSignIn(nextUser.id)
     // #313: a Google sign-in that made the account gets the first-run intro,
     // one into an existing account doesn't.
     if (isNewUser) markOnboardingPending()
@@ -204,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } = await authApi.register(payload)
       setSession(accessToken, refreshToken, nextUser)
       setRevalidatedFor(accessToken)
+      markFreshSignIn(nextUser.id)
       // #313: the home map shows the first-run intro once, on this device.
       markOnboardingPending()
     },

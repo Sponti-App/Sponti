@@ -19,8 +19,9 @@ import { LEGAL_PATHS } from "@/lib/legal-paths"
 
 export const LANDING_PATH = "/landing"
 
-/** Next's file-convention link-preview images. Their URLs have no extension,
- * so proxy.ts's matcher doesn't skip them. */
+/** Link-preview image URLs without an extension, kept in case a generated
+ * image comes back. The static ones (#558, `opengraph-image.png`) have an
+ * extension, so proxy.ts's matcher already skips them. */
 const PREVIEW_PATHS = ["/opengraph-image", "/twitter-image"]
 
 export type LandingEnv = Partial<

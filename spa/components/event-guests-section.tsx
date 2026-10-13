@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { UserMinusIcon, UserPlusIcon, XIcon } from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
@@ -194,6 +195,33 @@ function GuestSummary({ guests }: { guests: EventGuest[] }) {
   )
 }
 
+/** A link to a profile when there is one, else a plain wrapper. */
+function Person({
+  href,
+  label,
+  className,
+  children,
+}: {
+  href: string | null
+  label: string
+  className: string
+  children: React.ReactNode
+}) {
+  if (!href) return <div className={className}>{children}</div>
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      className={cn(
+        className,
+        "rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      )}
+    >
+      {children}
+    </Link>
+  )
+}
+
 function GuestRow({
   guest,
   onRemove,
@@ -213,27 +241,38 @@ function GuestRow({
         declined && "opacity-60"
       )}
     >
-      <Avatar className="size-7">
-        {guest.user.avatarUrl && (
-          <AvatarImage src={guest.user.avatarUrl} alt="" />
-        )}
-        <AvatarFallback className="text-xs">{initials(name)}</AvatarFallback>
-      </Avatar>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm">{name}</span>
-        {(guest.user.username || guest.joinedWithoutInvite) && (
-          <span className="block truncate text-xs text-muted-foreground">
-            {guest.user.username && `@${guest.user.username}`}
-            {guest.user.username && guest.joinedWithoutInvite && " · "}
-            {guest.joinedWithoutInvite && "joined on their own"}
-          </span>
-        )}
-      </span>
+      {/* #559: the avatar and name open their profile. */}
+      <Person
+        href={
+          guest.user.username
+            ? `/profile/${encodeURIComponent(guest.user.username)}`
+            : null
+        }
+        label={`${name}, open profile`}
+        className="flex min-w-0 flex-1 items-center gap-2.5"
+      >
+        <Avatar className="size-7">
+          {guest.user.avatarUrl && (
+            <AvatarImage src={guest.user.avatarUrl} alt="" />
+          )}
+          <AvatarFallback className="text-xs">{initials(name)}</AvatarFallback>
+        </Avatar>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm">{name}</span>
+          {(guest.user.username || guest.joinedWithoutInvite) && (
+            <span className="block truncate text-xs text-muted-foreground">
+              {guest.user.username && `@${guest.user.username}`}
+              {guest.user.username && guest.joinedWithoutInvite && " · "}
+              {guest.joinedWithoutInvite && "joined on their own"}
+            </span>
+          )}
+        </span>
+      </Person>
       <span
         className={cn(
           "shrink-0 text-xs",
           guest.rsvpStatus === "going"
-            ? "font-medium text-accent"
+            ? "font-medium text-accent-ink"
             : "text-muted-foreground"
         )}
       >

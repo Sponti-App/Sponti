@@ -7,8 +7,7 @@ import type { MetadataRoute } from "next"
 // A manifest can only carry one colour pair, so it uses the light-mode tokens;
 // the per-scheme `theme-color` tags come from `viewport` in `layout.tsx`.
 // Hex values are approximations of the oklch tokens in BRAND.md, converted
-// oklch -> OKLab -> linear sRGB -> gamma sRGB (clipped) — the same approach as
-// `opengraph-image.tsx`, which already uses `#fdf1f7` for the light background.
+// oklch -> OKLab -> linear sRGB -> gamma sRGB (clipped), as in `layout.tsx`.
 const BACKGROUND_COLOR = "#fdf1f7" // --background (light)
 const THEME_COLOR = "#fdf1f7"
 
@@ -26,11 +25,10 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     background_color: BACKGROUND_COLOR,
     theme_color: THEME_COLOR,
-    // All three are resized from the Capacitor iOS app icon
-    // (`ios/.../AppIcon-512@2x.png`), which is full-bleed with no transparency
-    // and keeps its glyph inside the central 80%, so the maskable copy needs
-    // no extra padding. Kept as separate files so a real brand icon can
-    // diverge them later without touching this list.
+    // The flame icon (#558), drawn by `scripts/generate-icons.mjs`: a peach
+    // full-bleed tile (no transparency) with the Phosphor flame. The
+    // maskable copy is a separate file with a smaller flame, so it stays
+    // inside the 80% safe zone.
     icons: [
       {
         src: "/icon-192.png",

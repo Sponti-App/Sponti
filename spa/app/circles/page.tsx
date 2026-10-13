@@ -73,6 +73,14 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
 
+/** #561: "?add=a,b,c", the people the home's "group" card hands over. */
+function parseGroupIds(param: string | null): string[] {
+  if (!param) return []
+  return [...new Set(param.split(",").map((id) => id.trim()))]
+    .filter((id) => id.length > 0)
+    .slice(0, 10)
+}
+
 export default function CirclesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -192,8 +200,26 @@ export default function CirclesPage() {
   const [memberQuery, setMemberQuery] = useState("")
   const [newCircleOpen, setNewCircleOpen] = useState(false)
   const [newCircleName, setNewCircleName] = useState("")
-  const [newCircleMemberIds, setNewCircleMemberIds] = useState<string[]>([])
+  // #561: people handed over by the home's "recently connected" card
+  // (/circles?add=…). They come ticked in every circle's panel and in a new
+  // circle, and nothing is added until the person confirms.
+  const [groupIds, setGroupIds] = useState<string[]>(() =>
+    parseGroupIds(searchParams.get("add"))
+  )
+  const [groupTicked, setGroupTicked] = useState<string[]>(groupIds)
+  const [groupBusy, setGroupBusy] = useState(false)
+  const [newCircleMemberIds, setNewCircleMemberIds] =
+    useState<string[]>(groupIds)
   const circleNameBeforeEditRef = useRef<Record<string, string>>({})
+  // With people handed over, open on close friends, the first default circle.
+  const groupExpandedRef = useRef(false)
+  useEffect(() => {
+    if (groupExpandedRef.current || groupIds.length === 0) return
+    const target = circles.find((c) => c.type === "close")
+    if (!target) return
+    groupExpandedRef.current = true
+    queueMicrotask(() => setExpandedCircleId((prev) => prev ?? target.id))
+  }, [circles, groupIds.length])
 
   // Block confirmation
   const [pendingBlock, setPendingBlock] = useState<Connection | null>(null)
@@ -548,6 +574,65 @@ export default function CirclesPage() {
       })
   }
 
+  const clearGroup = (): void => {
+    setGroupIds([])
+    setGroupTicked([])
+    if (searchParams.get("add") !== null) router.replace("/circles")
+  }
+
+  const toggleGroupTicked = (id: string): void => {
+    setGroupTicked((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }
+
+  // #561: the ticked people into this circle, one POST /circles/:id/members
+  // each (there's no batch endpoint). Whoever fails stays ticked to retry.
+  const addGroupToCircle = (circle: Circle, userIds: string[]): void => {
+    if (!apiEnabled || userIds.length === 0) return
+    setGroupBusy(true)
+    void Promise.allSettled(
+      userIds.map((userId) => addApiCircleMember(circle.id, userId))
+    ).then((results) => {
+      const added = userIds.filter((_, i) => results[i].status === "fulfilled")
+      const failed = userIds.filter((id) => !added.includes(id))
+      const now = new Date().toISOString()
+      if (added.length > 0) {
+        setCircles((prev) =>
+          prev.map((c) =>
+            c.id === circle.id
+              ? {
+                  ...c,
+                  memberIds: [
+                    ...c.memberIds,
+                    ...added.filter((id) => !c.memberIds.includes(id)),
+                  ],
+                  memberAddedAt: {
+                    ...c.memberAddedAt,
+                    ...Object.fromEntries(added.map((id) => [id, now])),
+                  },
+                }
+              : c
+          )
+        )
+      }
+      setGroupBusy(false)
+      if (failed.length > 0) {
+        setGroupTicked(failed)
+        showActionFeedback("couldn't add everyone", { tone: "error" })
+        return
+      }
+      showActionFeedback(
+        added.length === 1
+          ? "added to circle"
+          : `added ${added.length} to circle`
+      )
+      clearGroup()
+      // The upcoming-flares offer (#150) is one person at a time.
+      if (added.length === 1) offerCircleFlares(circle.id, added[0])
+    })
+  }
+
   const toggleNewCircleMember = (id: string): void => {
     setNewCircleMemberIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -576,6 +661,7 @@ export default function CirclesPage() {
         setNewCircleMemberIds([])
         setNewCircleOpen(false)
         showActionFeedback("circle created")
+        clearGroup()
       })
       .catch((err) => {
         setCirclesError(getErrorMessage(err, "Could not create circle"))
@@ -676,6 +762,13 @@ export default function CirclesPage() {
                 })
 
                 const memberSet = new Set(circle.memberIds)
+                const groupOffer = groupIds
+                  .filter((id) => !memberSet.has(id))
+                  .map((id) => connectionsById.get(id))
+                  .filter((c): c is Connection => Boolean(c))
+                const groupToAdd = groupOffer
+                  .map((c) => c.id)
+                  .filter((id) => groupTicked.includes(id))
                 const q = memberQuery.trim().toLowerCase()
                 const addable = connections.filter((c) => {
                   if (memberSet.has(c.id)) return false
@@ -709,7 +802,9 @@ export default function CirclesPage() {
                       <CircleStackIcon
                         type={circle.type}
                         className={`h-6 w-6 shrink-0 ${
-                          isExpanded ? "text-accent" : "text-muted-foreground"
+                          isExpanded
+                            ? "text-accent-ink"
+                            : "text-muted-foreground"
                         }`}
                       />
                       <div className="min-w-0 flex-1">
@@ -783,6 +878,38 @@ export default function CirclesPage() {
                               </button>
                             ))}
                           </div>
+
+                          {groupOffer.length > 0 && (
+                            <div
+                              data-circle-group
+                              className="flex flex-col gap-1"
+                            >
+                              <p className="text-xs text-muted-foreground">
+                                recently connected
+                              </p>
+                              <ul className="flex flex-col">
+                                {groupOffer.map((c) => (
+                                  <li key={c.id}>
+                                    <TickRow
+                                      name={c.displayName}
+                                      username={c.username}
+                                      checked={groupTicked.includes(c.id)}
+                                      onToggle={() => toggleGroupTicked(c.id)}
+                                    />
+                                  </li>
+                                ))}
+                              </ul>
+                              <Button
+                                onClick={() =>
+                                  addGroupToCircle(circle, groupToAdd)
+                                }
+                                disabled={groupToAdd.length === 0 || groupBusy}
+                                className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
+                              >
+                                add {groupToAdd.length} to {circle.name}
+                              </Button>
+                            </div>
+                          )}
 
                           {sortedMembers.length === 0 ? (
                             <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
@@ -977,32 +1104,16 @@ export default function CirclesPage() {
                     add friends
                   </Label>
                   <ul className="flex flex-col">
-                    {connections.map((c) => {
-                      const checked = newCircleMemberIds.includes(c.id)
-                      return (
-                        <li key={c.id}>
-                          <button
-                            type="button"
-                            onClick={() => toggleNewCircleMember(c.id)}
-                            className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-secondary"
-                          >
-                            <span
-                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                                checked
-                                  ? "border-accent bg-accent text-accent-foreground"
-                                  : "border-border"
-                              }`}
-                            >
-                              {checked && <CheckIcon className="h-3 w-3" />}
-                            </span>
-                            <span className="text-sm">{c.displayName}</span>
-                            <span className="ml-auto text-xs text-muted-foreground">
-                              @{c.username}
-                            </span>
-                          </button>
-                        </li>
-                      )
-                    })}
+                    {connections.map((c) => (
+                      <li key={c.id}>
+                        <TickRow
+                          name={c.displayName}
+                          username={c.username}
+                          checked={newCircleMemberIds.includes(c.id)}
+                          onToggle={() => toggleNewCircleMember(c.id)}
+                        />
+                      </li>
+                    ))}
                   </ul>
                 </div>
 
@@ -1047,15 +1158,23 @@ export default function CirclesPage() {
                           key={d.id}
                           className="flex items-center gap-3 px-3 py-2"
                         >
-                          <Avatar name={d.displayName} />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">
-                              {d.displayName}
-                            </p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              @{d.username}
-                            </p>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              router.push(`/profile/${d.username}`)
+                            }
+                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                          >
+                            <Avatar name={d.displayName} />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">
+                                {d.displayName}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                @{d.username}
+                              </p>
+                            </div>
+                          </button>
                           <Button
                             size="sm"
                             onClick={() =>
@@ -1163,15 +1282,21 @@ export default function CirclesPage() {
                       key={r.id}
                       className="flex items-center gap-3 border-b border-border px-1 py-2 last:border-b-0"
                     >
-                      <Avatar name={r.displayName} muted />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-muted-foreground">
-                          {r.displayName}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          @{r.username}
-                        </p>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/profile/${r.username}`)}
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      >
+                        <Avatar name={r.displayName} muted />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-muted-foreground">
+                            {r.displayName}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            @{r.username}
+                          </p>
+                        </div>
+                      </button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -1426,6 +1551,41 @@ export default function CirclesPage() {
         </div>
       )}
     </div>
+  )
+}
+
+/** A friend to tick: the new circle's list, and #561's handed-over people. */
+function TickRow({
+  name,
+  username,
+  checked,
+  onToggle,
+}: {
+  name: string
+  username: string
+  checked: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={onToggle}
+      className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-secondary"
+    >
+      <span
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+          checked
+            ? "border-accent bg-accent text-accent-foreground"
+            : "border-border"
+        }`}
+      >
+        {checked && <CheckIcon className="h-3 w-3" />}
+      </span>
+      <span className="text-sm">{name}</span>
+      <span className="ml-auto text-xs text-muted-foreground">@{username}</span>
+    </button>
   )
 }
 

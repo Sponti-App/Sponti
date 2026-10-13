@@ -49,7 +49,7 @@ function ResetPasswordForm() {
       title="new password"
       subtitle="choose a new password for your account."
       footer={
-        <Link href="/login" className="font-medium text-accent">
+        <Link href="/login" className="font-medium text-accent-ink">
           back to sign in
         </Link>
       }

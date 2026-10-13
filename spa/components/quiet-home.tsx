@@ -1,18 +1,26 @@
 "use client"
 
 // #522 (behind `quietHome`): what the home map's sheet shows when there are
-// no flares. Picked from the #523 prototype ("combined", round 3):
-//   - the people you recently connected with, each one tap from a flare with
-//     them (a private flare to just that person);
+// no flares. Picked from the #523 prototype ("combined", round 3), reworked
+// in #561 and #562:
+//   - the people you recently connected with, compact, after a fresh sign-in
+//     (lib/quiet-home.ts), with "group" into a circle and swipe to hide;
 //   - a 0-friend account: empty slots and one invite button;
-//   - a signed-out visitor: the value prop;
-//   - nearby ideas as their own cards, one tap to light one.
+//   - two flare cards, right now and soon (signed in);
+//   - a signed-out visitor: the value prop and nearby idea cards.
 // Each block has two text styles at most, no card sits inside a card, and
 // nothing here is peach: the nav's flare button is the screen's one call to
 // action (BRAND.md).
 
 import { useEffect, useState } from "react"
-import { FlameIcon, PlusIcon, UserPlusIcon } from "@/components/icons"
+import Link from "next/link"
+import {
+  CalendarBlankIcon,
+  FlameIcon,
+  PlusIcon,
+  UserPlusIcon,
+  UsersIcon,
+} from "@/components/icons"
 import { IdeaIcon } from "@/components/idea-icon"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { initials } from "@/components/event-avatar-stack"
@@ -23,7 +31,16 @@ import type { Idea } from "@/lib/flare-ideas-anywhere"
 import type { GeoCoords } from "@/lib/geolocation"
 import { haptic } from "@/lib/haptics"
 import { subscribeToFriendsChanged } from "@/lib/onboarding-checklist"
-import { connectedAgo } from "@/lib/quiet-home"
+import {
+  batchPeople,
+  dismissRecentPeople,
+  readRecentPeopleState,
+  settleRecentPeople,
+  useRecentPeopleState,
+  writeRecentPeopleState,
+  type RecentPeopleState,
+} from "@/lib/quiet-home"
+import { useSwipeActions } from "@/lib/use-swipe-actions"
 import { cn } from "@/lib/utils"
 
 const PANEL =
@@ -47,66 +64,132 @@ export function useQuietPeople(enabled: boolean): Connection[] | null {
         if (!controller.signal.aborted) setConnections(next)
       })
       .catch(() => {
-        // Keep what we had; the sheet falls back to the idea cards.
+        // Keep what we had; the sheet shows no people block.
       })
     return () => controller.abort()
   }, [enabled, tick])
   return connections
 }
 
-export function RecentPeoplePanel({
-  people,
+/**
+ * #561: the people you recently connected with, compact: one line of
+ * avatars and first names (each opens that profile) and one action, "group",
+ * that opens the circles page with them ticked. Swipe it sideways to hide it;
+ * the caller offers undo.
+ */
+/**
+ * #561: who the "recently connected" card shows, by the fresh-sign-in rule
+ * in lib/quiet-home.ts. `active` is true while the quiet home is on screen:
+ * that's when a fresh sign-in is used up (shown or lapsed).
+ */
+export function useRecentPeople({
+  connections,
+  userId,
   now,
-  onFlareWith,
+  active,
+}: {
+  connections: Connection[] | null
+  userId: string | null
+  now: number
+  active: boolean
+}): {
+  people: Connection[]
+  dismiss: () => RecentPeopleState
+  restore: (state: RecentPeopleState) => void
+} {
+  const state = useRecentPeopleState()
+  useEffect(() => {
+    if (!active || !connections || !userId || now <= 0) return
+    const current = readRecentPeopleState()
+    const next = settleRecentPeople(current, userId, connections, now)
+    if (next !== current) writeRecentPeopleState(next)
+  }, [active, connections, userId, now])
+  return {
+    people: connections ? batchPeople(state, userId, connections) : [],
+    dismiss: () => dismissRecentPeople(Date.now()),
+    restore: writeRecentPeopleState,
+  }
+}
+
+export function RecentPeopleCard({
+  people,
+  onGroup,
+  onDismiss,
 }: {
   people: Connection[]
-  now: number
-  onFlareWith: (person: Connection) => void
+  onGroup: () => void
+  onDismiss: () => void
 }) {
+  const swipe = useSwipeActions({ onSwipeLeft: onDismiss })
   return (
     <section
       data-quiet-people
       aria-label="you recently connected"
-      className={cn(PANEL, "py-3")}
+      style={{ ...swipe.style, opacity: swipeOpacity(swipe.offset) }}
+      {...swipe.handlers}
+      className={cn(PANEL, "py-3 select-none")}
     >
-      <p className="text-xs text-muted-foreground">you recently connected</p>
-      <ul className="mt-1 divide-y divide-border/60">
-        {people.map((person) => (
-          <li key={person.id} className="flex items-center gap-3 py-2">
-            <Avatar className="size-11">
-              {person.avatarUrl && (
-                <AvatarImage src={person.avatarUrl} alt="" />
-              )}
-              <AvatarFallback className="bg-accent/10 text-sm text-accent-ink">
-                {initials(person.displayName)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">
-                {person.displayName}
-              </p>
-              {person.connectedAt && (
-                <p className="text-xs text-muted-foreground">
-                  {connectedAgo(person.connectedAt, now)}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              aria-label={`light a flare with ${person.displayName}`}
-              onClick={() => {
-                haptic("medium")
-                onFlareWith(person)
-              }}
-              className={cn(ROUND_BUTTON, "border border-border bg-background")}
-            >
-              <FlameIcon className="size-5" />
-            </button>
-          </li>
-        ))}
-      </ul>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">you recently connected</p>
+        {/* Swipe is the fast path; this is the one a screen reader finds. */}
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="sr-only focus-visible:not-sr-only focus-visible:text-xs"
+        >
+          hide
+        </button>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <ul className="flex min-w-0 flex-1 items-center gap-3">
+          {people.map((person) => (
+            <li key={person.id} className="min-w-0">
+              <Link
+                href={`/profile/${encodeURIComponent(person.username)}`}
+                aria-label={person.displayName}
+                draggable={false}
+                className="flex min-w-0 items-center gap-1.5 rounded-full active:opacity-70"
+              >
+                <Avatar className="size-8 shrink-0">
+                  {person.avatarUrl && (
+                    <AvatarImage src={person.avatarUrl} alt="" />
+                  )}
+                  <AvatarFallback className="bg-muted text-xs text-foreground">
+                    {initials(person.displayName)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="truncate text-sm font-semibold">
+                  {firstName(person.displayName)}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <button
+          type="button"
+          aria-label="group into a circle"
+          onClick={() => {
+            haptic("selection")
+            onGroup()
+          }}
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm font-semibold active:scale-95"
+        >
+          <UsersIcon className="size-4" />
+          group
+        </button>
+      </div>
     </section>
   )
+}
+
+/** Fades as it travels, so a swipe reads as "away". */
+function swipeOpacity(offset: number): number | undefined {
+  if (offset >= 0) return undefined
+  return Math.max(0.3, 1 + offset / 320)
+}
+
+function firstName(displayName: string): string {
+  return displayName.trim().split(/\s+/)[0] || displayName
 }
 
 /** A 0-friend account: the empty slots are the placeholder, one invite. */
@@ -219,6 +302,64 @@ export function QuietIdeaCards({
               ? formatDistance(haversineMeters(center, idea.place))
               : "anywhere"}
           </span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * #562: the quiet home's two ways to light a flare, in place of the idea
+ * cards: right now (to close friends) and soon (a time, to the inner
+ * circle). Each opens the composer with that mode and circle suggested.
+ */
+export function FlareCtaCards({
+  onRightNow,
+  onSoon,
+}: {
+  onRightNow: () => void
+  onSoon: () => void
+}) {
+  const ctas = [
+    {
+      id: "now",
+      icon: FlameIcon,
+      title: "what are you up for right now?",
+      line: "let your close friends know…",
+      onClick: onRightNow,
+    },
+    {
+      id: "soon",
+      icon: CalendarBlankIcon,
+      title: "got a plan for soon?",
+      line: "pick a time and invite your inner circle",
+      onClick: onSoon,
+    },
+  ] as const
+  return (
+    <div
+      role="region"
+      aria-label="light a flare"
+      className="pointer-events-auto mx-3 grid grid-cols-2 gap-2"
+    >
+      {ctas.map(({ id, icon: Icon, title, line, onClick }) => (
+        <button
+          key={id}
+          type="button"
+          data-quiet-cta={id}
+          onClick={() => {
+            haptic("medium")
+            onClick()
+          }}
+          className="flex flex-col rounded-2xl border border-border/60 bg-background/90 p-3 text-left shadow-(--shadow-card) backdrop-blur-md active:scale-[0.98]"
+        >
+          <span className="flex size-10 items-center justify-center rounded-full bg-muted text-foreground">
+            <Icon className="size-5" />
+          </span>
+          <span className="mt-3 text-sm leading-snug font-semibold">
+            {title}
+          </span>
+          <span className="mt-1 text-xs text-muted-foreground">{line}</span>
         </button>
       ))}
     </div>

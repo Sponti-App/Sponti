@@ -22,6 +22,8 @@ type NavItem =
       icon: Icon
       label: string
       href: string
+      /** Replaces the prefix match on `href` (#356). */
+      isActive?: (pathname: string) => boolean
       center?: boolean
       badge?: number
     }
@@ -32,7 +34,24 @@ type NavItem =
       onClick: () => void
       center?: boolean
       badge?: number
+      /** The flare button's circle is away, morphing (#376). */
+      circleHidden?: boolean
     }
+
+/**
+ * #356: "my flares" is lit on the list and on the page (and edit page) of a
+ * flare you host, not on someone else's flare opened from the map. The host
+ * ids come from the flares the nav already loads; until they have, a flare
+ * page leaves the tab off, so it never flashes on and then off for a guest.
+ */
+export function isMyFlaresActive(
+  pathname: string,
+  hostedIds: ReadonlySet<string>
+): boolean {
+  if (pathname === "/event") return true
+  const match = pathname.match(/^\/event\/([^/]+)(?:\/edit)?$/)
+  return !!match && hostedIds.has(decodeURIComponent(match[1]))
+}
 
 export function BottomNav({
   onOpenNotifications,
@@ -45,8 +64,9 @@ export function BottomNav({
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const { openDrawer } = useNewEventDrawer()
-  const { hostedByMe, invited } = useMyFlares()
+  const { openDrawer, flareButtonHidden } = useNewEventDrawer()
+  const { hostedByMe, invited, pastHosted } = useMyFlares()
+  const hostedIds = new Set([...hostedByMe, ...pastHosted].map((e) => e.id))
   const activeHosted = hostedByMe.filter((e) => e.apiStatus !== "cancelled")
   // Badge counts hosted-by-me + invited so users see a heads-up when there's
   // something waiting in the hub (a new invitation, a flare they're hosting).
@@ -76,6 +96,7 @@ export function BottomNav({
       label: "flare",
       onClick: () => openDrawer(),
       center: true,
+      circleHidden: flareButtonHidden,
     },
     { kind: "route", icon: UsersIcon, label: "Circles", href: "/circles" },
     {
@@ -83,6 +104,7 @@ export function BottomNav({
       icon: FireIcon,
       label: "my flares",
       href: "/event",
+      isActive: (path) => isMyFlaresActive(path, hostedIds),
       badge: flaresBadge,
     },
   ]
@@ -143,8 +165,12 @@ function NavBar({ items }: { items: NavItem[] }) {
   const router = useRouter()
   const pathname = usePathname()
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href)
+  const isActive = (item: Extract<NavItem, { kind: "route" }>) =>
+    item.isActive
+      ? item.isActive(pathname)
+      : item.href === "/"
+        ? pathname === "/"
+        : pathname.startsWith(item.href)
 
   // Publish the actual rendered nav height (incl. safe-area inset) as a CSS
   // variable so the floating bottom sheet and the map's dock can sit flush above the bar
@@ -181,6 +207,7 @@ function NavBar({ items }: { items: NavItem[] }) {
               key={item.label}
               icon={item.icon}
               label={item.label}
+              circleHidden={item.circleHidden}
               onClick={() => {
                 haptic("medium")
                 item.onClick()
@@ -189,7 +216,7 @@ function NavBar({ items }: { items: NavItem[] }) {
           )
         }
         const Icon = item.icon
-        const active = item.kind === "route" && isActive(item.href)
+        const active = item.kind === "route" && isActive(item)
         const handleClick =
           item.kind === "route"
             ? () => {
@@ -209,7 +236,7 @@ function NavBar({ items }: { items: NavItem[] }) {
             aria-label={item.label}
             className={`relative flex min-h-11 max-w-20 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-xs font-medium active:scale-95 active:opacity-80 ${
               active
-                ? "text-accent"
+                ? "text-accent-ink"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -240,10 +267,14 @@ export function NavFlareButton({
   icon: Icon = FlameIcon,
   label = "flare",
   onClick,
+  circleHidden = false,
 }: {
   icon?: Icon
   label?: string
   onClick: () => void
+  /** While the circle morphs into the composer's strike strip and back
+   * (#376), a clone stands in for it, so the circle itself is hidden. */
+  circleHidden?: boolean
 }) {
   return (
     <button
@@ -254,7 +285,8 @@ export function NavFlareButton({
     >
       <span
         data-nav-flare-circle
-        className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-foreground ring-2 ring-accent/35 ring-offset-2 ring-offset-background"
+        data-hidden={circleHidden || undefined}
+        className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-foreground ring-2 ring-accent/35 ring-offset-2 ring-offset-background data-[hidden]:invisible"
       >
         <Icon className="h-6 w-6" />
       </span>

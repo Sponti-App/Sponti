@@ -557,7 +557,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                       clearLocationChoice()
                       showActionFeedback(
                         newOnboarding
-                          ? "map tips reset. sign out to see them again"
+                          ? "map tips reset. they show on the home map"
                           : "map tips reset. turn on new onboarding to see them"
                       )
                     }}

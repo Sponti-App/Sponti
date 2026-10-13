@@ -55,12 +55,28 @@ export const featureFlags = {
 
   /**
    * The quiet home (#522): when the map has no flares, its sheet shows the
-   * people you recently connected with (one tap from a flare with them), an
-   * invite for a 0-friend account, the value prop for a signed-out visitor,
-   * and nearby idea cards; the type chips wait until there are two flares.
+   * people you recently connected with (#561: compact, after a fresh
+   * sign-in), an invite for a 0-friend account, two flare cards (#562, right
+   * now and soon), and for a signed-out visitor the value prop and nearby
+   * idea cards; the type chips wait until there are two flares.
    * On in both profiles; off, the old "no flares within 10 km" card.
    */
   quietHome: true,
+
+  /**
+   * The lighting moment (#376, flare moments #370; motion in lib/motion,
+   * #375): the composer lights a flare with the strike strip, which the nav's
+   * flare button morphs into, and the strike starts the full-screen "night
+   * flare" takeover, which lands the flare on the map once the api has
+   * created it (the full burst for someone's first flare, the soft one
+   * after). See docs/decisions/flare-lighting-motion.md. On in the full profile, off in
+   * the tester build (production) until it passes review, but on in the
+   * `dev` branch's Vercel deploy so it can be tried on a phone; off, the
+   * composer's "light a flare" button and success toast are exactly as before.
+   */
+  flareLightMoment:
+    FEATURE_PROFILE === "full" ||
+    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF === "dev",
 
   // #482: `browseBeforeSignup`, `introV2` and `locationAsk` below are the new
   // onboarding. A device can switch them all on at runtime ("new onboarding" in

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   APIProvider,
   Map,
@@ -43,6 +43,14 @@ import {
 import { type GeoCoords, type GeoStatus } from "@/lib/geolocation"
 import { AreaBanner, LocationAskSheet } from "@/components/location-ask"
 import { BERLIN_START } from "@/lib/location-choice"
+import {
+  LIT_PIN_HOLD_MAX_MS,
+  subscribeToLitFlare,
+  subscribeToLitFocus,
+  subscribeToLitPinRelease,
+  withLitFlares,
+  type LitFlare,
+} from "@/lib/lit-flare"
 import { useLocationStart } from "@/lib/use-location-start"
 import { useMapEvents } from "@/lib/use-events"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
@@ -81,13 +89,12 @@ import { useTheme } from "next-themes"
 import { IdeaIcon } from "@/components/idea-icon"
 import { InviteDialog } from "@/components/qr-share-sheet"
 import {
+  FlareCtaCards,
   NoFriendsPanel,
-  pickQuietIdeas,
-  QuietIdeaCards,
-  RecentPeoplePanel,
+  RecentPeopleCard,
   useQuietPeople,
+  useRecentPeople,
 } from "@/components/quiet-home"
-import { recentConnections } from "@/lib/quiet-home"
 
 // What the map draws for an idea (#244). Not a flare pin: a dashed ring with
 // the idea's own icon (#524) and no fill colour. #522 (Patrick, 2026-10-09):
@@ -206,6 +213,8 @@ export const FLARE_PIN_SLOTS: Array<{
   { top: "20%", right: "18%" },
 ]
 
+const NO_HELD: ReadonlySet<string> = new Set()
+
 function StaticMapFallback({
   events,
   onEventSelect,
@@ -220,10 +229,13 @@ function StaticMapFallback({
   floatingIdeas = [],
   selectedIdeaId = null,
   onIdeaSelect,
+  heldIds = NO_HELD,
 }: {
   events: EventItem[]
   onEventSelect: (event: EventItem) => void
   joinedIds: Set<string>
+  /** Flares just lit whose pins the lighting takeover holds hidden. */
+  heldIds?: ReadonlySet<string>
   user: GeoCoords
   viewerId: string | null
   /** The map's clock, in ms. */
@@ -295,7 +307,10 @@ function StaticMapFallback({
             onClick={() =>
               setPreviewEvent((prev) => (prev?.id === event.id ? null : event))
             }
-            style={FLARE_PIN_SLOTS[i]}
+            style={{
+              ...FLARE_PIN_SLOTS[i],
+              ...(heldIds.has(event.id) ? { visibility: "hidden" } : {}),
+            }}
             className={`absolute flex flex-col items-center ${
               highlightId === event.id ? "z-10" : ""
             }`}
@@ -305,6 +320,7 @@ function StaticMapFallback({
               own={own}
               joined={isJoined(event, joinedIds)}
               highlighted={highlightId === event.id}
+              held={heldIds.has(event.id)}
               now={now}
             />
             <span className="mt-1 rounded bg-card px-2 py-1 text-center text-xs shadow-md">
@@ -428,14 +444,20 @@ function GoogleMapContent({
   cameraCenter,
   currentLocation,
   recenterTick,
+  focus,
+  focusInset,
+  onFocused,
   highlightId,
   ideas,
   floatingIdeas,
   selectedIdeaId,
   onIdeaSelect,
+  heldIds,
 }: {
   events: EventItem[]
   onEventSelect: (event: EventItem) => void
+  /** Flares just lit whose pins the lighting takeover holds hidden. */
+  heldIds: ReadonlySet<string>
   previewEvent: EventItem | null
   setPreviewEvent: React.Dispatch<React.SetStateAction<EventItem | null>>
   routeResult: RouteResult | null
@@ -447,6 +469,13 @@ function GoogleMapContent({
   cameraCenter: GeoCoords
   currentLocation: GeoCoords | null
   recenterTick: number
+  /** A flare to move to (just lit). */
+  focus: MapFocus | null
+  /** How much of the map's lower part the dock and nav cover, in px, read
+   * when the map moves. */
+  focusInset: () => number
+  /** The map has moved to `focus`. */
+  onFocused: () => void
   /** The flare whose rail card is centred; its pin grows. */
   highlightId: string | null
   ideas: FlareIdea[]
@@ -484,6 +513,33 @@ function GoogleMapContent({
     if ((map.getZoom() ?? 0) < 14) map.setZoom(15)
   }, [map, currentLocation, recenterTick])
 
+  // Move to a flare that was just lit, so it sits in the part of the map the
+  // dock and the nav leave free. Counts as the person's own navigation: the
+  // map won't pull back to their position afterwards. Each focus is used
+  // once, so a remount (a picked area) doesn't move back to it.
+  useEffect(() => {
+    if (!map || !focus) return
+    userInteractedRef.current = true
+    autoCenteredRef.current = true
+    const zoom = Math.max(map.getZoom() ?? 0, 15)
+    const inset = focusInset()
+    let target: google.maps.LatLngLiteral = focus.coords
+    const projection = map.getProjection()
+    if (projection && inset > 0) {
+      const point = projection.fromLatLngToPoint(focus.coords)
+      if (point) {
+        // The centre goes below the flare by half the covered height.
+        point.y += inset / 2 / Math.pow(2, zoom)
+        target = projection.fromPointToLatLng(point)?.toJSON() ?? target
+      }
+    }
+    map.panTo(target)
+    if ((map.getZoom() ?? 0) < zoom) map.setZoom(zoom)
+    onFocused()
+    // The callbacks are read once per focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, focus])
+
   if (status === APILoadingStatus.FAILED) {
     return (
       <StaticMapFallback
@@ -500,6 +556,7 @@ function GoogleMapContent({
         floatingIdeas={floatingIdeas}
         selectedIdeaId={selectedIdeaId}
         onIdeaSelect={onIdeaSelect}
+        heldIds={heldIds}
       />
     )
   }
@@ -572,6 +629,7 @@ function GoogleMapContent({
               own={!!viewerId && event.host.id === viewerId}
               joined={isJoined(event, joinedIds)}
               highlighted={highlightId === event.id}
+              held={heldIds.has(event.id)}
               now={now}
             />
           </AdvancedMarker>
@@ -731,6 +789,7 @@ export function MapView({
   onRouteReady,
   onSeeCalendar,
   dockCard,
+  holdLocationAsk = false,
 }: {
   onEventSelect: (event: EventItem) => void
   activeRoute: EventItem | null
@@ -743,6 +802,9 @@ export function MapView({
    * "hide" folds it away with the rail.
    */
   dockCard?: React.ReactNode
+  /** #479: something else is asking for the screen (the welcome-back sheet),
+   * so the location ask waits, as it does while the composer is open. */
+  holdLocationAsk?: boolean
 }) {
   const { open: composeOpen, openDrawer } = useNewEventDrawer()
   const router = useRouter()
@@ -813,7 +875,7 @@ export function MapView({
     useLastKnown: true,
     alwaysFallback: false,
     requestByDefault: true,
-    hold: composeOpen,
+    hold: composeOpen || holdLocationAsk,
   })
   const geo = start.geo
   const cameraCenter = start.camera
@@ -840,9 +902,82 @@ export function MapView({
   // #171: the first flares fetch after a cold backend can take up to a
   // minute — say so instead of a "loading" label that just sits there.
   const mapWakingUp = useSlowRequestHint(map.loading)
+  // #376: a flare just lit shows at once and the map moves to it, instead of
+  // waiting for the refetch (and staying on the person's own position).
+  const [litFlares, setLitFlares] = useState<LitFlare[]>([])
+  const [focus, setFocus] = useState<MapFocus | null>(null)
+  const clearFocus = useCallback(() => setFocus(null), [])
+  // What the dock and the nav cover: everything below the dock's top edge
+  // (laid out even while the dock is faded out under the composer).
+  const focusInset = useCallback(() => {
+    const top = dockRef.current?.getBoundingClientRect().top
+    return top == null ? 0 : Math.max(0, window.innerHeight - top)
+  }, [])
   const mapEvents = useMemo(
-    () => map.events.filter((e) => !!e.location.coordinates),
-    [map.events]
+    () =>
+      withLitFlares(map.events, litFlares, nowMs).filter(
+        (e) => !!e.location.coordinates
+      ),
+    [map.events, litFlares, nowMs]
+  )
+
+  // #376: the lighting takeover's pin stands in for the new flare's own
+  // until it hands over, so the map draws that pin hidden ("held") till then.
+  const heldIds = useMemo(
+    () =>
+      new Set(
+        litFlares.filter((l) => l.held).map((l) => l.event.id)
+      ) as ReadonlySet<string>,
+    [litFlares]
+  )
+  const release = useCallback((id: string) => {
+    setLitFlares((prev) =>
+      prev.some((l) => l.event.id === id && l.held)
+        ? prev.map((l) => (l.event.id === id ? { ...l, held: false } : l))
+        : prev
+    )
+  }, [])
+  useEffect(() => subscribeToLitPinRelease(release), [release])
+  // A pin is never held for good, whatever became of the takeover.
+  useEffect(() => {
+    if (heldIds.size === 0) return
+    const ids = [...heldIds]
+    const timer = window.setTimeout(
+      () => ids.forEach(release),
+      LIT_PIN_HOLD_MAX_MS
+    )
+    return () => window.clearTimeout(timer)
+  }, [heldIds, release])
+  // A flare is being lit: the map moves to its spot at the strike, under the
+  // takeover, before the api has answered.
+  useEffect(
+    () =>
+      subscribeToLitFocus((coords) => {
+        setPreviewEvent(null)
+        setFocus({ coords })
+      }),
+    []
+  )
+
+  // A flare was just lit: show it, whatever the filters, and move to it.
+  useEffect(
+    () =>
+      subscribeToLitFlare((event, options) => {
+        const coords = eventCoords(event)
+        setLitFlares((prev) => [
+          ...prev.filter((l) => l.event.id !== event.id),
+          { event, litAt: Date.now(), held: !!options.held },
+        ])
+        // The clock moves on too: a flare lit for "now" is live at once,
+        // not "soon" until the next minute tick.
+        setNowMs(Date.now())
+        setTypeFilters(new Set())
+        setTimeFilter("all")
+        setPreviewEvent(null)
+        setRailFocusId(event.id)
+        if (coords) setFocus({ coords })
+      }),
+    []
   )
   const groupedEvents = useMemo(() => {
     const now = nowMs
@@ -1005,24 +1140,11 @@ export function MapView({
   const showDockCard = !!dockCard && dock === "mid" && !tappedIdea
 
   // #522 (behind `quietHome`): with no flares, the sheet shows the people you
-  // recently connected with (or an invite with none), and nearby idea cards.
-  // Only once the results are real, like the quiet card above.
+  // recently connected with (#561: after a fresh sign-in, see
+  // lib/quiet-home.ts) or an invite with none, and two flare cards (#562).
+  // Only once the results are real, like the quiet card above. The idea
+  // pins stay on the map (#563 handles ideas in the sheet).
   const quietPeople = useQuietPeople(featureFlags.quietHome)
-  const recentPeople = useMemo(
-    () =>
-      quietPeople && nowMs > 0 ? recentConnections(quietPeople, nowMs) : [],
-    [quietPeople, nowMs]
-  )
-  const quietIdeas = useMemo(
-    () => pickQuietIdeas(ideaPins, floatingIdeas, cameraCenter),
-    [ideaPins, floatingIdeas, cameraCenter]
-  )
-  const quietPeopleBlock: "recent" | "none" | null =
-    recentPeople.length > 0
-      ? "recent"
-      : quietPeople && quietPeople.length === 0
-        ? "none"
-        : null
   const showQuietHome =
     featureFlags.quietHome &&
     dock === "mid" &&
@@ -1034,8 +1156,26 @@ export function MapView({
     !map.loading &&
     !mapFailedEmpty &&
     visibleEvents.length === 0 &&
-    typeFilters.size === 0 &&
-    (quietPeopleBlock !== null || quietIdeas.length > 0)
+    typeFilters.size === 0
+  const recent = useRecentPeople({
+    connections: quietPeople,
+    userId: viewerId,
+    now: nowMs,
+    active: showQuietHome,
+  })
+  const quietPeopleBlock: "recent" | "none" | null =
+    recent.people.length > 0
+      ? "recent"
+      : quietPeople && quietPeople.length === 0
+        ? "none"
+        : null
+  const hideRecentPeople = () => {
+    haptic("light")
+    const before = recent.dismiss()
+    showActionFeedback("recent connections hidden", {
+      action: { label: "undo", onAction: () => recent.restore(before) },
+    })
+  }
   const [quietInviteOpen, setQuietInviteOpen] = useState(false)
   // The chips, the count and "list" wait until there is something to sort:
   // two flares, or a chip already on (so it can be turned off).
@@ -1256,53 +1396,62 @@ export function MapView({
       onPointerCancel={handleMapPointerUp}
       onPointerLeave={handleMapPointerUp}
     >
-      {!cameraCenter ? (
-        <MapCameraPlaceholder
-          status={geo.status}
-          errorMessage={geo.errorMessage}
-          onRetry={geo.request}
-        />
-      ) : apiKey ? (
-        <APIProvider apiKey={apiKey}>
-          <GoogleMapContent
-            // A picked area remounts the map on its centre (#408).
-            key={start.cameraKey}
+      {/* #376: the lighting takeover zooms and tilts this layer (the map and
+          its pins only) with a CSS transform, and puts it back after. */}
+      <div data-lighting-map className="absolute inset-0">
+        {!cameraCenter ? (
+          <MapCameraPlaceholder
+            status={geo.status}
+            errorMessage={geo.errorMessage}
+            onRetry={geo.request}
+          />
+        ) : apiKey ? (
+          <APIProvider apiKey={apiKey}>
+            <GoogleMapContent
+              // A picked area remounts the map on its centre (#408).
+              key={start.cameraKey}
+              events={pinEvents}
+              onEventSelect={onEventSelect}
+              previewEvent={shownPreview}
+              setPreviewEvent={setPreviewEvent}
+              routeResult={routeResult}
+              routeDestination={routeDestination}
+              joinedIds={joinedIds}
+              viewerId={viewerId}
+              now={nowMs}
+              cameraCenter={cameraCenter}
+              currentLocation={geo.coords}
+              recenterTick={recenterTick}
+              focus={focus}
+              focusInset={focusInset}
+              onFocused={clearFocus}
+              highlightId={highlightId}
+              ideas={ideaPins}
+              floatingIdeas={floatingIdeas}
+              selectedIdeaId={selectedIdeaId}
+              onIdeaSelect={selectIdeaPin}
+              heldIds={heldIds}
+            />
+          </APIProvider>
+        ) : (
+          <StaticMapFallback
             events={pinEvents}
             onEventSelect={onEventSelect}
-            previewEvent={shownPreview}
-            setPreviewEvent={setPreviewEvent}
-            routeResult={routeResult}
-            routeDestination={routeDestination}
             joinedIds={joinedIds}
+            heldIds={heldIds}
+            user={cameraCenter}
             viewerId={viewerId}
             now={nowMs}
-            cameraCenter={cameraCenter}
-            currentLocation={geo.coords}
-            recenterTick={recenterTick}
+            previewEvent={shownPreview}
+            setPreviewEvent={setPreviewEvent}
             highlightId={highlightId}
             ideas={ideaPins}
             floatingIdeas={floatingIdeas}
             selectedIdeaId={selectedIdeaId}
             onIdeaSelect={selectIdeaPin}
           />
-        </APIProvider>
-      ) : (
-        <StaticMapFallback
-          events={pinEvents}
-          onEventSelect={onEventSelect}
-          joinedIds={joinedIds}
-          user={cameraCenter}
-          viewerId={viewerId}
-          now={nowMs}
-          previewEvent={shownPreview}
-          setPreviewEvent={setPreviewEvent}
-          highlightId={highlightId}
-          ideas={ideaPins}
-          floatingIdeas={floatingIdeas}
-          selectedIdeaId={selectedIdeaId}
-          onIdeaSelect={selectIdeaPin}
-        />
-      )}
+        )}
+      </div>
 
       {/* Under the floating header chips (top-16 clears them): the
           geolocation banner. With the list page open the banner moves into
@@ -1343,7 +1492,9 @@ export function MapView({
         onTouchStart={handleDockTouchStart}
         onTouchEnd={handleDockTouchEnd}
         style={{ bottom: NAV_RESERVED_CSS }}
-        className={`pointer-events-none fixed inset-x-0 z-20 flex flex-col gap-2 pb-2 transition-opacity duration-200 ${
+        // Visibility is transitioned with the opacity, so the dock fades out
+        // when the composer opens instead of vanishing on the tap (#376).
+        className={`pointer-events-none fixed inset-x-0 z-20 flex flex-col gap-2 pb-2 transition-[opacity,visibility] duration-200 ${
           dockHidden ? "invisible opacity-0" : ""
         }`}
       >
@@ -1389,18 +1540,25 @@ export function MapView({
         ) : showQuietHome ? (
           <div data-quiet-home className="flex flex-col gap-2">
             {quietPeopleBlock === "recent" ? (
-              <RecentPeoplePanel
-                people={recentPeople}
-                now={nowMs}
-                onFlareWith={(person) => openDrawer({ inviteIds: [person.id] })}
+              <RecentPeopleCard
+                people={recent.people}
+                onGroup={() =>
+                  router.push(
+                    `/circles?add=${recent.people.map((p) => p.id).join(",")}`
+                  )
+                }
+                onDismiss={hideRecentPeople}
               />
             ) : quietPeopleBlock === "none" ? (
               <NoFriendsPanel onInvite={() => setQuietInviteOpen(true)} />
             ) : null}
-            <QuietIdeaCards
-              ideas={quietIdeas}
-              center={cameraCenter}
-              onLight={(next) => openDrawer(ideaPrefill(next))}
+            <FlareCtaCards
+              onRightNow={() =>
+                openDrawer({ mode: "now", audienceCircle: "close" })
+              }
+              onSoon={() =>
+                openDrawer({ mode: "scheduled", audienceCircle: "inner" })
+              }
             />
           </div>
         ) : showRail ? (
@@ -1806,7 +1964,10 @@ function GeolocationBanner({
     >
       <MapPinIcon className="h-3.5 w-3.5 shrink-0 text-accent" />
       <span className="flex-1">{msg}</span>
-      <button onClick={onRetry} className="shrink-0 font-medium text-accent">
+      <button
+        onClick={onRetry}
+        className="shrink-0 font-medium text-accent-ink"
+      >
         retry
       </button>
     </div>
@@ -1853,7 +2014,7 @@ function LocationSheetState({
       </p>
       <button
         onClick={onRetry}
-        className="mt-3 text-sm font-medium text-accent"
+        className="mt-3 text-sm font-medium text-accent-ink"
       >
         try again
       </button>
@@ -1876,7 +2037,7 @@ function ErrorPanel({
         couldn&apos;t load flares
       </p>
       <p className="line-clamp-1 text-xs text-muted-foreground">{message}</p>
-      <button onClick={onRetry} className="text-sm font-medium text-accent">
+      <button onClick={onRetry} className="text-sm font-medium text-accent-ink">
         try again
       </button>
     </div>
@@ -2154,6 +2315,9 @@ function FilterChip({
 }
 
 type TimeFilter = "live" | "upcoming" | "all"
+
+/** Where to move the map to (#376), once. */
+type MapFocus = { coords: GeoCoords }
 
 function TimeTabs({
   value,

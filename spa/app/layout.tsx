@@ -29,9 +29,9 @@ export const viewport: Viewport = {
 // Shared link-preview copy (#127). This is intentionally the same for every
 // route, including `/event/[id]` — event links must stay generic (no title,
 // location, or host) so private event details never leak into a chat preview.
-// The image comes from `app/opengraph-image.tsx` / `app/twitter-image.tsx`
-// (Next's file-convention route), which every page inherits unless it defines
-// its own — no page does, so the same branded image is used everywhere.
+// The image is the static `app/opengraph-image.png` / `app/twitter-image.png`
+// (Next's file convention, #558), which every page inherits unless it defines
+// its own — no page does, so the same image is used everywhere.
 const title = "sponti"
 const description = "light a flare and get your friends there."
 
@@ -42,8 +42,8 @@ export const metadata: Metadata = {
   // `icon.svg` / `icon-light-32x32.png` / `icon-dark-32x32.png` were referenced
   // here but never existed in `public/`, so every page load 404'd on them (#106).
   // `app/favicon.ico` already covers the browser tab icon via Next's file
-  // convention, so it's left out of this object. `apple-icon.png` is the one
-  // asset we do have (reused from the Capacitor iOS app icon).
+  // convention, so it's left out of this object. `apple-icon.png` is the
+  // 180px flame icon (#558, `scripts/generate-icons.mjs`).
   icons: {
     apple: "/apple-icon.png",
   },

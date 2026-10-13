@@ -18,7 +18,9 @@
 // slides cut.
 //
 // "look around" (the last slide), skip and Escape go to the map; "i have an
-// account" goes to /login. Leaving any way marks the slides seen (see
+// account" goes to /login. #560: over a friend's invite link or QR code the
+// last button says "continue" and closes the slides onto that screen, and
+// "i have an account" signs in with the way back to the link. Leaving any way marks the slides seen (see
 // `lib/intro-slides.ts`). Swipe, the dots and the arrow keys move between
 // slides.
 //
@@ -87,7 +89,17 @@ const FOCUS_RING =
 
 // ---- screens -----------------------------------------------------------------
 
-export function IntroSlides({ onLeave }: { onLeave: () => void }) {
+export function IntroSlides({
+  onLeave,
+  finishLabel = "look around",
+  signInPath = "/login",
+}: {
+  onLeave: () => void
+  /** The last slide's button. */
+  finishLabel?: string
+  /** Where "i have an account" goes. */
+  signInPath?: string
+}) {
   const router = useRouter()
   const [index, setIndex] = useState(0)
   const [drag, setDrag] = useState(0)
@@ -112,7 +124,7 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
     setVisits((v) => v.map((n, i) => (i === clamped ? n + 1 : n)))
   }
 
-  /** "look around", skip and Escape: to the map. */
+  /** "look around", skip and Escape: to the map (or the screen below). */
   const lookAround = () => {
     haptic("light")
     onLeave()
@@ -120,7 +132,7 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
 
   const signIn = () => {
     haptic("selection")
-    router.push("/login")
+    router.push(signInPath)
     onLeave()
   }
 
@@ -216,7 +228,7 @@ export function IntroSlides({ onLeave }: { onLeave: () => void }) {
               key={last ? "enter" : "next"}
               className="intro-label inline-flex items-center gap-2"
             >
-              {last ? "look around" : "next"}
+              {last ? finishLabel : "next"}
               <ArrowRightIcon className="size-4" />
             </span>
           </Button>

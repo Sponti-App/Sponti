@@ -1,16 +1,16 @@
 "use client"
 
 import Link from "next/link"
-import { CaretRightIcon } from "@/components/icons"
 import { useAuth } from "@/components/auth-provider"
 import {
   AccountAvatar,
   getAccountDisplayName,
 } from "@/components/account-avatar"
 
-// #369: the profile card at the top of the menu (the home drawer and /menu).
-// It is the way in to editing your profile, now that the header's settings
-// cog is gone.
+// #369, #559: the profile card at the top of the menu (the home drawer and
+// /menu). The avatar and name open your profile as others see it; "edit"
+// beside it is the way in to editing, now that the header's settings cog is
+// gone. Until the username loads, the card is the edit link alone.
 export function MenuProfile({
   tabIndex,
   onNavigate,
@@ -20,29 +20,45 @@ export function MenuProfile({
 }) {
   const { user, status } = useAuth()
   const displayName = getAccountDisplayName(user)
+  const profileHref = user?.username
+    ? `/profile/${encodeURIComponent(user.username)}`
+    : "/settings/profile"
 
   return (
-    <Link
-      href="/settings/profile"
-      tabIndex={tabIndex}
-      onClick={onNavigate}
+    <div
       data-menu-profile
-      className="-mx-2 flex items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-muted active:bg-muted"
+      className="-mx-2 flex items-center gap-2 rounded-2xl p-2"
     >
-      <AccountAvatar
-        user={user}
-        className="size-14 border border-border"
-        fallbackClassName="bg-accent/10 text-base font-medium text-accent-ink"
-      />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-lg font-semibold">
-          {status === "loading" ? "loading profile" : displayName}
+      <Link
+        href={profileHref}
+        tabIndex={tabIndex}
+        onClick={onNavigate}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left transition-colors hover:bg-muted active:bg-muted"
+      >
+        <AccountAvatar
+          user={user}
+          className="size-14 border border-border"
+          fallbackClassName="bg-accent/10 text-base font-medium text-accent-ink"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-lg font-semibold">
+            {status === "loading" ? "loading profile" : displayName}
+          </span>
+          <span className="block truncate text-sm text-muted-foreground">
+            {user?.username
+              ? `@${user.username} · view profile`
+              : "view profile"}
+          </span>
         </span>
-        <span className="block truncate text-sm text-muted-foreground">
-          {user?.username ? `@${user.username} · edit profile` : "edit profile"}
-        </span>
-      </span>
-      <CaretRightIcon className="size-4 shrink-0 text-muted-foreground" />
-    </Link>
+      </Link>
+      <Link
+        href="/settings/profile"
+        tabIndex={tabIndex}
+        onClick={onNavigate}
+        className="shrink-0 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted active:bg-muted"
+      >
+        edit profile
+      </Link>
+    </div>
   )
 }

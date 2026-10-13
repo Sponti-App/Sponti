@@ -77,7 +77,7 @@ export default function AboutSpontiPage() {
     <MenuPageShell title="about sponti">
       <article className="flex flex-col gap-6 pt-4 pb-8">
         <section className="flex flex-col gap-3">
-          <p className="text-sm font-medium text-accent">
+          <p className="text-sm font-medium text-accent-ink">
             the shortest path to irl.
           </p>
           <h2 className="text-3xl leading-tight font-bold">
@@ -192,7 +192,7 @@ export default function AboutSpontiPage() {
                 href={wbsHref}
                 target="_blank"
                 rel="noreferrer"
-                className="font-medium text-accent underline underline-offset-4"
+                className="font-medium text-accent-ink underline underline-offset-4"
               >
                 wbs coding school
               </a>
@@ -213,7 +213,7 @@ export default function AboutSpontiPage() {
               >
                 <span>{person.name}</span>
                 <LinkedinIcon
-                  className="size-4 text-accent"
+                  className="size-4 text-accent-ink"
                   aria-hidden="true"
                 />
               </a>

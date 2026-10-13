@@ -34,7 +34,13 @@ import { completeOnboarding } from "@/lib/onboarding"
 import { needsFirstFriendFirst } from "@/lib/onboarding-checklist"
 import { useOnboardingFlags } from "@/lib/onboarding-flags"
 
-export function KeptDraftWelcome() {
+export function KeptDraftWelcome({
+  onShowingChange,
+}: {
+  /** #479: true while the welcome-back sheet or the first-friend step it
+   * leads to is up, so the location ask can wait for it. */
+  onShowingChange?: (showing: boolean) => void
+} = {}) {
   const router = useRouter()
   const { introV2 } = useOnboardingFlags()
   const { openDrawer } = useNewEventDrawer()
@@ -62,6 +68,12 @@ export function KeptDraftWelcome() {
       .then((connections) => connections.length)
       .catch(() => null)
   }, [draft, introV2])
+
+  const showing = draft !== null && (open || addingFriend)
+  useEffect(() => {
+    onShowingChange?.(showing)
+    return () => onShowingChange?.(false)
+  }, [showing, onShowingChange])
 
   if (!draft) return introV2 ? null : <FirstRunIntro />
 
