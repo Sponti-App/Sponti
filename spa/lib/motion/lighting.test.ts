@@ -14,6 +14,7 @@ import {
 } from "./lighting"
 
 afterEach(() => {
+  vi.unstubAllGlobals()
   window.localStorage.clear()
   vi.restoreAllMocks()
 })
@@ -68,11 +69,15 @@ describe("the device's lit flag", () => {
   })
 
   it("survives storage that throws", () => {
-    vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
-      throw new Error("blocked")
-    })
-    vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
-      throw new Error("blocked")
+    // Swap the whole object: a spy on jsdom's localStorage instance stores a
+    // key instead of replacing the method, and Node 22 in CI hits that.
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("blocked")
+      },
+      setItem: () => {
+        throw new Error("blocked")
+      },
     })
     expect(() => markLitOnDevice()).not.toThrow()
     expect(hasLitOnDevice()).toBe(false)
