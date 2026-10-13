@@ -66,9 +66,10 @@ export const featureFlags = {
   /**
    * The lighting moment (#376, flare moments #370; motion in lib/motion,
    * #375): the composer lights a flare with the strike strip, which the nav's
-   * flare button morphs into, and once the api confirms the flare it plays
-   * the launch (someone's first flare) or the wick (every flare after). See
-   * docs/decisions/flare-lighting-motion.md. On in the full profile, off in
+   * flare button morphs into, and the strike starts the full-screen "night
+   * flare" takeover, which lands the flare on the map once the api has
+   * created it (the full burst for someone's first flare, the soft one
+   * after). See docs/decisions/flare-lighting-motion.md. On in the full profile, off in
    * the tester build (production) until it passes review, but on in the
    * `dev` branch's Vercel deploy so it can be tried on a phone; off, the
    * composer's "light a flare" button and success toast are exactly as before.

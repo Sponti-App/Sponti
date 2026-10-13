@@ -2,25 +2,27 @@
 
 // The composer's side of the lighting moment (#376, behind
 // `flareLightMoment`): the nav button's morph into the strike strip, what the
-// composer needs to know to pick the take, and the layer the moment plays in.
-// The motion itself is in lib/motion (#375).
+// composer needs to know to size the burst, and the takeover's layer. The
+// motion itself is in lib/motion (#375) and components/flare-takeover.tsx.
 
-import dynamic from "next/dynamic"
 import { useEffect, useRef, type RefObject } from "react"
-import type { Icon } from "@/components/icons"
-import { STRIP_KNOB } from "@/components/strike-strip"
-import { fetchMyFlares, type EventVisibility } from "@/lib/api/events"
 import {
-  hasLitOnDevice,
-  pickLightingTake,
-  toneFor,
-  type LightingTake,
-  type Point,
-} from "@/lib/motion/lighting"
-import { preloadGsap } from "@/lib/motion/load-gsap"
+  FlareTakeover,
+  HERO_PIN_ID,
+  type TakeoverOutcome,
+  type TakeoverResult,
+  type TakeoverSpec,
+} from "@/components/flare-takeover"
+import { STRIP_KNOB } from "@/components/strike-strip"
+import {
+  fetchMyFlares,
+  type EventType,
+  type EventVisibility,
+} from "@/lib/api/events"
+import { hasLitOnDevice, pickBurst } from "@/lib/motion/lighting"
 import { runMorph, type Rect } from "@/lib/motion/morph"
 import { prefersReducedMotion } from "@/lib/motion/reduced-motion"
-import type { FlareMomentSpec } from "@/lib/motion/flare-moment"
+import { whenLabel } from "@/lib/motion/takeover"
 
 // The sheet slides in and out in 500 ms on vaul's curve. Opening, the pill
 // lands with it; closing, the circle is home a little before the sheet has
@@ -32,22 +34,8 @@ const MORPH_SAFETY_MS = 1500
 
 const NAV_CIRCLE = "[data-nav-flare-circle]"
 
-const loadMoment = () => import("@/lib/motion/flare-moment")
-const FlareMoment = dynamic(() => loadMoment().then((m) => m.FlareMoment), {
-  ssr: false,
-})
-
 function navCircle(): Element | null {
   return document.querySelector(NAV_CIRCLE)
-}
-
-/** The centre of the nav's flare button, or the bottom middle without one. */
-export function flareButtonCenter(): Point {
-  const r = navCircle()?.getBoundingClientRect()
-  if (r && r.width > 0) {
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
-  }
-  return { x: window.innerWidth / 2, y: window.innerHeight - 40 }
 }
 
 /**
@@ -173,8 +161,7 @@ export function useStrikeMorph({
 
 /**
  * Whether the person has hosted a flare, fetched when the composer opens (so
- * it is known before the api creates the new one). Also preloads the
- * moment's code and GSAP then, so the first strike doesn't wait for them.
+ * it is known before the api creates the new one): it sizes the burst.
  */
 export function useHostedSnapshot(open: boolean, enabled: boolean) {
   const snapshot = useRef<{ loaded: boolean; count: number }>({
@@ -183,8 +170,6 @@ export function useHostedSnapshot(open: boolean, enabled: boolean) {
   })
   useEffect(() => {
     if (!enabled || !open) return
-    void loadMoment().catch(() => {})
-    preloadGsap()
     const ac = new AbortController()
     fetchMyFlares(ac.signal)
       .then((r) => {
@@ -194,55 +179,65 @@ export function useHostedSnapshot(open: boolean, enabled: boolean) {
         }
       })
       .catch(() => {
-        // Unknown: the wick plays (pickLightingTake).
+        // Unknown: the soft burst plays (pickBurst).
       })
     return () => ac.abort()
   }, [open, enabled])
   return snapshot
 }
 
-export type LightingMoment = { id: number; spec: FlareMomentSpec }
+/** A takeover in flight: from the strike until it has handed over. */
+export type LightingTakeover = {
+  id: number
+  spec: TakeoverSpec
+  /** Null until the api has answered. */
+  result: TakeoverResult | null
+}
 
-/** What the moment for a just-confirmed flare looks like. */
-export function lightingMomentFor(input: {
+/** What the takeover for a flare being lit shows, known at the strike. */
+export function takeoverSpecFor(input: {
   hosted: { loaded: boolean; count: number }
-  Icon: Icon
+  type: EventType
   visibility: EventVisibility
+  title: string
   startAt: string
+  endAt: string
   now?: number
-}): FlareMomentSpec {
-  const take: LightingTake = pickLightingTake({
-    hostedLoaded: input.hosted.loaded,
-    hostedCount: input.hosted.count,
-    litOnDevice: hasLitOnDevice(),
-  })
+}): TakeoverSpec {
   return {
-    take,
-    Icon: input.Icon,
-    tone: toneFor(input.visibility),
-    live: new Date(input.startAt).getTime() <= (input.now ?? Date.now()),
-    origin: flareButtonCenter(),
+    pin: {
+      id: HERO_PIN_ID,
+      type: input.type,
+      visibility: input.visibility,
+      startAt: input.startAt,
+      endAt: input.endAt,
+    },
+    title: input.title,
+    when: whenLabel(input.startAt, input.now ?? Date.now()),
+    burst: pickBurst({
+      hostedLoaded: input.hosted.loaded,
+      hostedCount: input.hosted.count,
+      litOnDevice: hasLitOnDevice(),
+    }),
   }
 }
 
-/** The layer a lighting moment plays in, above everything but the toasts. */
-export function LightingMomentLayer({
-  moment,
-  onLit,
-  onDone,
+/** The layer the takeover plays in, above everything but the toasts. */
+export function LightingTakeoverLayer({
+  takeover,
+  onEnd,
 }: {
-  moment: LightingMoment | null
-  onLit: () => void
-  onDone: () => void
+  takeover: LightingTakeover | null
+  onEnd: (outcome: TakeoverOutcome) => void
 }) {
-  if (!moment) return null
+  if (!takeover) return null
   return (
-    <FlareMoment
-      key={moment.id}
-      spec={moment.spec}
+    <FlareTakeover
+      key={takeover.id}
+      spec={takeover.spec}
+      result={takeover.result}
       reduced={prefersReducedMotion()}
-      onLit={onLit}
-      onDone={onDone}
+      onEnd={onEnd}
     />
   )
 }

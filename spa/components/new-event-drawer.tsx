@@ -32,12 +32,13 @@ import { useAuth } from "@/components/auth-provider"
 import { featureFlags } from "@/lib/feature-flags"
 import { StrikeStrip } from "@/components/strike-strip"
 import {
-  LightingMomentLayer,
-  lightingMomentFor,
+  LightingTakeoverLayer,
+  takeoverSpecFor,
   useHostedSnapshot,
   useStrikeMorph,
-  type LightingMoment,
+  type LightingTakeover,
 } from "@/components/flare-lighting"
+import type { TakeoverOutcome } from "@/components/flare-takeover"
 import { markLitOnDevice } from "@/lib/motion/lighting"
 import { composeFlareTitle } from "@/lib/flare-title"
 import { Button } from "@/components/ui/button"
@@ -56,7 +57,7 @@ import {
   type EventItem,
   type EventType,
 } from "@/lib/api/events"
-import { announceLitFlare } from "@/lib/lit-flare"
+import { announceLitFlare, announceLitFocus } from "@/lib/lit-flare"
 import {
   addCircleMember as addApiCircleMember,
   fetchMyCircles,
@@ -1413,8 +1414,9 @@ export function NewEventDrawer({
   }, [isOpen, selectedAudienceCircle, inviteeCount, guestLimit])
 
   // #376 (`flareLightMoment`): the strike strip replaces the button, the
-  // nav's flare button morphs into it, and a confirmed flare plays the
-  // lighting moment before the success toast.
+  // nav's flare button morphs into it, and the strike starts the lighting
+  // takeover, which lands the flare on the map once the api has created it
+  // (or steps aside if it fails), before the success toast.
   const lightMoment = featureFlags.flareLightMoment
   const strikeStripRef = useRef<HTMLButtonElement>(null)
   useStrikeMorph({
@@ -1424,9 +1426,18 @@ export function NewEventDrawer({
     onFlareButtonHidden,
   })
   const hostedSnapshot = useHostedSnapshot(open, lightMoment)
-  const [moment, setMoment] = useState<
-    (LightingMoment & { toast: string }) | null
-  >(null)
+  const [takeover, setTakeover] = useState<LightingTakeover | null>(null)
+  // The takeover in flight, for the submit that started it (state is stale
+  // inside that async function). Cleared when it ends.
+  const takeoverRef = useRef<{ id: number; toast: string | null } | null>(null)
+  const endTakeover = (outcome: TakeoverOutcome) => {
+    const ended = takeoverRef.current
+    takeoverRef.current = null
+    setTakeover(null)
+    if (outcome === "landed" && ended?.toast) showActionFeedback(ended.toast)
+  }
+
+  const composerHidden = !!takeover && takeover.result?.ok !== false
 
   const handleSubmit = async (): Promise<void> => {
     if (isSubmitting) return
@@ -1536,6 +1547,27 @@ export function NewEventDrawer({
         durationMin,
       })
 
+      if (lightMoment) {
+        // The strike starts the takeover now, before the api has answered:
+        // the map moves to the flare's spot under it.
+        const id = Date.now()
+        takeoverRef.current = { id, toast: null }
+        setTakeover({
+          id,
+          result: null,
+          spec: takeoverSpecFor({
+            hosted: hostedSnapshot.current,
+            type: effectiveType,
+            visibility: draft.visibility,
+            title: finalTitle,
+            startAt: timeRange.startAt,
+            endAt: timeRange.endAt,
+          }),
+        })
+        const [lng, lat] = draftLocation.coordinates
+        announceLitFocus({ lat, lng })
+      }
+
       const requestBody = createEventRequestFromDraft(
         draft,
         eventAudience,
@@ -1570,26 +1602,32 @@ export function NewEventDrawer({
         throw err
       }
       const toast = successToastForStart(timeRange.startAt, createdAt)
-      // The home map shows the new flare and moves to it (#376).
-      if (litEvent) announceLitFlare(litEvent)
-      if (lightMoment) {
-        // Only now that the api has confirmed it: the moment, then the
-        // toast once the flare has caught (LightingMomentLayer's onLit).
-        const spec = lightingMomentFor({
-          hosted: hostedSnapshot.current,
-          Icon:
-            EVENT_TYPES.find((t) => t.value === effectiveType)?.icon ??
-            SparkleIcon,
-          visibility: draft.visibility,
-          startAt: timeRange.startAt,
-        })
-        markLitOnDevice()
-        setMoment({ id: Date.now(), spec, toast })
+      if (lightMoment) markLitOnDevice()
+      const flight = takeoverRef.current
+      if (flight) {
+        // The takeover lands the flare: the map draws its pin hidden ("held")
+        // until the takeover hands over to it, and the toast follows then.
+        flight.toast = toast
+        if (litEvent) announceLitFlare(litEvent, { held: true })
+        const eventId = litEvent?.id ?? null
+        setTakeover((t) =>
+          t && t.id === flight.id ? { ...t, result: { ok: true, eventId } } : t
+        )
       } else {
+        // The home map shows the new flare and moves to it (#376).
+        if (litEvent) announceLitFlare(litEvent)
         showActionFeedback(toast)
       }
       onClose()
     } catch (error) {
+      // The takeover steps aside (it fades out) and the composer is back
+      // with the draft, as without it.
+      const flight = takeoverRef.current
+      if (flight) {
+        setTakeover((t) =>
+          t && t.id === flight.id ? { ...t, result: { ok: false } } : t
+        )
+      }
       setSubmitError(formatSubmitError(error))
       showActionFeedback("couldn't light that flare", { tone: "error" })
     } finally {
@@ -1673,7 +1711,12 @@ export function NewEventDrawer({
             the first measurement lands. */}
           <Drawer.Content
             ref={sheetRef}
-            className="fixed inset-x-0 z-[61] h-full"
+            // Under the lighting takeover the composer fades away; a failed
+            // flare brings it straight back.
+            data-lighting={composerHidden ? "true" : undefined}
+            className={`fixed inset-x-0 z-[61] h-full transition-opacity duration-200 ${
+              composerHidden ? "opacity-0" : ""
+            }`}
             style={{ bottom: sheetBottomCss(activeSnap) }}
           >
             <div
@@ -2055,13 +2098,7 @@ export function NewEventDrawer({
         </Drawer.Portal>
       </Drawer.Root>
       {lightMoment && (
-        <LightingMomentLayer
-          moment={moment}
-          onLit={() => {
-            if (moment) showActionFeedback(moment.toast)
-          }}
-          onDone={() => setMoment(null)}
-        />
+        <LightingTakeoverLayer takeover={takeover} onEnd={endTakeover} />
       )}
     </>
   )
