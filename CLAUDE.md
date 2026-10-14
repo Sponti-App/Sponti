@@ -123,6 +123,8 @@ cd auth-server
 npm run dev          # node --watch (no compile step)
 npm run build        # tsc → dist/
 npm start            # build then run dist/app.js
+npm test             # node:test, every model call mocked
+npm run lint && npm run format   # CI runs format:check (#333)
 ```
 
 ## Branches, PRs and deploys
