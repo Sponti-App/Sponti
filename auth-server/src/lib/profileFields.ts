@@ -8,7 +8,8 @@
 
 export const BIO_MAX_LENGTH = 80;
 
-export type ProfileFieldResult = { ok: true; value: string | null } | { ok: false; message: string };
+export type ProfileFieldResult =
+    { ok: true; value: string | null } | { ok: false; message: string };
 
 type Network = {
     label: string;
@@ -43,13 +44,19 @@ const extractHandle = (input: string, network: Network): ProfileFieldResult => {
 
     if (link && host && (network.hosts.includes(host) || /^https?:\/\//i.test(input))) {
         if (!network.hosts.includes(host)) {
-            return { ok: false, message: `${network.label} must be a handle or a ${network.hosts[0]} profile link` };
+            return {
+                ok: false,
+                message: `${network.label} must be a handle or a ${network.hosts[0]} profile link`,
+            };
         }
 
         const segments = (link[2] ?? "").split("/").filter(Boolean);
 
         if (segments.length !== 1) {
-            return { ok: false, message: `${network.label} link must point to a profile, like ${network.hosts[0]}/yourname` };
+            return {
+                ok: false,
+                message: `${network.label} link must point to a profile, like ${network.hosts[0]}/yourname`,
+            };
         }
 
         return { ok: true, value: segments[0]! };

@@ -2,18 +2,13 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 import type { Request, Response } from "express";
 import { OAuth2Client, type LoginTicket } from "google-auth-library";
-import {
-  User,
-  NotificationSettings,
-  RefreshToken,
-  PasswordResetToken,
-} from "#models";
+import { User, NotificationSettings, RefreshToken, PasswordResetToken } from "#models";
 import { sendPasswordResetEmail } from "#lib/email";
 import {
-  createAccessToken,
-  createRefreshToken,
-  hashRefreshToken,
-  verifyRefreshToken,
+    createAccessToken,
+    createRefreshToken,
+    hashRefreshToken,
+    verifyRefreshToken,
 } from "#lib/tokens";
 import cloudinary from "#lib/cloudinary";
 import type { UploadApiResponse } from "cloudinary";
@@ -24,488 +19,488 @@ import streamfier from "streamifier";
 const googleClient = new OAuth2Client();
 
 const deleteExpiredRefreshTokens = (userId: string) =>
-  RefreshToken.deleteMany({
-    userId,
-    expiresAt: { $lte: new Date() },
-  });
+    RefreshToken.deleteMany({
+        userId,
+        expiresAt: { $lte: new Date() },
+    });
 
 const saveRefreshToken = async (userId: string, refreshToken: string) => {
-  const tokenHash = await hashRefreshToken(refreshToken);
-  const refreshPayload = verifyRefreshToken(refreshToken);
-  const expiresAt = refreshPayload.exp
-    ? new Date(refreshPayload.exp * 1000)
-    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const tokenHash = await hashRefreshToken(refreshToken);
+    const refreshPayload = verifyRefreshToken(refreshToken);
+    const expiresAt = refreshPayload.exp
+        ? new Date(refreshPayload.exp * 1000)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-  await RefreshToken.create({
-    userId,
-    tokenHash,
-    expiresAt,
-  });
+    await RefreshToken.create({
+        userId,
+        tokenHash,
+        expiresAt,
+    });
 };
 
 // Default circles are API-owned and seeded lazily by the api on first GET /circles
 // (see docs/decisions/circles-and-users-are-api-owned.md).
 const createDefaultUserRecords = async (userId: string) => {
-  await NotificationSettings.create({
-    userId,
-  });
+    await NotificationSettings.create({
+        userId,
+    });
 };
 
 const createSessionResponse = async (user: InstanceType<typeof User>) => {
-  // #542: every sign-in (password, Google, sign-up) ends here. A suspended
-  // account gets no session; the runbook deletes its refresh tokens, so the
-  // one it has runs out with its access token (15 min).
-  if (user.deletedAt) {
-    throw new Error("Invalid email or password", { cause: { status: 401 } });
-  }
+    // #542: every sign-in (password, Google, sign-up) ends here. A suspended
+    // account gets no session; the runbook deletes its refresh tokens, so the
+    // one it has runs out with its access token (15 min).
+    if (user.deletedAt) {
+        throw new Error("Invalid email or password", { cause: { status: 401 } });
+    }
 
-  if (user.suspendedAt) {
-    throw new Error(
-      "this account is suspended. write to hello@sponti.fun if you think that's a mistake.",
-      { cause: { status: 403, code: "ACCOUNT_SUSPENDED" } }
-    );
-  }
+    if (user.suspendedAt) {
+        throw new Error(
+            "this account is suspended. write to hello@sponti.fun if you think that's a mistake.",
+            { cause: { status: 403, code: "ACCOUNT_SUSPENDED" } }
+        );
+    }
 
-  const userId = user._id.toString();
-  const accessToken = createAccessToken(userId);
-  const refreshToken = createRefreshToken(userId);
-  await deleteExpiredRefreshTokens(userId);
-  await saveRefreshToken(userId, refreshToken);
+    const userId = user._id.toString();
+    const accessToken = createAccessToken(userId);
+    const refreshToken = createRefreshToken(userId);
+    await deleteExpiredRefreshTokens(userId);
+    await saveRefreshToken(userId, refreshToken);
 
-  return {
-    accessToken,
-    refreshToken,
-    user: toOwnProfileResponse(user),
-  };
+    return {
+        accessToken,
+        refreshToken,
+        user: toOwnProfileResponse(user),
+    };
 };
 
 const normalizeUsernameBase = (value: string) => {
-  const normalized = value
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, "")
-    .slice(0, 24);
+    const normalized = value
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "")
+        .slice(0, 24);
 
-  return normalized.length >= 3 ? normalized : "user";
+    return normalized.length >= 3 ? normalized : "user";
 };
 
 const generateUsername = async (email: string, displayName: string) => {
-  const [emailName = ""] = email.split("@");
-  const base = normalizeUsernameBase(emailName || displayName);
+    const [emailName = ""] = email.split("@");
+    const base = normalizeUsernameBase(emailName || displayName);
 
-  for (let index = 0; index < 100; index += 1) {
-    const suffix = index === 0 ? "" : String(index + 1);
-    const username = `${base.slice(0, 30 - suffix.length)}${suffix}`;
-    const exists = await User.exists({ username });
+    for (let index = 0; index < 100; index += 1) {
+        const suffix = index === 0 ? "" : String(index + 1);
+        const username = `${base.slice(0, 30 - suffix.length)}${suffix}`;
+        const exists = await User.exists({ username });
 
-    if (!exists) return username;
-  }
+        if (!exists) return username;
+    }
 
-  throw new Error("Could not generate a username", { cause: { status: 500 } });
+    throw new Error("Could not generate a username", { cause: { status: 500 } });
 };
 
 export const register = async (req: Request, res: Response) => {
-  const { username, displayName, email, password } = req.body;
+    const { username, displayName, email, password } = req.body;
 
-  const normalizedEmail = email.toLowerCase();
-  const userExists = await User.exists({ email: normalizedEmail });
+    const normalizedEmail = email.toLowerCase();
+    const userExists = await User.exists({ email: normalizedEmail });
 
-  if (userExists) {
-    throw new Error("User with this email already exists", {
-      cause: { status: 409 },
+    if (userExists) {
+        throw new Error("User with this email already exists", {
+            cause: { status: 409 },
+        });
+    }
+
+    const usernameExists = await User.exists({ username });
+
+    if (usernameExists) {
+        throw new Error("Username already taken", { cause: { status: 409 } });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await User.create({
+        username,
+        displayName,
+        email: normalizedEmail,
+        passwordHash,
     });
-  }
+    await createDefaultUserRecords(user._id.toString());
 
-  const usernameExists = await User.exists({ username });
+    const session = await createSessionResponse(user);
 
-  if (usernameExists) {
-    throw new Error("Username already taken", { cause: { status: 409 } });
-  }
-
-  const passwordHash = await bcrypt.hash(password, 10);
-  const user = await User.create({
-    username,
-    displayName,
-    email: normalizedEmail,
-    passwordHash,
-  });
-  await createDefaultUserRecords(user._id.toString());
-
-  const session = await createSessionResponse(user);
-
-  res.status(201).json({
-    ...session,
-  });
+    res.status(201).json({
+        ...session,
+    });
 };
 
 export const login = async (req: Request, res: Response) => {
-  const { email, password } = req.body;
-  const normalizedEmail = email.toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail });
+    const { email, password } = req.body;
+    const normalizedEmail = email.toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
 
-  if (!user) {
-    throw new Error("Invalid email or password", { cause: { status: 401 } });
-  }
+    if (!user) {
+        throw new Error("Invalid email or password", { cause: { status: 401 } });
+    }
 
-  if (!user.passwordHash) {
-    throw new Error("Invalid email or password", { cause: { status: 401 } });
-  }
+    if (!user.passwordHash) {
+        throw new Error("Invalid email or password", { cause: { status: 401 } });
+    }
 
-  const passwordMatches = await bcrypt.compare(password, user.passwordHash);
+    const passwordMatches = await bcrypt.compare(password, user.passwordHash);
 
-  if (!passwordMatches) {
-    throw new Error("Invalid email or password", { cause: { status: 401 } });
-  }
+    if (!passwordMatches) {
+        throw new Error("Invalid email or password", { cause: { status: 401 } });
+    }
 
-  const session = await createSessionResponse(user);
+    const session = await createSessionResponse(user);
 
-  res.json({
-    ...session,
-  });
+    res.json({
+        ...session,
+    });
 };
 
 export const googleLogin = async (req: Request, res: Response) => {
-  const { credential } = req.body as { credential: string };
-  const clientId = env.GOOGLE_CLIENT_ID;
+    const { credential } = req.body as { credential: string };
+    const clientId = env.GOOGLE_CLIENT_ID;
 
-  if (!clientId) {
-    throw new Error("GOOGLE_CLIENT_ID is not configured", {
-      cause: { status: 500 },
-    });
-  }
-
-  let ticket: LoginTicket;
-
-  try {
-    ticket = await googleClient.verifyIdToken({
-      idToken: credential,
-      audience: clientId,
-    });
-  } catch {
-    throw new Error("Invalid Google credential", { cause: { status: 401 } });
-  }
-  const payload = ticket.getPayload();
-
-  if (!payload?.sub || !payload.email) {
-    throw new Error("Invalid Google credential", { cause: { status: 401 } });
-  }
-
-  if (!payload.email_verified) {
-    throw new Error("Google email is not verified", { cause: { status: 401 } });
-  }
-
-  const normalizedEmail = payload.email.toLowerCase();
-  let user = await User.findOne({
-    $or: [{ googleId: payload.sub }, { email: normalizedEmail }],
-  });
-  let isNewUser = false;
-
-  if (user) {
-    if (!user.googleId) {
-      // #537: sign-up never proves the email belongs to whoever set the
-      // password, so someone could have registered this address first. Google
-      // just proved who owns it: drop that password and every session made
-      // with it. The owner can set a password again with "forgot password".
-      if (user.passwordHash) {
-        user.passwordHash = null;
-        await RefreshToken.deleteMany({ userId: user._id });
-      }
-      user.googleId = payload.sub;
+    if (!clientId) {
+        throw new Error("GOOGLE_CLIENT_ID is not configured", {
+            cause: { status: 500 },
+        });
     }
-    if (!user.avatarUrl && payload.picture) user.avatarUrl = payload.picture;
-    await user.save();
-  } else {
-    isNewUser = true;
-    const displayName =
-      payload.name?.trim() || normalizedEmail.split("@")[0] || "Sponti user";
-    const username = await generateUsername(normalizedEmail, displayName);
 
-    user = await User.create({
-      username,
-      displayName,
-      email: normalizedEmail,
-      googleId: payload.sub,
-      avatarUrl: payload.picture ?? null,
+    let ticket: LoginTicket;
+
+    try {
+        ticket = await googleClient.verifyIdToken({
+            idToken: credential,
+            audience: clientId,
+        });
+    } catch {
+        throw new Error("Invalid Google credential", { cause: { status: 401 } });
+    }
+    const payload = ticket.getPayload();
+
+    if (!payload?.sub || !payload.email) {
+        throw new Error("Invalid Google credential", { cause: { status: 401 } });
+    }
+
+    if (!payload.email_verified) {
+        throw new Error("Google email is not verified", { cause: { status: 401 } });
+    }
+
+    const normalizedEmail = payload.email.toLowerCase();
+    let user = await User.findOne({
+        $or: [{ googleId: payload.sub }, { email: normalizedEmail }],
     });
-    await createDefaultUserRecords(user._id.toString());
-  }
+    let isNewUser = false;
 
-  const session = await createSessionResponse(user);
+    if (user) {
+        if (!user.googleId) {
+            // #537: sign-up never proves the email belongs to whoever set the
+            // password, so someone could have registered this address first. Google
+            // just proved who owns it: drop that password and every session made
+            // with it. The owner can set a password again with "forgot password".
+            if (user.passwordHash) {
+                user.passwordHash = null;
+                await RefreshToken.deleteMany({ userId: user._id });
+            }
+            user.googleId = payload.sub;
+        }
+        if (!user.avatarUrl && payload.picture) user.avatarUrl = payload.picture;
+        await user.save();
+    } else {
+        isNewUser = true;
+        const displayName = payload.name?.trim() || normalizedEmail.split("@")[0] || "Sponti user";
+        const username = await generateUsername(normalizedEmail, displayName);
 
-  res.json({
-    ...session,
-    isNewUser,
-  });
+        user = await User.create({
+            username,
+            displayName,
+            email: normalizedEmail,
+            googleId: payload.sub,
+            avatarUrl: payload.picture ?? null,
+        });
+        await createDefaultUserRecords(user._id.toString());
+    }
+
+    const session = await createSessionResponse(user);
+
+    res.json({
+        ...session,
+        isNewUser,
+    });
 };
 
 export const refresh = async (req: Request, res: Response) => {
-  const { refreshToken } = req.body;
+    const { refreshToken } = req.body;
 
-  let refreshPayload: ReturnType<typeof verifyRefreshToken>;
+    let refreshPayload: ReturnType<typeof verifyRefreshToken>;
 
-  try {
-    refreshPayload = verifyRefreshToken(refreshToken);
-  } catch {
-    throw new Error("Invalid refresh token", { cause: { status: 401 } });
-  }
-
-  const activeTokens = await RefreshToken.find({
-    userId: refreshPayload.userId,
-    revokedAt: null,
-    expiresAt: { $gt: new Date() },
-  }).sort({ createdAt: -1 });
-
-  let matchedToken: InstanceType<typeof RefreshToken> | null = null;
-
-  for (const tokenDoc of activeTokens) {
-    const matches = await bcrypt.compare(refreshToken, tokenDoc.tokenHash);
-
-    if (matches) {
-      matchedToken = tokenDoc;
-      break;
+    try {
+        refreshPayload = verifyRefreshToken(refreshToken);
+    } catch {
+        throw new Error("Invalid refresh token", { cause: { status: 401 } });
     }
-  }
 
-  if (!matchedToken) {
-    throw new Error("Invalid refresh token", { cause: { status: 401 } });
-  }
+    const activeTokens = await RefreshToken.find({
+        userId: refreshPayload.userId,
+        revokedAt: null,
+        expiresAt: { $gt: new Date() },
+    }).sort({ createdAt: -1 });
 
-  const consumedToken = await RefreshToken.findOneAndDelete({
-    _id: matchedToken._id,
-    revokedAt: null,
-    expiresAt: { $gt: new Date() },
-  });
+    let matchedToken: InstanceType<typeof RefreshToken> | null = null;
 
-  if (!consumedToken) {
-    throw new Error("Invalid refresh token", { cause: { status: 401 } });
-  }
+    for (const tokenDoc of activeTokens) {
+        const matches = await bcrypt.compare(refreshToken, tokenDoc.tokenHash);
 
-  const accessToken = createAccessToken(refreshPayload.userId);
-  const nextRefreshToken = createRefreshToken(refreshPayload.userId);
-  await deleteExpiredRefreshTokens(refreshPayload.userId);
-  await saveRefreshToken(refreshPayload.userId, nextRefreshToken);
+        if (matches) {
+            matchedToken = tokenDoc;
+            break;
+        }
+    }
 
-  res.json({
-    accessToken,
-    refreshToken: nextRefreshToken,
-  });
+    if (!matchedToken) {
+        throw new Error("Invalid refresh token", { cause: { status: 401 } });
+    }
+
+    const consumedToken = await RefreshToken.findOneAndDelete({
+        _id: matchedToken._id,
+        revokedAt: null,
+        expiresAt: { $gt: new Date() },
+    });
+
+    if (!consumedToken) {
+        throw new Error("Invalid refresh token", { cause: { status: 401 } });
+    }
+
+    const accessToken = createAccessToken(refreshPayload.userId);
+    const nextRefreshToken = createRefreshToken(refreshPayload.userId);
+    await deleteExpiredRefreshTokens(refreshPayload.userId);
+    await saveRefreshToken(refreshPayload.userId, nextRefreshToken);
+
+    res.json({
+        accessToken,
+        refreshToken: nextRefreshToken,
+    });
 };
 
 export const logout = async (req: Request, res: Response) => {
-  const { refreshToken } = req.body;
+    const { refreshToken } = req.body;
 
-  let refreshPayload: ReturnType<typeof verifyRefreshToken>;
+    let refreshPayload: ReturnType<typeof verifyRefreshToken>;
 
-  try {
-    refreshPayload = verifyRefreshToken(refreshToken);
-  } catch {
-    throw new Error("Invalid refresh token", { cause: { status: 401 } });
-  }
-
-  const activeTokens = await RefreshToken.find({
-    userId: refreshPayload.userId,
-    revokedAt: null,
-  }).sort({ createdAt: -1 });
-
-  let matchedToken: InstanceType<typeof RefreshToken> | null = null;
-
-  for (const tokenDoc of activeTokens) {
-    const matches = await bcrypt.compare(refreshToken, tokenDoc.tokenHash);
-
-    if (matches) {
-      matchedToken = tokenDoc;
-      break;
+    try {
+        refreshPayload = verifyRefreshToken(refreshToken);
+    } catch {
+        throw new Error("Invalid refresh token", { cause: { status: 401 } });
     }
-  }
 
-  if (matchedToken) await matchedToken.deleteOne();
+    const activeTokens = await RefreshToken.find({
+        userId: refreshPayload.userId,
+        revokedAt: null,
+    }).sort({ createdAt: -1 });
 
-  res.json({ success: true });
+    let matchedToken: InstanceType<typeof RefreshToken> | null = null;
+
+    for (const tokenDoc of activeTokens) {
+        const matches = await bcrypt.compare(refreshToken, tokenDoc.tokenHash);
+
+        if (matches) {
+            matchedToken = tokenDoc;
+            break;
+        }
+    }
+
+    if (matchedToken) await matchedToken.deleteOne();
+
+    res.json({ success: true });
 };
 
 export const me = async (req: Request, res: Response) => {
-  const user = await User.findById(req.userId);
+    const user = await User.findById(req.userId);
 
-  if (!user) {
-    throw new Error("User not found", { cause: { status: 404 } });
-  }
+    if (!user) {
+        throw new Error("User not found", { cause: { status: 404 } });
+    }
 
-  res.json({
-    user: toOwnProfileResponse(user),
-  });
+    res.json({
+        user: toOwnProfileResponse(user),
+    });
 };
 
 export const forgotPassword = async (req: Request, res: Response) => {
-  const { email } = req.body as { email: string };
-  const normalizedEmail = email.toLowerCase();
+    const { email } = req.body as { email: string };
+    const normalizedEmail = email.toLowerCase();
 
-  const user = await User.findOne({ email: normalizedEmail });
+    const user = await User.findOne({ email: normalizedEmail });
 
-  // Always respond 200 to avoid leaking whether an account exists
-  if (!user) {
+    // Always respond 200 to avoid leaking whether an account exists
+    if (!user) {
+        res.json({
+            message: "If that email is registered you will receive a reset link shortly.",
+        });
+        return;
+    }
+
+    // Invalidate any existing unused tokens for this user
+    await PasswordResetToken.updateMany({ userId: user._id, used: false }, { used: true });
+
+    const plainToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(plainToken).digest("hex");
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await PasswordResetToken.create({ userId: user._id, tokenHash, expiresAt });
+
+    const appUrl = env.APP_URL;
+    const resetUrl = `${appUrl}/reset-password?token=${plainToken}`;
+
+    await sendPasswordResetEmail(normalizedEmail, resetUrl);
+
     res.json({
-      message:
-        "If that email is registered you will receive a reset link shortly.",
+        message: "If that email is registered you will receive a reset link shortly.",
     });
-    return;
-  }
-
-  // Invalidate any existing unused tokens for this user
-  await PasswordResetToken.updateMany(
-    { userId: user._id, used: false },
-    { used: true },
-  );
-
-  const plainToken = crypto.randomBytes(32).toString("hex");
-  const tokenHash = crypto
-    .createHash("sha256")
-    .update(plainToken)
-    .digest("hex");
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-
-  await PasswordResetToken.create({ userId: user._id, tokenHash, expiresAt });
-
-  const appUrl = env.APP_URL;
-  const resetUrl = `${appUrl}/reset-password?token=${plainToken}`;
-
-  await sendPasswordResetEmail(normalizedEmail, resetUrl);
-
-  res.json({
-    message:
-      "If that email is registered you will receive a reset link shortly.",
-  });
 };
 
 export const resetPassword = async (req: Request, res: Response) => {
-  const { token, password } = req.body as { token: string; password: string };
+    const { token, password } = req.body as { token: string; password: string };
 
-  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-  // #536: used up in one atomic step, so a link works exactly once even when
-  // two requests arrive together.
-  const record = await PasswordResetToken.findOneAndUpdate(
-    { tokenHash, used: false, expiresAt: { $gt: new Date() } },
-    { used: true },
-  );
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    // #536: used up in one atomic step, so a link works exactly once even when
+    // two requests arrive together.
+    const record = await PasswordResetToken.findOneAndUpdate(
+        { tokenHash, used: false, expiresAt: { $gt: new Date() } },
+        { used: true }
+    );
 
-  if (!record) {
-    throw new Error("Reset link is invalid or has expired", {
-      cause: { status: 400 },
-    });
-  }
+    if (!record) {
+        throw new Error("Reset link is invalid or has expired", {
+            cause: { status: 400 },
+        });
+    }
 
-  const passwordHash = await bcrypt.hash(password, 10);
-  await User.findByIdAndUpdate(record.userId, { passwordHash });
-  // #536: a reset is how someone locks out whoever else has their session, so
-  // it ends every session. Other devices drop out at their next refresh.
-  await RefreshToken.deleteMany({ userId: record.userId });
+    const passwordHash = await bcrypt.hash(password, 10);
+    await User.findByIdAndUpdate(record.userId, { passwordHash });
+    // #536: a reset is how someone locks out whoever else has their session, so
+    // it ends every session. Other devices drop out at their next refresh.
+    await RefreshToken.deleteMany({ userId: record.userId });
 
-  res.json({ message: "Password updated successfully." });
+    res.json({ message: "Password updated successfully." });
 };
 
 // #539: the upload is awaited inside the handler, so a Cloudinary failure
 // reaches Express's error handler instead of crashing the process.
 const uploadAvatarImage = (buffer: Buffer, publicId: string) =>
-  new Promise<UploadApiResponse>((resolve, reject) => {
-    const upload = cloudinary.uploader.upload_stream(
-      {
-        folder: "avatars",
-        public_id: publicId,
-        overwrite: true,
-        resource_type: "image",
-      },
-      (error, result) => {
-        if (error || !result) {
-          console.error("Cloudinary upload error:", error);
-          reject(new Error("Failed to upload avatar", { cause: { status: 500 } }));
-          return;
-        }
+    new Promise<UploadApiResponse>((resolve, reject) => {
+        const upload = cloudinary.uploader.upload_stream(
+            {
+                folder: "avatars",
+                public_id: publicId,
+                overwrite: true,
+                resource_type: "image",
+            },
+            (error, result) => {
+                if (error || !result) {
+                    console.error("Cloudinary upload error:", error);
+                    reject(new Error("Failed to upload avatar", { cause: { status: 500 } }));
+                    return;
+                }
 
-        resolve(result);
-      },
-    );
+                resolve(result);
+            }
+        );
 
-    streamfier.createReadStream(buffer).pipe(upload);
-  });
+        streamfier.createReadStream(buffer).pipe(upload);
+    });
 
 export const updateAvatar = async (req: Request, res: Response) => {
-  const user = await User.findById(req.userId);
+    const user = await User.findById(req.userId);
 
-  if (!user) {
-    throw new Error("User not found", { cause: { status: 404 } });
-  }
+    if (!user) {
+        throw new Error("User not found", { cause: { status: 404 } });
+    }
 
-  if (!req.file) {
-    throw new Error("No file uploaded", { cause: { status: 400 } });
-  }
+    if (!req.file) {
+        throw new Error("No file uploaded", { cause: { status: 400 } });
+    }
 
-  const result = await uploadAvatarImage(req.file.buffer, `${user._id}-${Date.now()}`);
-  const oldPublicId = user.avatarPublicId;
+    const result = await uploadAvatarImage(req.file.buffer, `${user._id}-${Date.now()}`);
+    const oldPublicId = user.avatarPublicId;
 
-  user.avatarUrl = result.secure_url;
-  user.avatarPublicId = result.public_id;
-  await user.save();
+    user.avatarUrl = result.secure_url;
+    user.avatarPublicId = result.public_id;
+    await user.save();
 
-  // The new photo is saved; failing to tidy up the old one isn't the user's problem.
-  if (oldPublicId) {
-    await cloudinary.uploader.destroy(oldPublicId).catch((error: unknown) => {
-      console.error("Cloudinary destroy error:", error);
-    });
-  }
+    // The new photo is saved; failing to tidy up the old one isn't the user's problem.
+    if (oldPublicId) {
+        await cloudinary.uploader.destroy(oldPublicId).catch((error: unknown) => {
+            console.error("Cloudinary destroy error:", error);
+        });
+    }
 
-  res.json({ avatarUrl: user.avatarUrl });
+    res.json({ avatarUrl: user.avatarUrl });
 };
 
 export const updateProfile = async (req: Request, res: Response) => {
-  const { displayName, username, email, currentPassword, profileVisibility, bio, instagram, telegram } = req.body;
-  const user = await User.findById(req.userId);
+    const {
+        displayName,
+        username,
+        email,
+        currentPassword,
+        profileVisibility,
+        bio,
+        instagram,
+        telegram,
+    } = req.body;
+    const user = await User.findById(req.userId);
 
-  if (!user) {
-    throw new Error("User not found", { cause: { status: 404 } });
-  }
-
-  if (username && username !== user.username) {
-    const usernameExists = await User.exists({ username });
-
-    if (usernameExists) {
-      throw new Error("Username already taken", { cause: { status: 409 } });
-    }
-    user.username = username;
-  }
-
-  if (email && email.toLowerCase() !== user.email) {
-    // #537: the email is where password resets go, so moving it needs the
-    // current password, not just a session. 403, not 401: the SPA treats 401
-    // as an expired session.
-    if (!user.passwordHash) {
-      throw new Error(
-        "set a password first (use \"forgot password\" on the sign-in page), then change your email",
-        { cause: { status: 403, code: "PASSWORD_REQUIRED" } }
-      );
+    if (!user) {
+        throw new Error("User not found", { cause: { status: 404 } });
     }
 
-    if (!currentPassword || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
-      throw new Error("current password is incorrect", {
-        cause: { status: 403, code: "CURRENT_PASSWORD_INCORRECT" },
-      });
+    if (username && username !== user.username) {
+        const usernameExists = await User.exists({ username });
+
+        if (usernameExists) {
+            throw new Error("Username already taken", { cause: { status: 409 } });
+        }
+        user.username = username;
     }
 
-    const normalizedEmail = email.toLowerCase();
-    const emailExists = await User.exists({ email: normalizedEmail });
-    if (emailExists) {
-      throw new Error("Email already in use", { cause: { status: 409 } });
+    if (email && email.toLowerCase() !== user.email) {
+        // #537: the email is where password resets go, so moving it needs the
+        // current password, not just a session. 403, not 401: the SPA treats 401
+        // as an expired session.
+        if (!user.passwordHash) {
+            throw new Error(
+                'set a password first (use "forgot password" on the sign-in page), then change your email',
+                { cause: { status: 403, code: "PASSWORD_REQUIRED" } }
+            );
+        }
+
+        if (!currentPassword || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+            throw new Error("current password is incorrect", {
+                cause: { status: 403, code: "CURRENT_PASSWORD_INCORRECT" },
+            });
+        }
+
+        const normalizedEmail = email.toLowerCase();
+        const emailExists = await User.exists({ email: normalizedEmail });
+        if (emailExists) {
+            throw new Error("Email already in use", { cause: { status: 409 } });
+        }
+        user.email = normalizedEmail;
     }
-    user.email = normalizedEmail;
-  }
 
-  if (displayName) user.displayName = displayName;
-  if (profileVisibility) user.profileVisibility = profileVisibility;
-  // Already normalised by updateProfileSchema; null clears, undefined leaves as is.
-  if (bio !== undefined) user.bio = bio;
-  if (instagram !== undefined) user.instagram = instagram;
-  if (telegram !== undefined) user.telegram = telegram;
+    if (displayName) user.displayName = displayName;
+    if (profileVisibility) user.profileVisibility = profileVisibility;
+    // Already normalised by updateProfileSchema; null clears, undefined leaves as is.
+    if (bio !== undefined) user.bio = bio;
+    if (instagram !== undefined) user.instagram = instagram;
+    if (telegram !== undefined) user.telegram = telegram;
 
-  await user.save();
+    await user.save();
 
-  res.json({ user: toOwnProfileResponse(user) });
+    res.json({ user: toOwnProfileResponse(user) });
 };
 
 // #449: someone deletes their own account. This is the auth-server's half:
@@ -516,62 +511,62 @@ export const updateProfile = async (req: Request, res: Response) => {
 // erases everything it owns and removes the tombstone. Each service deletes
 // only its own data.
 export const deleteAccount = async (req: Request, res: Response) => {
-  const { password, confirmUsername } = req.body as {
-    password?: string;
-    confirmUsername?: string;
-  };
-  const user = await User.findById(req.userId);
+    const { password, confirmUsername } = req.body as {
+        password?: string;
+        confirmUsername?: string;
+    };
+    const user = await User.findById(req.userId);
 
-  if (!user || user.deletedAt) {
-    throw new Error("User not found", { cause: { status: 404 } });
-  }
-
-  // 403, not 401: the SPA treats 401 as an expired session.
-  if (user.passwordHash) {
-    if (!password || !(await bcrypt.compare(password, user.passwordHash))) {
-      throw new Error("that password isn't right", {
-        cause: { status: 403, code: "CURRENT_PASSWORD_INCORRECT" },
-      });
+    if (!user || user.deletedAt) {
+        throw new Error("User not found", { cause: { status: 404 } });
     }
-  } else if (confirmUsername?.replace(/^@/, "").toLowerCase() !== user.username.toLowerCase()) {
-    throw new Error("type your @username to confirm", {
-      cause: { status: 403, code: "CONFIRMATION_MISMATCH" },
+
+    // 403, not 401: the SPA treats 401 as an expired session.
+    if (user.passwordHash) {
+        if (!password || !(await bcrypt.compare(password, user.passwordHash))) {
+            throw new Error("that password isn't right", {
+                cause: { status: 403, code: "CURRENT_PASSWORD_INCORRECT" },
+            });
+        }
+    } else if (confirmUsername?.replace(/^@/, "").toLowerCase() !== user.username.toLowerCase()) {
+        throw new Error("type your @username to confirm", {
+            cause: { status: 403, code: "CONFIRMATION_MISMATCH" },
+        });
+    }
+
+    const userId = user._id;
+    const avatarPublicId = user.avatarPublicId;
+
+    await Promise.all([
+        RefreshToken.deleteMany({ userId }),
+        PasswordResetToken.deleteMany({ userId }),
+        NotificationSettings.deleteMany({ userId }),
+    ]);
+
+    const tombstone = `deleted-${userId.toString()}`;
+    user.set({
+        username: tombstone,
+        displayName: "deleted user",
+        email: `${tombstone}@deleted.invalid`,
+        passwordHash: null,
+        googleId: undefined,
+        avatarUrl: null,
+        avatarPublicId: null,
+        bio: null,
+        instagram: null,
+        telegram: null,
+        profileVisibility: "private",
+        deletedAt: new Date(),
     });
-  }
+    await user.save();
 
-  const userId = user._id;
-  const avatarPublicId = user.avatarPublicId;
+    // The account is gone either way; a photo left on Cloudinary is logged, not
+    // the user's problem.
+    if (avatarPublicId) {
+        await cloudinary.uploader.destroy(avatarPublicId).catch((error: unknown) => {
+            console.error("Cloudinary destroy error:", error);
+        });
+    }
 
-  await Promise.all([
-    RefreshToken.deleteMany({ userId }),
-    PasswordResetToken.deleteMany({ userId }),
-    NotificationSettings.deleteMany({ userId }),
-  ]);
-
-  const tombstone = `deleted-${userId.toString()}`;
-  user.set({
-    username: tombstone,
-    displayName: "deleted user",
-    email: `${tombstone}@deleted.invalid`,
-    passwordHash: null,
-    googleId: undefined,
-    avatarUrl: null,
-    avatarPublicId: null,
-    bio: null,
-    instagram: null,
-    telegram: null,
-    profileVisibility: "private",
-    deletedAt: new Date(),
-  });
-  await user.save();
-
-  // The account is gone either way; a photo left on Cloudinary is logged, not
-  // the user's problem.
-  if (avatarPublicId) {
-    await cloudinary.uploader.destroy(avatarPublicId).catch((error: unknown) => {
-      console.error("Cloudinary destroy error:", error);
-    });
-  }
-
-  res.status(204).end();
+    res.status(204).end();
 };

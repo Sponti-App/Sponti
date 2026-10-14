@@ -70,10 +70,22 @@ after(() => server.close());
 afterEach(() => mock.restoreAll());
 
 describe("PATCH /auth/me/profile", () => {
-    const patch = (body: unknown, user = makeUser({ bio: null, instagram: null, telegram: null })) => {
+    const patch = (
+        body: unknown,
+        user = makeUser({ bio: null, instagram: null, telegram: null })
+    ) => {
         mock.method(User, "findById", async () => user);
         const save = mock.method(user, "save", async () => user);
-        return { user, save, response: request("PATCH", "/auth/me/profile", body, createAccessToken(user._id.toString())) };
+        return {
+            user,
+            save,
+            response: request(
+                "PATCH",
+                "/auth/me/profile",
+                body,
+                createAccessToken(user._id.toString())
+            ),
+        };
     };
 
     it("stores normalised handles from @handle and pasted links, and returns them", async () => {
@@ -91,12 +103,15 @@ describe("PATCH /auth/me/profile", () => {
         assert.equal(user.telegram, "sarahkim");
         assert.deepEqual(
             { bio: json.user.bio, instagram: json.user.instagram, telegram: json.user.telegram },
-            PROFILE,
+            PROFILE
         );
     });
 
     it("accepts t.me and instagram.com links without a scheme", async () => {
-        const { user, response } = patch({ instagram: "instagram.com/sarah.kim", telegram: "t.me/sarahkim" });
+        const { user, response } = patch({
+            instagram: "instagram.com/sarah.kim",
+            telegram: "t.me/sarahkim",
+        });
         assert.equal((await response).status, 200);
         assert.equal(user.instagram, "sarah.kim");
         assert.equal(user.telegram, "sarahkim");
@@ -156,7 +171,8 @@ describe("PATCH /auth/me/profile", () => {
     });
 
     it("rejects a link to the wrong site", async () => {
-        const { status, json } = await patch({ telegram: "https://instagram.com/sarahkim" }).response;
+        const { status, json } = await patch({ telegram: "https://instagram.com/sarahkim" })
+            .response;
         assert.equal(status, 400);
         assert.match(json.message, /Telegram must be a handle or a t\.me profile link/);
     });
@@ -172,7 +188,12 @@ describe("GET /auth/me", () => {
         const user = makeUser();
         mock.method(User, "findById", async () => user);
 
-        const { status, json } = await request("GET", "/auth/me", undefined, createAccessToken(user._id.toString()));
+        const { status, json } = await request(
+            "GET",
+            "/auth/me",
+            undefined,
+            createAccessToken(user._id.toString())
+        );
         assert.equal(status, 200);
         assert.equal(json.user.bio, PROFILE.bio);
         assert.equal(json.user.instagram, PROFILE.instagram);
@@ -183,7 +204,12 @@ describe("GET /auth/me", () => {
         const user = makeUser({ bio: undefined, instagram: undefined, telegram: undefined });
         mock.method(User, "findById", async () => user);
 
-        const { json } = await request("GET", "/auth/me", undefined, createAccessToken(user._id.toString()));
+        const { json } = await request(
+            "GET",
+            "/auth/me",
+            undefined,
+            createAccessToken(user._id.toString())
+        );
         assert.equal(json.user.bio, null);
         assert.equal(json.user.instagram, null);
         assert.equal(json.user.telegram, null);
@@ -194,7 +220,7 @@ describe("session responses return the user's own profile fields (#309)", () => 
     const assertOwnProfile = (user: Record<string, unknown>, expected: Record<string, unknown>) => {
         assert.deepEqual(
             { bio: user.bio, instagram: user.instagram, telegram: user.telegram },
-            expected,
+            expected
         );
     };
     const NOT_SET = { bio: null, instagram: null, telegram: null };
@@ -203,22 +229,32 @@ describe("session responses return the user's own profile fields (#309)", () => 
         mock.method(User, "findOne", async () => makeUser());
         mockSessionStore();
 
-        const { status, json } = await request("POST", "/auth/login", { email: "sarah@example.com", password: PASSWORD });
+        const { status, json } = await request("POST", "/auth/login", {
+            email: "sarah@example.com",
+            password: PASSWORD,
+        });
         assert.equal(status, 200);
         assertOwnProfile(json.user, PROFILE);
     });
 
     it("login response, null when unset", async () => {
-        mock.method(User, "findOne", async () => makeUser({ bio: undefined, instagram: undefined, telegram: undefined }));
+        mock.method(User, "findOne", async () =>
+            makeUser({ bio: undefined, instagram: undefined, telegram: undefined })
+        );
         mockSessionStore();
 
-        const { json } = await request("POST", "/auth/login", { email: "sarah@example.com", password: PASSWORD });
+        const { json } = await request("POST", "/auth/login", {
+            email: "sarah@example.com",
+            password: PASSWORD,
+        });
         assertOwnProfile(json.user, NOT_SET);
     });
 
     it("register response, null for a new account", async () => {
         mock.method(User, "exists", async () => null);
-        mock.method(User, "create", async () => makeUser({ bio: undefined, instagram: undefined, telegram: undefined }));
+        mock.method(User, "create", async () =>
+            makeUser({ bio: undefined, instagram: undefined, telegram: undefined })
+        );
         mock.method(NotificationSettings, "create", async () => ({}));
         mockSessionStore();
 
@@ -235,7 +271,11 @@ describe("session responses return the user's own profile fields (#309)", () => 
     it("Google sign-in response", async () => {
         const user = makeUser({ googleId: "google-sub" });
         mock.method(OAuth2Client.prototype, "verifyIdToken", async () => ({
-            getPayload: () => ({ sub: "google-sub", email: "sarah@example.com", email_verified: true }),
+            getPayload: () => ({
+                sub: "google-sub",
+                email: "sarah@example.com",
+                email_verified: true,
+            }),
         }));
         mock.method(User, "findOne", async () => user);
         mock.method(user, "save", async () => user);
@@ -247,9 +287,18 @@ describe("session responses return the user's own profile fields (#309)", () => 
     });
 
     it("Google sign-in response, null when unset", async () => {
-        const user = makeUser({ googleId: "google-sub", bio: undefined, instagram: undefined, telegram: undefined });
+        const user = makeUser({
+            googleId: "google-sub",
+            bio: undefined,
+            instagram: undefined,
+            telegram: undefined,
+        });
         mock.method(OAuth2Client.prototype, "verifyIdToken", async () => ({
-            getPayload: () => ({ sub: "google-sub", email: "sarah@example.com", email_verified: true }),
+            getPayload: () => ({
+                sub: "google-sub",
+                email: "sarah@example.com",
+                email_verified: true,
+            }),
         }));
         mock.method(User, "findOne", async () => user);
         mock.method(user, "save", async () => user);
@@ -265,12 +314,15 @@ describe("the profile fields do not leak into tokens or errors", () => {
         mock.method(User, "findOne", async () => makeUser());
         mockSessionStore();
 
-        const { json } = await request("POST", "/auth/login", { email: "sarah@example.com", password: PASSWORD });
+        const { json } = await request("POST", "/auth/login", {
+            email: "sarah@example.com",
+            password: PASSWORD,
+        });
         for (const token of [json.accessToken, json.refreshToken]) {
             const claims = jwt.decode(token) as Record<string, unknown>;
             assert.deepEqual(
                 Object.keys(claims).filter((k) => !["iat", "exp", "jti"].includes(k)),
-                ["userId"],
+                ["userId"]
             );
         }
     });
@@ -283,7 +335,7 @@ describe("the profile fields do not leak into tokens or errors", () => {
             "PATCH",
             "/auth/me/profile",
             { instagram: "not a handle!!" },
-            createAccessToken(user._id.toString()),
+            createAccessToken(user._id.toString())
         );
         assert.ok(!text.includes("not a handle!!"));
     });

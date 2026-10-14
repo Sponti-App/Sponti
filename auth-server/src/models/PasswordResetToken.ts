@@ -1,25 +1,26 @@
 import { Schema, model } from "mongoose";
 
-const passwordResetTokenSchema = new Schema({
-    userId: {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
+const passwordResetTokenSchema = new Schema(
+    {
+        userId: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+        },
+        tokenHash: {
+            type: String,
+            required: true,
+            unique: true,
+        },
+        expiresAt: {
+            type: Date,
+            required: true,
+        },
+        used: {
+            type: Boolean,
+            default: false,
+        },
     },
-    tokenHash: {
-        type: String,
-        required: true,
-        unique: true,
-    },
-    expiresAt: {
-        type: Date,
-        required: true,
-    },
-    used: {
-        type: Boolean,
-        default: false,
-    },
-},
     {
         timestamps: true,
     }

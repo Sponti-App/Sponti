@@ -125,7 +125,10 @@ describe("normalizeTelegram", () => {
 
 describe("normalizeBio", () => {
     it("trims and keeps the text", () => {
-        assert.deepEqual(normalizeBio("  climbing, coffee, berlin  "), ok("climbing, coffee, berlin"));
+        assert.deepEqual(
+            normalizeBio("  climbing, coffee, berlin  "),
+            ok("climbing, coffee, berlin")
+        );
     });
 
     it("clears on null, empty or whitespace", () => {
@@ -150,6 +153,9 @@ describe("normalizeBio", () => {
     });
 
     it("folds line breaks into a single space (one-line bio)", () => {
-        assert.deepEqual(normalizeBio("coffee\n\nclimbing \r\n berlin"), ok("coffee climbing berlin"));
+        assert.deepEqual(
+            normalizeBio("coffee\n\nclimbing \r\n berlin"),
+            ok("coffee climbing berlin")
+        );
     });
 });

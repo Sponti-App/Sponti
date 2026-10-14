@@ -2,13 +2,9 @@
     "compilerOptions": {
         /* Base Options */
         "esModuleInterop": true,
-        "lib": [
-            "ESNext"
-        ],
+        "lib": ["ESNext"],
         "target": "ESNext",
-        "types": [
-            "node"
-        ],
+        "types": ["node"],
         "skipLibCheck": true,
         "allowJs": true,
         "resolveJsonModule": true,
@@ -28,12 +24,8 @@
         "outDir": "dist",
         /* Paths */
         "paths": {
-            "#*": [
-                "./src/*"
-            ]
+            "#*": ["./src/*"]
         }
     },
-    "include": [
-        "src"
-    ]
+    "include": ["src"]
 }

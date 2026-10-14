@@ -60,7 +60,9 @@ const handler: ErrorRequestHandler = (err, _req, res, _next) => {
 
     const clientStatus = clientErrorStatus(err);
     if (clientStatus !== undefined) {
-        const payload: ErrorPayload = { message: clientErrorMessages[clientStatus] ?? "Invalid request" };
+        const payload: ErrorPayload = {
+            message: clientErrorMessages[clientStatus] ?? "Invalid request",
+        };
         res.status(clientStatus).json(payload);
         return;
     }

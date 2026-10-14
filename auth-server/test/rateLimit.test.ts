@@ -39,7 +39,11 @@ const post = async (path: string, body: unknown = {}) => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
     });
-    return { status: res.status, retryAfter: res.headers.get("retry-after"), json: await res.json() };
+    return {
+        status: res.status,
+        retryAfter: res.headers.get("retry-after"),
+        json: await res.json(),
+    };
 };
 
 before(async () => {

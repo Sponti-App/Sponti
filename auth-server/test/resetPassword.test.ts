@@ -49,13 +49,18 @@ describe("POST /auth/reset-password", () => {
             userId,
         }));
         const setPassword = mock.method(User, "findByIdAndUpdate", async () => ({}));
-        const endSessions = mock.method(RefreshToken, "deleteMany", async () => ({ deletedCount: 2 }));
+        const endSessions = mock.method(RefreshToken, "deleteMany", async () => ({
+            deletedCount: 2,
+        }));
 
         const { status } = await reset({ token, password: "a-new-password" });
 
         assert.equal(status, 200);
 
-        const [filter, update] = consume.mock.calls[0]!.arguments as [Record<string, unknown>, unknown];
+        const [filter, update] = consume.mock.calls[0]!.arguments as [
+            Record<string, unknown>,
+            unknown,
+        ];
         assert.equal(filter.tokenHash, crypto.createHash("sha256").update(token).digest("hex"));
         assert.equal(filter.used, false);
         assert.ok((filter.expiresAt as { $gt: Date }).$gt instanceof Date);
@@ -68,7 +73,9 @@ describe("POST /auth/reset-password", () => {
     it("rejects a used, expired or unknown token without touching the password or sessions", async () => {
         mock.method(PasswordResetToken, "findOneAndUpdate", async () => null);
         const setPassword = mock.method(User, "findByIdAndUpdate", async () => ({}));
-        const endSessions = mock.method(RefreshToken, "deleteMany", async () => ({ deletedCount: 0 }));
+        const endSessions = mock.method(RefreshToken, "deleteMany", async () => ({
+            deletedCount: 0,
+        }));
 
         const { status, json } = await reset({ token, password: "a-new-password" });
 

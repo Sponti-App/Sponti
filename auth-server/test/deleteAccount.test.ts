@@ -49,7 +49,9 @@ const mockStores = (user: InstanceType<typeof User>) => {
     const save = mock.method(user, "save", async () => user);
     const tokens = mock.method(RefreshToken, "deleteMany", async () => ({ deletedCount: 2 }));
     const resets = mock.method(PasswordResetToken, "deleteMany", async () => ({ deletedCount: 0 }));
-    const settings = mock.method(NotificationSettings, "deleteMany", async () => ({ deletedCount: 1 }));
+    const settings = mock.method(NotificationSettings, "deleteMany", async () => ({
+        deletedCount: 1,
+    }));
     const destroy = mock.method(cloudinary.uploader, "destroy", async () => ({ result: "ok" }));
     return { save, tokens, resets, settings, destroy };
 };
