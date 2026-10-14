@@ -21,6 +21,7 @@ import {
   ACCEPT_UNDO_MS,
   declineRequest,
   ensurePendingRequests,
+  offerCircle,
   pickCircle,
   scheduleAccept,
   skipCircle,
@@ -28,6 +29,7 @@ import {
   useConnectionRequest,
   type CirclePlacement,
 } from "@/lib/connection-request-actions"
+import { shouldOfferCircles } from "@/lib/circle-choices"
 import { formatRelative, type Notification } from "@/lib/notifications"
 import { dismiss } from "@/lib/use-notifications"
 import { useSwipeActions } from "@/lib/use-swipe-actions"
@@ -36,7 +38,8 @@ import { cn } from "@/lib/utils"
 // One row of the notification feed (#137). Every row can be swiped left to
 // hide it (#173). A connection request also answers itself in place (#174,
 // #226): accept / decline buttons, swipe right as a shortcut for accept, an
-// undo window, then the circle chips.
+// undo window, then the circle chips. Someone who accepted you gets the same
+// chips (#585).
 
 type Visual = {
   icon: Icon
@@ -85,6 +88,9 @@ type RowProps = {
 export function NotificationRow(props: RowProps) {
   if (props.notification.type === "connection_request") {
     return <ConnectionRequestRow {...props} />
+  }
+  if (props.notification.type === "connection_accepted") {
+    return <ConnectionAcceptedRow {...props} />
   }
   return <SwipeableRow {...props} />
 }
@@ -307,6 +313,52 @@ function ConnectionRequestRow(props: RowProps) {
       onAccept={canAnswer ? accept : undefined}
     >
       {actions}
+    </SwipeableRow>
+  )
+}
+
+/**
+ * Someone accepted your request or scanned your code (#585): they are your
+ * friend already, so the circle choice is offered straight away. It leaves
+ * once they are in a circle (also on later visits), and "skip" ends it for
+ * the session.
+ */
+function ConnectionAcceptedRow(props: RowProps) {
+  const { notification } = props
+  // Prefixed so it can't meet a request's state, which is keyed by the
+  // connection id alone.
+  const key = `friend:${notification.targetId}`
+  const personId = notification.actorId ?? null
+  const personName = notification.actorName ?? "them"
+  const friend = useConnectionRequest(key)
+  const { showActionFeedback } = useOptionalActionFeedback()
+
+  useEffect(() => {
+    if (!personId) return
+    offerCircle(key, {
+      userId: personId,
+      notify: (message, tone) => showActionFeedback(message, { tone }),
+    })
+  }, [key, personId, showActionFeedback])
+
+  const showChips =
+    friend.placement.status !== "none" ||
+    shouldOfferCircles(friend.circles, personId)
+
+  return (
+    <SwipeableRow {...props}>
+      {showChips && (
+        <CircleChips
+          circles={friend.circles}
+          personId={personId ?? ""}
+          personName={personName}
+          state={chipsState(friend.placement)}
+          onPick={(circle) =>
+            pickCircle(key, { id: circle.id, name: circle.name })
+          }
+          onSkip={() => skipCircle(key)}
+        />
+      )}
     </SwipeableRow>
   )
 }

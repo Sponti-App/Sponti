@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Circle } from "@/lib/circles"
-import { orderCircleChoices } from "./circle-choices"
+import { orderCircleChoices, shouldOfferCircles } from "./circle-choices"
 
 function circle(overrides: Partial<Circle> & Pick<Circle, "id">): Circle {
   return {
@@ -54,5 +54,38 @@ describe("orderCircleChoices (#226)", () => {
     ]
     orderCircleChoices(input)
     expect(input.map((c) => c.id)).toEqual(["inner", "close"])
+  })
+})
+
+describe("shouldOfferCircles (#585)", () => {
+  const all = circle({ id: "all", type: "all", memberIds: ["p"] })
+
+  it("offers circles to a friend who isn't in one yet", () => {
+    expect(
+      shouldOfferCircles([all, circle({ id: "close", type: "close" })], "p")
+    ).toBe(true)
+  })
+
+  it("stays quiet while the circles load, or without a person", () => {
+    expect(shouldOfferCircles(null, "p")).toBe(false)
+    expect(shouldOfferCircles([circle({ id: "close" })], null)).toBe(false)
+  })
+
+  it("stays quiet when there is no circle besides all friends", () => {
+    expect(shouldOfferCircles([all], "p")).toBe(false)
+    expect(shouldOfferCircles([], "p")).toBe(false)
+  })
+
+  it("stays quiet once the friend is in any circle", () => {
+    expect(
+      shouldOfferCircles(
+        [
+          all,
+          circle({ id: "close", type: "close", memberIds: ["p"] }),
+          circle({ id: "inner", type: "inner" }),
+        ],
+        "p"
+      )
+    ).toBe(false)
   })
 })

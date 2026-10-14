@@ -26,6 +26,7 @@ export function CircleChips({
   state,
   onPick,
   onSkip,
+  centered = false,
   className,
 }: {
   /** The owner's circles, unfiltered. `null` while they load. */
@@ -35,6 +36,8 @@ export function CircleChips({
   state: CircleChipsState
   onPick: (circle: Circle) => void
   onSkip: () => void
+  /** Centre the line and the chips, for a centred screen (#585). */
+  centered?: boolean
   className?: string
 }) {
   if (state.status === "added") {
@@ -43,6 +46,7 @@ export function CircleChips({
         role="status"
         className={cn(
           "flex items-center gap-1.5 text-xs text-muted-foreground",
+          centered && "justify-center",
           className
         )}
       >
@@ -70,10 +74,19 @@ export function CircleChips({
     <div
       role="group"
       aria-label={`add ${personName} to a circle`}
-      className={cn("flex flex-col gap-2", className)}
+      className={cn(
+        "flex flex-col gap-2",
+        centered && "items-center",
+        className
+      )}
     >
       <p className="text-xs text-muted-foreground">add to a circle</p>
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-2",
+          centered && "justify-center"
+        )}
+      >
         {circles === null ? (
           <span className="flex h-8 items-center gap-1.5 text-xs text-muted-foreground">
             <CircleNotchIcon className="h-3.5 w-3.5 animate-spin" />

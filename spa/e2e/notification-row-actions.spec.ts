@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 import {
   MAYA_ID,
+  NOOR_ID,
   REQUEST_CONNECTION_ID,
   stubFeedWithRequest,
 } from "./support/feed-stubs"
@@ -87,6 +88,46 @@ test.describe("feed row actions", () => {
       `PATCH /connections/${REQUEST_CONNECTION_ID}/respond {"status":"accepted"}`,
       `POST /circles/circle-close/members {"userId":"${MAYA_ID}"}`,
     ])
+  })
+
+  // #585: someone who accepted you is a friend already, so the circle
+  // choice is on the row, with no accept and no undo window.
+  test("a friend who accepted you gets the circle chips on their row", async ({
+    page,
+  }) => {
+    const calls = await stubFeedWithRequest(page, { withAccepted: true })
+    const sheet = await openFeed(page)
+    const accepted = row(sheet, "noor accepted your request")
+
+    const chips = accepted.getByRole("group", { name: "add noor to a circle" })
+    await expect(chips.getByRole("button")).toHaveText([
+      "close friends",
+      "inner circle",
+      "skip",
+    ])
+
+    await chips.getByRole("button", { name: "close friends" }).click()
+
+    await expect(accepted.getByText("added to close friends")).toBeVisible()
+    expect(calls.writes).toEqual([
+      `POST /circles/circle-close/members {"userId":"${NOOR_ID}"}`,
+    ])
+  })
+
+  test("skipping the chips on an accepted row sends nothing", async ({
+    page,
+  }) => {
+    const calls = await stubFeedWithRequest(page, { withAccepted: true })
+    const sheet = await openFeed(page)
+    const accepted = row(sheet, "noor accepted your request")
+
+    await accepted.getByRole("button", { name: "skip" }).click()
+
+    await expect(accepted.getByText("you’re connected")).toBeVisible()
+    await expect(
+      accepted.getByRole("group", { name: "add noor to a circle" })
+    ).toHaveCount(0)
+    expect(calls.writes).toEqual([])
   })
 
   test("undo sends nothing", async ({ page }) => {

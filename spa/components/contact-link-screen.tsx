@@ -12,6 +12,7 @@ import {
 } from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
+import { CircleChips, type CircleChipsState } from "@/components/circle-chips"
 import { ContactLinkSignedOut } from "@/components/contact-link-signed-out"
 import { Button } from "@/components/ui/button"
 import { resolveInviteLink } from "@/lib/api/invite-links"
@@ -19,6 +20,14 @@ import {
   resolveQrContactToken,
   type QrContactResolveResult,
 } from "@/lib/api/qr-contact-tokens"
+import { shouldOfferCircles } from "@/lib/circle-choices"
+import {
+  offerCircle,
+  pickCircle,
+  skipCircle,
+  useConnectionRequest,
+  type CirclePlacement,
+} from "@/lib/connection-request-actions"
 import { type ContactLinkKind } from "@/lib/contact-links"
 import { HttpError } from "@/lib/http"
 
@@ -26,7 +35,9 @@ import { HttpError } from "@/lib/http"
 //   qr     — scanned in person; "connect" makes you friends right away
 //   invite — opened from a group chat; "send request" asks the owner
 // A signed-out visitor sees who wants to connect, with sign in and create
-// account as equal choices, and comes back here afterwards (#441).
+// account as equal choices, and comes back here afterwards (#441). Once a
+// connect makes you friends, the circle chips sit under "you're friends"
+// (#585).
 
 type Copy = {
   resolve: typeof resolveQrContactToken
@@ -57,6 +68,20 @@ const COPY: Record<ContactLinkKind, Copy> = {
     selfMessage: "this is your invite link.",
     connectError: "could not send the friend request. try again.",
   },
+}
+
+function chipsState(placement: CirclePlacement): CircleChipsState {
+  switch (placement.status) {
+    case "none":
+      return { status: "choosing" }
+    case "queued":
+    case "adding":
+      return { status: "adding", circle: placement.circle }
+    case "added":
+      return { status: "added", circle: placement.circle }
+    case "skipped":
+      return { status: "skipped" }
+  }
 }
 
 function relationshipLabel(
@@ -132,6 +157,10 @@ function ContactLinkSignedIn({
     message: string
   } | null>(null)
   const [connectError, setConnectError] = useState<string | null>(null)
+  // Set by a connect made on this screen, not by opening a link to someone
+  // who was already a friend: only a new friend gets the circle prompt.
+  const [connectedNow, setConnectedNow] = useState(false)
+  const friend = useConnectionRequest(`contact:${token}`)
 
   const result = resolved?.token === token ? resolved.result : null
   const error = resolveError?.token === token ? resolveError.message : null
@@ -169,6 +198,13 @@ function ContactLinkSignedIn({
     try {
       const nextResult = await copy.resolve(token, true)
       setResolved({ token, result: nextResult })
+      if (nextResult.relationship === "connected") {
+        setConnectedNow(true)
+        offerCircle(`contact:${token}`, {
+          userId: nextResult.profile.id,
+          notify: (message, tone) => showActionFeedback(message, { tone }),
+        })
+      }
       showActionFeedback(
         nextResult.relationship === "connected"
           ? "friend added"
@@ -252,6 +288,29 @@ function ContactLinkSignedIn({
                       ? "you're friends"
                       : "no action needed"}
                   </div>
+                  {connectedNow &&
+                    (friend.placement.status !== "none" ||
+                      friend.circles === null ||
+                      shouldOfferCircles(
+                        friend.circles,
+                        result.profile.id
+                      )) && (
+                      <CircleChips
+                        centered
+                        className="mt-4 w-full max-w-xs"
+                        circles={friend.circles}
+                        personId={result.profile.id}
+                        personName={result.profile.displayName}
+                        state={chipsState(friend.placement)}
+                        onPick={(circle) =>
+                          pickCircle(`contact:${token}`, {
+                            id: circle.id,
+                            name: circle.name,
+                          })
+                        }
+                        onSkip={() => skipCircle(`contact:${token}`)}
+                      />
+                    )}
                   <Link
                     href="/"
                     className="mt-4 text-sm font-medium text-accent-ink"
