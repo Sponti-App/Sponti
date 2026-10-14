@@ -3,9 +3,13 @@ import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import type { errorHandler as ErrorHandler } from "#middleware/errorHandler";
-import type { createRateLimiter as CreateRateLimiter } from "#middleware/rateLimit";
+import type {
+  createRateLimiter as CreateRateLimiter,
+  resetRateLimits as ResetRateLimits,
+} from "#middleware/rateLimit";
 
 let createRateLimiter: typeof CreateRateLimiter;
+let resetRateLimits: typeof ResetRateLimits;
 let errorHandler: typeof ErrorHandler;
 
 beforeAll(async () => {
@@ -15,7 +19,7 @@ beforeAll(async () => {
   process.env.CLIENT_BASE_URL = "http://localhost:3000/";
   process.env.ACCESS_JWT_SECRET = "test-secret";
 
-  ({ createRateLimiter } = await import("#middleware/rateLimit"));
+  ({ createRateLimiter, resetRateLimits } = await import("#middleware/rateLimit"));
   ({ errorHandler } = await import("#middleware/errorHandler"));
 });
 
@@ -61,5 +65,21 @@ describe("createRateLimiter", () => {
     await request(app).get("/").set("X-Forwarded-For", "203.0.113.1").expect(200);
     await request(app).get("/").set("X-Forwarded-For", "203.0.113.1").expect(429);
     await request(app).get("/").set("X-Forwarded-For", "203.0.113.2").expect(200);
+  });
+
+  it("forgets every client's count when the test reset runs (#455)", async () => {
+    const clock = { now: 1_000_000 };
+    const first = buildApp(clock, 1);
+    const second = buildApp(clock, 1);
+
+    await request(first).get("/").expect(200);
+    await request(second).get("/").expect(200);
+    await request(first).get("/").expect(429);
+    await request(second).get("/").expect(429);
+
+    resetRateLimits();
+
+    await request(first).get("/").expect(200);
+    await request(second).get("/").expect(200);
   });
 });
