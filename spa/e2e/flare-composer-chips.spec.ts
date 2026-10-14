@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 import { stubBackend } from "./support/stubs"
 
 const TITLE_PLACEHOLDER = "what's the plan? e.g. drinks after work"
@@ -97,5 +97,74 @@ test.describe("flare composer chips (#368)", () => {
 
     await publicSwitch.click()
     await expect(increase).toHaveCount(0)
+  })
+
+  // #584: one sideways-scrolling row, not wrapped rows that push the friend
+  // search below the fold.
+  test.describe("circle row (#584)", () => {
+    test.beforeEach(async ({ page }) => {
+      await page.getByRole("button", { name: "all friends · 12" }).click()
+    })
+
+    const row = (page: Page) => page.locator("[data-circle-row]")
+
+    test("the circles sit on one line, fade where more are hidden, and the friend search stays in view", async ({
+      page,
+    }) => {
+      const chips = row(page).getByRole("button")
+      await expect(chips).toHaveCount(4)
+      const ys = await chips.evaluateAll((els) =>
+        els.map((el) => Math.round(el.getBoundingClientRect().top))
+      )
+      expect(new Set(ys).size, "chips wrapped").toBe(1)
+      await expect(row(page)).toHaveAttribute("data-overflow-after", "true")
+      await expect(
+        page.getByRole("button", { name: /also invite specific friends/ })
+      ).toBeInViewport()
+    })
+
+    test("a pan over the chips scrolls the row without selecting or editing", async ({
+      page,
+    }, testInfo) => {
+      test.skip(testInfo.project.name === "desktop", "touch only")
+      const inner = row(page).getByRole("button", { name: /inner circle/ })
+      // The sheet animates to its taller snap; hover waits for it to settle.
+      await inner.hover()
+      const box = (await inner.boundingBox())!
+      const y = box.y + box.height / 2
+      const cdp = await page.context().newCDPSession(page)
+      const touch = (
+        type: "touchStart" | "touchMove" | "touchEnd",
+        x: number
+      ) =>
+        cdp.send("Input.dispatchTouchEvent", {
+          type,
+          touchPoints: type === "touchEnd" ? [] : [{ x, y }],
+        })
+      const startX = box.x + box.width - 4
+      await touch("touchStart", startX)
+      for (let i = 1; i <= 8; i++) await touch("touchMove", startX - i * 25)
+      await touch("touchEnd", startX - 200)
+
+      await expect
+        .poll(() => row(page).evaluate((el) => el.scrollLeft))
+        .toBeGreaterThan(0)
+      await expect(
+        page.getByRole("button", { name: "all friends · 12" })
+      ).toBeVisible()
+      await expect(page.getByText(/^editing /)).toHaveCount(0)
+    })
+
+    test("holding inner circle still opens its editor", async ({ page }) => {
+      const inner = row(page).getByRole("button", { name: /inner circle/ })
+      // The sheet animates to its taller snap; hover waits for it to settle.
+      await inner.hover()
+      const box = (await inner.boundingBox())!
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+      await page.mouse.down()
+      await page.waitForTimeout(700)
+      await page.mouse.up()
+      await expect(page.getByText("editing inner circle")).toBeVisible()
+    })
   })
 })
