@@ -108,6 +108,19 @@ export function updateProfile(
   })
 }
 
+// #449: deletes the signed-in account. Accounts with a password confirm with
+// it; Google-only accounts with their @username. The server ends every
+// session, so the caller clears the local one afterwards.
+export function deleteAccount(
+  confirmation: { password: string } | { confirmUsername: string }
+): Promise<void> {
+  return authFetch<void>("/auth/me", {
+    method: "DELETE",
+    auth: true,
+    body: confirmation,
+  })
+}
+
 export function forgotPassword(email: string): Promise<{ message: string }> {
   return authFetch<{ message: string }>("/auth/forgot-password", {
     method: "POST",

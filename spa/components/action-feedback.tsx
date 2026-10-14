@@ -59,6 +59,15 @@ const ActionFeedbackContext = createContext<ActionFeedbackContextValue | null>(
   null
 )
 
+// A success message for the next time the provider mounts. Signing out on a
+// signed-in-only page makes AuthGate swap this whole tree for a spinner, so a
+// toast shown just before is lost with it (#449: "your account is deleted").
+let pendingAfterRemount: string | null = null
+
+export function showActionFeedbackAfterRemount(message: string): void {
+  pendingAfterRemount = message
+}
+
 export function ActionFeedbackProvider({
   children,
 }: {
@@ -82,6 +91,13 @@ export function ActionFeedbackProvider({
     },
     []
   )
+
+  useEffect(() => {
+    if (pendingAfterRemount === null) return
+    const message = pendingAfterRemount
+    pendingAfterRemount = null
+    showActionFeedback(message)
+  }, [showActionFeedback])
 
   useEffect(() => {
     if (!current) return

@@ -53,6 +53,13 @@ export const updateProfileSchema = z.object({
     telegram: profileField(normalizeTelegram).optional(),
 });
 
+// #449: accounts with a password confirm with it; Google-only accounts type
+// their @username. The controller decides which one applies.
+export const deleteAccountSchema = z.object({
+    password: z.string().min(1).max(100).optional(),
+    confirmUsername: z.string().min(1).max(31).optional(),
+});
+
 export const refreshTokenSchema = z.object({
     refreshToken: z.string().min(1),
 });

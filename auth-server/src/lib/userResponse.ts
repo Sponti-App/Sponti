@@ -28,4 +28,7 @@ export const toOwnProfileResponse = (user: UserDocument) => ({
     bio: user.bio ?? null,
     instagram: user.instagram ?? null,
     telegram: user.telegram ?? null,
+    // #449: which confirmation deleting the account asks for (password, or
+    // the @username for a Google-only account). The hash itself never leaves.
+    hasPassword: Boolean(user.passwordHash),
 });
