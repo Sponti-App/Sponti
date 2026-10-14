@@ -1274,10 +1274,10 @@ export function NewEventDrawer({
       const resp = await sessionFetch(
         `/api/places/${encodeURIComponent(suggestion.placeId)}`
       )
-      if (!resp.ok) throw new Error("Place details unavailable.")
+      if (!resp.ok) throw new Error("place details unavailable")
       const data: unknown = await resp.json()
       if (!isPlaceDetailsResponse(data)) {
-        throw new Error("Place details unavailable.")
+        throw new Error("place details unavailable")
       }
       if (placeDetailsRequestRef.current !== requestId) return
       const location: DraftEventLocation = {
@@ -1430,7 +1430,7 @@ export function NewEventDrawer({
   // show the cap instead of the current count (cap is the meaningful number
   // when anyone can join).
   const whoLabel = useMemo(() => {
-    if (isOpen) return `public · up to ${guestLimit}`
+    if (isOpen) return `open to all · up to ${guestLimit}`
     if (needsAudiencePick && !selectedAudienceCircle) return "pick who"
     const baseName = selectedAudienceCircle?.name.toLowerCase() ?? "friends"
     return `${baseName} · ${inviteeCount}`
@@ -1473,12 +1473,12 @@ export function NewEventDrawer({
     setSubmitError(null)
 
     if (!isOpen && audienceLoading) {
-      setSubmitError("Still loading your circles and friends.")
+      setSubmitError("still loading your circles and friends")
       return
     }
     if (!isOpen && audienceError) {
       setSubmitError(
-        "Load your circles and friends before creating a private event."
+        "load your circles and friends before creating an invite-only flare"
       )
       return
     }
@@ -1495,11 +1495,11 @@ export function NewEventDrawer({
         if (geoStatus === "idle") requestGeoLocation()
         setSubmitError(currentLocationError(geoStatus))
       } else if (placeDetailsLoading) {
-        setSubmitError("Still checking that place.")
+        setSubmitError("still checking that place")
       } else if (placeDetailsError) {
         setSubmitError(placeDetailsError)
       } else {
-        setSubmitError("Pick a place from the search results before posting.")
+        setSubmitError("pick a place from the search results before posting")
       }
       return
     }
@@ -1776,7 +1776,7 @@ export function NewEventDrawer({
                 <button
                   type="button"
                   onClick={handleClose}
-                  aria-label="Close"
+                  aria-label="close"
                   className="flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-secondary"
                 >
                   <XIcon className="h-4 w-4" />
@@ -1983,7 +1983,7 @@ export function NewEventDrawer({
                   >
                     {needsAudiencePick && (
                       <p className="mb-2 text-xs text-muted-foreground">
-                        pick a circle, some friends, or make it public
+                        pick a circle, some friends, or make it open to all
                       </p>
                     )}
                     {audienceLoading && (
@@ -2064,7 +2064,7 @@ export function NewEventDrawer({
                       <XIcon className="h-3.5 w-3.5" />
                     </button>
                     <p className="text-xs text-muted-foreground">
-                      no friends on sponti yet? invite them or go public so
+                      no friends on sponti yet? invite them or go open to all so
                       anyone nearby can join.
                     </p>
                     <div className="mt-1.5 flex gap-2">
@@ -2120,7 +2120,7 @@ export function NewEventDrawer({
                       needsAudiencePick
                         ? "pick who sees it"
                         : needsAudience
-                          ? "make it public & go live"
+                          ? "make it open to all & go live"
                           : "swipe to light"
                     }
                     busy={isSubmitting}
@@ -2138,7 +2138,7 @@ export function NewEventDrawer({
                       : needsAudiencePick
                         ? "pick who sees it"
                         : needsAudience
-                          ? "make it public & go live"
+                          ? "make it open to all & go live"
                           : "light a flare"}
                   </Button>
                 )}
@@ -2585,7 +2585,7 @@ function WherePicker({
             <button
               type="button"
               onClick={expand}
-              aria-label="Search for a place"
+              aria-label="search for a place"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-secondary"
             >
               <MagnifyingGlassIcon className="h-3.5 w-3.5" />
@@ -2632,7 +2632,7 @@ function WherePicker({
             <button
               type="button"
               onClick={collapse}
-              aria-label="Use my location instead"
+              aria-label="use my location instead"
               className="absolute top-1/2 right-2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
             >
               <XIcon className="h-3 w-3" />
@@ -2761,7 +2761,7 @@ function WhoBlock({
       >
         <Switch checked={isOpen} onCheckedChange={onOpen} />
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          public
+          open to all
         </span>
         {isOpen && (
           <>
@@ -3082,7 +3082,7 @@ function CircleEditor({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Done editing"
+          aria-label="done editing"
           className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-accent/10"
         >
           <XIcon className="h-3.5 w-3.5 text-accent-ink" />
@@ -3152,7 +3152,7 @@ function DirectInviteSearch({
           <button
             type="button"
             onClick={() => setExpanded(false)}
-            aria-label="Collapse direct invites"
+            aria-label="collapse direct invites"
             className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
           >
             <XIcon className="h-3 w-3" />

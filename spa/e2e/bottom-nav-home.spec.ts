@@ -18,7 +18,7 @@ test.describe("bottom nav home tab (#434)", () => {
     await expect(nav).toBeVisible()
     await expect(page.locator("[data-nextjs-dev-tools-button]")).toHaveCount(0)
 
-    await nav.getByRole("button", { name: "Home" }).click()
+    await nav.getByRole("button", { name: "home" }).click()
 
     await expect(page).toHaveURL(/\/$/)
   })

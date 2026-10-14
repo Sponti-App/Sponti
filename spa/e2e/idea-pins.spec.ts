@@ -151,7 +151,7 @@ test.describe("idea pins on the map (#244)", () => {
 
     await page.getByRole("button", { name: "flare", exact: true }).click()
     await composerTitle(page).fill("my own plan")
-    await page.getByRole("button", { name: "Close", exact: true }).click()
+    await page.getByRole("button", { name: "close", exact: true }).click()
     await expect(composerTitle(page)).toBeHidden()
 
     await pin(page, BEER).click()
@@ -255,7 +255,7 @@ test.describe("hide ideas (#245)", () => {
     await settingsSwitch(page).click()
     await expect(settingsSwitch(page)).toHaveAttribute("aria-checked", "true")
 
-    await page.getByRole("button", { name: "Back", exact: true }).click()
+    await page.getByRole("button", { name: "back", exact: true }).click()
     await expect(page).toHaveURL(/\/$/)
     await expect(nav(page)).toBeVisible()
     await expect(pins(page)).toHaveCount(5)
@@ -269,7 +269,7 @@ test.describe("hide ideas (#245)", () => {
     await expect(settingsSwitch(page)).toHaveAttribute("aria-checked", "true")
     await settingsSwitch(page).click()
 
-    await page.getByRole("button", { name: "Back", exact: true }).click()
+    await page.getByRole("button", { name: "back", exact: true }).click()
     await expect(page).toHaveURL(/\/$/)
     await expect(nav(page)).toBeVisible()
     await expect(

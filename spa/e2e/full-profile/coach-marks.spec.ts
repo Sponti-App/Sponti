@@ -125,7 +125,7 @@ test.describe("coach marks (#560)", () => {
     ).toBeVisible()
     await expectSpotlightOn(
       page,
-      navNode(page).getByRole("button", { name: "Circles" })
+      navNode(page).getByRole("button", { name: "circles" })
     )
 
     // 5: the menu, which ends on "got it".
@@ -141,7 +141,7 @@ test.describe("coach marks (#560)", () => {
     await expect(mark(page)).toHaveCount(0)
 
     await page.reload()
-    await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "open menu" })).toBeVisible()
     await expect(mark(page)).toHaveCount(0)
   })
 
@@ -195,7 +195,7 @@ test.describe("coach marks (#560)", () => {
 
     // The topmost element over the circles tab is the overlay: the home is
     // a fixed layer of its own, so the marks are portalled above the nav.
-    const tab = navNode(page).locator('button[aria-label="Circles"]')
+    const tab = navNode(page).locator('button[aria-label="circles"]')
     const box = await tab.boundingBox()
     expect(box).not.toBeNull()
     const onTop = await page.evaluate(
@@ -215,10 +215,10 @@ test.describe("coach marks (#560)", () => {
 
     // The user opens the menu while the checklist is up, then closes it and
     // hides the checklist: the marks wait for the next arrival.
-    await page.getByRole("button", { name: "Open menu" }).click()
+    await page.getByRole("button", { name: "open menu" }).click()
     // Close it on the scrim, to the right of the drawer.
     await page.mouse.click(page.viewportSize()!.width - 8, 400)
-    await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "open menu" })).toBeVisible()
     await checklist.getByRole("button", { name: "hide" }).click()
     await expect(checklist).toBeHidden()
     await page.waitForTimeout(600)
@@ -227,9 +227,9 @@ test.describe("coach marks (#560)", () => {
     // The next arrival on the home (a reload would re-run the init script
     // that makes the checklist pending again).
     const nav = page.getByRole("navigation", { name: "Primary" })
-    await nav.getByRole("button", { name: "Circles" }).click()
+    await nav.getByRole("button", { name: "circles" }).click()
     await expect(page).toHaveURL(/\/circles/)
-    await nav.getByRole("button", { name: "Home" }).click()
+    await nav.getByRole("button", { name: "home" }).click()
     await expect(mark(page)).toBeVisible()
   })
 })

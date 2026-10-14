@@ -46,7 +46,7 @@ async function openFeed(page: Page) {
   await page.goto("/")
   const nav = primaryNav(page)
   await expect(nav).toBeVisible()
-  await nav.getByRole("button", { name: "Feed" }).click()
+  await nav.getByRole("button", { name: "feed" }).click()
   const sheet = page.getByRole("dialog", { name: "notifications" })
   await expect(sheet).toBeVisible()
   // vaul slides the sheet in; wait until it has stopped moving.
@@ -206,7 +206,7 @@ test.describe("notifications sheet (#137)", () => {
     await page.mouse.click(180, 40)
     await expect(sheet).toBeHidden()
 
-    await primaryNav(page).getByRole("button", { name: "Feed" }).click()
+    await primaryNav(page).getByRole("button", { name: "feed" }).click()
     await expect(sheet).toBeVisible()
     await page.getByRole("button", { name: "Close notifications" }).click()
     await expect(sheet).toBeHidden()
@@ -243,7 +243,7 @@ test.describe("notifications sheet (#137)", () => {
     )
     const before = await toastAnchorTop()
 
-    await primaryNav(page).getByRole("button", { name: "Feed" }).click()
+    await primaryNav(page).getByRole("button", { name: "feed" }).click()
     const sheet = page.getByRole("dialog", { name: "notifications" })
     await expect(sheet).toBeVisible()
     await expect

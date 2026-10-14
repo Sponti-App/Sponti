@@ -196,7 +196,7 @@ function SignedInHome() {
           onViewChange={setView}
           left={
             <HeaderIconButton
-              aria-label={menuOpen ? "Close menu" : "Open menu"}
+              aria-label={menuOpen ? "close menu" : "open menu"}
               aria-expanded={menuOpen}
               data-coach="menu"
               onClick={() => {
@@ -241,7 +241,7 @@ function SignedInHome() {
             </button>
             <button
               onClick={handleClearRoute}
-              aria-label="Clear route"
+              aria-label="clear route"
               className="ml-1 rounded-full p-1 hover:bg-accent-foreground/10"
             >
               <XIcon className="h-3 w-3" />

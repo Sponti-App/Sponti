@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 import {
   API_BASE,
   AUTH_BASE,
@@ -90,6 +90,77 @@ test.describe("lowercase copy (#339)", () => {
     await page.goto("/login")
     await expect(
       page.getByRole("button", { name: "google sign-in is not configured" })
+    ).toBeVisible()
+  })
+})
+
+// #359: the rest of the capitalised product copy, aria-labels included (a
+// screen reader reads them as written), and the agenda's time column.
+test.describe("lowercase copy and calendar times (#359)", () => {
+  async function stubCalendarFlare(page: Page, startAt: Date) {
+    await page.clock.setFixedTime(new Date(2026, 9, 7, 9, 0))
+    await stubBackend(page)
+    // Registered after the backend stub, so it answers first.
+    await page.route(`${API_BASE}/**/events/calendar/upcoming**`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            makeStubFlare({
+              _id: "event-calendar-1",
+              title: "Rooftop Picnic",
+              startAt: startAt.toISOString(),
+              endAt: new Date(startAt.getTime() + 3_600_000).toISOString(),
+            }),
+          ],
+          pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+        }),
+      })
+    )
+  }
+
+  test("the agenda keeps the widest time on one line", async ({ page }) => {
+    await stubCalendarFlare(page, new Date(2026, 9, 9, 12, 42))
+    await page.goto("/")
+    await page.getByRole("button", { name: "soon", exact: true }).click()
+
+    const time = page.getByText(/^12:42\s?pm$/)
+    await expect(time).toBeVisible()
+    const box = await time.boundingBox()
+    // One line of text-sm is about 20px tall; wrapped onto two it is 40.
+    expect(box?.height).toBeLessThan(30)
+    // And it fits its column rather than spilling into the title's gap.
+    expect(await time.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+      true
+    )
+  })
+
+  test("the nav, top bar and calendar buttons are named in lowercase", async ({
+    page,
+  }) => {
+    await stubCalendarFlare(page, new Date(2026, 9, 9, 13, 24))
+    await page.goto("/")
+
+    // `exact` matches case-sensitively, unlike the default substring match.
+    const nav = page.getByRole("navigation", { name: "primary", exact: false })
+    for (const name of ["home", "feed", "circles", "my flares"]) {
+      await expect(
+        nav
+          .getByRole("button", { name, exact: true })
+          .or(nav.getByRole("link", { name, exact: true }))
+      ).toBeVisible()
+    }
+    await expect(
+      page.getByRole("button", { name: "open menu", exact: true })
+    ).toBeVisible()
+
+    await page.getByRole("button", { name: "soon", exact: true }).click()
+    await expect(
+      page.getByRole("button", { name: "previous", exact: true })
+    ).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "next", exact: true })
     ).toBeVisible()
   })
 })

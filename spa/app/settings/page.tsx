@@ -114,16 +114,16 @@ const VISIBILITY_OPTIONS: {
 }[] = [
   {
     value: "public",
-    label: "Public",
-    sublabel: "Anyone can find you by username",
+    label: "public",
+    sublabel: "anyone can find you by username",
   },
   {
     value: "connections_only",
-    label: "Connections only",
-    sublabel: "Coming soon — not supported by the backend yet",
+    label: "connections only",
+    sublabel: "coming soon — not supported by the backend yet",
     disabled: true,
   },
-  { value: "private", label: "Private", sublabel: "Hidden — invite only" },
+  { value: "private", label: "private", sublabel: "hidden — invite only" },
 ]
 
 // ─── Page ───────────────────────────────────────────────────────────────────
@@ -182,7 +182,9 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
       setPendingAvatarFile(file)
       setUploadError(null)
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Could not read file")
+      setUploadError(
+        err instanceof Error ? err.message : "couldn't read that file"
+      )
     }
   }
 
@@ -307,7 +309,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Could not save profile"
+            : "couldn't save your profile"
       setUploadError(message)
       showActionFeedback("couldn't save that", { tone: "error" })
     } finally {
@@ -321,7 +323,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <button
           onClick={() => router.back()}
-          aria-label="Back"
+          aria-label="back"
           className="flex h-9 w-9 items-center justify-center rounded-full border border-border"
         >
           <ArrowLeftIcon className="h-4 w-4" />
@@ -329,7 +331,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
         <span className="text-base font-semibold">settings</span>
         <button
           onClick={() => setTheme(isDark ? "light" : "dark")}
-          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label={isDark ? "switch to light mode" : "switch to dark mode"}
           className="flex h-9 w-9 items-center justify-center rounded-full border border-border"
         >
           {isDark ? (
@@ -347,11 +349,11 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             <TabsList className="w-full">
               <TabsTrigger value="account" className="flex-1 gap-1.5">
                 <UserIcon className="h-3.5 w-3.5" />
-                Account
+                account
               </TabsTrigger>
               <TabsTrigger value="notifications" className="flex-1 gap-1.5">
                 <BellIcon className="h-3.5 w-3.5" />
-                Notifications
+                notifications
               </TabsTrigger>
             </TabsList>
           </div>
@@ -376,7 +378,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             </Section>
 
             {/* Avatar — users.avatarUrl, uploaded via POST /auth/me/avatar */}
-            <Section icon={CameraIcon} label="Profile picture">
+            <Section icon={CameraIcon} label="profile picture">
               <div className="flex items-start gap-4">
                 <Avatar className="h-20 w-20 bg-muted ring-1 ring-border">
                   <AvatarImage
@@ -389,8 +391,8 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 </Avatar>
                 <div className="min-w-0 flex-1 space-y-2">
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    Upload a photo from your device. Saved when you press “Save
-                    changes”.
+                    upload a photo from your device. it saves when you press
+                    “save changes”.
                   </p>
                   {uploadError && (
                     <p className="text-xs leading-relaxed text-destructive">
@@ -418,18 +420,18 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             </Section>
 
             {/* Profile — users: displayName, username, email */}
-            <Section icon={UserIcon} label="Profile">
+            <Section icon={UserIcon} label="profile">
               <div className="space-y-3">
-                <Field label="Display name">
+                <Field label="display name">
                   <Input
                     value={account.displayName}
                     onChange={(e) =>
                       patchAccount({ displayName: e.target.value })
                     }
-                    placeholder="Your name"
+                    placeholder="your name"
                   />
                 </Field>
-                <Field label="Username">
+                <Field label="username">
                   <div className="relative">
                     <span className="absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground select-none">
                       @
@@ -444,7 +446,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                     />
                   </div>
                 </Field>
-                <Field label="Email">
+                <Field label="email">
                   <Input
                     type="email"
                     value={account.email}
@@ -453,7 +455,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                   />
                 </Field>
                 {emailChanged && (
-                  <Field label="Current password">
+                  <Field label="current password">
                     <Input
                       type="password"
                       autoComplete="current-password"
@@ -468,7 +470,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             </Section>
 
             {/* Privacy — users: profileVisibility (profile_visibility_status enum) */}
-            <Section icon={ShieldIcon} label="Privacy">
+            <Section icon={ShieldIcon} label="privacy">
               <RadioGroup
                 value={account.profileVisibility}
                 onValueChange={(v) =>
@@ -511,7 +513,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
 
             {/* Map — device-only, applies at once (no save button): the idea
                 pins and cards on the home map (#245). Kept in localStorage. */}
-            <Section icon={MapPinIcon} label="Map">
+            <Section icon={MapPinIcon} label="map">
               <ToggleRow
                 label="show ideas on the map"
                 sublabel="suggested spots near you · kept on this device"
@@ -579,7 +581,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             {/* Password — auth-server has no change-password endpoint yet,
                 only the reset-by-email flow. Hidden behind "coming soon"
                 rather than wired to the wrong flow or removed (#91). */}
-            <Section icon={LockIcon} label="Password">
+            <Section icon={LockIcon} label="password">
               <div className="rounded-xl border border-border p-3.5 opacity-50">
                 <p className="text-sm font-medium">change password</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
@@ -614,7 +616,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             {/* Quiet hours — notification_settings: quietHoursEnabled, quietHoursStart, quietHoursEnd.
                 Each control below auto-saves on change (see commitNotifField)
                 and reverts itself if the request fails. */}
-            <Section icon={ClockIcon} label="Quiet hours">
+            <Section icon={ClockIcon} label="quiet hours">
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">enable quiet hours</p>
@@ -678,10 +680,10 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             </Section>
 
             {/* Notification types — notification_settings: eventReminders, invitationNotifications */}
-            <Section icon={BellIcon} label="Notify me about">
+            <Section icon={BellIcon} label="notify me about">
               <div className="space-y-2">
                 <ToggleRow
-                  label="Event reminders"
+                  label="event reminders"
                   sublabel="1h before flares you've joined · coming soon"
                   checked={notif.eventReminders}
                   disabled={notifLoading}
@@ -690,8 +692,8 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                   }
                 />
                 <ToggleRow
-                  label="Invitation notifications"
-                  sublabel="When someone invites you to a flare"
+                  label="invitation notifications"
+                  sublabel="when someone invites you to a flare"
                   checked={notif.invitationNotifications}
                   disabled={notifLoading}
                   onCheckedChange={(v) =>
@@ -704,7 +706,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
             {/* Notify when — no backend field (notification_settings has no
                 `notifyWhen` column). Shown disabled, "coming soon", rather
                 than wired or deleted — see NotifyWhen above. */}
-            <Section icon={BellIcon} label="Notify me when... (coming soon)">
+            <Section icon={BellIcon} label="notify me when... (coming soon)">
               <RadioGroup
                 value={notif.notifyWhen}
                 className="space-y-2"

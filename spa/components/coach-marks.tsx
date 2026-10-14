@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils"
 const TARGETS: Record<Exclude<CoachMarkId, "idea">, string> = {
   flare: 'nav[aria-label="Primary"] [data-nav-flare-circle]',
   calendar: '[data-coach="view-toggle"]',
-  circles: 'nav[aria-label="Primary"] button[aria-label="Circles"]',
+  circles: 'nav[aria-label="Primary"] button[aria-label="circles"]',
   menu: '[data-coach="menu"]',
 }
 

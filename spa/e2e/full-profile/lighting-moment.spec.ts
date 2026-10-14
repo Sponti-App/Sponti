@@ -354,7 +354,7 @@ test.describe("lighting moment", () => {
     await expect(strip(page)).toBeVisible()
     await expect(navCircle(page)).toHaveAttribute("data-hidden", "true")
 
-    await page.getByRole("button", { name: "Close", exact: true }).click()
+    await page.getByRole("button", { name: "close", exact: true }).click()
     await expect(page.getByPlaceholder(TITLE)).toBeHidden()
     await expect.poll(morphs).toEqual(["open", "close"])
     await expect(navCircle(page)).not.toHaveAttribute("data-hidden", "true")
@@ -408,7 +408,7 @@ test.describe("lighting moment, the morph and the map", () => {
     }
 
     await samplePerFrame(page)
-    await page.getByRole("button", { name: "Close", exact: true }).click()
+    await page.getByRole("button", { name: "close", exact: true }).click()
     await expect(page.getByPlaceholder(TITLE)).toBeHidden()
     await expect(page.locator("[data-flare-morph]")).toHaveCount(0)
     await expect(navCircle(page)).toBeVisible()

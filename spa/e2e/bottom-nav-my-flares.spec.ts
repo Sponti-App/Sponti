@@ -43,7 +43,7 @@ test.describe("bottom nav: my flares (#356)", () => {
     ).toBeVisible()
     await expect(myFlaresTab(page)).not.toHaveClass(ACTIVE)
     await expect(
-      nav(page).getByRole("button", { name: "Home" })
+      nav(page).getByRole("button", { name: "home" })
     ).not.toHaveClass(ACTIVE)
   })
 })

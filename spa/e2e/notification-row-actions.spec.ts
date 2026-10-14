@@ -12,7 +12,7 @@ async function openFeed(page: Page) {
   await page.goto("/")
   const nav = page.locator('nav[aria-label="Primary"]')
   await expect(nav).toBeVisible()
-  await nav.getByRole("button", { name: "Feed" }).click()
+  await nav.getByRole("button", { name: "feed" }).click()
   const sheet = page.getByRole("dialog", { name: "notifications" })
   await expect(sheet).toBeVisible()
   // Wait for vaul's slide-in to finish before touching rows.

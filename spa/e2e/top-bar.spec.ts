@@ -52,7 +52,7 @@ test.describe("top bar (#369)", () => {
     page,
   }) => {
     await page.goto("/")
-    await page.getByRole("button", { name: "Open menu" }).click()
+    await page.getByRole("button", { name: "open menu" }).click()
 
     await expect(drawer(page)).toBeVisible()
     await expectMenuContents(drawer(page))
@@ -67,14 +67,14 @@ test.describe("top bar (#369)", () => {
     page,
   }) => {
     await page.goto("/")
-    await page.getByRole("button", { name: "Open menu" }).click()
+    await page.getByRole("button", { name: "open menu" }).click()
     await drawer(page)
       .getByRole("link", { name: /view profile/ })
       .click()
     await expect(page).toHaveURL(new RegExp(`/profile/${STUB_USER.username}$`))
 
     await page.goto("/")
-    await page.getByRole("button", { name: "Open menu" }).click()
+    await page.getByRole("button", { name: "open menu" }).click()
     await drawer(page).getByRole("link", { name: "edit profile" }).click()
     await expect(page).toHaveURL(/\/settings\/profile$/)
   })

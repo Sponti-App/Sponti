@@ -1288,7 +1288,7 @@ export function MapView({
           distanceLabel: "",
         }
         setRouteResult(fallback)
-        setRouteError(err instanceof Error ? err.message : "Route unavailable")
+        setRouteError(err instanceof Error ? err.message : "route unavailable")
       })
     return () => ac.abort()
   }, [activeRoute, routeDestination, routeOrigin, apiKey])
@@ -1478,7 +1478,7 @@ export function MapView({
       {routeError && (
         <div className="absolute top-28 right-3 z-30 flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1.5 text-xs shadow">
           <WarningCircleIcon className="h-3 w-3 text-destructive" />
-          <span>Route unavailable</span>
+          <span>route unavailable</span>
         </div>
       )}
 
@@ -1510,7 +1510,7 @@ export function MapView({
                 if (!hasCurrentLocation) start.requestLocation()
                 else setRecenterTick((n) => n + 1)
               }}
-              aria-label="Recenter on my location"
+              aria-label="recenter on my location"
               className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md active:scale-95"
             >
               <GpsFixIcon className="h-5 w-5" />

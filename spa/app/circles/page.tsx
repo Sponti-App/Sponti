@@ -170,7 +170,7 @@ export default function CirclesPage() {
       })
       .catch((err) => {
         if (ac.signal.aborted) return
-        const message = getErrorMessage(err, "Could not load your circles")
+        const message = getErrorMessage(err, "couldn't load your circles")
         setConnectionsError(message)
         setCirclesError(message)
       })
@@ -245,7 +245,7 @@ export default function CirclesPage() {
     target: Pick<Connection, "id" | "username" | "displayName">
   ): void => {
     if (!apiEnabled) {
-      setConnectionsError("Backend API is not configured.")
+      setConnectionsError("backend api is not configured")
       showActionFeedback("couldn't send request", { tone: "error" })
       return
     }
@@ -257,14 +257,14 @@ export default function CirclesPage() {
         refreshBackendData()
       })
       .catch((err) => {
-        setConnectionsError(getErrorMessage(err, "Could not send request"))
+        setConnectionsError(getErrorMessage(err, "couldn't send request"))
         showActionFeedback("couldn't send request", { tone: "error" })
       })
   }
 
   const acceptRequest = (req: ConnectionRequest): void => {
     if (!apiEnabled) {
-      setConnectionsError("Backend API is not configured.")
+      setConnectionsError("backend api is not configured")
       showActionFeedback("couldn't add friend", { tone: "error" })
       return
     }
@@ -282,7 +282,7 @@ export default function CirclesPage() {
       refreshBackendData()
     })()
       .catch((err) => {
-        setConnectionsError(getErrorMessage(err, "Could not accept request"))
+        setConnectionsError(getErrorMessage(err, "couldn't accept request"))
         showActionFeedback("couldn't add friend", { tone: "error" })
       })
       .finally(() => {
@@ -296,7 +296,7 @@ export default function CirclesPage() {
 
   const declineRequest = (req: ConnectionRequest): void => {
     if (!apiEnabled) {
-      setConnectionsError("Backend API is not configured.")
+      setConnectionsError("backend api is not configured")
       showActionFeedback("couldn't decline request", { tone: "error" })
       return
     }
@@ -307,14 +307,14 @@ export default function CirclesPage() {
         refreshBackendData()
       })
       .catch((err) => {
-        setConnectionsError(getErrorMessage(err, "Could not decline request"))
+        setConnectionsError(getErrorMessage(err, "couldn't decline request"))
         showActionFeedback("couldn't decline request", { tone: "error" })
       })
   }
 
   const blockConnection = (target: Connection): void => {
     if (!apiEnabled) {
-      setConnectionsError("Backend API is not configured.")
+      setConnectionsError("backend api is not configured")
       showActionFeedback("couldn't block person", { tone: "error" })
       return
     }
@@ -326,14 +326,14 @@ export default function CirclesPage() {
         refreshBackendData()
       })
       .catch((err) => {
-        setConnectionsError(getErrorMessage(err, "Could not block user"))
+        setConnectionsError(getErrorMessage(err, "couldn't block person"))
         showActionFeedback("couldn't block person", { tone: "error" })
       })
   }
 
   const cancelSentRequest = (target: Connection): void => {
     if (!apiEnabled || !target.connectionId) {
-      setConnectionsError("Could not cancel request.")
+      setConnectionsError("couldn't cancel request")
       showActionFeedback("couldn't cancel request", { tone: "error" })
       return
     }
@@ -344,14 +344,14 @@ export default function CirclesPage() {
         refreshBackendData()
       })
       .catch((err) => {
-        setConnectionsError(getErrorMessage(err, "Could not cancel request"))
+        setConnectionsError(getErrorMessage(err, "couldn't cancel request"))
         showActionFeedback("couldn't cancel request", { tone: "error" })
       })
   }
 
   const unblock = (target: BlockedUser): void => {
     if (!apiEnabled) {
-      setConnectionsError("Backend API is not configured.")
+      setConnectionsError("backend api is not configured")
       showActionFeedback("couldn't unblock person", { tone: "error" })
       return
     }
@@ -362,7 +362,7 @@ export default function CirclesPage() {
         refreshBackendData()
       })
       .catch((err) => {
-        setConnectionsError(getErrorMessage(err, "Could not unblock user"))
+        setConnectionsError(getErrorMessage(err, "couldn't unblock person"))
         showActionFeedback("couldn't unblock person", { tone: "error" })
       })
   }
@@ -436,7 +436,7 @@ export default function CirclesPage() {
     onError?: () => void
   ): void => {
     if (!apiEnabled) {
-      setCirclesError("Backend API is not configured.")
+      setCirclesError("backend api is not configured")
       showActionFeedback("couldn't add to circle", { tone: "error" })
       return
     }
@@ -456,7 +456,7 @@ export default function CirclesPage() {
         offerCircleFlares(circleId, userId)
       })
       .catch((err) => {
-        setCirclesError(getErrorMessage(err, "Could not add circle member"))
+        setCirclesError(getErrorMessage(err, "couldn't add to circle"))
         showActionFeedback("couldn't add to circle", { tone: "error" })
         onError?.()
       })
@@ -464,7 +464,7 @@ export default function CirclesPage() {
 
   const removeMemberFromCircle = (circleId: string, userId: string): void => {
     if (!apiEnabled) {
-      setCirclesError("Backend API is not configured.")
+      setCirclesError("backend api is not configured")
       showActionFeedback("couldn't remove from circle", { tone: "error" })
       return
     }
@@ -482,7 +482,7 @@ export default function CirclesPage() {
         showActionFeedback("removed from circle")
       })
       .catch((err) => {
-        setCirclesError(getErrorMessage(err, "Could not remove circle member"))
+        setCirclesError(getErrorMessage(err, "couldn't remove from circle"))
         showActionFeedback("couldn't remove from circle", { tone: "error" })
       })
   }
@@ -493,7 +493,7 @@ export default function CirclesPage() {
     toCircleId: string
   ): void => {
     if (!apiEnabled) {
-      setCirclesError("Backend API is not configured.")
+      setCirclesError("backend api is not configured")
       showActionFeedback("couldn't move to circle", { tone: "error" })
       return
     }
@@ -530,7 +530,7 @@ export default function CirclesPage() {
       showActionFeedback("moved to circle")
       offerCircleFlares(toCircleId, userId)
     })().catch((err) => {
-      setCirclesError(getErrorMessage(err, "Could not move circle member"))
+      setCirclesError(getErrorMessage(err, "couldn't move to circle"))
       showActionFeedback("couldn't move to circle", { tone: "error" })
     })
   }
@@ -569,7 +569,7 @@ export default function CirclesPage() {
         showActionFeedback("circle renamed")
       })
       .catch((err) => {
-        setCirclesError(getErrorMessage(err, "Could not update circle"))
+        setCirclesError(getErrorMessage(err, "couldn't rename circle"))
         showActionFeedback("couldn't rename circle", { tone: "error" })
       })
   }
@@ -644,7 +644,7 @@ export default function CirclesPage() {
     if (!name) return
 
     if (!apiEnabled) {
-      setCirclesError("Backend API is not configured.")
+      setCirclesError("backend api is not configured")
       showActionFeedback("couldn't create circle", { tone: "error" })
       return
     }
@@ -664,7 +664,7 @@ export default function CirclesPage() {
         clearGroup()
       })
       .catch((err) => {
-        setCirclesError(getErrorMessage(err, "Could not create circle"))
+        setCirclesError(getErrorMessage(err, "couldn't create circle"))
         showActionFeedback("couldn't create circle", { tone: "error" })
       })
   }
@@ -688,7 +688,7 @@ export default function CirclesPage() {
           <div className="flex items-center justify-between px-4 py-3">
             <button
               onClick={() => router.push("/")}
-              aria-label="Back"
+              aria-label="back"
               className="flex h-9 w-9 items-center justify-center rounded-full border border-border"
             >
               <ArrowLeftIcon className="h-4 w-4" />
@@ -1076,7 +1076,7 @@ export default function CirclesPage() {
                   <button
                     type="button"
                     onClick={() => setNewCircleOpen(false)}
-                    aria-label="Close"
+                    aria-label="close"
                     className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-secondary"
                   >
                     <XIcon className="h-3.5 w-3.5" />
@@ -1528,7 +1528,7 @@ export default function CirclesPage() {
                 block {pendingBlock.displayName}?
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                They won&apos;t appear in your circles or see your flares. You
+                they won&apos;t appear in your circles or see your flares. you
                 can unblock them from your people list.
               </p>
             </div>

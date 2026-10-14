@@ -82,11 +82,11 @@ export function BottomNav({
     FlameIcon
 
   const items: NavItem[] = [
-    { kind: "route", icon: HouseIcon, label: "Home", href: "/" },
+    { kind: "route", icon: HouseIcon, label: "home", href: "/" },
     {
       kind: "action",
       icon: BellIcon,
-      label: "Feed",
+      label: "feed",
       onClick: onOpenNotifications ?? (() => router.push("/")),
       badge: notificationsUnread,
     },
@@ -98,7 +98,7 @@ export function BottomNav({
       center: true,
       circleHidden: flareButtonHidden,
     },
-    { kind: "route", icon: UsersIcon, label: "Circles", href: "/circles" },
+    { kind: "route", icon: UsersIcon, label: "circles", href: "/circles" },
     {
       kind: "route",
       icon: FireIcon,
@@ -129,11 +129,11 @@ export function SignedOutBottomNav({
   onFlare: () => void
 }) {
   const items: NavItem[] = [
-    { kind: "route", icon: HouseIcon, label: "Home", href: "/" },
+    { kind: "route", icon: HouseIcon, label: "home", href: "/" },
     {
       kind: "action",
       icon: BellIcon,
-      label: "Feed",
+      label: "feed",
       onClick: () => onAccountOnly("feed"),
     },
     {
@@ -146,7 +146,7 @@ export function SignedOutBottomNav({
     {
       kind: "action",
       icon: UsersIcon,
-      label: "Circles",
+      label: "circles",
       onClick: () => onAccountOnly("circles"),
     },
     {
@@ -242,7 +242,7 @@ function NavBar({ items }: { items: NavItem[] }) {
           >
             {/* The active tab's icon takes Phosphor's fill weight (#345). */}
             <Icon className="h-5 w-5" weight={active ? "fill" : "regular"} />
-            <span>{item.label.toLowerCase()}</span>
+            <span>{item.label}</span>
             {(item.badge ?? 0) > 0 && (
               <span
                 aria-label={`${item.badge} unread`}

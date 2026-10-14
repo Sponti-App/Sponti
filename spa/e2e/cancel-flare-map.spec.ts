@@ -56,7 +56,7 @@ test.describe("cancelling a flare (#580)", () => {
     // Back on the map through the nav: remounted, not reloaded.
     await page
       .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "Home" })
+      .getByRole("button", { name: "home" })
       .click()
     await expect(rail.getByText("someone else's flare")).toBeVisible()
     await expect(rail.getByText("my own flare")).toHaveCount(0)

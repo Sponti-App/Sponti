@@ -56,7 +56,7 @@ test.describe("flare composer", () => {
     await page.getByRole("button", { name: "flare", exact: true }).click()
     await expect(page.getByPlaceholder(TITLE_PLACEHOLDER)).toBeInViewport()
 
-    await page.getByRole("button", { name: "Close", exact: true }).click()
+    await page.getByRole("button", { name: "close", exact: true }).click()
     await expect(page.getByPlaceholder(TITLE_PLACEHOLDER)).toBeHidden()
 
     // vaul/Radix's Dialog primitive locks the body (pointer-events: none)

@@ -282,7 +282,7 @@ export function CalendarView({
             <button
               type="button"
               onClick={goPrev}
-              aria-label="Previous"
+              aria-label="previous"
               className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-secondary active:bg-muted"
             >
               <CaretLeftIcon className="h-4 w-4" />
@@ -291,7 +291,7 @@ export function CalendarView({
               type="button"
               onClick={goNext}
               disabled={!canGoNext}
-              aria-label="Next"
+              aria-label="next"
               className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-secondary active:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-background"
             >
               <CaretRightIcon className="h-4 w-4" />
@@ -574,7 +574,7 @@ function EventCard({
       }`}
       onClick={() => onSelect(event)}
     >
-      <span className="w-12 shrink-0 text-sm text-muted-foreground tabular-nums">
+      <span className="w-16 shrink-0 text-sm whitespace-nowrap text-muted-foreground tabular-nums">
         {formatEventTime(event)}
       </span>
       <div className="min-w-0 flex-1">

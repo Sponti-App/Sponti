@@ -23,14 +23,14 @@ export function MenuDrawer({
     >
       <button
         type="button"
-        aria-label="Close menu"
+        aria-label="close menu"
         tabIndex={open ? 0 : -1}
         className="absolute inset-0 bg-foreground/25"
         onClick={onClose}
       />
 
       <aside
-        aria-label="Menu"
+        aria-label="menu"
         className={`absolute inset-y-0 left-0 flex w-[82%] flex-col rounded-r-[32px] border-r border-border bg-background px-6 shadow-2xl transition-transform duration-300 ease-out ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}

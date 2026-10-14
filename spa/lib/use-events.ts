@@ -54,7 +54,7 @@ export function subscribeToEventsChanged(
 const DEMO_MODE = featureFlags.seedDemoData
 
 // Shown instead of fetching when the build has no api URL and demo data is off.
-export const API_NOT_CONFIGURED_ERROR = "Backend API is not configured"
+export const API_NOT_CONFIGURED_ERROR = "backend api is not configured"
 
 function apiConfigured(): boolean {
   return API_BASE.length > 0
@@ -336,5 +336,5 @@ export function useMyFlares(): MyFlaresState {
 
 function errMessage(err: unknown): string {
   if (err instanceof Error) return err.message
-  return "Failed to load events"
+  return "couldn't load events"
 }

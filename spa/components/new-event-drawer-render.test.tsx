@@ -391,18 +391,20 @@ describe("NewEventDrawer custom circle audience", () => {
 // only for people with no friends at all.
 describe("NewEventDrawer no-friends audience prompt", () => {
   const PROMPT = /no friends on sponti yet/i
-  // No friends, so the draft starts public; switching public off leaves
+  // No friends, so the draft starts public; switching open to all off leaves
   // nobody to invite and the prompt shows.
   const renderFriendlessPrivate = async () => {
     const user = userEvent.setup()
     mocks.fetchAcceptedConnections.mockResolvedValue([])
     mocks.fetchMyCircles.mockResolvedValue([])
     render(<NewEventDrawer open onClose={vi.fn()} />)
-    await user.click(await screen.findByRole("button", { name: /^public/ }))
+    await user.click(
+      await screen.findByRole("button", { name: /^open to all/ })
+    )
     await user.click(screen.getByRole("switch"))
     expect(await screen.findByText(PROMPT)).toBeInTheDocument()
     expect(
-      screen.getByRole("button", { name: "make it public & go live" })
+      screen.getByRole("button", { name: "make it open to all & go live" })
     ).toBeInTheDocument()
     return user
   }
@@ -429,7 +431,7 @@ describe("NewEventDrawer no-friends audience prompt", () => {
 // #583: someone with friends and no audience picked is asked to pick one.
 // They never see "no friends yet", and the CTA never publishes for them.
 describe("NewEventDrawer pick-who prompt", () => {
-  const HINT = "pick a circle, some friends, or make it public"
+  const HINT = "pick a circle, some friends, or make it open to all"
   // A friend exists but the default audience circle is empty, so the draft
   // has nobody to invite.
   const renderWithEmptyAudience = async () => {
@@ -452,7 +454,7 @@ describe("NewEventDrawer pick-who prompt", () => {
   it("asks to pick, not to invite friends", async () => {
     await renderWithEmptyAudience()
     expect(screen.queryByText(/no friends on sponti yet/i)).toBeNull()
-    expect(screen.queryByText("make it public & go live")).toBeNull()
+    expect(screen.queryByText("make it open to all & go live")).toBeNull()
     // The empty circle is still named; deselecting it leaves "pick who".
     expect(
       screen.getByRole("button", { name: "all friends · 0" })

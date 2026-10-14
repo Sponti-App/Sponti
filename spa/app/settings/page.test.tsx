@@ -100,7 +100,7 @@ describe("SettingsPage account tab", () => {
     currentUser = baseUser({ profileVisibility: "private" })
     render(<SettingsPage />)
 
-    expect(screen.getByRole("radio", { name: /^Private/ })).toHaveAttribute(
+    expect(screen.getByRole("radio", { name: /^private/ })).toHaveAttribute(
       "aria-checked",
       "true"
     )
@@ -110,7 +110,7 @@ describe("SettingsPage account tab", () => {
     const user = userEvent.setup()
     render(<SettingsPage />)
 
-    await user.click(screen.getByRole("radio", { name: /^Private/ }))
+    await user.click(screen.getByRole("radio", { name: /^private/ }))
     await user.click(screen.getByRole("button", { name: "save changes" }))
 
     await waitFor(() =>
@@ -275,7 +275,7 @@ describe("SettingsPage account tab", () => {
     render(<SettingsPage />)
 
     expect(
-      screen.getByRole("radio", { name: /^Connections only/ })
+      screen.getByRole("radio", { name: /^connections only/ })
     ).toBeDisabled()
   })
 
@@ -329,7 +329,7 @@ describe("SettingsPage notifications tab", () => {
       ).toHaveAttribute("aria-checked", "true")
     )
     expect(
-      screen.getByRole("switch", { name: "Event reminders" })
+      screen.getByRole("switch", { name: "event reminders" })
     ).toHaveAttribute("aria-checked", "false")
   })
 
@@ -341,10 +341,10 @@ describe("SettingsPage notifications tab", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole("switch", { name: "Event reminders" })
+        screen.getByRole("switch", { name: "event reminders" })
       ).toHaveAttribute("aria-checked", "false")
     )
-    await user.click(screen.getByRole("switch", { name: "Event reminders" }))
+    await user.click(screen.getByRole("switch", { name: "event reminders" }))
 
     await waitFor(() =>
       expect(mocks.updateNotificationSettings).toHaveBeenCalledWith({
@@ -362,10 +362,10 @@ describe("SettingsPage notifications tab", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole("switch", { name: "Event reminders" })
+        screen.getByRole("switch", { name: "event reminders" })
       ).toHaveAttribute("aria-checked", "false")
     )
-    await user.click(screen.getByRole("switch", { name: "Event reminders" }))
+    await user.click(screen.getByRole("switch", { name: "event reminders" }))
 
     await waitFor(() =>
       expect(mocks.showActionFeedback).toHaveBeenCalledWith(
@@ -375,7 +375,7 @@ describe("SettingsPage notifications tab", () => {
     )
     await waitFor(() =>
       expect(
-        screen.getByRole("switch", { name: "Event reminders" })
+        screen.getByRole("switch", { name: "event reminders" })
       ).toHaveAttribute("aria-checked", "false")
     )
   })

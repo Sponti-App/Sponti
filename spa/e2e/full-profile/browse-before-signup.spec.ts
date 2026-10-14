@@ -165,8 +165,8 @@ test.describe("browse before sign-up (#389)", () => {
     const offending = await openSignedOutMap(page)
 
     for (const [tab, noun] of [
-      ["Feed", "feed"],
-      ["Circles", "circles"],
+      ["feed", "feed"],
+      ["circles", "circles"],
       ["my flares", "flares"],
     ] as const) {
       await nav(page).getByRole("button", { name: tab, exact: true }).click()
