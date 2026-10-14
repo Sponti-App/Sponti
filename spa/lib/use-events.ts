@@ -33,6 +33,10 @@ type EventsChangedListener = () => void
 const eventsChangedListeners = new Set<EventsChangedListener>()
 
 export function emitEventsChanged(): void {
+  // #580: the map is unmounted on routes like the edit page, so no listener
+  // hears this there; its module cache must be cleared for the next mount to
+  // refetch instead of reusing a 60s-old result.
+  mapEventsCache.clear()
   for (const listener of eventsChangedListeners) {
     listener()
   }
