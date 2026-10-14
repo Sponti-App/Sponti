@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { deriveStatus, type HostedEvent } from "@/lib/api/events"
+import { featureFlags } from "@/lib/feature-flags"
 import { useMyFlares } from "@/lib/use-events"
 import { cn } from "@/lib/utils"
 
@@ -63,7 +64,13 @@ export default function EventHubPage() {
             <ArrowLeftIcon className="h-4 w-4" />
           </Button>
           <h1 className="text-base font-semibold">flares</h1>
-          <EventFilterMenu value={filter} onChange={setFilter} />
+          {/* #582: the menu's sorting isn't wired yet, so testers get a
+              spacer in its place and the title stays centred. */}
+          {featureFlags.myFlaresFilter ? (
+            <EventFilterMenu value={filter} onChange={setFilter} />
+          ) : (
+            <div aria-hidden className="h-10 w-10" />
+          )}
         </div>
         <div className="border-b border-border/60 px-4 pb-3">
           <EventViewToggle value={view} onChange={setView} />
@@ -264,7 +271,7 @@ function EmptyState() {
       </div>
       <p className="text-sm font-semibold">nothing yet</p>
       <p className="mt-1 max-w-[240px] text-xs text-muted-foreground">
-        start something with the + below
+        start something with the flare button below
       </p>
     </div>
   )
