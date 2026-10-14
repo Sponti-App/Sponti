@@ -186,6 +186,42 @@ export function EventHostCard({
   )
 }
 
+// A cancelled flare on my flares (#581): one muted line under the "show N
+// cancelled" fold. Still a link, so the host can open it and reactivate it.
+export function CancelledFlareRow({
+  event,
+  canManage = false,
+}: {
+  event: HostedEvent
+  canManage?: boolean
+}) {
+  const { day, time } = formatStartParts(event.startAt)
+  const title = displayFlareTitle({
+    title: event.title,
+    type: event.type,
+    hostName: event.hostName,
+    isHost: canManage,
+  })
+  const ActivityIcon =
+    EVENT_TYPES.find((type) => type.value === event.type)?.icon ?? ClockIcon
+
+  return (
+    <Link
+      href={`/event/${event.id}${canManage ? "?manage=1" : ""}`}
+      aria-label={`open details for ${title}, cancelled`}
+      className="flex min-w-0 items-center gap-2.5 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2 text-xs text-muted-foreground transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:bg-muted"
+    >
+      <ActivityIcon className="h-3.5 w-3.5 shrink-0" />
+      <span className="min-w-0 flex-1 truncate line-through">
+        {title.toLowerCase()}
+      </span>
+      <span className="shrink-0">
+        {day} · {time}
+      </span>
+    </Link>
+  )
+}
+
 function capacityForEvent(event: HostedEvent): number | undefined {
   // #181: the guest limit only caps public flares. A private flare is capped
   // by who the host invited, so its (default) limit is never shown.
