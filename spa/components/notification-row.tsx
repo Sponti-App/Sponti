@@ -321,7 +321,7 @@ function ConnectionRequestRow(props: RowProps) {
  * Someone accepted your request or scanned your code (#585): they are your
  * friend already, so the circle choice is offered straight away. It leaves
  * once they are in a circle (also on later visits), and "skip" ends it for
- * the session.
+ * good on this device (#597).
  */
 function ConnectionAcceptedRow(props: RowProps) {
   const { notification } = props

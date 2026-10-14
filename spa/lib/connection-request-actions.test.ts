@@ -22,6 +22,7 @@ vi.mock("@/lib/use-events", () => ({
   emitEventsChanged: mocks.emitEventsChanged,
 }))
 
+import { resetCircleSkipsForTest } from "./circle-skips"
 import {
   ACCEPT_UNDO_MS,
   declineRequest,
@@ -51,6 +52,8 @@ describe("connection request actions (#174, #226)", () => {
     vi.useFakeTimers()
     vi.clearAllMocks()
     resetConnectionRequestActions()
+    window.localStorage.clear()
+    resetCircleSkipsForTest()
     notify = vi.fn()
     mocks.respondToConnectionRequest.mockResolvedValue(undefined)
     mocks.addCircleMember.mockResolvedValue(undefined)
@@ -294,6 +297,45 @@ describe("connection request actions (#174, #226)", () => {
       })
 
       expect(result.current.placement).toEqual({ status: "skipped" })
+    })
+
+    // #597: a skip is kept per friend on the device, so it holds after a reload
+    // and on the other surface.
+    it("keeps a skipped prompt skipped after a reload, on any surface", async () => {
+      await act(async () => {
+        offerCircle(FRIEND, { userId: "maya", notify })
+      })
+      act(() => skipCircle(FRIEND))
+
+      // A reload: module state is gone, only storage is left.
+      resetConnectionRequestActions()
+      resetCircleSkipsForTest()
+      const reloaded = renderHook(() => useConnectionRequest(FRIEND))
+      await act(async () => {
+        offerCircle(FRIEND, { userId: "maya", notify })
+      })
+      expect(reloaded.result.current.placement).toEqual({ status: "skipped" })
+
+      const contact = renderHook(() => useConnectionRequest("contact:abc"))
+      await act(async () => {
+        offerCircle("contact:abc", { userId: "maya", notify })
+      })
+      expect(contact.result.current.placement).toEqual({ status: "skipped" })
+    })
+
+    it("only skips the friend who was skipped", async () => {
+      await act(async () => {
+        offerCircle(FRIEND, { userId: "maya", notify })
+      })
+      act(() => skipCircle(FRIEND))
+
+      resetConnectionRequestActions()
+      resetCircleSkipsForTest()
+      const other = renderHook(() => useConnectionRequest("friend:conn-10"))
+      await act(async () => {
+        offerCircle("friend:conn-10", { userId: "jo", notify })
+      })
+      expect(other.result.current.placement).toEqual({ status: "none" })
     })
 
     it("says so and offers the chips again when the circle can't be added", async () => {
