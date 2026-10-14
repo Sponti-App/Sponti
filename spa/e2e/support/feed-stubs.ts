@@ -8,13 +8,31 @@ import { API_BASE, STUB_USER, stubBackend } from "./stubs"
 
 export const REQUEST_CONNECTION_ID = "conn-e2e-1"
 export const MAYA_ID = "user-e2e-maya"
+// #585: a friend who accepted the user's request (or scanned their code).
+export const NOOR_ID = "user-e2e-noor"
 
-function feed() {
+function feed(withAccepted: boolean) {
   const now = Date.now()
   const at = (minutesAgo: number) =>
     new Date(now - minutesAgo * 60_000).toISOString()
   const maya = { _id: MAYA_ID, username: "maya", displayName: "maya" }
+  const noor = { _id: NOOR_ID, username: "noor", displayName: "noor" }
+  const accepted = {
+    _id: "notification-accepted",
+    userId: STUB_USER.id,
+    actorId: NOOR_ID,
+    type: "connection_accepted",
+    targetType: "connection",
+    targetId: "conn-e2e-2",
+    title: "noor accepted your request",
+    message: "Now you can add @noor to a circle.",
+    readAt: null,
+    createdAt: at(1),
+    updatedAt: at(1),
+    actor: noor,
+  }
   return [
+    ...(withAccepted ? [accepted] : []),
     {
       _id: "notification-request",
       userId: STUB_USER.id,
@@ -80,7 +98,10 @@ function describe(request: Request, path: string): string {
   return `${request.method()} ${path}${body ? ` ${body}` : ""}`
 }
 
-export async function stubFeedWithRequest(page: Page): Promise<FeedCalls> {
+export async function stubFeedWithRequest(
+  page: Page,
+  { withAccepted = false }: { withAccepted?: boolean } = {}
+): Promise<FeedCalls> {
   await stubBackend(page)
   const calls: FeedCalls = { writes: [] }
   const json = (body: unknown) => ({
@@ -97,7 +118,7 @@ export async function stubFeedWithRequest(page: Page): Promise<FeedCalls> {
 
     if (method === "GET" && path === "/notifications") {
       await route.fulfill(
-        json({ data: feed(), pagination: { nextCursor: null } })
+        json({ data: feed(withAccepted), pagination: { nextCursor: null } })
       )
       return
     }
