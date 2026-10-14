@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useRef, useState } from "react"
+import { Suspense, useState } from "react"
 import { HomeCoachMarks } from "@/components/coach-marks"
 import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
@@ -65,25 +65,8 @@ function SignedInHome() {
   const { browseBeforeSignup, introV2 } = useOnboardingFlags()
   const checklist = useOnboardingChecklist(introV2)
 
-  // Left-edge swipe to open MenuDrawer
-  const swipeStartX = useRef<number | null>(null)
-  const SWIPE_EDGE_PX = 32 // how close to the left edge the touch must start
-  const SWIPE_DIST_PX = 64 // minimum horizontal travel to trigger
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    const x = e.touches[0].clientX
-    swipeStartX.current = x < SWIPE_EDGE_PX ? x : null
-  }
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (swipeStartX.current === null) return
-    const dist = e.changedTouches[0].clientX - swipeStartX.current
-    swipeStartX.current = null
-    if (dist > SWIPE_DIST_PX) {
-      haptic("selection")
-      setMenuOpen(true)
-    }
-  }
+  // #579: no edge swipe opens the menu. It fired while panning the map, and on
+  // iOS Safari that edge is the browser's back gesture. The menu button opens it.
 
   const handleJoin = (event: EventItem, eta: string | null) => {
     // Optimistic UI: flip the going-badge immediately. If the PATCH fails we
@@ -187,11 +170,7 @@ function SignedInHome() {
     // scrolled, and scrolling let Safari collapse its toolbars and lift the
     // page against the fixed nav (#223). A fixed page leaves nothing to
     // scroll; the map and calendar scroll inside themselves.
-    <div
-      className="fixed inset-0 flex w-full flex-col overflow-hidden bg-background"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
+    <div className="fixed inset-0 flex w-full flex-col overflow-hidden bg-background">
       {/* Content Area — fills entire screen; header chips and nav float over it */}
       <div className="absolute inset-0 overflow-hidden">
         {view === "map" ? (
