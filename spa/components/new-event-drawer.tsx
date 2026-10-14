@@ -716,6 +716,22 @@ export function NewEventDrawer({
   // the room the keyboard leaves (#367).
   const [placeSearchFocused, setPlaceSearchFocused] = useState(false)
   const pendingPublicSubmit = useRef(false)
+  // #583: bumped by the "pick who sees it" CTA; scrolls the audience card in.
+  const [revealWho, setRevealWho] = useState(0)
+  const whoCardRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (revealWho === 0) return
+    // Two frames: the card mounts, then the sheet settles on its new snap.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() =>
+        whoCardRef.current?.scrollIntoView?.({
+          behavior: "smooth",
+          block: "nearest",
+        })
+      )
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [revealWho])
 
   const [mode, setMode] = useState<Mode>(initialEventDraftState.mode)
 
@@ -1388,8 +1404,14 @@ export function NewEventDrawer({
   const hasPrivateInvitees = isOpen || inviteeCount > 0
   const needsAudience =
     !isOpen && !audienceLoading && !audienceError && !hasPrivateInvitees
+  // #583: someone with friends who has picked nobody is asked to pick, not
+  // told they have no friends, and the CTA never publishes for them.
+  const needsAudiencePick = needsAudience && connections.length > 0
   const showAudiencePrompt =
-    !submitError && needsAudience && !audiencePromptDismissed
+    !submitError &&
+    needsAudience &&
+    !needsAudiencePick &&
+    !audiencePromptDismissed
 
   useEffect(() => {
     if (!showAudiencePrompt) return
@@ -1409,9 +1431,16 @@ export function NewEventDrawer({
   // when anyone can join).
   const whoLabel = useMemo(() => {
     if (isOpen) return `public · up to ${guestLimit}`
+    if (needsAudiencePick && !selectedAudienceCircle) return "pick who"
     const baseName = selectedAudienceCircle?.name.toLowerCase() ?? "friends"
     return `${baseName} · ${inviteeCount}`
-  }, [isOpen, selectedAudienceCircle, inviteeCount, guestLimit])
+  }, [
+    isOpen,
+    needsAudiencePick,
+    selectedAudienceCircle,
+    inviteeCount,
+    guestLimit,
+  ])
 
   // #376 (`flareLightMoment`): the strike strip replaces the button, the
   // nav's flare button morphs into it, and the strike starts the lighting
@@ -1637,6 +1666,15 @@ export function NewEventDrawer({
   }
 
   const onCta = (): void => {
+    if (needsAudiencePick) {
+      haptic("selection")
+      if (expandedSection !== "who") {
+        setExpandedSection("who")
+        snapToFloor("who", mode)
+      }
+      setRevealWho((n) => n + 1)
+      return
+    }
     if (needsAudience) {
       audienceTouchedRef.current = true
       pendingPublicSubmit.current = true
@@ -1939,7 +1977,15 @@ export function NewEventDrawer({
                 )}
 
                 {expandedSection === "who" && (
-                  <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
+                  <div
+                    ref={whoCardRef}
+                    className="mt-3 scroll-mb-3 rounded-xl border border-border bg-secondary/20 p-3"
+                  >
+                    {needsAudiencePick && (
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        pick a circle, some friends, or make it public
+                      </p>
+                    )}
                     {audienceLoading && (
                       <p className="mb-2 text-xs text-muted-foreground">
                         loading your circles and friends…
@@ -2071,9 +2117,11 @@ export function NewEventDrawer({
                   <StrikeStrip
                     ref={strikeStripRef}
                     label={
-                      needsAudience
-                        ? "make it public & go live"
-                        : "swipe to light"
+                      needsAudiencePick
+                        ? "pick who sees it"
+                        : needsAudience
+                          ? "make it public & go live"
+                          : "swipe to light"
                     }
                     busy={isSubmitting}
                     disabled={ctaDisabled && !isSubmitting}
@@ -2087,9 +2135,11 @@ export function NewEventDrawer({
                   >
                     {isSubmitting
                       ? "lighting…"
-                      : needsAudience
-                        ? "make it public & go live"
-                        : "light a flare"}
+                      : needsAudiencePick
+                        ? "pick who sees it"
+                        : needsAudience
+                          ? "make it public & go live"
+                          : "light a flare"}
                   </Button>
                 )}
               </div>
