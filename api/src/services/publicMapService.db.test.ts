@@ -3,6 +3,7 @@ import mongoose, { Types } from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { resetRateLimits } from "#middleware/rateLimit";
 import { Event, EventMember } from "#models/index";
 import type { EventDocument } from "#models/Event";
 import { PUBLIC_MAP_EVENT_LIMIT } from "#services/publicMapService";
@@ -85,6 +86,8 @@ afterAll(async () => {
 }, 120_000);
 
 beforeEach(async () => {
+  // #455: the limiter's counts are module state, so clear them between tests.
+  resetRateLimits();
   await Promise.all([Event.deleteMany({}), EventMember.deleteMany({}), users().deleteMany({})]);
   await users().insertMany([
     { _id: HOST_ID, username: "host", displayName: "host", email: "host@example.com" },
@@ -107,6 +110,19 @@ beforeEach(async () => {
 });
 
 describe("GET /public/events/map (#425)", () => {
+  // #455: first on purpose; the reset in beforeEach means order no longer matters.
+  it("is rate-limited", async () => {
+    let limited: request.Response | undefined;
+
+    for (let i = 0; i < 70 && !limited; i += 1) {
+      const response = await getMap();
+      if (response.status === 429) limited = response;
+    }
+
+    expect(limited?.body.error.code).toBe("RATE_LIMITED");
+    expect(limited?.headers["retry-after"]).toBeDefined();
+  });
+
   it("needs no token", async () => {
     const live = await Event.create(makeEvent());
 
@@ -259,18 +275,5 @@ describe("GET /public/events/map (#425)", () => {
       const response = await request(app).get(path).expect(401);
       expect(response.body.error.code, path).toBe("ACCESS_TOKEN_MISSING");
     }
-  });
-
-  // Keep this last: the limiter counts per address for the whole test file.
-  it("is rate-limited", async () => {
-    let limited: request.Response | undefined;
-
-    for (let i = 0; i < 70 && !limited; i += 1) {
-      const response = await getMap();
-      if (response.status === 429) limited = response;
-    }
-
-    expect(limited?.body.error.code).toBe("RATE_LIMITED");
-    expect(limited?.headers["retry-after"]).toBeDefined();
   });
 });
