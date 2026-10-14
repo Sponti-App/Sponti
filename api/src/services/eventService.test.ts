@@ -20,6 +20,7 @@ const getConnectedUserIdsMock = vi.hoisted(() => vi.fn());
 const getBlockedInviteeIdsMock = vi.hoisted(() => vi.fn());
 const getBlockedRelationshipUserIdsMock = vi.hoisted(() => vi.fn());
 const getUsersByIdsMock = vi.hoisted(() => vi.fn());
+const getInactiveUserIdsMock = vi.hoisted(() => vi.fn());
 const notificationCreateMock = vi.hoisted(() => vi.fn());
 const notificationFindMock = vi.hoisted(() => vi.fn());
 const transactionSessionMock = vi.hoisted(() => ({ id: "transaction-session" }));
@@ -77,6 +78,7 @@ vi.mock("#services/relationshipService", () => ({
 
 vi.mock("#services/userDirectoryService", () => ({
   getUsersByIds: getUsersByIdsMock,
+  getInactiveUserIds: getInactiveUserIdsMock,
 }));
 
 vi.mock("#utils/transactions", () => ({
@@ -92,6 +94,7 @@ const {
   getEventById,
   getEventMembers,
   getEvents,
+  buildAccessibleEventFilter,
   getMyUpcomingEvents,
   inviteEventMembers,
   MAP_SOON_WINDOW_MS,
@@ -114,6 +117,7 @@ beforeEach(() => {
   getBlockedInviteeIdsMock.mockResolvedValue(new Set());
   getBlockedRelationshipUserIdsMock.mockResolvedValue([]);
   getUsersByIdsMock.mockResolvedValue(new Map());
+  getInactiveUserIdsMock.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -1233,6 +1237,51 @@ describe("eventService.getMyUpcomingEvents", () => {
     expect(String(pastFilter.hostId)).toBe(USER_ID);
     expect(pastFilter.endAt?.$lte).toEqual(NOW);
     expect(pastFilter.endAt?.$gte).toEqual(new Date(NOW.getTime() - 14 * 24 * 60 * 60 * 1000));
+  });
+
+  // #542: a suspended or deleted host's flares leave the invited list.
+  it("skips invited flares from blocked and suspended or deleted hosts", async () => {
+    const BLOCKED_ID = "507f1f77bcf86cd799439021";
+    const SUSPENDED_ID = "507f1f77bcf86cd799439022";
+    getBlockedRelationshipUserIdsMock.mockResolvedValue([BLOCKED_ID]);
+    getInactiveUserIdsMock.mockResolvedValue([SUSPENDED_ID]);
+    eventFindMock
+      .mockReturnValueOnce(mockSortedEventFind().query)
+      .mockReturnValueOnce(mockSortedEventFind().query)
+      .mockReturnValueOnce(mockSortedEventFind().query);
+    mockEventMembersForStats();
+
+    await getMyUpcomingEvents(USER_ID, { endAtFrom: NOW });
+
+    const invitedFilter = eventFindMock.mock.calls[1]?.[0] as {
+      hostId?: { $nin?: unknown[] };
+    };
+    expect(invitedFilter.hostId?.$nin?.map(String)).toEqual([BLOCKED_ID, SUSPENDED_ID]);
+  });
+});
+
+// #542: every signed-in event path builds on this filter.
+describe("eventService.buildAccessibleEventFilter", () => {
+  it("hides flares from blocked and suspended or deleted hosts", async () => {
+    const BLOCKED_ID = "507f1f77bcf86cd799439021";
+    const SUSPENDED_ID = "507f1f77bcf86cd799439022";
+    getBlockedRelationshipUserIdsMock.mockResolvedValue([BLOCKED_ID]);
+    getInactiveUserIdsMock.mockResolvedValue([SUSPENDED_ID]);
+
+    const filter = (await buildAccessibleEventFilter(USER_ID)) as {
+      $and: Array<{ hostId?: { $nin?: unknown[] } }>;
+    };
+
+    const hostCondition = filter.$and.find((c) => c.hostId?.$nin);
+    expect(hostCondition?.hostId?.$nin?.map(String)).toEqual([BLOCKED_ID, SUSPENDED_ID]);
+  });
+
+  it("adds no host condition when nobody is blocked or suspended", async () => {
+    const filter = (await buildAccessibleEventFilter(USER_ID)) as {
+      $and: Array<{ hostId?: unknown }>;
+    };
+
+    expect(filter.$and.some((c) => c.hostId !== undefined)).toBe(false);
   });
 });
 

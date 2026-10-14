@@ -26,6 +26,7 @@ Table users {
   bio string // optional, max 80 chars (#287). Profile-only: read in api by userProfileService alone
   instagram string // optional bare handle (#287). Profile-only, as bio
   telegram string // optional bare handle (#287). Profile-only, as bio
+  suspendedAt datetime // set by hand to stop an account (#542, deploy/netcup/MODERATION.md): no sign-in, its flares reach nobody. Null otherwise
   createdAt datetime
   updatedAt datetime
 }
@@ -195,7 +196,7 @@ Enum event_visibility {
 Enum event_status {
   active // default
   cancelled
-  completed
+  completed // removed by hand (#542, scripts/moderation.ts): only its host still sees it
 }
 ```
 

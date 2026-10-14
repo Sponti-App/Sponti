@@ -37,6 +37,17 @@ export const userProjection = {
   socialBattery: 1,
 };
 
+// Accounts stopped by hand (#542, deploy/netcup/MODERATION.md): suspended or
+// deleted. Their flares reach nobody, signed in or out; the signed-out map
+// checks the same two fields (publicMapService).
+export const getInactiveUserIds = async (): Promise<string[]> => {
+  const ids = await getUsersCollection().distinct("_id", {
+    $or: [{ suspendedAt: { $ne: null } }, { deletedAt: { $ne: null } }],
+  });
+
+  return ids.map(String);
+};
+
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const toUserSummary = (user: Record<string, any>): UserSummary => ({

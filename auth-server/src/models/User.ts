@@ -61,6 +61,12 @@ const userSchema = new Schema({
         type: String,
         default: null,
     },
+    // Set by hand to stop an account (#542, deploy/netcup/MODERATION.md): it
+    // can't sign in, and `api` hides its flares from everyone.
+    suspendedAt: {
+        type: Date,
+        default: null,
+    },
 },
     {
         timestamps: true,

@@ -42,6 +42,10 @@ This pulls `DEPLOY_BRANCH`, rebuilds both images and restarts only what changed.
 - `docker compose ps`
 - `docker compose restart auth`
 
+## Moderation
+
+Hiding a harmful flare and suspending an account: [MODERATION.md](MODERATION.md) (#542).
+
 ## Logs
 
 `api`, `auth` and `caddy` log to the host's journald (`logging.driver: journald` in `docker-compose.yml`), each with a tag: `sponti-api`, `sponti-auth`, `sponti-caddy`. The privacy note promises that technical logs (IP address, time, requested path) are deleted after 14 days at the latest, so the host's journald is set to keep 14 days. Caddy writes no access log; its own startup and error output is what lands in `sponti-caddy`.
