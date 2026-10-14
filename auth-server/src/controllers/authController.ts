@@ -12,7 +12,6 @@ import { sendPasswordResetEmail } from "#lib/email";
 import {
   createAccessToken,
   createRefreshToken,
-  verifyAccessToken,
   hashRefreshToken,
   verifyRefreshToken,
 } from "#lib/tokens";
