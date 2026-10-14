@@ -53,6 +53,16 @@ const createDefaultUserRecords = async (userId: string) => {
 };
 
 const createSessionResponse = async (user: InstanceType<typeof User>) => {
+  // #542: every sign-in (password, Google, sign-up) ends here. A suspended
+  // account gets no session; the runbook deletes its refresh tokens, so the
+  // one it has runs out with its access token (15 min).
+  if (user.suspendedAt) {
+    throw new Error(
+      "this account is suspended. write to hello@sponti.fun if you think that's a mistake.",
+      { cause: { status: 403, code: "ACCOUNT_SUSPENDED" } }
+    );
+  }
+
   const userId = user._id.toString();
   const accessToken = createAccessToken(userId);
   const refreshToken = createRefreshToken(userId);

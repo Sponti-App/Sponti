@@ -13,7 +13,11 @@ import type {
 } from "#schemas/eventSchemas";
 import { getBlockedInviteeIds, getBlockedRelationshipUserIds } from "#services/blockService";
 import { getConnectedUserIds } from "#services/relationshipService";
-import { getUsersByIds, type UserSummary } from "#services/userDirectoryService";
+import {
+  getInactiveUserIds,
+  getUsersByIds,
+  type UserSummary,
+} from "#services/userDirectoryService";
 import {
   createEventGuestRemovedNotification,
   createEventInvitationNotifications,
@@ -90,10 +94,11 @@ export const withConditions = (base: EventFilter, ...conditions: EventFilter[]) 
 
 export const buildAccessibleEventFilter = async (userId: string): Promise<EventFilter> => {
   const userObjectId = toObjectId(userId);
-  const [memberEventIds, removedEventIds, blockedUserIds] = await Promise.all([
+  const [memberEventIds, removedEventIds, blockedUserIds, inactiveUserIds] = await Promise.all([
     EventMember.distinct("eventId", { userId: userObjectId, removedAt: null }),
     EventMember.distinct("eventId", { userId: userObjectId, removedAt: { $ne: null } }),
     getBlockedRelationshipUserIds(userId),
+    getInactiveUserIds(),
   ]);
 
   const conditions: EventFilter[] = [
@@ -107,8 +112,14 @@ export const buildAccessibleEventFilter = async (userId: string): Promise<EventF
     conditions.push({ _id: { $nin: removedEventIds } });
   }
 
-  if (blockedUserIds.length > 0) {
-    conditions.push({ hostId: { $nin: blockedUserIds.map(toObjectId) } });
+  // #542: a flare removed by hand (`completed`, see scripts/moderation.ts) is
+  // gone for everyone but its host, including by direct link.
+  conditions.push({ $or: [{ hostId: userObjectId }, { status: { $ne: "completed" } }] });
+
+  // #542: nor a suspended or deleted host's, as on the signed-out map.
+  const hiddenHostIds = [...blockedUserIds, ...inactiveUserIds];
+  if (hiddenHostIds.length > 0) {
+    conditions.push({ hostId: { $nin: hiddenHostIds.map(toObjectId) } });
   }
 
   return { $and: conditions };
@@ -573,11 +584,13 @@ export const getMyUpcomingEvents = async (userId: string, query: MyUpcomingEvent
   const userObjectId = toObjectId(userId);
   const now = query.endAtFrom ?? new Date();
   const pastFrom = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-  const [memberEventIds, blockedUserIds] = await Promise.all([
+  const [memberEventIds, blockedUserIds, inactiveUserIds] = await Promise.all([
     EventMember.distinct("eventId", { userId: userObjectId, removedAt: null }),
     getBlockedRelationshipUserIds(userId),
+    getInactiveUserIds(),
   ]);
-  const blockedObjectIds = blockedUserIds.map(toObjectId);
+  // Invited flares skip blocked and (#542) suspended or deleted hosts.
+  const blockedObjectIds = [...blockedUserIds, ...inactiveUserIds].map(toObjectId);
 
   const [hostedByMe, invited, pastHosted] = await Promise.all([
     Event.find({
