@@ -50,6 +50,6 @@ There is no undo command for `hide-flare`. If one was hidden by mistake, set its
 - Note the case (date, username or flare id, what was done, why) where the team keeps tester-round notes, outside this repo.
 - Suspending doesn't stop someone from signing up again with another email. If that happens, suspend the new account too and tell the team.
 
-## Not covered here
+## Deletion requests
 
-Deleting an account and its personal data is #449. Until that ships, a deletion request is acknowledged by email and handled once the delete path exists.
+People delete their own account in settings ("delete account", #449). If someone asks by email instead, point them there. If they can't sign in any more, confirm they own the address, then tell the team. There is no command for deleting someone else's account.

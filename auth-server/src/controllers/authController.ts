@@ -56,6 +56,10 @@ const createSessionResponse = async (user: InstanceType<typeof User>) => {
   // #542: every sign-in (password, Google, sign-up) ends here. A suspended
   // account gets no session; the runbook deletes its refresh tokens, so the
   // one it has runs out with its access token (15 min).
+  if (user.deletedAt) {
+    throw new Error("Invalid email or password", { cause: { status: 401 } });
+  }
+
   if (user.suspendedAt) {
     throw new Error(
       "this account is suspended. write to hello@sponti.fun if you think that's a mistake.",
@@ -503,4 +507,72 @@ export const updateProfile = async (req: Request, res: Response) => {
   await user.save();
 
   res.json({ user: toOwnProfileResponse(user) });
-}; 
+};
+
+// #449: someone deletes their own account. This is the auth-server's half:
+// check the confirmation, end every session, remove the photo and scrub the
+// user document to a tombstone with `deletedAt` set. From that moment they
+// can't sign in, the email and username are free again, and `api` hides all
+// they hosted (#542's filter). `api`'s purge (scripts/accountPurge.ts) then
+// erases everything it owns and removes the tombstone. Each service deletes
+// only its own data.
+export const deleteAccount = async (req: Request, res: Response) => {
+  const { password, confirmUsername } = req.body as {
+    password?: string;
+    confirmUsername?: string;
+  };
+  const user = await User.findById(req.userId);
+
+  if (!user || user.deletedAt) {
+    throw new Error("User not found", { cause: { status: 404 } });
+  }
+
+  // 403, not 401: the SPA treats 401 as an expired session.
+  if (user.passwordHash) {
+    if (!password || !(await bcrypt.compare(password, user.passwordHash))) {
+      throw new Error("that password isn't right", {
+        cause: { status: 403, code: "CURRENT_PASSWORD_INCORRECT" },
+      });
+    }
+  } else if (confirmUsername?.replace(/^@/, "").toLowerCase() !== user.username.toLowerCase()) {
+    throw new Error("type your @username to confirm", {
+      cause: { status: 403, code: "CONFIRMATION_MISMATCH" },
+    });
+  }
+
+  const userId = user._id;
+  const avatarPublicId = user.avatarPublicId;
+
+  await Promise.all([
+    RefreshToken.deleteMany({ userId }),
+    PasswordResetToken.deleteMany({ userId }),
+    NotificationSettings.deleteMany({ userId }),
+  ]);
+
+  const tombstone = `deleted-${userId.toString()}`;
+  user.set({
+    username: tombstone,
+    displayName: "deleted user",
+    email: `${tombstone}@deleted.invalid`,
+    passwordHash: null,
+    googleId: undefined,
+    avatarUrl: null,
+    avatarPublicId: null,
+    bio: null,
+    instagram: null,
+    telegram: null,
+    profileVisibility: "private",
+    deletedAt: new Date(),
+  });
+  await user.save();
+
+  // The account is gone either way; a photo left on Cloudinary is logged, not
+  // the user's problem.
+  if (avatarPublicId) {
+    await cloudinary.uploader.destroy(avatarPublicId).catch((error: unknown) => {
+      console.error("Cloudinary destroy error:", error);
+    });
+  }
+
+  res.status(204).end();
+};

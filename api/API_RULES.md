@@ -161,6 +161,22 @@ Decided 2026-09-30. These record what `GET /users/by-username/:username` and the
 - **A private profile opened by link shows name, @username and photo.** That is the bare minimum strangers get: private users are left out of search but can be viewed by anyone signed in who has the username or link. Since #288, a private profile also hides bio, socials and mutual friends from strangers (see Profile).
 - **Username probing is accepted for now.** Usernames are public handles, and exact-username search already reveals whether one exists. Rate limiting comes later, once `trust proxy` is set up behind Caddy on the netcup server, so the api sees real client IPs.
 
+## Account Deletion (#449)
+
+Someone deletes their own account from settings (decided 2026-10-14). Each service deletes only its own data.
+
+- **auth-server, `DELETE /auth/me`:** confirms with the password, or the @username for a Google-only account (`403 CURRENT_PASSWORD_INCORRECT` / `CONFIRMATION_MISMATCH`, never 401, which the SPA reads as an expired session). It deletes refresh and reset tokens and the auth-side notification settings, removes the Cloudinary photo, and scrubs the user document to a tombstone: username `deleted-<id>`, email `deleted-<id>@deleted.invalid`, no password, Google link, photo, bio or handles, and `deletedAt` set. The email and username are free again straight away. `GET /auth/me` returns `hasPassword` so the SPA knows which confirmation to ask for.
+- **From that moment** the account can't sign in, and the suspended/deleted host rule (#542, under Authorization) hides everything it hosts.
+- **api, `accountPurgeService`:** runs at startup and every 5 minutes. For each tombstone it cancels the account's live and upcoming flares through `cancelEvent`, so guests get the usual notice. It then erases:
+  - its flares with their guest lists, threads and notifications;
+  - its RSVPs and thread posts elsewhere;
+  - connections and blocks either way;
+  - its circles and its place in others' circles;
+  - notifications to or from it;
+  - invite links, QR tokens and notification settings.
+- **Kept on purpose:** the cancellation notices stay with the guests who got them, with `actorId` cleared. "Invited by" on others' guest lists is cleared rather than deleting the guest.
+- **Retries:** it is idempotent; a failed run is finished by the next. The tombstone itself is removed only once `deletedAt` is 20 minutes old (the last access token lasts 15), so anything written in that window is erased too. This is the one place api writes to `users`.
+
 ## TODO Areas
 
 - Connection retry behavior after rejection.

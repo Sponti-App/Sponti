@@ -67,6 +67,13 @@ const userSchema = new Schema({
         type: Date,
         default: null,
     },
+    // Set when the person deletes their account (#449, DELETE /auth/me). The
+    // document is already scrubbed to a tombstone by then; `api` erases
+    // everything else it owns and then removes the tombstone.
+    deletedAt: {
+        type: Date,
+        default: null,
+    },
 },
     {
         timestamps: true,
