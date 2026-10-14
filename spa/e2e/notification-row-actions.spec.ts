@@ -130,6 +130,30 @@ test.describe("feed row actions", () => {
     expect(calls.writes).toEqual([])
   })
 
+  // #597: the skip is kept on the device, so the chips don't come back.
+  test("a skipped prompt on an accepted row stays skipped after a reload", async ({
+    page,
+  }) => {
+    const calls = await stubFeedWithRequest(page, { withAccepted: true })
+    let sheet = await openFeed(page)
+    await row(sheet, "noor accepted your request")
+      .getByRole("button", { name: "skip" })
+      .click()
+    await expect(
+      row(sheet, "noor accepted your request").getByText("you’re connected")
+    ).toBeVisible()
+
+    await page.reload()
+    sheet = await openFeed(page)
+    const accepted = row(sheet, "noor accepted your request")
+
+    await expect(accepted.getByText("you’re connected")).toBeVisible()
+    await expect(
+      accepted.getByRole("group", { name: "add noor to a circle" })
+    ).toHaveCount(0)
+    expect(calls.writes).toEqual([])
+  })
+
   test("undo sends nothing", async ({ page }) => {
     const calls = await stubFeedWithRequest(page)
     const sheet = await openFeed(page)

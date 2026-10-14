@@ -6,6 +6,7 @@ import {
   fetchIncomingConnectionRequests,
   respondToConnectionRequest,
 } from "@/lib/api/connections"
+import { isCircleSkipped, rememberCircleSkip } from "@/lib/circle-skips"
 import type { Circle } from "@/lib/circles"
 import type { CircleChoice } from "@/components/circle-chips"
 import { HttpError } from "@/lib/http"
@@ -226,7 +227,8 @@ export function scheduleAccept(
  * connect that just went through, #585), so there is no request and no undo
  * window: the entry starts at "accepted" and the chips work as they do after
  * an accept. `key` is anything unique to the surface, not a connection id.
- * No-op if this key already has state.
+ * A friend whose prompt was skipped before (#597, kept on the device) starts
+ * as skipped. No-op if this key already has state.
  */
 export function offerCircle(
   key: string,
@@ -234,7 +236,11 @@ export function offerCircle(
 ): void {
   if (getEntry(key).phase !== "idle") return
   meta.set(key, { userId, timer: null, notify })
-  patch(key, { phase: "accepted", placement: { status: "none" } })
+  const skipped = userId != null && isCircleSkipped(userId)
+  patch(key, {
+    phase: "accepted",
+    placement: skipped ? { status: "skipped" } : { status: "none" },
+  })
   ensureCircles()
 }
 
@@ -338,6 +344,9 @@ export function skipCircle(connectionId: string): void {
     entry.phase === "accepted"
   ) {
     patch(connectionId, { placement: { status: "skipped" } })
+    // #597: kept per friend on the device, so it survives a reload.
+    const userId = meta.get(connectionId)?.userId
+    if (userId) rememberCircleSkip(userId)
   }
 }
 

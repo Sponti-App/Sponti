@@ -22,6 +22,7 @@ vi.mock("@/lib/use-events", () => ({ emitEventsChanged: vi.fn() }))
 vi.mock("@/lib/use-notifications", () => ({ dismiss: mocks.dismiss }))
 vi.mock("@/lib/haptics", () => ({ haptic: vi.fn() }))
 
+import { resetCircleSkipsForTest } from "@/lib/circle-skips"
 import { ActionFeedbackProvider } from "./action-feedback"
 import { NotificationRow } from "./notification-row"
 import {
@@ -93,6 +94,9 @@ describe("NotificationRow", () => {
     vi.useFakeTimers()
     vi.clearAllMocks()
     resetConnectionRequestActions()
+    // #597: a skip is kept on the device, so don't let one test's carry over.
+    window.localStorage.clear()
+    resetCircleSkipsForTest()
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
       configurable: true,
       get: () => 375,
