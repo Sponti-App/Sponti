@@ -105,15 +105,23 @@ export const getPublicMapEvents = async (query: PublicMapEventsQuery) => {
 };
 
 /**
- * One open-to-all flare by id, for a shared link (`/?flare=<id>`): the same
- * fields as a map pin, so a link reveals nothing the map doesn't. Same rules
+ * A shared flare link's flare: a map pin plus its title, which the host
+ * wrote for an open-to-all flare. Still no description, place name, host,
+ * guests or counts; those need an account.
+ */
+export type PublicSharedEvent = PublicMapEvent & { title: string };
+
+/**
+ * One open-to-all flare by id, for a shared link (`/?flare=<id>`): a map pin
+ * and its title. Map pins expose every public flare's id, so this makes the
+ * title of any open-to-all flare readable without an account. Same rules
  * as the map (public, active, not ended, host still active) except the time
  * window: a flare shared for later tonight is found before it reaches the
  * map's window. Null when there is no such flare, whatever the reason, so the
  * answer never says whether a private flare exists.
  */
-export const getPublicMapEvent = async (id: string) => {
-  const rows = await Event.aggregate<PublicMapRow>([
+export const getPublicMapEvent = async (id: string): Promise<PublicSharedEvent | null> => {
+  const rows = await Event.aggregate<PublicMapRow & { title: string }>([
     {
       $match: {
         _id: new Types.ObjectId(id),
@@ -123,8 +131,8 @@ export const getPublicMapEvent = async (id: string) => {
       },
     },
     ...ACTIVE_HOST_STAGES,
-    { $project: PROJECTION },
+    { $project: { ...PROJECTION, title: 1 } },
   ]);
   const row = rows[0];
-  return row ? toPublicMapEvent(row) : null;
+  return row ? { ...toPublicMapEvent(row), title: row.title } : null;
 };

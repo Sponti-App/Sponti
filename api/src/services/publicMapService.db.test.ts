@@ -282,17 +282,28 @@ describe("GET /public/events/map (#425)", () => {
 describe("GET /public/events/:id", () => {
   const getOne = (id: string) => request(app).get(`/api/v1/public/events/${id}`);
 
-  it("returns an open-to-all flare as a pin, with exactly the allowed keys", async () => {
+  it("returns an open-to-all flare as a pin plus its title, and nothing else", async () => {
     const live = await Event.create(makeEvent());
+    await EventMember.create({
+      eventId: live._id,
+      userId: GUEST_ID,
+      invitedBy: HOST_ID,
+      role: "guest",
+      rsvpStatus: "going",
+    });
 
     const response = await getOne(live.id).expect(200);
 
     expect(response.body.data._id).toBe(live.id);
-    expect(Object.keys(response.body.data).sort()).toEqual(ALLOWED_KEYS);
+    expect(response.body.data.title).toBe(MARKERS.title);
+    expect(Object.keys(response.body.data).sort()).toEqual([...ALLOWED_KEYS, "title"].sort());
     expect(Object.keys(response.body.data.location).sort()).toEqual(ALLOWED_LOCATION_KEYS);
-    for (const marker of Object.values(MARKERS)) {
+    const { title: _title, ...hidden } = MARKERS;
+    for (const marker of Object.values(hidden)) {
       expect(JSON.stringify(response.body)).not.toContain(marker);
     }
+    expect(JSON.stringify(response.body)).not.toContain(HOST_ID.toString());
+    expect(JSON.stringify(response.body)).not.toContain(GUEST_ID.toString());
   });
 
   it("finds a flare later than the map's window, so a link shared early works", async () => {

@@ -9,8 +9,8 @@ import {
 
 // A shared flare link (`/?flare=<id>`): a signed-out visitor lands on the map
 // opened on that open-to-all flare, with its card up. A first open shows the
-// intro slides first, as an invite link does (#560); there is no location ask. The card shows only what a pin
-// shows (#425). "join" asks for an account, and signing up lands them on the
+// intro slides first, as an invite link does (#560); there is no location ask. The card shows the title and
+// what a pin shows (#425), not the host or guests. "join" asks for an account, and signing up lands them on the
 // flare. Someone signed in goes straight to the flare, and a flare's own page
 // opened signed out turns into the link.
 
@@ -60,16 +60,17 @@ test.describe("shared flare link", () => {
     await stubBackend(page, {
       signedOut: true,
       publicPins: [sharedPin()],
+      publicFlareTitle: "drinks at the canal",
       events: [makeStubFlare({ _id: ID, title: "drinks at the canal" })],
     })
     const offending = watchForAccountCalls(page)
     await page.goto(`/?flare=${ID}`)
 
     await expect(card(page)).toHaveAttribute("data-shared-flare", ID)
-    await expect(card(page)).toContainText("drinks flare, open to all")
-    await expect(card(page)).toContainText(/live now · until /)
-    // Only what a pin shows: no title before an account.
-    await expect(page.getByText("drinks at the canal")).toHaveCount(0)
+    await expect(card(page)).toContainText("drinks at the canal")
+    await expect(card(page)).toContainText(
+      /drinks · open to all · live now · until /
+    )
     await expect(page.locator(`[data-flare-pin="${ID}"]`)).toBeVisible()
     // Straight to the flare: no intro slides and no location ask.
     await expect(page.getByText("where should the map start?")).toHaveCount(0)

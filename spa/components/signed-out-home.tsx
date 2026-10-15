@@ -95,6 +95,7 @@ export function SignedOutHome() {
                 ? {
                     status: "found",
                     pin: shared.pin,
+                    title: shared.title,
                     onJoin: () => openAsk({ kind: "join", flareId: shared.id }),
                   }
                 : shared.status === "gone"
