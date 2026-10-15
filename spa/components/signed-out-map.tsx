@@ -98,7 +98,12 @@ export function SignedOutMap({
   /** A shared flare link (`/?flare=<id>`): the map opens on that flare with
    * its card up ("found"), or says the link's flare can't be shown ("gone"). */
   shared?:
-    | { status: "found"; pin: PublicMapPin; onJoin: () => void }
+    | {
+        status: "found"
+        pin: PublicMapPin
+        title: string
+        onJoin: () => void
+      }
     | { status: "gone"; signInHref: string }
   /** An open-to-all pin was tapped. */
   onPin: (pin: PublicMapPin) => void
@@ -255,6 +260,7 @@ export function SignedOutMap({
         {sharedOpen && shared?.status === "found" ? (
           <SharedFlareCard
             pin={shared.pin}
+            title={shared.title}
             now={nowMs}
             onJoin={() => {
               haptic("medium")

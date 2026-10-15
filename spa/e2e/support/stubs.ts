@@ -202,6 +202,8 @@ type StubBackendOptions = {
    * flare link). Empty by default.
    */
   publicPins?: StubPublicPin[]
+  /** The title GET /public/events/:id adds to a shared flare's pin. */
+  publicFlareTitle?: string
   /**
    * GET /events/:id answers with the map event of that id. Pass more here
    * for flares that aren't on the map. Any other id answers 404
@@ -522,7 +524,13 @@ export async function stubBackend(
       const pin = (options.publicPins ?? []).find(
         (p) => p._id === publicMatch[1]
       )
-      if (pin) await fulfillJson(route, { data: pin })
+      if (pin)
+        await fulfillJson(route, {
+          data: {
+            ...pin,
+            title: options.publicFlareTitle ?? "drinks by the canal",
+          },
+        })
       else
         await fulfillJson(
           route,

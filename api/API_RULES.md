@@ -127,8 +127,10 @@ When A blocks B:
   carries no title, description, host, guests or counts. See "Who sees open-to-all flares" in
   `CONTEXT.md`.
 - `GET /api/v1/public/events/:id` is a shared flare link (`/?flare=<id>`): the same pin
-  projection for one flare, under the same rules except the 24-hour window, so a flare shared
-  early is found. Anything else (private, cancelled, ended, inactive host, unknown id) is
+  projection for one flare plus its `title`, under the same rules except the 24-hour window, so
+  a flare shared early is found. Map pins carry every public flare's id, so this makes the title
+  of any open-to-all flare readable without an account; the host, guests, counts, description and
+  place name still need one. Anything else (private, cancelled, ended, inactive host, unknown id) is
   `404 EVENT_NOT_FOUND`, so it never says whether a private flare exists. A malformed id is
   `400 VALIDATION_ERROR`. Same rate limit as the map.
 - These routes are rate-limited to 60 requests a minute per client address
