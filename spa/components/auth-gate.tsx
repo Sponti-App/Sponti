@@ -11,6 +11,7 @@ import {
   buildLoginPath,
   getRedirectTarget,
 } from "@/lib/redirect-path"
+import { flareIdFromPath, sharedFlarePath } from "@/lib/shared-flare"
 import { useSlowRequestHint } from "@/lib/use-slow-request-hint"
 
 const PUBLIC_PATHS = [...AUTH_PATHS, ...LEGAL_PATHS]
@@ -49,6 +50,14 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       // home map (and the intro slides there), not the login page.
       if (signedOutHere && browseBeforeSignup) {
         router.replace("/")
+        return
+      }
+      // A flare's own page opens as the map on that flare (a shared link), so
+      // a visitor sees it before signing up. A flare that isn't open to all
+      // says so there, with a way to sign in to it.
+      const flareId = browseBeforeSignup ? flareIdFromPath(pathname) : null
+      if (flareId) {
+        router.replace(sharedFlarePath(flareId))
         return
       }
       // #219: remember where the user was heading so signing in returns

@@ -1,6 +1,6 @@
 import type { EventType } from "@/lib/api/events"
 import type { GeoCoords } from "@/lib/geolocation"
-import { apiFetch } from "@/lib/http"
+import { apiFetch, HttpError } from "@/lib/http"
 import { EVENT_TYPES } from "@/types/utils"
 
 // #389: the open-to-all flares a signed-out visitor sees on the map, from the
@@ -91,4 +91,30 @@ export async function fetchPublicMapPins(
     const pin = adaptPublicMapPin(raw)
     return pin ? [pin] : []
   })
+}
+
+/**
+ * One open-to-all flare by id, for a shared link (`/?flare=<id>`), as the
+ * same pin the map draws. Null when the api has no such flare: private,
+ * cancelled, over, or never was (it doesn't say which).
+ */
+export async function fetchPublicFlare(
+  id: string,
+  signal?: AbortSignal
+): Promise<PublicMapPin | null> {
+  try {
+    const response = await apiFetch<{ data: unknown }>(
+      `/public/events/${encodeURIComponent(id)}`,
+      { auth: false, signal }
+    )
+    return adaptPublicMapPin(response?.data)
+  } catch (error) {
+    if (
+      error instanceof HttpError &&
+      (error.status === 404 || error.status === 400)
+    ) {
+      return null
+    }
+    throw error
+  }
 }

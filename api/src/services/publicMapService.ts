@@ -1,3 +1,4 @@
+import { Types, type PipelineStage } from "mongoose";
 import { Event, type EventType } from "#models/Event";
 import type { PublicMapEventsQuery } from "#schemas/publicSchemas";
 import { MAP_SOON_WINDOW_MS } from "#services/eventService";
@@ -42,6 +43,30 @@ const toPublicMapEvent = (row: PublicMapRow): PublicMapEvent => ({
   endAt: row.endAt,
 });
 
+/** Keeps a flare only while its host exists and is not suspended or deleted. */
+const ACTIVE_HOST_STAGES: PipelineStage[] = [
+  {
+    $lookup: {
+      from: "users",
+      let: { hostId: "$hostId" },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ["$_id", "$$hostId"] },
+            suspendedAt: null,
+            deletedAt: null,
+          },
+        },
+        { $project: { _id: 1 } },
+      ],
+      as: "activeHost",
+    },
+  },
+  { $match: { "activeHost.0": { $exists: true } } },
+];
+
+const PROJECTION = { type: 1, startAt: 1, endAt: 1, "location.coordinates": 1 } as const;
+
 /**
  * Flares for the signed-out map. Same window as the signed-in map (live now,
  * or starting within MAP_SOON_WINDOW_MS) but only `visibility: "public"`,
@@ -70,28 +95,36 @@ export const getPublicMapEvents = async (query: PublicMapEventsQuery) => {
         },
       },
     },
-    {
-      $lookup: {
-        from: "users",
-        let: { hostId: "$hostId" },
-        pipeline: [
-          {
-            $match: {
-              $expr: { $eq: ["$_id", "$$hostId"] },
-              suspendedAt: null,
-              deletedAt: null,
-            },
-          },
-          { $project: { _id: 1 } },
-        ],
-        as: "activeHost",
-      },
-    },
-    { $match: { "activeHost.0": { $exists: true } } },
+    ...ACTIVE_HOST_STAGES,
     { $sort: { startAt: 1, _id: 1 } },
     { $limit: PUBLIC_MAP_EVENT_LIMIT },
-    { $project: { type: 1, startAt: 1, endAt: 1, "location.coordinates": 1 } },
+    { $project: PROJECTION },
   ]);
 
   return rows.map(toPublicMapEvent);
+};
+
+/**
+ * One open-to-all flare by id, for a shared link (`/?flare=<id>`): the same
+ * fields as a map pin, so a link reveals nothing the map doesn't. Same rules
+ * as the map (public, active, not ended, host still active) except the time
+ * window: a flare shared for later tonight is found before it reaches the
+ * map's window. Null when there is no such flare, whatever the reason, so the
+ * answer never says whether a private flare exists.
+ */
+export const getPublicMapEvent = async (id: string) => {
+  const rows = await Event.aggregate<PublicMapRow>([
+    {
+      $match: {
+        _id: new Types.ObjectId(id),
+        visibility: "public",
+        status: "active",
+        endAt: { $gt: new Date() },
+      },
+    },
+    ...ACTIVE_HOST_STAGES,
+    { $project: PROJECTION },
+  ]);
+  const row = rows[0];
+  return row ? toPublicMapEvent(row) : null;
 };
