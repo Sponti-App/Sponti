@@ -126,7 +126,12 @@ When A blocks B:
   is at most 100 (default 25); unknown or invalid query fields are `400 VALIDATION_ERROR`. It
   carries no title, description, host, guests or counts. See "Who sees open-to-all flares" in
   `CONTEXT.md`.
-- This route is rate-limited to 60 requests a minute per client address
+- `GET /api/v1/public/events/:id` is a shared flare link (`/?flare=<id>`): the same pin
+  projection for one flare, under the same rules except the 24-hour window, so a flare shared
+  early is found. Anything else (private, cancelled, ended, inactive host, unknown id) is
+  `404 EVENT_NOT_FOUND`, so it never says whether a private flare exists. A malformed id is
+  `400 VALIDATION_ERROR`. Same rate limit as the map.
+- These routes are rate-limited to 60 requests a minute per client address
   (`middleware/rateLimit.ts`, in memory, one process); over the limit is `429 RATE_LIMITED`
   with `Retry-After`. `app.ts` trusts one proxy hop (Caddy) so the address is the real client.
   `contact-preview` is not rate-limited; its tokens are 256-bit random values, so guessing

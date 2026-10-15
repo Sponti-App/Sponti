@@ -25,6 +25,10 @@ import { useTheme } from "next-themes"
 import { LegalLinks } from "@/components/legal-links"
 import { FlarePin } from "@/components/map-flare-pin"
 import {
+  SharedFlareCard,
+  SharedFlareGoneCard,
+} from "@/components/shared-flare-card"
+import {
   FLARE_PIN_SLOTS,
   FloatingIdeaMarker,
   FloatingIdeaStaticPin,
@@ -79,6 +83,7 @@ export function SignedOutMap({
   located = false,
   banner,
   dockHidden = false,
+  shared,
   onPin,
   onLightIdea,
 }: {
@@ -90,6 +95,11 @@ export function SignedOutMap({
   banner?: React.ReactNode
   /** Hide the dock under the location ask (#408). */
   dockHidden?: boolean
+  /** A shared flare link (`/?flare=<id>`): the map opens on that flare with
+   * its card up ("found"), or says the link's flare can't be shown ("gone"). */
+  shared?:
+    | { status: "found"; pin: PublicMapPin; onJoin: () => void }
+    | { status: "gone"; signInHref: string }
   /** An open-to-all pin was tapped. */
   onPin: (pin: PublicMapPin) => void
   /** An idea card's "light a flare". */
@@ -104,7 +114,18 @@ export function SignedOutMap({
     return () => window.clearInterval(id)
   }, [])
 
-  const { pins, loading, failed } = usePublicMapPins(center)
+  const { pins: nearPins, loading, failed } = usePublicMapPins(center)
+  const sharedPin = shared?.status === "found" ? shared.pin : null
+  // The shared flare is first, so the static map's first slot is its pin, and
+  // it's there even before it enters the map's time window.
+  const pins = useMemo(
+    () =>
+      sharedPin
+        ? [sharedPin, ...nearPins.filter((p) => p.id !== sharedPin.id)]
+        : nearPins,
+    [sharedPin, nearPins]
+  )
+  const [sharedOpen, setSharedOpen] = useState(true)
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all")
   // A pin's chip depends on the clock, so pins wait for it, as on the
   // signed-in map.
@@ -160,12 +181,15 @@ export function SignedOutMap({
 
   const selectIdea = (idea: Idea) => {
     haptic("selection")
+    setSharedOpen(false)
     setTappedIdeaId((prev) => (prev === idea.id ? null : idea.id))
   }
   const selectPin = (pin: PublicMapPin) => {
     haptic("selection")
     setTappedIdeaId(null)
-    onPin(pin)
+    // The shared flare's pin brings its card back.
+    if (pin.id === sharedPin?.id) setSharedOpen(true)
+    else onPin(pin)
   }
 
   const count = visiblePins.length
@@ -197,6 +221,7 @@ export function SignedOutMap({
     ideas,
     floatingIdeas,
     selectedIdeaId: tappedIdea?.id ?? null,
+    highlightedPinId: sharedOpen ? (sharedPin?.id ?? null) : null,
     onPin: selectPin,
     onIdea: selectIdea,
   }
@@ -227,7 +252,22 @@ export function SignedOutMap({
           dockHidden ? "invisible" : ""
         }`}
       >
-        {tappedIdea && tappedIdeaType ? (
+        {sharedOpen && shared?.status === "found" ? (
+          <SharedFlareCard
+            pin={shared.pin}
+            now={nowMs}
+            onJoin={() => {
+              haptic("medium")
+              shared.onJoin()
+            }}
+            onDismiss={() => setSharedOpen(false)}
+          />
+        ) : sharedOpen && shared?.status === "gone" ? (
+          <SharedFlareGoneCard
+            signInHref={shared.signInHref}
+            onDismiss={() => setSharedOpen(false)}
+          />
+        ) : tappedIdea && tappedIdeaType ? (
           <QuietFlareCard
             type={tappedIdeaType}
             idea={tappedIdea}
@@ -294,6 +334,8 @@ type CanvasProps = {
   ideas: FlareIdea[]
   floatingIdeas: FloatingIdea[]
   selectedIdeaId: string | null
+  /** The shared flare while its card is up: its pin grows. */
+  highlightedPinId: string | null
   onPin: (pin: PublicMapPin) => void
   onIdea: (idea: Idea) => void
 }
@@ -306,6 +348,7 @@ function SignedOutStaticMap({
   ideas,
   floatingIdeas,
   selectedIdeaId,
+  highlightedPinId,
   onPin,
   onIdea,
 }: CanvasProps) {
@@ -352,7 +395,13 @@ function SignedOutStaticMap({
           style={FLARE_PIN_SLOTS[i]}
           className="absolute flex flex-col items-center"
         >
-          <FlarePin event={pin} own={false} joined={false} now={now} />
+          <FlarePin
+            event={pin}
+            own={false}
+            joined={false}
+            highlighted={pin.id === highlightedPinId}
+            now={now}
+          />
         </button>
       ))}
     </div>
@@ -367,6 +416,7 @@ function SignedOutGoogleMap(props: CanvasProps) {
     ideas,
     floatingIdeas,
     selectedIdeaId,
+    highlightedPinId,
     onPin,
     onIdea,
   } = props
@@ -419,9 +469,16 @@ function SignedOutGoogleMap(props: CanvasProps) {
           key={pin.id}
           position={pin.position}
           title={pinLabel(pin, now)}
+          zIndex={pin.id === highlightedPinId ? 500 : undefined}
           onClick={() => onPin(pin)}
         >
-          <FlarePin event={pin} own={false} joined={false} now={now} />
+          <FlarePin
+            event={pin}
+            own={false}
+            joined={false}
+            highlighted={pin.id === highlightedPinId}
+            now={now}
+          />
         </AdvancedMarker>
       ))}
     </Map>
