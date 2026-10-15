@@ -93,21 +93,28 @@ export async function fetchPublicMapPins(
   })
 }
 
+/** A shared flare link's flare: the pin, and the title the host wrote. */
+export type PublicSharedFlare = { pin: PublicMapPin; title: string }
+
 /**
- * One open-to-all flare by id, for a shared link (`/?flare=<id>`), as the
- * same pin the map draws. Null when the api has no such flare: private,
- * cancelled, over, or never was (it doesn't say which).
+ * One open-to-all flare by id, for a shared link (`/?flare=<id>`): the same
+ * pin the map draws, plus its title (the only flare text a signed-out visitor
+ * gets). Null when the api has no such flare: private, cancelled, over, or
+ * never was (it doesn't say which).
  */
 export async function fetchPublicFlare(
   id: string,
   signal?: AbortSignal
-): Promise<PublicMapPin | null> {
+): Promise<PublicSharedFlare | null> {
   try {
     const response = await apiFetch<{ data: unknown }>(
       `/public/events/${encodeURIComponent(id)}`,
       { auth: false, signal }
     )
-    return adaptPublicMapPin(response?.data)
+    const pin = adaptPublicMapPin(response?.data)
+    if (!pin) return null
+    const title = (response.data as { title?: unknown }).title
+    return { pin, title: typeof title === "string" ? title : "" }
   } catch (error) {
     if (
       error instanceof HttpError &&

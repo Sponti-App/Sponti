@@ -1,9 +1,9 @@
 "use client"
 
 // A shared flare link (`/?flare=<id>`) on the signed-out map: the card for
-// the flare the link points at, open over the dock. It shows only what the
-// pin shows (#425): category, open to all, and when. Joining asks for an
-// account, after which the visitor lands on the flare.
+// the flare the link points at, open over the dock. It shows the title, the
+// category and when; who's hosting and who's going need an account. Joining
+// asks for one, after which the visitor lands on the flare.
 
 import { MapPinIcon, XIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
@@ -27,11 +27,14 @@ export function sharedFlareWhen(pin: PublicMapPin, now: number): string {
 
 export function SharedFlareCard({
   pin,
+  title,
   now,
   onJoin,
   onDismiss,
 }: {
   pin: PublicMapPin
+  /** The host's title; empty falls back to the category. */
+  title: string
   now: number
   onJoin: () => void
   onDismiss: () => void
@@ -48,11 +51,13 @@ export function SharedFlareCard({
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-base font-semibold">
-            {type?.label ?? "a"} flare, open to all
+          <p className="line-clamp-2 text-base font-semibold">
+            {title.trim() || `${type?.label ?? "a"} flare`}
           </p>
           <p className="truncate text-xs text-muted-foreground">
-            {now > 0 ? sharedFlareWhen(pin, now) : " "}
+            {[type?.label, "open to all", now > 0 && sharedFlareWhen(pin, now)]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
         <button
