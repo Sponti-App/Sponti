@@ -574,7 +574,9 @@ describe("NewEventDrawer prefill", () => {
     expect(
       await screen.findByDisplayValue("roses at humboldthain")
     ).toBeVisible()
-    expect(screen.getByText(/type · hang out/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: /type · hang out/i })
+    ).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /humboldthain/i })).toBeVisible()
     // A manual pick: it can be reset, and the "auto" tag is not shown.
     expect(screen.queryByText("(auto)")).not.toBeInTheDocument()
@@ -590,7 +592,9 @@ describe("NewEventDrawer prefill", () => {
     )
     await new Promise((r) => setTimeout(r, 0))
     expect(screen.getByDisplayValue("picnic")).toBeInTheDocument()
-    expect(screen.queryByText(/type · drinks/i)).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /type · drinks/i })
+    ).not.toBeInTheDocument()
   })
 
   it("keeps edits made over a prefill when the next prefill arrives", async () => {

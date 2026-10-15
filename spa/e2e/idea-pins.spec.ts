@@ -140,7 +140,9 @@ test.describe("idea pins on the map (#244)", () => {
     await card.getByRole("button", { name: "light a flare" }).click()
     await expect(composerTitle(page)).toBeInViewport()
     await expect(composerTitle(page)).toHaveValue(BEER)
-    await expect(page.getByText("type · drinks")).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "type · drinks" })
+    ).toBeVisible()
     await expect(
       page.getByRole("button", { name: "Prater Biergarten" })
     ).toBeVisible()

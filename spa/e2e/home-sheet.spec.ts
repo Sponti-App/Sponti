@@ -553,7 +553,9 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
     await expect(composerTitle(page)).toHaveValue(
       "beer garden evening at prater"
     )
-    await expect(page.getByText("type · drinks")).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "type · drinks" })
+    ).toBeVisible()
     await expect(
       page.getByRole("button", { name: "Prater Biergarten" })
     ).toBeVisible()
@@ -579,7 +581,9 @@ test.describe("quiet state: an idea card near berlin (#243)", () => {
     await card.getByRole("button", { name: "light a food flare" }).click()
     await expect(composerTitle(page)).toBeInViewport()
     await expect(composerTitle(page)).toHaveValue("")
-    await expect(page.getByText("type · food")).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "type · food" })
+    ).toBeVisible()
     await expect(
       page.getByRole("button", { name: "Prater Biergarten" })
     ).toHaveCount(0)
