@@ -19,7 +19,9 @@ before(async () => {
     const app = express();
     app.use(express.json({ limit: "1kb" }));
     app.get("/boom/driver", () => {
-        throw new Error('E11000 duplicate key error collection: sponti.users index: email_1 dup key: { email: "a@b.c" }');
+        throw new Error(
+            'E11000 duplicate key error collection: sponti.users index: email_1 dup key: { email: "a@b.c" }'
+        );
     });
     app.get("/boom/string", () => {
         throw "plain string failure";
@@ -137,14 +139,19 @@ describe("requireAuth", () => {
         const expired = jwt.sign({ userId: "507f1f77bcf86cd799439011" }, "test-access-secret", {
             expiresIn: -10,
         });
-        const res = await fetch(`${baseUrl}/auth/me`, { headers: { authorization: `Bearer ${expired}` } });
+        const res = await fetch(`${baseUrl}/auth/me`, {
+            headers: { authorization: `Bearer ${expired}` },
+        });
         assert.equal(res.status, 401);
         assert.match(res.headers.get("www-authenticate") ?? "", /token_expired/);
     });
 
     it("lets a valid token through", async () => {
         mock.method(User, "findById", async () => null);
-        const { status, json } = await get("/auth/me", createAccessToken("507f1f77bcf86cd799439011"));
+        const { status, json } = await get(
+            "/auth/me",
+            createAccessToken("507f1f77bcf86cd799439011")
+        );
         assert.equal(status, 404);
         assert.deepEqual(json, { message: "User not found" });
     });

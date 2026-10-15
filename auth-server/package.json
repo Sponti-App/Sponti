@@ -9,6 +9,9 @@
     "build": "tsc",
     "prestart": "npm run build",
     "start": "node dist/app.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
     "test": "node --test --conditions=development --import ./test/setup.ts \"test/**/*.test.ts\""
   },
   "imports": {
@@ -58,6 +61,7 @@
   },
   "homepage": "https://github.com/Samara-26/sponti-auth-service#readme",
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
@@ -65,7 +69,10 @@
     "@types/multer": "^2.1.0",
     "@types/node": "^25.6.0",
     "@types/streamifier": "^0.1.2",
-    "typescript": "^6.0.3"
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.2"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

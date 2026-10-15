@@ -60,13 +60,23 @@ afterEach(() => mock.restoreAll());
 describe("POST /auth/google linking to an existing account", () => {
     const signInWithGoogle = (user: InstanceType<typeof User>) => {
         mock.method(OAuth2Client.prototype, "verifyIdToken", async () => ({
-            getPayload: () => ({ sub: "google-sub", email: "sarah@example.com", email_verified: true }),
+            getPayload: () => ({
+                sub: "google-sub",
+                email: "sarah@example.com",
+                email_verified: true,
+            }),
         }));
         mock.method(User, "findOne", async () => user);
         const save = mock.method(user, "save", async () => user);
-        const deleteMany = mock.method(RefreshToken, "deleteMany", async () => ({ deletedCount: 0 }));
+        const deleteMany = mock.method(RefreshToken, "deleteMany", async () => ({
+            deletedCount: 0,
+        }));
         mock.method(RefreshToken, "create", async () => ({}));
-        return { save, deleteMany, response: request("POST", "/auth/google", { credential: "id-token" }) };
+        return {
+            save,
+            deleteMany,
+            response: request("POST", "/auth/google", { credential: "id-token" }),
+        };
     };
 
     it("drops an unproven password and ends every earlier session on the first link", async () => {
@@ -92,7 +102,10 @@ describe("POST /auth/google linking to an existing account", () => {
         assert.equal(status, 200);
         assert.equal(user.passwordHash, passwordHash);
         for (const call of deleteMany.mock.calls) {
-            assert.ok("expiresAt" in (call.arguments[0] as object), "only expired sessions are swept");
+            assert.ok(
+                "expiresAt" in (call.arguments[0] as object),
+                "only expired sessions are swept"
+            );
         }
     });
 });
@@ -102,11 +115,23 @@ describe("PATCH /auth/me/profile changing the email", () => {
         mock.method(User, "findById", async () => user);
         mock.method(User, "exists", async () => null);
         const save = mock.method(user, "save", async () => user);
-        return { user, save, response: request("PATCH", "/auth/me/profile", body, createAccessToken(user._id.toString())) };
+        return {
+            user,
+            save,
+            response: request(
+                "PATCH",
+                "/auth/me/profile",
+                body,
+                createAccessToken(user._id.toString())
+            ),
+        };
     };
 
     it("changes the email with the right current password", async () => {
-        const { user, save, response } = patch({ email: "new@example.com", currentPassword: PASSWORD });
+        const { user, save, response } = patch({
+            email: "new@example.com",
+            currentPassword: PASSWORD,
+        });
 
         const { status, json } = await response;
 

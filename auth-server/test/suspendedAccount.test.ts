@@ -77,7 +77,11 @@ describe("suspended accounts", () => {
 
     it("refuse a Google sign-in and issue no session", async () => {
         mock.method(OAuth2Client.prototype, "verifyIdToken", async () => ({
-            getPayload: () => ({ sub: "google-sub", email: "sarah@example.com", email_verified: true }),
+            getPayload: () => ({
+                sub: "google-sub",
+                email: "sarah@example.com",
+                email_verified: true,
+            }),
         }));
         const user = makeUser({ suspendedAt: new Date() });
         mock.method(User, "findOne", async () => user);
