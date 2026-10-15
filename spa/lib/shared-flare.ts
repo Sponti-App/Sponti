@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useState, useSyncExternalStore } from "react"
-import { fetchPublicFlare, type PublicMapPin } from "@/lib/api/public-map"
+import { fetchPublicFlare, type PublicSharedFlare } from "@/lib/api/public-map"
 
 // A shared flare link: `/?flare=<id>`. A signed-out visitor lands on the map
 // centred on that open-to-all flare with its card open; joining asks them to
 // sign up and then lands them on the flare (/event/<id>). A signed-in visitor
-// goes straight to the flare. The map only ever learns what a pin shows
-// (#425): category, place and time.
+// goes straight to the flare. Signed out, the link shows what a pin shows
+// (#425: category, place and time) plus the flare's title.
 
 export const SHARED_FLARE_PARAM = "flare"
 
@@ -44,7 +44,7 @@ export function useSharedFlareId(): string | null {
 export type SharedFlareState =
   | { status: "none" }
   | { status: "loading"; id: string }
-  | { status: "found"; id: string; pin: PublicMapPin }
+  | ({ status: "found"; id: string } & PublicSharedFlare)
   /** Not open to all, over, or never was: the api doesn't say which. */
   | { status: "gone"; id: string }
 
@@ -53,26 +53,26 @@ export function useSharedFlare(): SharedFlareState {
   const id = useSharedFlareId()
   const [result, setResult] = useState<{
     id: string
-    pin: PublicMapPin | null
+    flare: PublicSharedFlare | null
   } | null>(null)
 
   useEffect(() => {
     if (!id) return
     const controller = new AbortController()
     fetchPublicFlare(id, controller.signal)
-      .then((pin) => {
-        if (!controller.signal.aborted) setResult({ id, pin })
+      .then((flare) => {
+        if (!controller.signal.aborted) setResult({ id, flare })
       })
       .catch(() => {
-        if (!controller.signal.aborted) setResult({ id, pin: null })
+        if (!controller.signal.aborted) setResult({ id, flare: null })
       })
     return () => controller.abort()
   }, [id])
 
   if (!id) return { status: "none" }
   if (result?.id !== id) return { status: "loading", id }
-  return result.pin
-    ? { status: "found", id, pin: result.pin }
+  return result.flare
+    ? { status: "found", id, ...result.flare }
     : { status: "gone", id }
 }
 
