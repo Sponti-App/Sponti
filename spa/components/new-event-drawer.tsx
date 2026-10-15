@@ -2181,8 +2181,8 @@ function SectionChip({
 // ----- Event type -----
 
 // Tiny inline indicator that lives under the title. Shows the type that will
-// actually ship (inferred from title keywords, or user-picked). Tap "change"
-// to expand the full pill row; pick or clear collapses it back.
+// actually ship (inferred from title keywords, or user-picked). Tap it (the
+// pencil) to expand the full pill row; pick or clear collapses it back.
 function TypeInlineIndicator({
   effectiveType,
   manualType,
@@ -2211,15 +2211,24 @@ function TypeInlineIndicator({
   return (
     <div className="mt-2 flex flex-col gap-2">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Icon className="h-4 w-4 shrink-0" />
-        <span>type · {meta.label}</span>
-        {isInferred && <span className="text-muted-foreground/60">(auto)</span>}
+        {/* The icon and name are the button; the pencil says it can change. */}
         <button
           type="button"
           onClick={onToggleOverride}
-          className="text-accent-ink hover:underline"
+          aria-label={`type · ${meta.label}`}
+          aria-expanded={overrideOpen}
+          className="inline-flex items-center gap-2 hover:text-foreground"
         >
-          {overrideOpen ? "done" : "change"}
+          <Icon className="h-4 w-4 shrink-0" />
+          <span>{meta.label}</span>
+          {isInferred && (
+            <span className="text-muted-foreground/60">(auto)</span>
+          )}
+          {overrideOpen ? (
+            <CheckIcon className="h-3 w-3 text-accent-ink" />
+          ) : (
+            <PencilSimpleIcon className="h-3 w-3 opacity-60" />
+          )}
         </button>
         {manualType !== null && !overrideOpen && (
           <button
