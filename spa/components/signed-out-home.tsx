@@ -10,6 +10,10 @@
 // (#408, behind `locationAsk`), which sets SignedOutMap's centre. The coach
 // marks wait for an account (#560), so they run on the signed-in home. The top
 // bar rework (#369) replaces the header row.
+//
+// A shared flare link (`/?flare=<id>`) shows the slides on a first open, as an
+// invite link does (#560), then the map on that flare with its card up. It
+// skips the location ask: the map opens on the flare.
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -30,6 +34,8 @@ import {
 } from "@/components/signed-out-map"
 import { haptic } from "@/lib/haptics"
 import { useShowIntroSlides } from "@/lib/intro-slides"
+import { buildLoginPath } from "@/lib/redirect-path"
+import { flarePagePath, useSharedFlare } from "@/lib/shared-flare"
 import { useLocationStart } from "@/lib/use-location-start"
 
 export function SignedOutHome() {
@@ -37,6 +43,8 @@ export function SignedOutHome() {
   const [view, setView] = useState<HomeView>("map")
   const [ask, setAsk] = useState<SignUpAsk | null>(null)
   const [askOpen, setAskOpen] = useState(false)
+  const shared = useSharedFlare()
+  const sharing = shared.status !== "none"
   const slidesShowing = useShowIntroSlides()
 
   // #408: where the map starts. The ask waits for the intro slides and the
@@ -48,8 +56,9 @@ export function SignedOutHome() {
     useLastKnown: false,
     alwaysFallback: true,
     requestByDefault: false,
-    hold: slidesShowing || askOpen || view !== "map",
+    hold: slidesShowing || askOpen || view !== "map" || sharing,
   })
+  const sharedPin = shared.status === "found" ? shared.pin : null
   const located = start.geo.coords != null
 
   const openAsk = (next: SignUpAsk) => {
@@ -62,8 +71,12 @@ export function SignedOutHome() {
       <div className="absolute inset-0 overflow-hidden">
         {view === "map" ? (
           <SignedOutMap
-            key={`${start.cameraKey}:${located ? "located" : "start"}`}
-            center={start.camera ?? SIGNED_OUT_CENTER}
+            key={
+              sharedPin
+                ? `shared:${sharedPin.id}`
+                : `${start.cameraKey}:${located ? "located" : "start"}`
+            }
+            center={sharedPin?.position ?? start.camera ?? SIGNED_OUT_CENTER}
             areaLabel={start.area?.name ?? SIGNED_OUT_AREA_LABEL}
             located={located}
             dockHidden={start.mode !== "hidden"}
@@ -76,6 +89,20 @@ export function SignedOutHome() {
                   onUseLocation={start.requestLocation}
                 />
               ) : undefined
+            }
+            shared={
+              shared.status === "found"
+                ? {
+                    status: "found",
+                    pin: shared.pin,
+                    onJoin: () => openAsk({ kind: "join", flareId: shared.id }),
+                  }
+                : shared.status === "gone"
+                  ? {
+                      status: "gone",
+                      signInHref: buildLoginPath(flarePagePath(shared.id)),
+                    }
+                  : undefined
             }
             onPin={() => openAsk({ kind: "pin" })}
             onLightIdea={(idea) => openAsk({ kind: "light", draft: { idea } })}
@@ -117,8 +144,17 @@ export function SignedOutHome() {
         onPick={start.pickArea}
       />
 
-      {/* #377 (behind `introV2`): the intro slides, once per device. */}
-      <IntroSlidesGate />
+      {/* #377 (behind `introV2`): the intro slides, once per device. Over a
+          shared flare link they end on the flare, and "i have an account"
+          leads to it. */}
+      {shared.status === "none" ? (
+        <IntroSlidesGate />
+      ) : (
+        <IntroSlidesGate
+          finishLabel="see the flare"
+          signInPath={buildLoginPath(flarePagePath(shared.id))}
+        />
+      )}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
-import { Suspense, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { HomeCoachMarks } from "@/components/coach-marks"
 import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
@@ -37,10 +38,20 @@ import { useOnboardingFlags } from "@/lib/onboarding-flags"
 import { etaControlKind, flareTiming } from "@/lib/flare-detail"
 import { haptic } from "@/lib/haptics"
 import { HttpError } from "@/lib/http"
+import { flarePagePath, useSharedFlareId } from "@/lib/shared-flare"
 
 export default function Home() {
   const { status } = useAuth()
   const { browseBeforeSignup } = useOnboardingFlags()
+  const router = useRouter()
+  // A shared flare link (`/?flare=<id>`) takes someone signed in straight to
+  // the flare; a signed-out visitor gets the map opened on it.
+  const sharedFlareId = useSharedFlareId()
+  useEffect(() => {
+    if (status === "authenticated" && sharedFlareId) {
+      router.replace(flarePagePath(sharedFlareId))
+    }
+  }, [status, sharedFlareId, router])
   // #389: AuthGate only lets a signed-out visitor this far with the flag on.
   if (browseBeforeSignup && status === "unauthenticated") {
     return <SignedOutHome />

@@ -277,3 +277,50 @@ describe("GET /public/events/map (#425)", () => {
     }
   });
 });
+
+// A shared flare link (`/?flare=<id>`) opens the signed-out map on one flare.
+describe("GET /public/events/:id", () => {
+  const getOne = (id: string) => request(app).get(`/api/v1/public/events/${id}`);
+
+  it("returns an open-to-all flare as a pin, with exactly the allowed keys", async () => {
+    const live = await Event.create(makeEvent());
+
+    const response = await getOne(live.id).expect(200);
+
+    expect(response.body.data._id).toBe(live.id);
+    expect(Object.keys(response.body.data).sort()).toEqual(ALLOWED_KEYS);
+    expect(Object.keys(response.body.data.location).sort()).toEqual(ALLOWED_LOCATION_KEYS);
+    for (const marker of Object.values(MARKERS)) {
+      expect(JSON.stringify(response.body)).not.toContain(marker);
+    }
+  });
+
+  it("finds a flare later than the map's window, so a link shared early works", async () => {
+    const later = await Event.create(
+      makeEvent({ startAt: inMinutes(36 * 60), endAt: inMinutes(38 * 60) })
+    );
+
+    await getOne(later.id).expect(200);
+  });
+
+  it("is a 404 for a private, cancelled, ended or inactive host's flare, and an unknown id", async () => {
+    const hidden = await Event.create([
+      makeEvent({ visibility: "private" }),
+      makeEvent({ status: "cancelled" }),
+      makeEvent({ startAt: inMinutes(-120), endAt: inMinutes(-10) }),
+      makeEvent({ hostId: SUSPENDED_HOST_ID }),
+      makeEvent({ hostId: DELETED_HOST_ID }),
+      makeEvent({ hostId: MISSING_HOST_ID }),
+    ]);
+
+    for (const event of hidden) {
+      const response = await getOne(event.id).expect(404);
+      expect(response.body.error.code).toBe("EVENT_NOT_FOUND");
+    }
+    await getOne(new Types.ObjectId().toString()).expect(404);
+  });
+
+  it("refuses an id that isn't one", async () => {
+    await getOne("not-an-id").expect(400);
+  });
+});

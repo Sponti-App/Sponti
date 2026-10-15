@@ -18,6 +18,8 @@ import {
   keepFlareDraft,
   type KeptFlareDraft,
 } from "@/lib/kept-flare-draft"
+import { REDIRECT_PARAM } from "@/lib/redirect-path"
+import { flarePagePath } from "@/lib/shared-flare"
 import { EVENT_TYPES } from "@/types/utils"
 
 /** Why the sheet is asking. */
@@ -29,6 +31,8 @@ export type SignUpAsk =
   | { kind: "account"; tab: AccountOnlyTab }
   /** An open-to-all pin: its details need an account. */
   | { kind: "pin" }
+  /** A shared flare link's "join": after sign-up they land on the flare. */
+  | { kind: "join"; flareId: string }
 
 // "sign up to see your …": the prototype read "your my flares".
 const TAB_NOUN: Record<AccountOnlyTab, string> = {
@@ -53,6 +57,11 @@ function askCopy(ask: SignUpAsk): { title: string; body: string } {
       return {
         title: "sign up to see what's happening",
         body: "what it is, who's going and where to meet are for people on sponti.",
+      }
+    case "join":
+      return {
+        title: "sign up to join",
+        body: "what it is, who's going and where to meet are for people on sponti. you'll land right on the flare.",
       }
   }
 }
@@ -163,7 +172,11 @@ export function SignUpSheet({
 }) {
   const copy = ask ? askCopy(ask) : { title: "", body: "" }
   const lighting = ask?.kind === "light" ? ask : null
-  const query = lighting ? RESUME_REDIRECT_QUERY : ""
+  const query = lighting
+    ? RESUME_REDIRECT_QUERY
+    : ask?.kind === "join"
+      ? `?${REDIRECT_PARAM}=${encodeURIComponent(flarePagePath(ask.flareId))}`
+      : ""
   const keep = () => {
     if (lighting) keepFlareDraft(lighting.draft)
   }

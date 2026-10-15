@@ -2,7 +2,11 @@ import { Router } from "express";
 import { publicController } from "#controllers/index";
 import { createRateLimiter } from "#middleware/rateLimit";
 import { validateRequest } from "#middleware/validateRequest";
-import { contactPreviewBodySchema, publicMapEventsQuerySchema } from "#schemas/index";
+import {
+  contactPreviewBodySchema,
+  idParamSchema,
+  publicMapEventsQuerySchema,
+} from "#schemas/index";
 
 // The only unauthenticated /api/v1 routes. Mounted ahead of requireAuth in
 // app.ts. Anything added here is reachable by anyone on the internet — keep
@@ -28,4 +32,13 @@ publicRoutes.get(
   createRateLimiter({ windowMs: 60_000, max: 60 }),
   validateRequest({ query: publicMapEventsQuerySchema }),
   publicController.getPublicMapEvents
+);
+
+// A shared flare link (`/?flare=<id>`): one open-to-all flare as a map pin, so
+// the signed-out map can open on it. Same projection and rate limit as above.
+publicRoutes.get(
+  "/events/:id",
+  createRateLimiter({ windowMs: 60_000, max: 60 }),
+  validateRequest({ params: idParamSchema }),
+  publicController.getPublicMapEvent
 );

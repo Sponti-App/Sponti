@@ -198,7 +198,8 @@ type StubBackendOptions = {
   mapEvents?: StubApiEvent[]
   /**
    * Pins returned by the unauthenticated GET /public/events/map (#425), the
-   * signed-out map's only flare data. Empty by default.
+   * signed-out map's only flare data, and by GET /public/events/:id (a shared
+   * flare link). Empty by default.
    */
   publicPins?: StubPublicPin[]
   /**
@@ -513,6 +514,21 @@ export async function stubBackend(
     }
     if (path === "/public/events/map" && route.request().method() === "GET") {
       await fulfillJson(route, { data: options.publicPins ?? [] })
+      return
+    }
+    // A shared flare link: one open-to-all flare by id, from `publicPins`.
+    const publicMatch = path.match(/^\/public\/events\/([^/]+)$/)
+    if (publicMatch && route.request().method() === "GET") {
+      const pin = (options.publicPins ?? []).find(
+        (p) => p._id === publicMatch[1]
+      )
+      if (pin) await fulfillJson(route, { data: pin })
+      else
+        await fulfillJson(
+          route,
+          { error: { message: "Flare not found", code: "EVENT_NOT_FOUND" } },
+          404
+        )
       return
     }
     if (path === "/connections" && route.request().method() === "GET") {
