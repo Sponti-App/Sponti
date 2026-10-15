@@ -5,6 +5,7 @@ import { Block, Connection, Notification, type ConnectionStatus } from "#models/
 import { blockUser, unblockUser } from "#services/blockService";
 import {
   deleteConnection,
+  getConnections,
   respondToConnectionRequest,
   sendConnectionRequest,
 } from "#services/connectionService";
@@ -18,6 +19,7 @@ import { searchUsers } from "#services/userDirectoryService";
 const A = new Types.ObjectId().toString();
 const B = new Types.ObjectId().toString();
 const C = new Types.ObjectId().toString();
+const D = new Types.ObjectId().toString();
 
 let mongoServer: MongoMemoryReplSet;
 
@@ -334,6 +336,63 @@ describe("deleteConnection", () => {
       code: "CONNECTION_NOT_FOUND",
     });
     expect(await Connection.countDocuments({})).toBe(1);
+  });
+});
+
+// #453: blockUser deletes the rows between a pair, but a request that raced
+// the block (or older data) can survive. These rows are inserted by hand, the
+// way such a leftover looks, and must not be listed.
+describe("getConnections and blocks (#453)", () => {
+  const listed = async (viewer: string, direction: "incoming" | "outgoing" | "all") => {
+    const { data, pagination } = await getConnections(viewer, { page: 1, limit: 20, direction });
+    return { ids: data.map((connection) => connection._id.toString()), total: pagination.total };
+  };
+
+  it("hides a pending request from someone the viewer blocked, or who blocked the viewer", async () => {
+    const fromBlocked = await row(B, A, "pending");
+    const fromBlocker = await row(C, A, "pending");
+    const fromFriend = await row(D, A, "pending");
+    await block(A, B);
+    await block(C, A);
+
+    const incoming = await listed(A, "incoming");
+
+    expect(incoming.ids).toEqual([fromFriend._id.toString()]);
+    expect(incoming.total).toBe(1);
+    expect(incoming.ids).not.toContain(fromBlocked._id.toString());
+    expect(incoming.ids).not.toContain(fromBlocker._id.toString());
+  });
+
+  it("hides a request the viewer sent to someone in a block with them", async () => {
+    await row(A, B, "pending");
+    await row(A, C, "pending");
+    const toFriend = await row(A, D, "pending");
+    await block(A, B);
+    await block(C, A);
+
+    const outgoing = await listed(A, "outgoing");
+
+    expect(outgoing.ids).toEqual([toFriend._id.toString()]);
+    expect(outgoing.total).toBe(1);
+  });
+
+  it("hides them in the all direction too, and lists everyone again after an unblock", async () => {
+    await row(B, A, "pending");
+    await row(A, B, "accepted");
+    const fromFriend = await row(D, A, "pending");
+    await block(A, B);
+
+    expect((await listed(A, "all")).ids).toEqual([fromFriend._id.toString()]);
+
+    await unblockUser(A, B);
+
+    expect((await listed(A, "all")).total).toBe(3);
+  });
+
+  it("is untouched when the viewer has no blocks", async () => {
+    const request = await row(B, A, "pending");
+
+    expect((await listed(A, "incoming")).ids).toEqual([request._id.toString()]);
   });
 });
 

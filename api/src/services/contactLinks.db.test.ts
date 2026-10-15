@@ -3,7 +3,8 @@ import { MongoMemoryReplSet } from "mongodb-memory-server";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import type { Express } from "express";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetRateLimits } from "#middleware/rateLimit";
 import { Block, Connection, InviteLink, Notification, QrContactToken } from "#models/index";
 import { getContactPreview } from "#services/contactPreviewService";
 import { connectInPerson } from "#services/connectionService";
@@ -70,6 +71,11 @@ beforeAll(async () => {
   process.env.ACCESS_JWT_SECRET = JWT_SECRET;
   app = (await import("#app")).createApp();
 }, 120_000);
+
+// #455: the limiter's counts are module state, so clear them between tests.
+beforeEach(() => {
+  resetRateLimits();
+});
 
 afterEach(async () => {
   vi.useRealTimers();
@@ -497,7 +503,6 @@ describe("unauthenticated contact preview (#124)", () => {
     expect(response.body.data).not.toHaveProperty("userId");
   });
 
-  // Keep this last: the limiter counts per address for the whole test file.
   it("is rate-limited (#450)", async () => {
     let limited: request.Response | undefined;
 

@@ -22,7 +22,10 @@ import {
   type Icon,
 } from "@/components/icons"
 import { useTheme } from "next-themes"
-import { useActionFeedback } from "@/components/action-feedback"
+import {
+  showActionFeedbackAfterRemount,
+  useActionFeedback,
+} from "@/components/action-feedback"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,6 +34,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/components/auth-provider"
+import { DeleteAccountDialog } from "@/components/delete-account-dialog"
 import { updateProfile, uploadAvatar } from "@/lib/api/auth"
 import {
   fetchNotificationSettings,
@@ -144,6 +148,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
   const ideasHidden = useIdeasHidden()
   const newOnboarding = useNewOnboarding()
   const isDark = resolvedTheme === "dark"
+  const [deletingAccount, setDeletingAccount] = useState(false)
 
   // Account draft — seeded from the auth session (already fresh: AuthProvider
   // revalidates against /auth/me on load, see components/auth-provider.tsx).
@@ -600,6 +605,30 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 sign out
               </Button>
             </div>
+
+            {/* #449: deliberately quiet; the dialog carries the warning. */}
+            <div className="flex justify-center pb-4">
+              <button
+                type="button"
+                onClick={() => setDeletingAccount(true)}
+                className="text-xs text-muted-foreground underline-offset-2 hover:text-destructive hover:underline"
+              >
+                delete account
+              </button>
+            </div>
+            {deletingAccount && (
+              <DeleteAccountDialog
+                username={user.username}
+                hasPassword={user.hasPassword !== false}
+                onClose={() => setDeletingAccount(false)}
+                onDeleted={() => {
+                  // The server already ended every session; this clears ours,
+                  // and AuthGate takes them to the signed-out home.
+                  showActionFeedbackAfterRemount("your account is deleted")
+                  void logout()
+                }}
+              />
+            )}
           </TabsContent>
 
           {/* ────────────────── Notifications tab ────────────────── */}

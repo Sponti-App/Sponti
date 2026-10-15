@@ -19,16 +19,19 @@ type UploadCallback = (error?: unknown, result?: { secure_url: string; public_id
 
 // Stands in for Cloudinary's upload stream: swallows the bytes, then answers.
 const mockUpload = (answer: (callback: UploadCallback) => void) =>
-    mock.method(cloudinary.uploader, "upload_stream", (_options: unknown, callback: UploadCallback) =>
-        new Writable({
-            write(_chunk, _encoding, done) {
-                done();
-            },
-            final(done) {
-                answer(callback);
-                done();
-            },
-        })
+    mock.method(
+        cloudinary.uploader,
+        "upload_stream",
+        (_options: unknown, callback: UploadCallback) =>
+            new Writable({
+                write(_chunk, _encoding, done) {
+                    done();
+                },
+                final(done) {
+                    answer(callback);
+                    done();
+                },
+            })
     );
 
 const upload = async (type: string, user: InstanceType<typeof User>) => {
@@ -77,7 +80,9 @@ describe("PATCH /auth/me/avatar", () => {
         mock.restoreAll();
         mock.method(User, "findById", async () => user);
         mock.method(user, "save", async () => user);
-        mockUpload((callback) => callback(undefined, { secure_url: "https://img/new.png", public_id: "avatars/new" }));
+        mockUpload((callback) =>
+            callback(undefined, { secure_url: "https://img/new.png", public_id: "avatars/new" })
+        );
 
         const next = await upload("image/png", user);
         assert.equal(next.status, 200);
@@ -87,7 +92,9 @@ describe("PATCH /auth/me/avatar", () => {
         const user = makeUser({ avatarPublicId: "avatars/old" });
         mock.method(User, "findById", async () => user);
         mock.method(user, "save", async () => user);
-        mockUpload((callback) => callback(undefined, { secure_url: "https://img/new.png", public_id: "avatars/new" }));
+        mockUpload((callback) =>
+            callback(undefined, { secure_url: "https://img/new.png", public_id: "avatars/new" })
+        );
         const destroy = mock.method(cloudinary.uploader, "destroy", async () => {
             throw new Error("not found");
         });

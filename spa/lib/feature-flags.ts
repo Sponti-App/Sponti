@@ -78,6 +78,15 @@ export const featureFlags = {
     FEATURE_PROFILE === "full" ||
     process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF === "dev",
 
+  /**
+   * The filter menu on the my flares page (#582): date / latest / going /
+   * private. Its options aren't wired to the list yet (the menu says "sorting
+   * hookup pending"), so picking one does nothing. Hidden in the tester build
+   * until the sorting is built; the header keeps a spacer so the title stays
+   * centred. On in the full profile.
+   */
+  myFlaresFilter: FEATURE_PROFILE === "full",
+
   // #482: `browseBeforeSignup`, `introV2` and `locationAsk` below are the new
   // onboarding. A device can switch them all on at runtime ("new onboarding" in
   // settings), whatever the build profile. Read them through

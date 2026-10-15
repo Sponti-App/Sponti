@@ -92,7 +92,9 @@ test.describe("floating ideas, signed out (#515)", () => {
       .click()
     await expect(composerTitle(page)).toBeInViewport()
     await expect(composerTitle(page)).toHaveValue(title)
-    await expect(page.getByText(`type · ${idea.category}`)).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: `type · ${idea.category}` })
+    ).toBeVisible()
     await expect(page.getByText("my location").first()).toBeVisible()
   })
 })

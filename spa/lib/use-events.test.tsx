@@ -117,3 +117,38 @@ describe("use-events refetch on focus", () => {
     await waitFor(() => expect(fetchCalendarEvents).toHaveBeenCalledTimes(2))
   })
 })
+
+// #580: a flare cancelled, reactivated or edited on the edit route stayed on
+// the map for up to 60s, because the remounted map reused its module cache.
+describe("use-events map cache invalidation (#580)", () => {
+  it("reuses a fresh map result when the map remounts", async () => {
+    fetchMapEvents.mockResolvedValue([])
+    const { useMapEvents } = await loadHooks({ apiBase: "https://api.test" })
+
+    const first = renderHook(() => useMapEvents(COORDS, 10))
+    await waitFor(() => expect(fetchMapEvents).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(first.result.current.loading).toBe(false))
+    first.unmount()
+
+    const second = renderHook(() => useMapEvents(COORDS, 10))
+    await waitFor(() => expect(second.result.current.loading).toBe(false))
+    expect(fetchMapEvents).toHaveBeenCalledTimes(1)
+  })
+
+  it("refetches on the next map mount after emitEventsChanged", async () => {
+    fetchMapEvents.mockResolvedValue([])
+    const { useMapEvents, emitEventsChanged } = await loadHooks({
+      apiBase: "https://api.test",
+    })
+
+    const first = renderHook(() => useMapEvents(COORDS, 10))
+    await waitFor(() => expect(fetchMapEvents).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(first.result.current.loading).toBe(false))
+    // The edit route: the map is unmounted when the change is emitted.
+    first.unmount()
+    emitEventsChanged()
+
+    renderHook(() => useMapEvents(COORDS, 10))
+    await waitFor(() => expect(fetchMapEvents).toHaveBeenCalledTimes(2))
+  })
+})

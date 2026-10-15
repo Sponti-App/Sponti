@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { normalizeBio, normalizeInstagram, normalizeTelegram, type ProfileFieldResult } from "#lib/profileFields";
+import {
+    normalizeBio,
+    normalizeInstagram,
+    normalizeTelegram,
+    type ProfileFieldResult,
+} from "#lib/profileFields";
 
 type Normalizer = (raw: string | null) => ProfileFieldResult;
 
@@ -17,7 +22,14 @@ const profileField = (normalize: Normalizer) =>
     });
 
 export const registerSchema = z.object({
-    username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, underscores and hyphens"),
+    username: z
+        .string()
+        .min(3)
+        .max(30)
+        .regex(
+            /^[a-zA-Z0-9_-]+$/,
+            "Username can only contain letters, numbers, underscores and hyphens"
+        ),
     displayName: z.string().min(2).max(50),
     email: z.string().email(),
     password: z.string().min(8).max(100),
@@ -43,7 +55,15 @@ export const resetPasswordSchema = z.object({
 
 export const updateProfileSchema = z.object({
     displayName: z.string().min(2).max(50).optional(),
-    username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, underscores and hyphens").optional(),
+    username: z
+        .string()
+        .min(3)
+        .max(30)
+        .regex(
+            /^[a-zA-Z0-9_-]+$/,
+            "Username can only contain letters, numbers, underscores and hyphens"
+        )
+        .optional(),
     email: z.string().email().optional(),
     // Required when `email` changes (#537); ignored otherwise.
     currentPassword: z.string().min(1).max(100).optional(),
@@ -51,6 +71,13 @@ export const updateProfileSchema = z.object({
     bio: profileField(normalizeBio).optional(),
     instagram: profileField(normalizeInstagram).optional(),
     telegram: profileField(normalizeTelegram).optional(),
+});
+
+// #449: accounts with a password confirm with it; Google-only accounts type
+// their @username. The controller decides which one applies.
+export const deleteAccountSchema = z.object({
+    password: z.string().min(1).max(100).optional(),
+    confirmUsername: z.string().min(1).max(31).optional(),
 });
 
 export const refreshTokenSchema = z.object({

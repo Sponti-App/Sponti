@@ -22,6 +22,7 @@ vi.mock("@/lib/use-events", () => ({ emitEventsChanged: vi.fn() }))
 vi.mock("@/lib/use-notifications", () => ({ dismiss: mocks.dismiss }))
 vi.mock("@/lib/haptics", () => ({ haptic: vi.fn() }))
 
+import { resetCircleSkipsForTest } from "@/lib/circle-skips"
 import { ActionFeedbackProvider } from "./action-feedback"
 import { NotificationRow } from "./notification-row"
 import {
@@ -93,6 +94,9 @@ describe("NotificationRow", () => {
     vi.useFakeTimers()
     vi.clearAllMocks()
     resetConnectionRequestActions()
+    // #597: a skip is kept on the device, so don't let one test's carry over.
+    window.localStorage.clear()
+    resetCircleSkipsForTest()
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
       configurable: true,
       get: () => 375,
@@ -295,6 +299,67 @@ describe("NotificationRow", () => {
       renderRow(invite)
       fireEvent.click(screen.getByRole("button", { name: "hide notification" }))
       expect(mocks.dismiss).toHaveBeenCalledWith("n-inv")
+    })
+  })
+
+  // #585: someone who accepted you is a friend already, so the chips come
+  // with the row instead of after an accept.
+  describe("someone accepted your request (#585)", () => {
+    const accepted: Notification = {
+      ...request,
+      id: "n-acc",
+      type: "connection_accepted",
+      targetId: "conn-2",
+      title: "maya accepted your request",
+      subtitle: "Now you can add @maya to a circle.",
+      intent: "success",
+    }
+
+    it("offers the circles they aren't in, and adds them on a tap", async () => {
+      renderRow(accepted)
+      await flush()
+
+      const chips = screen.getByRole("group", { name: "add maya to a circle" })
+      expect(
+        within(chips)
+          .getAllByRole("button")
+          .map((b) => b.textContent)
+      ).toEqual(["inner circle", "close friends", "skip"])
+
+      fireEvent.click(
+        within(chips).getByRole("button", { name: "close friends" })
+      )
+      await flush()
+
+      expect(mocks.addCircleMember).toHaveBeenCalledWith("close", "user-maya")
+      expect(mocks.respondToConnectionRequest).not.toHaveBeenCalled()
+      expect(screen.getByText("added to close friends")).toBeInTheDocument()
+    })
+
+    it("shows nothing once they are in one of your circles", async () => {
+      mocks.fetchMyCircles.mockResolvedValue([
+        {
+          id: "close",
+          name: "close friends",
+          type: "close",
+          memberIds: ["user-maya"],
+          description: "",
+        },
+      ])
+      renderRow(accepted)
+      await flush()
+
+      expect(
+        screen.queryByRole("group", { name: "add maya to a circle" })
+      ).not.toBeInTheDocument()
+    })
+
+    it("still hides with a swipe left", async () => {
+      renderRow(accepted)
+      await flush()
+
+      swipe(rowSurface("maya accepted your request"), -200)
+      expect(mocks.dismiss).toHaveBeenCalledWith("n-acc")
     })
   })
 })

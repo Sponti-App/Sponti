@@ -20,6 +20,7 @@ describe("featureFlags profile", () => {
     const { featureFlags } = await loadFlags()
     expect(featureFlags.reshare).toBe(false)
     expect(featureFlags.plusOne).toBe(false)
+    expect(featureFlags.myFlaresFilter).toBe(false)
   })
 
   it("keeps the new onboarding on in the tester profile (#274)", async () => {
@@ -48,6 +49,7 @@ describe("featureFlags profile", () => {
     const { featureFlags } = await loadFlags()
     expect(featureFlags.reshare).toBe(true)
     expect(featureFlags.plusOne).toBe(true)
+    expect(featureFlags.myFlaresFilter).toBe(true)
     expect(featureFlags.browseBeforeSignup).toBe(true)
     expect(featureFlags.introV2).toBe(true)
     expect(featureFlags.coachMarks).toBe(true)

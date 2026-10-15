@@ -5,8 +5,8 @@ name: CI
 #   spa: prettier, typecheck, lint, unit tests, a production build in both
 #     feature profiles, and the Playwright browser smoke tests
 #   api: prettier, typecheck, lint, tests (in-memory Mongo, no shared database)
-#   auth-server: build (tsc) and tests (node:test, every model call mocked, no
-#     database); it has no lint yet. A broken build here means nobody can sign in
+#   auth-server: prettier, lint, build (tsc) and tests (node:test, every model
+#     call mocked, no database). A broken build here means nobody can sign in
 # Nothing here touches a real backend: the browser tests stub every request,
 # and the api tests use mongodb-memory-server.
 on:
@@ -119,6 +119,8 @@ jobs:
           cache: npm
           cache-dependency-path: auth-server/package-lock.json
       - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
       # tsc is the type check; a successful build also proves the
       # `imports` map resolves against dist/.
       - run: npm run build

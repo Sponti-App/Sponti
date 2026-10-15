@@ -387,11 +387,51 @@ describe("NewEventDrawer custom circle audience", () => {
 })
 
 // #135: the "no friends yet" prompt is pinned above the CTA and covered the
-// field being typed in. It must close on × or on a tap outside it.
+// field being typed in. It must close on × or on a tap outside it. #583: it is
+// only for people with no friends at all.
 describe("NewEventDrawer no-friends audience prompt", () => {
   const PROMPT = /no friends on sponti yet/i
+  // No friends, so the draft starts public; switching public off leaves
+  // nobody to invite and the prompt shows.
+  const renderFriendlessPrivate = async () => {
+    const user = userEvent.setup()
+    mocks.fetchAcceptedConnections.mockResolvedValue([])
+    mocks.fetchMyCircles.mockResolvedValue([])
+    render(<NewEventDrawer open onClose={vi.fn()} />)
+    await user.click(await screen.findByRole("button", { name: /^public/ }))
+    await user.click(screen.getByRole("switch"))
+    expect(await screen.findByText(PROMPT)).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "make it public & go live" })
+    ).toBeInTheDocument()
+    return user
+  }
+
+  it("closes on its dismiss button", async () => {
+    const user = await renderFriendlessPrivate()
+    await user.click(screen.getByRole("button", { name: "dismiss" }))
+    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
+  })
+
+  it("closes when tapping a field outside it", async () => {
+    const user = await renderFriendlessPrivate()
+    await user.click(screen.getByPlaceholderText(/what's the plan/i))
+    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
+  })
+
+  it("stays open when tapping inside it", async () => {
+    const user = await renderFriendlessPrivate()
+    await user.click(screen.getByText(PROMPT))
+    expect(screen.getByText(PROMPT)).toBeInTheDocument()
+  })
+})
+
+// #583: someone with friends and no audience picked is asked to pick one.
+// They never see "no friends yet", and the CTA never publishes for them.
+describe("NewEventDrawer pick-who prompt", () => {
+  const HINT = "pick a circle, some friends, or make it public"
   // A friend exists but the default audience circle is empty, so the draft
-  // has nobody to invite and the prompt shows.
+  // has nobody to invite.
   const renderWithEmptyAudience = async () => {
     mocks.fetchAcceptedConnections.mockResolvedValue([
       { id: "f1", displayName: "Friend", username: "friend" },
@@ -406,28 +446,54 @@ describe("NewEventDrawer no-friends audience prompt", () => {
       },
     ])
     render(<NewEventDrawer open onClose={vi.fn()} />)
-    expect(await screen.findByText(PROMPT)).toBeInTheDocument()
+    return screen.findByRole("button", { name: "pick who sees it" })
   }
 
-  it("closes on its dismiss button", async () => {
-    const user = userEvent.setup()
+  it("asks to pick, not to invite friends", async () => {
     await renderWithEmptyAudience()
-    await user.click(screen.getByRole("button", { name: "dismiss" }))
-    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
+    expect(screen.queryByText(/no friends on sponti yet/i)).toBeNull()
+    expect(screen.queryByText("make it public & go live")).toBeNull()
+    // The empty circle is still named; deselecting it leaves "pick who".
+    expect(
+      screen.getByRole("button", { name: "all friends · 0" })
+    ).toBeVisible()
   })
 
-  it("closes when tapping a field outside it", async () => {
+  it('names the who chip "pick who" once nothing is selected', async () => {
     const user = userEvent.setup()
-    await renderWithEmptyAudience()
+    const cta = await renderWithEmptyAudience()
+    await user.click(cta)
+    await user.click(await screen.findByText("all friends", { exact: true }))
+    expect(
+      await screen.findByRole("button", { name: "pick who" })
+    ).toBeVisible()
+    expect(screen.getByText(HINT)).toBeInTheDocument()
+  })
+
+  it("opens the audience card instead of going public", async () => {
+    const user = userEvent.setup()
+    const cta = await renderWithEmptyAudience()
+    await user.click(cta)
+    expect(await screen.findByText(HINT)).toBeInTheDocument()
+    expect(screen.getByRole("switch")).not.toBeChecked()
+    expect(screen.queryByText("lighting…")).toBeNull()
+    // Scrolling or typing elsewhere doesn't dismiss it.
     await user.click(screen.getByPlaceholderText(/what's the plan/i))
-    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
+    expect(screen.getByText(HINT)).toBeInTheDocument()
   })
 
-  it("stays open when tapping inside it", async () => {
+  it("lights normally once a circle with friends is picked", async () => {
     const user = userEvent.setup()
-    await renderWithEmptyAudience()
-    await user.click(screen.getByText(PROMPT))
-    expect(screen.getByText(PROMPT)).toBeInTheDocument()
+    const cta = await renderWithEmptyAudience()
+    await user.click(cta)
+    await user.click(
+      await screen.findByRole("button", { name: /also invite/i })
+    )
+    await user.click(screen.getByText("Friend"))
+    expect(screen.queryByText(HINT)).toBeNull()
+    expect(
+      screen.getByRole("button", { name: "light a flare" })
+    ).toBeInTheDocument()
   })
 })
 
@@ -508,7 +574,9 @@ describe("NewEventDrawer prefill", () => {
     expect(
       await screen.findByDisplayValue("roses at humboldthain")
     ).toBeVisible()
-    expect(screen.getByText(/type · hang out/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: /type · hang out/i })
+    ).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /humboldthain/i })).toBeVisible()
     // A manual pick: it can be reset, and the "auto" tag is not shown.
     expect(screen.queryByText("(auto)")).not.toBeInTheDocument()
@@ -524,7 +592,9 @@ describe("NewEventDrawer prefill", () => {
     )
     await new Promise((r) => setTimeout(r, 0))
     expect(screen.getByDisplayValue("picnic")).toBeInTheDocument()
-    expect(screen.queryByText(/type · drinks/i)).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /type · drinks/i })
+    ).not.toBeInTheDocument()
   })
 
   it("keeps edits made over a prefill when the next prefill arrives", async () => {

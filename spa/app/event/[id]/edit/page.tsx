@@ -39,6 +39,7 @@ import {
   type UpdateEventRequest,
 } from "@/lib/api/events"
 import { sessionFetch } from "@/lib/http"
+import { emitEventsChanged } from "@/lib/use-events"
 import { PLACE_SEARCH_UNAVAILABLE } from "@/lib/place-search"
 import { formatClock } from "@/lib/format-date"
 
@@ -336,6 +337,7 @@ export default function EventEditPage() {
         }
       }
       await updateEvent(original.id, updates)
+      emitEventsChanged() // #580
       showActionFeedback("flare updated")
       router.push("/event")
     } catch (err) {
@@ -377,6 +379,7 @@ export default function EventEditPage() {
       setSaving(true)
       setError(null)
       await cancelEvent(original.id)
+      emitEventsChanged() // #580
       showActionFeedback("flare cancelled")
       router.push("/event")
     } catch (err) {
@@ -393,6 +396,7 @@ export default function EventEditPage() {
       setSaving(true)
       setError(null)
       await reactivateEvent(original.id)
+      emitEventsChanged() // #580
       showActionFeedback("flare reactivated")
       router.push("/event")
     } catch (err) {

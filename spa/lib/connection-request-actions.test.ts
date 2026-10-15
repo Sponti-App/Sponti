@@ -22,10 +22,12 @@ vi.mock("@/lib/use-events", () => ({
   emitEventsChanged: mocks.emitEventsChanged,
 }))
 
+import { resetCircleSkipsForTest } from "./circle-skips"
 import {
   ACCEPT_UNDO_MS,
   declineRequest,
   ensurePendingRequests,
+  offerCircle,
   pickCircle,
   resetConnectionRequestActions,
   scheduleAccept,
@@ -50,6 +52,8 @@ describe("connection request actions (#174, #226)", () => {
     vi.useFakeTimers()
     vi.clearAllMocks()
     resetConnectionRequestActions()
+    window.localStorage.clear()
+    resetCircleSkipsForTest()
     notify = vi.fn()
     mocks.respondToConnectionRequest.mockResolvedValue(undefined)
     mocks.addCircleMember.mockResolvedValue(undefined)
@@ -248,5 +252,105 @@ describe("connection request actions (#174, #226)", () => {
       "rejected"
     )
     expect(result.current.phase).toBe("declined")
+  })
+
+  // #585: someone who is already a friend has no request to answer, so the
+  // circle choice starts at "accepted" and goes straight to the circles api.
+  describe("offerCircle", () => {
+    const FRIEND = "friend:conn-9"
+    const friendView = () => renderHook(() => useConnectionRequest(FRIEND))
+
+    it("loads the circles and adds the pick without any accept call", async () => {
+      const circles = [
+        { id: "close", name: "close friends", type: "close", memberIds: [] },
+      ]
+      mocks.fetchMyCircles.mockResolvedValue(circles)
+      const { result } = friendView()
+
+      await act(async () => {
+        offerCircle(FRIEND, { userId: "maya", notify })
+      })
+      expect(result.current.phase).toBe("accepted")
+      expect(result.current.circles).toEqual(circles)
+
+      await act(async () => {
+        pickCircle(FRIEND, close)
+      })
+
+      expect(mocks.addCircleMember).toHaveBeenCalledWith("close", "maya")
+      expect(mocks.respondToConnectionRequest).not.toHaveBeenCalled()
+      expect(result.current.placement).toEqual({
+        status: "added",
+        circle: close,
+      })
+    })
+
+    it("keeps the first state if offered again, and lets skip end it", async () => {
+      const { result } = friendView()
+
+      await act(async () => {
+        offerCircle(FRIEND, { userId: "maya", notify })
+      })
+      act(() => skipCircle(FRIEND))
+      await act(async () => {
+        offerCircle(FRIEND, { userId: "maya", notify })
+      })
+
+      expect(result.current.placement).toEqual({ status: "skipped" })
+    })
+
+    // #597: a skip is kept per friend on the device, so it holds after a reload
+    // and on the other surface.
+    it("keeps a skipped prompt skipped after a reload, on any surface", async () => {
+      await act(async () => {
+        offerCircle(FRIEND, { userId: "maya", notify })
+      })
+      act(() => skipCircle(FRIEND))
+
+      // A reload: module state is gone, only storage is left.
+      resetConnectionRequestActions()
+      resetCircleSkipsForTest()
+      const reloaded = renderHook(() => useConnectionRequest(FRIEND))
+      await act(async () => {
+        offerCircle(FRIEND, { userId: "maya", notify })
+      })
+      expect(reloaded.result.current.placement).toEqual({ status: "skipped" })
+
+      const contact = renderHook(() => useConnectionRequest("contact:abc"))
+      await act(async () => {
+        offerCircle("contact:abc", { userId: "maya", notify })
+      })
+      expect(contact.result.current.placement).toEqual({ status: "skipped" })
+    })
+
+    it("only skips the friend who was skipped", async () => {
+      await act(async () => {
+        offerCircle(FRIEND, { userId: "maya", notify })
+      })
+      act(() => skipCircle(FRIEND))
+
+      resetConnectionRequestActions()
+      resetCircleSkipsForTest()
+      const other = renderHook(() => useConnectionRequest("friend:conn-10"))
+      await act(async () => {
+        offerCircle("friend:conn-10", { userId: "jo", notify })
+      })
+      expect(other.result.current.placement).toEqual({ status: "none" })
+    })
+
+    it("says so and offers the chips again when the circle can't be added", async () => {
+      mocks.addCircleMember.mockRejectedValue(new Error("down"))
+      const { result } = friendView()
+
+      await act(async () => {
+        offerCircle(FRIEND, { userId: "maya", notify })
+      })
+      await act(async () => {
+        pickCircle(FRIEND, close)
+      })
+
+      expect(notify).toHaveBeenCalledWith("couldn't add to circle", "error")
+      expect(result.current.placement).toEqual({ status: "none" })
+    })
   })
 })

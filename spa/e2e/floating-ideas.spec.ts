@@ -120,7 +120,9 @@ test.describe("floating ideas on the map (#515)", () => {
     await card.getByRole("button", { name: "light a flare" }).click()
     await expect(composerTitle(page)).toBeInViewport()
     await expect(composerTitle(page)).toHaveValue(title)
-    await expect(page.getByText(`type · ${idea.category}`)).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: `type · ${idea.category}` })
+    ).toBeVisible()
     // No fixed place: the composer keeps its own default, the person's
     // current location.
     await expect(page.getByText("my location").first()).toBeVisible()

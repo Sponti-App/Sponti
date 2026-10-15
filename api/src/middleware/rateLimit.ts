@@ -14,6 +14,21 @@ type RateLimitOptions = {
 // request so the map can't grow without bound under a spray of addresses.
 const SWEEP_THRESHOLD = 10_000;
 
+type Buckets = Map<string, { count: number; resetAt: number }>;
+
+// Every limiter's counts, so tests can clear them all at once (#455).
+const allBuckets = new Set<Buckets>();
+
+/**
+ * Test seam (#455): empties every limiter's counts. The counts live in module
+ * state, so without this they run across every test in a file and a rate-limit
+ * test had to be the last one. Call it in `beforeEach` where public routes are
+ * tested. Nothing in the app calls it.
+ */
+export const resetRateLimits = (): void => {
+  for (const buckets of allBuckets) buckets.clear();
+};
+
 /**
  * A small in-memory fixed-window limiter, keyed by client address (`req.ip`).
  *
@@ -28,7 +43,8 @@ export const createRateLimiter = ({
   max,
   now = Date.now,
 }: RateLimitOptions): RequestHandler => {
-  const buckets = new Map<string, { count: number; resetAt: number }>();
+  const buckets: Buckets = new Map();
+  allBuckets.add(buckets);
 
   return (req, res, next) => {
     const current = now();

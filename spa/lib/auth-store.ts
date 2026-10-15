@@ -24,6 +24,9 @@ export type AuthUser = {
   bio: string | null
   instagram: string | null
   telegram: string | null
+  // #449: false for a Google-only account. Missing on a session stored by an
+  // older build until its next /auth/me revalidation.
+  hasPassword?: boolean
   createdAt: string
   updatedAt: string
 }

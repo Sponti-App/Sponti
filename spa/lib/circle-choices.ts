@@ -34,3 +34,22 @@ export function orderCircleChoices(
         a.name.localeCompare(b.name)
     )
 }
+
+/**
+ * Whether to offer the circle chips for someone who is already a friend
+ * (#585): there is a circle besides "all friends" to put them in, and they
+ * aren't in one yet. False while the circles load, so a feed full of
+ * `connection_accepted` rows doesn't flash spinners, and once they have been
+ * placed, so the chips don't come back on the next visit.
+ */
+export function shouldOfferCircles(
+  circles: Circle[] | null,
+  personId: string | null | undefined
+): boolean {
+  if (!circles || !personId) return false
+  const others = circles.filter((circle) => circle.type !== "all")
+  return (
+    others.length > 0 &&
+    others.every((circle) => !circle.memberIds.includes(personId))
+  )
+}

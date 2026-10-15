@@ -38,9 +38,7 @@ const requireAuth: RequestHandler = (req, _res, next) => {
         // not a server error. Anything else is unexpected and reaches the
         // error handler as a 500.
         if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.NotBeforeError) {
-            return next(
-                new Error("Invalid access token", { cause: { status: 401 } })
-            );
+            return next(new Error("Invalid access token", { cause: { status: 401 } }));
         }
 
         return next(error);

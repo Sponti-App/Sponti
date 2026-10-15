@@ -6,7 +6,7 @@ import type {
   SendConnectionRequestBody,
 } from "#schemas/connectionSchemas";
 import { addNewFriendsToAllFriendsFlares } from "#services/allFriendsFlareService";
-import { hasAnyBlockBetweenUsers } from "#services/blockService";
+import { getBlockedRelationshipUserIds, hasAnyBlockBetweenUsers } from "#services/blockService";
 import {
   createConnectionAcceptedNotification,
   createConnectionRequestNotification,
@@ -237,6 +237,18 @@ export const getConnections = async (userId: string, query: GetConnectionsQuery)
 
   if (query.type) {
     filter.type = query.type;
+  }
+
+  // #453: blocking deletes pending and accepted rows, but a row that raced the
+  // block (or older data) can survive. Never list anyone in a block with the
+  // viewer, either way round. The viewer is in neither list, so one $nin on
+  // each side holds for every direction.
+  const blockedObjectIds = (await getBlockedRelationshipUserIds(userId)).map(toObjectId);
+  if (blockedObjectIds.length > 0) {
+    filter.$and = [
+      { requesterId: { $nin: blockedObjectIds } },
+      { receiverId: { $nin: blockedObjectIds } },
+    ];
   }
 
   const [connections, total] = await Promise.all([

@@ -8,7 +8,7 @@ import {
   FunnelSimpleIcon,
   SparkleIcon,
 } from "@/components/icons"
-import { EventHostCard } from "@/components/event-host-card"
+import { CancelledFlareRow, EventHostCard } from "@/components/event-host-card"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { deriveStatus, type HostedEvent } from "@/lib/api/events"
+import { featureFlags } from "@/lib/feature-flags"
+import { orderMyFlares } from "@/lib/my-flares-order"
 import { useMyFlares } from "@/lib/use-events"
 import { cn } from "@/lib/utils"
 
@@ -39,13 +41,26 @@ export default function EventHubPage() {
   const [hostingOpen, setHostingOpen] = useState(true)
   const [invitedOpen, setInvitedOpen] = useState(true)
 
-  const hostedItems = hostedByMe.map((event) => ({ event, canManage: true }))
-  const invitedItems = invited.map((event) => ({ event, canManage: false }))
+  // #581: live first (newest on top), then upcoming; cancelled folded below.
+  const hosted = orderMyFlares(hostedByMe)
+  const hostedItems = hosted.active.map((event) => ({
+    event,
+    canManage: true,
+  }))
+  const cancelledItems = hosted.cancelled.map((event) => ({
+    event,
+    canManage: true,
+  }))
+  const invitedItems = orderMyFlares(invited).active.map((event) => ({
+    event,
+    canManage: false,
+  }))
   const hasVisibleEvents =
     view === "all"
-      ? hostedItems.length > 0 || invitedItems.length > 0
+      ? hostedItems.length + cancelledItems.length > 0 ||
+        invitedItems.length > 0
       : view === "hosting"
-        ? hostedItems.length > 0
+        ? hostedItems.length + cancelledItems.length > 0
         : invitedItems.length > 0
 
   return (
@@ -63,7 +78,13 @@ export default function EventHubPage() {
             <ArrowLeftIcon className="h-4 w-4" />
           </Button>
           <h1 className="text-base font-semibold">flares</h1>
-          <EventFilterMenu value={filter} onChange={setFilter} />
+          {/* #582: the menu's sorting isn't wired yet, so testers get a
+              spacer in its place and the title stays centred. */}
+          {featureFlags.myFlaresFilter ? (
+            <EventFilterMenu value={filter} onChange={setFilter} />
+          ) : (
+            <div aria-hidden className="h-10 w-10" />
+          )}
         </div>
         <div className="border-b border-border/60 px-4 pb-3">
           <EventViewToggle value={view} onChange={setView} />
@@ -87,6 +108,7 @@ export default function EventHubPage() {
               <EventSection
                 title="hosting"
                 events={hostedItems}
+                cancelled={cancelledItems}
                 open={hostingOpen}
                 onToggle={() => setHostingOpen((value) => !value)}
                 emptyCopy="no hosted flares coming up"
@@ -103,6 +125,7 @@ export default function EventHubPage() {
             <EventSection
               title={view}
               events={view === "hosting" ? hostedItems : invitedItems}
+              cancelled={view === "hosting" ? cancelledItems : []}
               open={view === "hosting" ? hostingOpen : invitedOpen}
               onToggle={() =>
                 view === "hosting"
@@ -120,16 +143,19 @@ export default function EventHubPage() {
 function EventSection({
   title,
   events,
+  cancelled = [],
   open,
   onToggle,
   emptyCopy,
 }: {
   title: string
   events: EventListItem[]
+  cancelled?: EventListItem[]
   open: boolean
   onToggle: () => void
   emptyCopy?: string
 }) {
+  const [showCancelled, setShowCancelled] = useState(false)
   return (
     <section>
       <button
@@ -162,6 +188,34 @@ function EventSection({
             ))}
           </div>
         ))}
+      {open && cancelled.length > 0 && (
+        <div className="mt-2.5 flex flex-col gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowCancelled((value) => !value)}
+            aria-expanded={showCancelled}
+            className="flex w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <span>
+              {showCancelled ? "hide" : "show"} {cancelled.length} cancelled
+            </span>
+            <CaretDownIcon
+              className={cn(
+                "h-4 w-4 transition-transform",
+                showCancelled && "rotate-180"
+              )}
+            />
+          </button>
+          {showCancelled &&
+            cancelled.map(({ event, canManage }) => (
+              <CancelledFlareRow
+                key={event.id}
+                event={event}
+                canManage={canManage}
+              />
+            ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -264,7 +318,7 @@ function EmptyState() {
       </div>
       <p className="text-sm font-semibold">nothing yet</p>
       <p className="mt-1 max-w-[240px] text-xs text-muted-foreground">
-        start something with the + below
+        start something with the flare button below
       </p>
     </div>
   )

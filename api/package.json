@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "cleanup:connections": "tsx --conditions=development --env-file=.env src/scripts/cleanupConnections.ts"
+    "cleanup:connections": "tsx --conditions=development --env-file=.env src/scripts/cleanupConnections.ts",
+    "moderate": "tsx --conditions=development --env-file=.env src/scripts/moderate.ts"
   },
   "imports": {
     "#app": {

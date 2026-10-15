@@ -3,6 +3,8 @@ import type { Page, Route } from "@playwright/test"
 // Mirrors playwright.config.ts's webServer env — kept in one place so a
 // config change can't silently desync the routes we stub here.
 export const AUTH_BASE = "http://stub-auth.sponti.test"
+/** The stubbed account's password, for flows that confirm with it (#449). */
+export const STUB_PASSWORD = "stub-password"
 export const API_BASE = "http://stub-api.sponti.test"
 
 // localStorage keys from spa/lib/auth-store.ts.
@@ -289,6 +291,8 @@ export type StubOwnProfile = {
 export type StubBackendHandle = {
   /** Body of every PATCH /auth/me/profile the app sent, in order. */
   profilePatches: Array<Record<string, unknown>>
+  /** Body of every DELETE /auth/me (#449) the app sent, in order. */
+  deleteAccountRequests: Array<Record<string, unknown>>
   /** Changes how many accepted connections GET /connections lists. */
   setFriends: (count: number) => void
 }
@@ -325,6 +329,7 @@ export async function stubBackend(
   options: StubBackendOptions = {}
 ): Promise<StubBackendHandle> {
   const profilePatches: Array<Record<string, unknown>> = []
+  const deleteAccountRequests: Array<Record<string, unknown>> = []
   const ownProfile: StubOwnProfile = {
     bio: null,
     instagram: null,
@@ -438,6 +443,18 @@ export async function stubBackend(
         refreshToken: "e2e-refresh-token",
         user: { ...user, ...ownProfile },
       })
+      return
+    }
+    // #449: the stub's password is STUB_PASSWORD; anything else is refused
+    // the way auth-server refuses it.
+    if (url.pathname === "/auth/me" && route.request().method() === "DELETE") {
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      deleteAccountRequests.push(body)
+      if (body.password === STUB_PASSWORD) {
+        await route.fulfill({ status: 204 })
+      } else {
+        await fulfillJson(route, { message: "that password isn't right" }, 403)
+      }
       return
     }
     if (url.pathname === "/auth/me") {
@@ -684,6 +701,7 @@ export async function stubBackend(
 
   return {
     profilePatches,
+    deleteAccountRequests,
     setFriends: (count) => {
       connections = makeConnections(count)
     },

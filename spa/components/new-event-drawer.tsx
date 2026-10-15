@@ -716,6 +716,22 @@ export function NewEventDrawer({
   // the room the keyboard leaves (#367).
   const [placeSearchFocused, setPlaceSearchFocused] = useState(false)
   const pendingPublicSubmit = useRef(false)
+  // #583: bumped by the "pick who sees it" CTA; scrolls the audience card in.
+  const [revealWho, setRevealWho] = useState(0)
+  const whoCardRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (revealWho === 0) return
+    // Two frames: the card mounts, then the sheet settles on its new snap.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() =>
+        whoCardRef.current?.scrollIntoView?.({
+          behavior: "smooth",
+          block: "nearest",
+        })
+      )
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [revealWho])
 
   const [mode, setMode] = useState<Mode>(initialEventDraftState.mode)
 
@@ -1388,8 +1404,14 @@ export function NewEventDrawer({
   const hasPrivateInvitees = isOpen || inviteeCount > 0
   const needsAudience =
     !isOpen && !audienceLoading && !audienceError && !hasPrivateInvitees
+  // #583: someone with friends who has picked nobody is asked to pick, not
+  // told they have no friends, and the CTA never publishes for them.
+  const needsAudiencePick = needsAudience && connections.length > 0
   const showAudiencePrompt =
-    !submitError && needsAudience && !audiencePromptDismissed
+    !submitError &&
+    needsAudience &&
+    !needsAudiencePick &&
+    !audiencePromptDismissed
 
   useEffect(() => {
     if (!showAudiencePrompt) return
@@ -1409,9 +1431,16 @@ export function NewEventDrawer({
   // when anyone can join).
   const whoLabel = useMemo(() => {
     if (isOpen) return `public · up to ${guestLimit}`
+    if (needsAudiencePick && !selectedAudienceCircle) return "pick who"
     const baseName = selectedAudienceCircle?.name.toLowerCase() ?? "friends"
     return `${baseName} · ${inviteeCount}`
-  }, [isOpen, selectedAudienceCircle, inviteeCount, guestLimit])
+  }, [
+    isOpen,
+    needsAudiencePick,
+    selectedAudienceCircle,
+    inviteeCount,
+    guestLimit,
+  ])
 
   // #376 (`flareLightMoment`): the strike strip replaces the button, the
   // nav's flare button morphs into it, and the strike starts the lighting
@@ -1637,6 +1666,15 @@ export function NewEventDrawer({
   }
 
   const onCta = (): void => {
+    if (needsAudiencePick) {
+      haptic("selection")
+      if (expandedSection !== "who") {
+        setExpandedSection("who")
+        snapToFloor("who", mode)
+      }
+      setRevealWho((n) => n + 1)
+      return
+    }
     if (needsAudience) {
       audienceTouchedRef.current = true
       pendingPublicSubmit.current = true
@@ -1939,7 +1977,15 @@ export function NewEventDrawer({
                 )}
 
                 {expandedSection === "who" && (
-                  <div className="mt-3 rounded-xl border border-border bg-secondary/20 p-3">
+                  <div
+                    ref={whoCardRef}
+                    className="mt-3 scroll-mb-3 rounded-xl border border-border bg-secondary/20 p-3"
+                  >
+                    {needsAudiencePick && (
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        pick a circle, some friends, or make it public
+                      </p>
+                    )}
                     {audienceLoading && (
                       <p className="mb-2 text-xs text-muted-foreground">
                         loading your circles and friends…
@@ -2071,9 +2117,11 @@ export function NewEventDrawer({
                   <StrikeStrip
                     ref={strikeStripRef}
                     label={
-                      needsAudience
-                        ? "make it public & go live"
-                        : "swipe to light"
+                      needsAudiencePick
+                        ? "pick who sees it"
+                        : needsAudience
+                          ? "make it public & go live"
+                          : "swipe to light"
                     }
                     busy={isSubmitting}
                     disabled={ctaDisabled && !isSubmitting}
@@ -2087,9 +2135,11 @@ export function NewEventDrawer({
                   >
                     {isSubmitting
                       ? "lighting…"
-                      : needsAudience
-                        ? "make it public & go live"
-                        : "light a flare"}
+                      : needsAudiencePick
+                        ? "pick who sees it"
+                        : needsAudience
+                          ? "make it public & go live"
+                          : "light a flare"}
                   </Button>
                 )}
               </div>
@@ -2131,8 +2181,8 @@ function SectionChip({
 // ----- Event type -----
 
 // Tiny inline indicator that lives under the title. Shows the type that will
-// actually ship (inferred from title keywords, or user-picked). Tap "change"
-// to expand the full pill row; pick or clear collapses it back.
+// actually ship (inferred from title keywords, or user-picked). Tap it (the
+// pencil) to expand the full pill row; pick or clear collapses it back.
 function TypeInlineIndicator({
   effectiveType,
   manualType,
@@ -2161,15 +2211,24 @@ function TypeInlineIndicator({
   return (
     <div className="mt-2 flex flex-col gap-2">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Icon className="h-4 w-4 shrink-0" />
-        <span>type · {meta.label}</span>
-        {isInferred && <span className="text-muted-foreground/60">(auto)</span>}
+        {/* The icon and name are the button; the pencil says it can change. */}
         <button
           type="button"
           onClick={onToggleOverride}
-          className="text-accent-ink hover:underline"
+          aria-label={`type · ${meta.label}`}
+          aria-expanded={overrideOpen}
+          className="inline-flex items-center gap-2 hover:text-foreground"
         >
-          {overrideOpen ? "done" : "change"}
+          <Icon className="h-4 w-4 shrink-0" />
+          <span>{meta.label}</span>
+          {isInferred && (
+            <span className="text-muted-foreground/60">(auto)</span>
+          )}
+          {overrideOpen ? (
+            <CheckIcon className="h-3 w-3 text-accent-ink" />
+          ) : (
+            <PencilSimpleIcon className="h-3 w-3 opacity-60" />
+          )}
         </button>
         {manualType !== null && !overrideOpen && (
           <button
@@ -2850,15 +2909,14 @@ function useLongPress({
   }
 }
 
-// Compact chips for the system circles, which wrap so a name is never cut
-// short (#368), plus a wrapped row of custom
-// circles the user has created on the Circles page (#172 — custom circles
-// used to be silently dropped here even though the API already accepts
-// them as an audience). Inner/Close are editable — tap selects the
-// audience, hold (or right-click) opens the inline editor. The pencil hint
-// in the corner is the visible affordance for the gesture. Custom circles
-// are plain tap targets — membership is managed on the Circles page, not
-// inline here.
+// One sideways-scrolling row of circle chips (#584): the system circles,
+// then the custom circles the user made on the Circles page (#172). Wrapped
+// rows took three or more lines of the composer and pushed the friend search
+// below the fold. Chips keep their full names (#368); the row scrolls instead,
+// and its edge fades on the side where more chips are hidden. Inner/Close are
+// editable: tap selects the audience, hold (or right-click) opens the inline
+// editor. Custom circles are plain tap targets; membership is managed on the
+// Circles page.
 export function CircleCards({
   circles,
   audience,
@@ -2875,6 +2933,8 @@ export function CircleCards({
     (c) => c.type === "inner" || c.type === "close" || c.type === "all"
   )
   const customCircles = circles.filter((c) => c.type === "custom")
+  const rowRef = useRef<HTMLDivElement>(null)
+  const overflow = useRowOverflow(rowRef, circles.length)
 
   if (systemCircles.length === 0 && customCircles.length === 0) {
     return (
@@ -2884,37 +2944,67 @@ export function CircleCards({
     )
   }
 
+  const fade = 24
+  const mask =
+    overflow.before || overflow.after
+      ? `linear-gradient(to right, ${overflow.before ? "transparent" : "black"}, black ${fade}px, black calc(100% - ${fade}px), ${overflow.after ? "transparent" : "black"})`
+      : undefined
+
   return (
-    <div className="flex flex-col gap-2">
-      {systemCircles.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {systemCircles.map((c) => (
-            <CircleChip
-              key={c.id}
-              circle={c}
-              selected={c.id === audience}
-              onSelect={() => onSelect(c.id)}
-              onEdit={
-                c.type === "all" || !onEdit ? undefined : () => onEdit(c.id)
-              }
-            />
-          ))}
-        </div>
-      )}
-      {customCircles.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {customCircles.map((c) => (
-            <CircleChip
-              key={c.id}
-              circle={c}
-              selected={c.id === audience}
-              onSelect={() => onSelect(c.id)}
-            />
-          ))}
-        </div>
-      )}
+    <div
+      ref={rowRef}
+      data-circle-row
+      data-overflow-after={overflow.after || undefined}
+      className="flex touch-manipulation gap-2 overflow-x-auto overscroll-x-contain"
+      style={{ maskImage: mask, WebkitMaskImage: mask }}
+    >
+      {[...systemCircles, ...customCircles].map((c) => (
+        <CircleChip
+          key={c.id}
+          circle={c}
+          selected={c.id === audience}
+          onSelect={() => onSelect(c.id)}
+          onEdit={
+            c.type === "custom" || c.type === "all" || !onEdit
+              ? undefined
+              : () => onEdit(c.id)
+          }
+        />
+      ))}
     </div>
   )
+}
+
+// Whether a horizontal row has content hidden before or after its scroll
+// position. Re-checked on scroll, on resize, and when the item count changes.
+function useRowOverflow(
+  ref: React.RefObject<HTMLElement | null>,
+  itemCount: number
+): { before: boolean; after: boolean } {
+  const [overflow, setOverflow] = useState({ before: false, after: false })
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => {
+      const before = el.scrollLeft > 1
+      const after = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+      setOverflow((prev) =>
+        prev.before === before && prev.after === after
+          ? prev
+          : { before, after }
+      )
+    }
+    measure()
+    el.addEventListener("scroll", measure, { passive: true })
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure)
+    observer?.observe(el)
+    return () => {
+      el.removeEventListener("scroll", measure)
+      observer?.disconnect()
+    }
+  }, [ref, itemCount])
+  return overflow
 }
 
 function CircleChip({
@@ -2948,7 +3038,10 @@ function CircleChip({
     <button
       type="button"
       {...buttonHandlers}
-      className={`relative flex touch-none items-center gap-1.5 overflow-hidden rounded-xl border px-2.5 py-2 transition-transform duration-150 select-none ${scaleClasses} ${
+      // #584: `touch-manipulation`, not `touch-none`, so a pan over a chip
+      // scrolls the row; the browser then cancels the pointer, which cancels
+      // the long-press and the tap.
+      className={`relative flex shrink-0 touch-manipulation items-center gap-1.5 overflow-hidden rounded-xl border px-2.5 py-2 transition-transform duration-150 select-none [-webkit-touch-callout:none] ${scaleClasses} ${
         selected
           ? "border-accent bg-accent/10"
           : "border-border hover:bg-secondary"
@@ -2961,7 +3054,7 @@ function CircleChip({
         }`}
       />
       <span
-        className={`min-w-0 text-left text-xs break-words ${
+        className={`text-left text-xs whitespace-nowrap ${
           selected ? "font-medium text-accent-ink" : "text-foreground"
         }`}
       >

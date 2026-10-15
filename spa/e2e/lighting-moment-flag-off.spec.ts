@@ -14,7 +14,13 @@ test("with the flag off the composer lights a flare as before", async ({
     latitude: BERLIN_COORDS.lat,
     longitude: BERLIN_COORDS.lng,
   })
-  await stubBackend(page, { hostedFlares: [], friends: 2 })
+  await stubBackend(page, {
+    hostedFlares: [],
+    friends: 2,
+    // #583: with friends, an empty audience asks to pick one instead of
+    // lighting, so the friends are in "all friends" as they are in the api.
+    circles: [{ _id: "all", name: "all friends", type: "all", memberCount: 2 }],
+  })
   await page.goto("/")
   const nav = page.getByRole("navigation", { name: "Primary" })
   await nav.getByRole("button", { name: "flare", exact: true }).click()
@@ -28,9 +34,7 @@ test("with the flag off the composer lights a flare as before", async ({
     "true"
   )
 
-  await page
-    .getByRole("button", { name: /^(light a flare|make it public & go live)$/ })
-    .click()
+  await page.getByRole("button", { name: "light a flare" }).click()
   await expect(title).toBeHidden()
   await expect(page.getByText(/light it up/).first()).toBeVisible()
   await expect(page.locator("[data-flare-moment]")).toHaveCount(0)
