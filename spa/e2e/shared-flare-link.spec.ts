@@ -8,8 +8,8 @@ import {
 } from "./support/stubs"
 
 // A shared flare link (`/?flare=<id>`): a signed-out visitor lands on the map
-// opened on that open-to-all flare, with its card up and nothing else in the
-// way (no intro slides, no location ask). The card shows only what a pin
+// opened on that open-to-all flare, with its card up. A first open shows the
+// intro slides first, as an invite link does (#560); there is no location ask. The card shows only what a pin
 // shows (#425). "join" asks for an account, and signing up lands them on the
 // flare. Someone signed in goes straight to the flare, and a flare's own page
 // opened signed out turns into the link.
@@ -26,6 +26,7 @@ const sharedPin = (overrides = {}) =>
   })
 
 const card = (page: Page) => page.locator("[data-shared-flare]")
+const slides = (page: Page) => page.locator("[data-intro-slide]")
 const sheet = (page: Page) => page.locator('[data-sheet="sign up"]')
 
 /** Requests a signed-out visitor must never make (see #389's spec). */
@@ -95,6 +96,47 @@ test.describe("shared flare link", () => {
 
     await expect(page).toHaveURL(`/event/${ID}`)
     await expect(page.getByText("drinks at the canal").first()).toBeVisible()
+  })
+
+  test("a first open shows the intro slides, then the flare, once per device", async ({
+    page,
+  }) => {
+    await stubBackend(page, {
+      signedOut: true,
+      introSlides: true,
+      publicPins: [sharedPin()],
+    })
+    await page.goto(`/?flare=${ID}`)
+
+    await expect(slides(page)).toBeVisible()
+    await slides(page).getByRole("button", { name: "next" }).click()
+    await slides(page).getByRole("button", { name: "next" }).click()
+    await slides(page).getByRole("button", { name: "see the flare" }).click()
+    await expect(slides(page)).toHaveCount(0)
+
+    await expect(page).toHaveURL(`/?flare=${ID}`)
+    await expect(card(page)).toHaveAttribute("data-shared-flare", ID)
+    await expect(page.getByText("where should the map start?")).toHaveCount(0)
+
+    await page.reload()
+    await expect(card(page)).toHaveAttribute("data-shared-flare", ID)
+    await expect(slides(page)).toHaveCount(0)
+  })
+
+  test("'i have an account' on the slides leads to the flare", async ({
+    page,
+  }) => {
+    await stubBackend(page, {
+      signedOut: true,
+      introSlides: true,
+      publicPins: [sharedPin()],
+    })
+    await page.goto(`/?flare=${ID}`)
+
+    await slides(page)
+      .getByRole("button", { name: /i have an account/i })
+      .click()
+    await expect(page).toHaveURL(`/login?redirectTo=%2Fevent%2F${ID}`)
   })
 
   test("a flare later than the map's window is there, with its start time", async ({

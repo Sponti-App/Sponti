@@ -11,8 +11,9 @@
 // marks wait for an account (#560), so they run on the signed-in home. The top
 // bar rework (#369) replaces the header row.
 //
-// A shared flare link (`/?flare=<id>`) skips the slides and the location ask:
-// the map opens on that flare with its card up.
+// A shared flare link (`/?flare=<id>`) shows the slides on a first open, as an
+// invite link does (#560), then the map on that flare with its card up. It
+// skips the location ask: the map opens on the flare.
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -44,7 +45,7 @@ export function SignedOutHome() {
   const [askOpen, setAskOpen] = useState(false)
   const shared = useSharedFlare()
   const sharing = shared.status !== "none"
-  const slidesShowing = useShowIntroSlides() && !sharing
+  const slidesShowing = useShowIntroSlides()
 
   // #408: where the map starts. The ask waits for the intro slides and the
   // sign-up sheet. With `locationAsk` off the map never
@@ -143,9 +144,17 @@ export function SignedOutHome() {
         onPick={start.pickArea}
       />
 
-      {/* #377 (behind `introV2`): the intro slides, once per device. Not over
-          a shared flare link, which opens on the flare. */}
-      {!sharing && <IntroSlidesGate />}
+      {/* #377 (behind `introV2`): the intro slides, once per device. Over a
+          shared flare link they end on the flare, and "i have an account"
+          leads to it. */}
+      {shared.status === "none" ? (
+        <IntroSlidesGate />
+      ) : (
+        <IntroSlidesGate
+          finishLabel="see the flare"
+          signInPath={buildLoginPath(flarePagePath(shared.id))}
+        />
+      )}
     </div>
   )
 }
