@@ -1,7 +1,7 @@
 import type { EventType } from "@/lib/api/events"
 import { contactLinkOrigin } from "@/lib/contact-links"
-import { formatClock, formatWeekdayClock } from "@/lib/format-date"
-import { displayFlareTitle, hostFirstName } from "@/lib/flare-title"
+import { formatClock, formatDayShort } from "@/lib/format-date"
+import { displayFlareTitle } from "@/lib/flare-title"
 
 // A flare's own invite link (#616): `/f/<token>`. Having the link counts as
 // being invited. Everything about who may see what lives in the api; this is
@@ -59,7 +59,7 @@ function sameDay(a: Date, b: Date): boolean {
   return a.toDateString() === b.toDateString()
 }
 
-/** "now", "today 7:00 pm" or "sat 7:00 pm": when, for a message or a card. */
+/** "now", "today 7:00 pm" or "sat, oct 31 7:00 pm": when, on the invite screen. */
 export function inviteWhen(
   flare: { startAt: string | Date; endAt: string | Date },
   now: number = Date.now()
@@ -69,13 +69,14 @@ export function inviteWhen(
   if (now >= start.getTime() && now <= end.getTime()) return "now"
   return sameDay(start, new Date(now))
     ? `today ${formatClock(start)}`
-    : formatWeekdayClock(start)
+    : `${formatDayShort(start)} ${formatClock(start)}`
 }
 
 /**
- * The message the host's share sheet is prefilled with, lowercase except the
- * title the host wrote: "patrick invited you to drinks at klunkerkranich,
- * sat 7:00 pm". The link goes alongside it, not inside it.
+ * The message the host's share sheet is prefilled with. It is read in another
+ * app, so it is written as a normal sentence, not in sponti's lowercase:
+ * "Patrick invited you to drinks at klunkerkranich on Saturday, October 31
+ * at 7:00 PM". The link goes alongside it, not inside it.
  */
 export function flareInviteMessage(input: {
   hostName?: string | null
@@ -85,14 +86,33 @@ export function flareInviteMessage(input: {
   endAt: string | Date
   now?: number
 }): string {
-  const first = hostFirstName(input.hostName)
+  const first = input.hostName?.trim().split(/\s+/)[0]
+  const named = first && !/^(you|host)$/i.test(first)
   // The host's own name is the sender here, so the title stays without it.
   const title = displayFlareTitle({
     title: input.title,
     type: input.type,
     isHost: true,
   })
-  const when = inviteWhen(input, input.now)
-  const who = first ? `${first} invited you to` : "you're invited to"
-  return `${who} ${title}, ${when}`
+  const who = named ? `${first} invited you to` : "You're invited to"
+  return `${who} ${title}${messageWhen(input, input.now)}`
+}
+
+function messageWhen(
+  flare: { startAt: string | Date; endAt: string | Date },
+  now: number = Date.now()
+): string {
+  const start = new Date(flare.startAt)
+  if (now >= start.getTime() && now <= new Date(flare.endAt).getTime())
+    return ", happening now"
+  const day = start.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  })
+  const time = start.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  })
+  return ` on ${day} at ${time}`
 }

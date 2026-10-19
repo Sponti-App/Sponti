@@ -83,10 +83,11 @@ describe("flare invite links (#616)", () => {
       ).toMatch(/^today /)
     })
 
-    it("says the weekday and time another day, in lowercase", () => {
+    it("says the weekday, date and time another day, in lowercase", () => {
       const when = inviteWhen({ startAt: at(24, 19), endAt: at(24, 22) }, now)
       expect(when).toBe(when.toLowerCase())
-      expect(when).toMatch(/^sat /)
+      expect(when).toMatch(/^sat, /)
+      expect(when).toContain("24")
     })
   })
 
@@ -95,7 +96,7 @@ describe("flare invite links (#616)", () => {
     const startAt = new Date(2026, 9, 24, 19, 0).toISOString()
     const endAt = new Date(2026, 9, 24, 22, 0).toISOString()
 
-    it("is '<host> invited you to <title>, <when>' with the host's first name", () => {
+    it("is '<Host> invited you to <title> on <weekday, date> at <time>'", () => {
       expect(
         flareInviteMessage({
           hostName: "Patrick Caire",
@@ -105,7 +106,9 @@ describe("flare invite links (#616)", () => {
           endAt,
           now,
         })
-      ).toMatch(/^patrick invited you to drinks at klunkerkranich, sat /)
+      ).toMatch(
+        /^Patrick invited you to drinks at klunkerkranich on Saturday, October 24 at 7:00\sPM$/
+      )
     })
 
     it("keeps the host's own title as they typed it", () => {
@@ -118,7 +121,7 @@ describe("flare invite links (#616)", () => {
           endAt,
           now,
         })
-      ).toContain("invited you to Anna's Birthday, ")
+      ).toContain("invited you to Anna's Birthday on ")
     })
 
     it("names an untitled flare by its category, without the host twice", () => {
@@ -131,7 +134,7 @@ describe("flare invite links (#616)", () => {
           endAt,
           now,
         })
-      ).toMatch(/^patrick invited you to drinks, /)
+      ).toMatch(/^Patrick invited you to drinks on /)
     })
 
     it("still reads when the host's name is unknown", () => {
@@ -144,7 +147,20 @@ describe("flare invite links (#616)", () => {
           endAt,
           now,
         })
-      ).toMatch(/^you're invited to drinks, /)
+      ).toMatch(/^You're invited to drinks on /)
+    })
+
+    it("says when the flare is on right now", () => {
+      expect(
+        flareInviteMessage({
+          hostName: "Patrick",
+          title: "drinks",
+          type: "drinks",
+          startAt: new Date(2026, 9, 21, 17, 0).toISOString(),
+          endAt,
+          now,
+        })
+      ).toBe("Patrick invited you to drinks, happening now")
     })
   })
 })

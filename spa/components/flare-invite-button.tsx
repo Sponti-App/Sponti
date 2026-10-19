@@ -1,7 +1,7 @@
 "use client"
 
 // The host's "invite" button on a flare (#616): opens the phone's share sheet
-// with "patrick invited you to drinks at klunkerkranich, sat 7:00 pm" and the
+// with "Patrick invited you to drinks at klunkerkranich on Saturday, October 31 at 7:00 PM" and the
 // flare's own link, or copies the link and says "link copied" where there is
 // no share sheet. The link works for open-to-all and invite-only flares alike.
 //
@@ -24,10 +24,13 @@ import { shareLink } from "@/lib/share-link"
 export function FlareInviteButton({
   event,
   hostName,
+  compact = false,
 }: {
   event: Pick<HostedEvent, "id" | "title" | "type" | "startAt" | "endAt">
   /** The host's own name, for "patrick invited you to ...". */
   hostName?: string | null
+  /** Icon only, as in the flare drawer's header. */
+  compact?: boolean
 }) {
   const { showActionFeedback } = useActionFeedback()
   const [link, setLink] = useState<{ eventId: string; token: string } | null>(
@@ -79,6 +82,21 @@ export function FlareInviteButton({
       showActionFeedback("couldn't share the link", { tone: "error" })
   }
 
+  if (compact) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="invite"
+        data-flare-invite-button
+        onClick={() => void invite()}
+        disabled={!token && !failed}
+        className="size-9 rounded-full bg-muted text-foreground hover:bg-muted/70"
+      >
+        <ShareNetworkIcon className="h-4 w-4" />
+      </Button>
+    )
+  }
   return (
     <Button
       variant="outline"

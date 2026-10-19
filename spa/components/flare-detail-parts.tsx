@@ -285,8 +285,9 @@ export function FlareGuestsAndUpdates({
 }
 
 /**
- * The host: links to their profile (#199), like the sheet's host row. Not for
- * your own flare, or a host the api sent without a username.
+ * What the host wrote about the flare, as they wrote it, then the host: a row
+ * that links to their profile (#199), like the sheet's host row. Not for your
+ * own flare, or a host the api sent without a username.
  */
 export function FlareHost({
   event,
@@ -297,37 +298,41 @@ export function FlareHost({
 }) {
   const hostName = flareHostName(event)
   const category = EVENT_TYPES.find((t) => t.value === event.type)?.label
+  const about = event.description?.trim()
   return (
-    <HostCard
-      href={
-        !isHost && event.hostUsername
-          ? `/profile/${encodeURIComponent(event.hostUsername)}`
-          : null
-      }
-    >
-      <Avatar className="size-7">
-        {event.hostAvatarUrl && (
-          <AvatarImage src={event.hostAvatarUrl} alt="" />
-        )}
-        <AvatarFallback className="text-xs">
-          {initials(hostName)}
-        </AvatarFallback>
-      </Avatar>
-      <div className="min-w-0">
-        <p className="text-sm font-medium">
+    <>
+      {about && (
+        <p
+          data-flare-about
+          className="mt-4 text-sm wrap-break-word whitespace-pre-line"
+        >
+          {about}
+        </p>
+      )}
+      <HostCard
+        href={
+          !isHost && event.hostUsername
+            ? `/profile/${encodeURIComponent(event.hostUsername)}`
+            : null
+        }
+      >
+        <Avatar className="size-7">
+          {event.hostAvatarUrl && (
+            <AvatarImage src={event.hostAvatarUrl} alt="" />
+          )}
+          <AvatarFallback className="text-xs">
+            {initials(hostName)}
+          </AvatarFallback>
+        </Avatar>
+        <p className="min-w-0 text-sm font-medium">
           {isHost ? "hosted by you" : `hosted by ${hostName}`}
           <span className="font-normal text-muted-foreground">
             {category && ` · ${category}`}
             {event.visibility === "private" && " · private"}
           </span>
         </p>
-        {event.description?.trim() && (
-          <p className="mt-0.5 text-sm wrap-break-word text-muted-foreground">
-            {event.description.trim().toLowerCase()}
-          </p>
-        )}
-      </div>
-    </HostCard>
+      </HostCard>
+    </>
   )
 }
 
@@ -343,7 +348,7 @@ export function HostCard({
   href: string | null
   children: React.ReactNode
 }) {
-  const className = "mt-4 flex items-start gap-2.5 rounded-xl bg-muted p-3"
+  const className = "mt-4 flex items-center gap-2.5 rounded-xl bg-muted p-3"
   if (!href) return <div className={className}>{children}</div>
   return (
     <Link

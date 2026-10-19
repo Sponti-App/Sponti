@@ -23,6 +23,8 @@ const primaryNav = (page: Page) => page.locator('nav[aria-label="Primary"]')
 const title = (page: Page) =>
   drawer(page).locator("h2:not(.sr-only)", { hasText: "drinks after work" })
 
+const actionBar = (page: Page) => page.locator("[data-flare-action-bar]")
+
 async function openFromRail(page: Page) {
   await stubBackend(page, { mapEvents: [FLARE] })
   await page.goto("/")
@@ -114,5 +116,49 @@ test.describe("flare drawer (#615)", () => {
     await expect(
       drawer(page).getByRole("tab", { name: /updates/, selected: true })
     ).toBeVisible()
+  })
+
+  test("the main action stays pinned above the nav as the drawer changes height", async ({
+    page,
+  }) => {
+    await openFromRail(page)
+    const navTop = async () => (await primaryNav(page).boundingBox())!.y
+    const barBottom = async () => {
+      const box = (await actionBar(page).boundingBox())!
+      return box.y + box.height
+    }
+    await expect(
+      actionBar(page).getByRole("button", { name: /join/ })
+    ).toBeVisible()
+    expect(Math.abs((await barBottom()) - (await navTop()))).toBeLessThan(2)
+
+    await drawer(page)
+      .getByRole("tab", { name: /updates/ })
+      .click()
+    await expect(drawer(page)).toHaveAttribute("data-snap", "full")
+    expect(Math.abs((await barBottom()) - (await navTop()))).toBeLessThan(2)
+  })
+
+  test("at full, the end of the drawer scrolls into view above the action bar", async ({
+    page,
+  }) => {
+    await stubBackend(page, { mapEvents: [FLARE] })
+    await page.goto(`/event/${FLARE._id}?tab=updates`)
+    await expect(drawer(page)).toHaveAttribute("data-snap", "full")
+    await expect(actionBar(page)).toBeVisible()
+    // Let the drawer finish sliding up.
+    await page.waitForTimeout(600)
+
+    const gap = await drawer(page).evaluate((el) => {
+      const room = el.querySelector("[data-flare-bar-room]")!
+      const scroller = room.parentElement!
+      scroller.scrollTop = scroller.scrollHeight
+      const last = room.previousElementSibling!.getBoundingClientRect()
+      const bar = document
+        .querySelector("[data-flare-action-bar]")!
+        .getBoundingClientRect()
+      return bar.top - last.bottom
+    })
+    expect(gap).toBeGreaterThanOrEqual(0)
   })
 })
