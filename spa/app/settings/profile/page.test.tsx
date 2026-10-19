@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   showActionFeedback: vi.fn(),
   updateProfile: vi.fn(),
   me: vi.fn(),
+  uploadAvatar: vi.fn(),
 }))
 
 vi.mock("next/navigation", () => ({
@@ -45,7 +46,12 @@ vi.mock("@/components/auth-provider", () => ({
 
 vi.mock("@/lib/api/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/auth")>()
-  return { ...actual, updateProfile: mocks.updateProfile, me: mocks.me }
+  return {
+    ...actual,
+    updateProfile: mocks.updateProfile,
+    me: mocks.me,
+    uploadAvatar: mocks.uploadAvatar,
+  }
 })
 
 const LEGACY_KEY = "sponti.profile.extras.v1"
@@ -65,6 +71,78 @@ beforeEach(() => {
 afterEach(() => window.localStorage.clear())
 
 describe("EditProfilePage", () => {
+  describe("photo", () => {
+    const photoInput = () =>
+      screen.getByLabelText("profile photo file") as HTMLInputElement
+    const photo = () => new File(["x"], "me.png", { type: "image/png" })
+
+    it("offers to add a photo, and to change one once there is one", () => {
+      const { unmount } = render(<EditProfilePage />)
+      expect(
+        screen.getByRole("button", { name: "add photo" })
+      ).toBeInTheDocument()
+      unmount()
+
+      currentUser = baseUser({ avatarUrl: "https://img.test/me.png" })
+      render(<EditProfilePage />)
+      expect(
+        screen.getByRole("button", { name: "change photo" })
+      ).toBeInTheDocument()
+    })
+
+    it("uploads as soon as a photo is picked, without pressing save", async () => {
+      const user = userEvent.setup()
+      setSession("tok", "refresh", baseUser())
+      mocks.uploadAvatar.mockResolvedValue({
+        avatarUrl: "https://img.test/new.png",
+      })
+      render(<EditProfilePage />)
+
+      await user.upload(photoInput(), photo())
+
+      await waitFor(() =>
+        expect(mocks.uploadAvatar).toHaveBeenCalledWith(expect.any(File))
+      )
+      expect(mocks.showActionFeedback).toHaveBeenCalledWith("photo updated")
+      expect(getUser()?.avatarUrl).toBe("https://img.test/new.png")
+      expect(mocks.updateProfile).not.toHaveBeenCalled()
+    })
+
+    it("turns a photo over 5 mb away before sending it", async () => {
+      const user = userEvent.setup()
+      render(<EditProfilePage />)
+
+      const big = new File(["x"], "big.png", { type: "image/png" })
+      Object.defineProperty(big, "size", { value: 6 * 1024 * 1024 })
+      await user.upload(photoInput(), big)
+
+      expect(
+        await screen.findByText("that photo is over 5 mb. pick a smaller one")
+      ).toBeInTheDocument()
+      expect(mocks.uploadAvatar).not.toHaveBeenCalled()
+    })
+
+    it("shows the server's reason when the upload fails", async () => {
+      const user = userEvent.setup()
+      mocks.uploadAvatar.mockRejectedValue(
+        new Error("only jpeg, png, webp, gif or heic photos can be uploaded")
+      )
+      render(<EditProfilePage />)
+
+      await user.upload(photoInput(), photo())
+
+      expect(
+        await screen.findByText(
+          "only jpeg, png, webp, gif or heic photos can be uploaded"
+        )
+      ).toBeInTheDocument()
+      expect(mocks.showActionFeedback).toHaveBeenCalledWith(
+        "couldn't upload that",
+        { tone: "error" }
+      )
+    })
+  })
+
   it("starts from the saved values, with save off until something changes", () => {
     currentUser = baseUser({
       bio: "climbing, coffee",
