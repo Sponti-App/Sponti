@@ -345,6 +345,12 @@ export type ConnectionRequestFlare = {
   eventId: string;
   eventTitle: string;
   kind: "joined" | "waiting";
+  // The host's own circles the flare went to (empty for an open-to-all flare
+  // sent to no one in particular). Only the host reads this notification, so
+  // the ids stay theirs; the feed offers these circles first when they accept
+  // (#616). Adding to one still goes through the circle-members endpoint, which
+  // checks the circle is theirs and the guest is a connection.
+  circleIds: string[];
 };
 
 export const createConnectionRequestNotification = async ({
@@ -393,7 +399,12 @@ export const createConnectionRequestNotification = async ({
             : "Accept to invite them to the flare.",
         metadata: {
           actorUsername: requester?.username,
-          flareInvite: { eventId: flare.eventId, eventTitle: flare.eventTitle, kind: flare.kind },
+          flareInvite: {
+            eventId: flare.eventId,
+            eventTitle: flare.eventTitle,
+            kind: flare.kind,
+            circleIds: flare.circleIds,
+          },
         },
       };
     },

@@ -27,6 +27,7 @@ export function CircleChips({
   onPick,
   onSkip,
   centered = false,
+  flareCircleIds = [],
   className,
 }: {
   /** The owner's circles, unfiltered. `null` while they load. */
@@ -38,6 +39,13 @@ export function CircleChips({
   onSkip: () => void
   /** Centre the line and the chips, for a centred screen (#585). */
   centered?: boolean
+  /**
+   * #616: the circles the flare went to, when this person came through its
+   * invite link. They come first and read "add to <circle>"; the rest stay
+   * as they were. Optional: they are on the flare already, so this only
+   * decides who sits in which circle.
+   */
+  flareCircleIds?: readonly string[]
   className?: string
 }) {
   if (state.status === "added") {
@@ -68,7 +76,9 @@ export function CircleChips({
   }
 
   const busy = state.status === "adding"
-  const choices = circles ? orderCircleChoices(circles, personId) : []
+  const choices = circles
+    ? orderCircleChoices(circles, personId, flareCircleIds)
+    : []
 
   return (
     <div
@@ -112,7 +122,9 @@ export function CircleChips({
                 {selected && (
                   <CircleNotchIcon className="h-3 w-3 animate-spin" />
                 )}
-                {circle.name}
+                {flareCircleIds.includes(circle.id)
+                  ? `add to ${circle.name}`
+                  : circle.name}
               </button>
             )
           })

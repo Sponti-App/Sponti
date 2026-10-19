@@ -7,6 +7,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { resetRateLimits } from "#middleware/rateLimit";
 import {
   Block,
+  Circle,
+  CircleMember,
   Connection,
   Event,
   EventInviteLink,
@@ -53,6 +55,7 @@ beforeAll(async () => {
   await mongoose.connect(mongoServer.getUri(), { dbName: "sponti_flare_invite_test" });
   await Promise.all([
     Block.syncIndexes(),
+    CircleMember.syncIndexes(),
     Connection.syncIndexes(),
     Event.syncIndexes(),
     EventInviteLink.syncIndexes(),
@@ -76,6 +79,8 @@ beforeEach(() => {
 afterEach(async () => {
   await Promise.all([
     Block.deleteMany({}),
+    Circle.deleteMany({}),
+    CircleMember.deleteMany({}),
     Connection.deleteMany({}),
     Event.deleteMany({}),
     EventInviteLink.deleteMany({}),
@@ -538,6 +543,74 @@ describe("redeeming an invite-only flare (#616)", () => {
       .get(`/api/v1/events/${flare.id}`)
       .set("Authorization", bearer(GUEST_ID));
     expect(detail.status).toBe(200);
+  });
+
+  it("tells the host's request which of their circles the flare went to, so the feed can offer them", async () => {
+    await seedUsers();
+    const circleId = new Types.ObjectId();
+    const waiting = await seedFlare({ invitedCircleIds: [circleId] });
+    const open = await seedFlare({ visibility: "public", invitedCircleIds: [circleId] });
+    const openNoCircle = await seedFlare({ visibility: "public" });
+
+    await redeem(GUEST_ID, await hostLink(waiting.id));
+    await Notification.deleteMany({});
+    await Connection.deleteMany({});
+    await redeem(GUEST_ID, await hostLink(open.id));
+    const joined = await Notification.findOne({ type: "connection_request" }).lean();
+    await Notification.deleteMany({});
+    await Connection.deleteMany({});
+    await redeem(GUEST_ID, await hostLink(openNoCircle.id));
+    const noCircle = await Notification.findOne({ type: "connection_request" }).lean();
+
+    expect(joined?.metadata?.flareInvite).toMatchObject({
+      kind: "joined",
+      circleIds: [circleId.toString()],
+    });
+    expect(noCircle?.metadata?.flareInvite).toMatchObject({ kind: "joined", circleIds: [] });
+  });
+
+  it("lets the host add the guest to the flare's circle only once they are connected, and only to their own circle", async () => {
+    await seedUsers();
+    const [mine, theirs] = await Circle.create([
+      { ownerId: oid(HOST_ID), name: "climbing", type: "custom" },
+      { ownerId: oid(OTHER_ID), name: "not mine", type: "custom" },
+    ]);
+    const flare = await seedFlare({ invitedCircleIds: [mine!._id] });
+    await redeem(GUEST_ID, await hostLink(flare.id));
+    const add = (circleId: Types.ObjectId, userId = HOST_ID) =>
+      request(app)
+        .post(`/api/v1/circles/${circleId}/members`)
+        .set("Authorization", bearer(userId))
+        .send({ userId: GUEST_ID });
+
+    // Still waiting: not a connection yet, so not addable.
+    expect((await add(mine!._id)).status).toBe(403);
+
+    await accept();
+
+    // Someone else's circle is not the host's to fill.
+    expect((await add(theirs!._id)).status).toBe(404);
+    expect((await add(mine!._id, OTHER_ID)).status).toBe(404);
+    expect((await add(mine!._id)).status).toBe(201);
+    expect(await CircleMember.countDocuments({ circleId: mine!._id, userId: oid(GUEST_ID) })).toBe(
+      1
+    );
+    // The guest was invited to the flare on accept, circle or not.
+    expect((await memberRow(flare.id, GUEST_ID))?.rsvpStatus).toBe("invited");
+  });
+
+  it("puts the circle ids on the waiting request too", async () => {
+    await seedUsers();
+    const circleId = new Types.ObjectId();
+    const flare = await seedFlare({ invitedCircleIds: [circleId] });
+
+    await redeem(GUEST_ID, await hostLink(flare.id));
+
+    const note = await Notification.findOne({ type: "connection_request" }).lean();
+    expect(note?.metadata?.flareInvite).toMatchObject({
+      kind: "waiting",
+      circleIds: [circleId.toString()],
+    });
   });
 
   it("invites the guest without any circle: accepting alone is enough", async () => {

@@ -46,6 +46,21 @@ export type Notification = {
   actorAvatarUrl?: string | null
   // Set on `event_rsvp_change` only (#414).
   rsvp?: RsvpChange
+  // Set on a `connection_request` that came through a flare's invite link
+  // (#616).
+  flareInvite?: FlareInviteRequest
+}
+
+/**
+ * A friend request that came through a flare's invite link (#616): `joined`
+ * for someone who joined an open-to-all flare, `waiting` for someone waiting
+ * on this answer to be invited to an invite-only one. `circleIds` are the
+ * host's own circles the flare went to, offered first after accepting.
+ */
+export type FlareInviteRequest = {
+  kind: "joined" | "waiting"
+  eventTitle: string | null
+  circleIds: string[]
 }
 
 const EVENT_NOTIFICATION_TYPES: ApiNotificationType[] = [
@@ -104,6 +119,27 @@ export function parseRsvpChange(
     eventTitle: stringOrNull(metadata.eventTitle),
     willArriveAt: stringOrNull(metadata.memberWillArriveAt),
     arrivalStatus: oneOf(metadata.arrivalStatus, ARRIVAL_STATUSES),
+  }
+}
+
+/**
+ * Reads a `connection_request`'s `metadata.flareInvite` (#616), defensively:
+ * anything missing or of the wrong shape means an ordinary request.
+ */
+export function parseFlareInviteRequest(
+  notification: ApiNotification
+): FlareInviteRequest | undefined {
+  if (notification.type !== "connection_request") return undefined
+  const raw = (notification.metadata as Record<string, unknown> | undefined)
+    ?.flareInvite as Record<string, unknown> | undefined
+  const kind = oneOf(raw?.kind, ["joined", "waiting"] as const)
+  if (!raw || !kind) return undefined
+  return {
+    kind,
+    eventTitle: stringOrNull(raw.eventTitle),
+    circleIds: Array.isArray(raw.circleIds)
+      ? raw.circleIds.filter((id): id is string => typeof id === "string")
+      : [],
   }
 }
 
@@ -209,6 +245,7 @@ export function adaptApiNotification(
     actorId: notification.actorId,
     actorAvatarUrl: notification.actor?.avatarUrl ?? null,
     rsvp,
+    flareInvite: parseFlareInviteRequest(notification),
   }
 }
 

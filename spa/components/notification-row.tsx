@@ -213,6 +213,18 @@ function chipsState(placement: CirclePlacement): CircleChipsState {
   }
 }
 
+/**
+ * What a friend request that came through a flare's invite link says (#616),
+ * in place of "wants to connect with you". Null for an ordinary request.
+ */
+function flareInviteSubtitle(notification: Notification): string | null {
+  const link = notification.flareInvite
+  if (!link) return null
+  return link.kind === "waiting"
+    ? "accept to invite them to the flare"
+    : "joined your flare · accept to add them as a friend"
+}
+
 function ConnectionRequestRow(props: RowProps) {
   const { notification } = props
   const connectionId = notification.targetId
@@ -245,7 +257,8 @@ function ConnectionRequestRow(props: RowProps) {
   switch (request.phase) {
     case "idle":
       if (canAnswer) {
-        subtitle = "wants to connect with you"
+        subtitle =
+          flareInviteSubtitle(notification) ?? "wants to connect with you"
         actions = (
           <div className="flex items-center gap-2">
             <Button
@@ -287,6 +300,7 @@ function ConnectionRequestRow(props: RowProps) {
             personId={personId ?? ""}
             personName={personName}
             state={chipsState(request.placement)}
+            flareCircleIds={notification.flareInvite?.circleIds}
             onPick={(circle) =>
               pickCircle(connectionId, { id: circle.id, name: circle.name })
             }
