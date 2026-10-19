@@ -172,4 +172,17 @@ export const featureFlags = {
    * it on.
    */
   flareInviteLink: process.env.NEXT_PUBLIC_FLARE_INVITE_LINK !== "off",
+
+  /**
+   * One flare detail (#615, prototype #617): a drawer over the home map at
+   * three heights (peek, half, and full with a strip of map left on top),
+   * with the map centred on the flare above it and moved with one finger.
+   * `/event/<id>` and `/?flare=<id>` open the drawer; "directions" is a row
+   * that offers the in-app route or google maps. Off, the map sheet and the
+   * flare page are exactly as before. On in the full profile and the `dev`
+   * deploy so it can be tried on a phone; off in the tester build until then.
+   */
+  flareDrawer:
+    FEATURE_PROFILE === "full" ||
+    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF === "dev",
 } as const

@@ -55,6 +55,19 @@ describe("featureFlags profile", () => {
     expect(featureFlags.coachMarks).toBe(true)
   })
 
+  it("keeps the flare drawer (#615) off in the tester build, on in full and the dev deploy", async () => {
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", undefined)
+    vi.stubEnv("NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF", undefined)
+    expect((await loadFlags()).featureFlags.flareDrawer).toBe(false)
+
+    vi.stubEnv("NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF", "dev")
+    expect((await loadFlags()).featureFlags.flareDrawer).toBe(true)
+
+    vi.stubEnv("NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF", undefined)
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "full")
+    expect((await loadFlags()).featureFlags.flareDrawer).toBe(true)
+  })
+
   it("keeps seedDemoData reading its own env var, independent of the profile", async () => {
     vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "full")
     vi.stubEnv("NEXT_PUBLIC_SEED_DEMO_DATA", undefined)

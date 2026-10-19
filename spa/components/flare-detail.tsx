@@ -107,7 +107,11 @@ export function FlareHeader({
   )
 }
 
-/** When | where, with icons instead of labels. The place opens Google Maps. */
+/**
+ * When | where, with icons instead of labels. The place opens Google Maps,
+ * unless there's no `mapsUrl` (the flare drawer, #615, offers that from its
+ * own "directions" row instead).
+ */
 export function FlareFacts({
   when,
   until,
@@ -120,7 +124,7 @@ export function FlareFacts({
   placeName: string
   /** "1.2 km · 47 chandos pl" */
   placeDetail?: string | null
-  mapsUrl: string
+  mapsUrl?: string
 }) {
   return (
     <div className="grid grid-cols-2 divide-x divide-border/60 border-y border-border/60 py-3">
@@ -134,28 +138,47 @@ export function FlareFacts({
           <p className="truncate text-xs text-muted-foreground">{until}</p>
         </div>
       </div>
-      <a
-        href={mapsUrl}
-        target="_blank"
-        rel="noreferrer"
-        aria-label={`open ${placeName} in google maps`}
-        className="flex min-w-0 gap-2 pl-3 active:opacity-70"
-      >
-        <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-        <div className="min-w-0">
-          <p className="flex items-center gap-1 text-sm font-medium">
-            <span className="truncate underline decoration-border underline-offset-2">
-              {placeName.toLowerCase()}
-            </span>
-            <ArrowSquareOutIcon className="h-3 w-3 shrink-0 text-muted-foreground" />
-          </p>
-          {placeDetail && (
-            <p className="truncate text-xs text-muted-foreground">
-              {placeDetail.toLowerCase()}
+      {mapsUrl ? (
+        <a
+          href={mapsUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`open ${placeName} in google maps`}
+          className="flex min-w-0 gap-2 pl-3 active:opacity-70"
+        >
+          <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <p className="flex items-center gap-1 text-sm font-medium">
+              <span className="truncate underline decoration-border underline-offset-2">
+                {placeName.toLowerCase()}
+              </span>
+              <ArrowSquareOutIcon className="h-3 w-3 shrink-0 text-muted-foreground" />
             </p>
-          )}
+            {placeDetail && (
+              <p className="truncate text-xs text-muted-foreground">
+                {placeDetail.toLowerCase()}
+              </p>
+            )}
+          </div>
+        </a>
+      ) : (
+        <div className="flex min-w-0 gap-2 pl-3">
+          <MapPinIcon
+            className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+            aria-label="where"
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">
+              {placeName.toLowerCase()}
+            </p>
+            {placeDetail && (
+              <p className="truncate text-xs text-muted-foreground">
+                {placeDetail.toLowerCase()}
+              </p>
+            )}
+          </div>
         </div>
-      </a>
+      )}
     </div>
   )
 }
