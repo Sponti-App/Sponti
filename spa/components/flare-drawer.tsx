@@ -1,13 +1,22 @@
 "use client"
 
 // One flare detail (#615): a drawer over the home map at three heights, in
-// place of both the map's sheet and the flare page. Peek holds the title,
-// time and main action; half adds when and where, directions and the host;
-// full adds the viewer's plan and the going / updates tabs, and stops short
-// of the top so a strip of map stays above it. The map behind stays live
-// (one finger moves it) and keeps the flare centred in what's left.
+// place of both the map's sheet and the flare page. Peek holds the title and
+// time; half adds when and where, directions and the host; full adds the
+// viewer's plan and the going / updates tabs, and stops short of the top so a
+// strip of map stays above it. The main action (join, share an update) sits in
+// a bar pinned above the nav at every height, and turns into the update
+// composer there. The map behind stays live (one finger moves it) and keeps
+// the flare centred in what's left.
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from "react"
+import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { Drawer } from "vaul"
 import { Button } from "@/components/ui/button"
@@ -102,6 +111,12 @@ export function FlareDrawer({
   const activeSnapPoint = snapPoints ? snapPoints[snapIndex(snap)] : null
 
   const cover = open && activeSnapPoint ? coverOf(activeSnapPoint) : 0
+  // The drawer is the screen's full height and slides down to each snap
+  // point, so this much of it is below the screen and can't be scrolled to.
+  const offscreen =
+    geometry && activeSnapPoint
+      ? geometry.viewportHeight - coverOf(activeSnapPoint)
+      : 0
   useEffect(() => {
     onCoverChange(cover)
   }, [cover, onCoverChange])
@@ -150,6 +165,10 @@ export function FlareDrawer({
       // height, and a tap on another pin opens that flare.
       modal={false}
       dismissible
+      // The composer lives in the action bar, outside the drawer, and lifts
+      // itself above the keyboard; vaul resizing the drawer for it would
+      // throw the whole drawer to the top of the screen.
+      repositionInputs={false}
     >
       <Drawer.Portal>
         {/* Under the bottom nav (z-40), which stays lit and tappable: the
@@ -180,18 +199,21 @@ export function FlareDrawer({
               haptic("light")
               onClose()
             }}
-            className="absolute top-4 right-3 z-10 flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-muted/70"
+            className="absolute top-4 right-4 z-10 flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-muted/70"
           >
             <XIcon className="h-4 w-4" />
           </button>
           <div
             // Scrolls only at full; below that a drag moves the drawer.
             className={cn(
-              "min-h-0 flex-1 px-4 pb-[calc(var(--sponti-nav-h,64px)+1.5rem)]",
+              "min-h-0 flex-1 px-4",
               snap === "full"
                 ? "overflow-y-auto overscroll-contain"
                 : "overflow-hidden"
             )}
+            style={{
+              paddingBottom: `calc(var(--sponti-nav-h, 64px) + ${offscreen}px + 1rem)`,
+            }}
           >
             {event && viewer ? (
               <DrawerBody
@@ -199,6 +221,7 @@ export function FlareDrawer({
                 key={`${event.id}:${viewer}`}
                 event={event}
                 viewer={viewer}
+                open={open}
                 viewerId={user?.id}
                 viewerName={user?.displayName}
                 initialTab={initialTab}
@@ -232,6 +255,7 @@ export function FlareDrawer({
 function DrawerBody({
   event,
   viewer,
+  open,
   viewerId,
   viewerName,
   initialTab,
@@ -244,6 +268,7 @@ function DrawerBody({
 }: {
   event: HostedEvent
   viewer: FlareViewer
+  open: boolean
   viewerId?: string
   viewerName?: string
   initialTab?: FlareTab
@@ -309,6 +334,11 @@ function DrawerBody({
   })
   const hostFirstName = flareHostName(event).split(" ")[0]
 
+  const barShown = open && threadOpen
+  const barRef = useRef<HTMLDivElement>(null)
+  const barHeight = useHeight(barRef, barShown)
+  const keyboard = useKeyboardInset()
+
   return (
     <>
       <div className="pr-12">
@@ -324,45 +354,35 @@ function DrawerBody({
           statusLine={flareStatusLine(event, timing)}
           timing={timing}
           viewer={viewer}
+          aside={
+            isHost &&
+            threadOpen && (
+              // Reaches under the close button: invite under "hosting",
+              // edit under the x.
+              <div className="-mr-12 flex gap-2">
+                {/* #616: the flare's own invite link, for people who are
+                    not on sponti yet. */}
+                {featureFlags.flareInviteLink && (
+                  <FlareInviteButton
+                    compact
+                    event={event}
+                    hostName={viewerName ?? event.hostName}
+                  />
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="edit"
+                  className="size-9 rounded-full bg-muted text-foreground hover:bg-muted/70"
+                  onClick={() => router.push(`/event/${event.id}/edit`)}
+                >
+                  <PencilSimpleIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            )
+          }
         />
       </div>
-
-      {/* The main action, as on the old page's pinned bar. */}
-      {threadOpen && (
-        <div className="mt-3">
-          {composing && canSeeThread && !thread.closedByServer ? (
-            <EventThreadComposer
-              ref={composerRef}
-              thread={thread}
-              placeholder={
-                isHost ? "announce to everyone..." : "say something..."
-              }
-              onClose={() => setComposing(false)}
-            />
-          ) : (
-            <FlareActions
-              viewer={viewer}
-              timing={timing}
-              declined={event.myRsvp === "declined"}
-              eta={membership.eta}
-              onEtaChange={membership.setEta}
-              saving={membership.saving}
-              onJoin={membership.join}
-              onDecline={membership.decline}
-              onShareUpdate={openComposer}
-            />
-          )}
-        </div>
-      )}
-
-      {membership.rsvpError && (
-        <p
-          className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-          role="alert"
-        >
-          {membership.rsvpError}
-        </p>
-      )}
 
       <div className="mt-4">
         <FlareFacts
@@ -389,27 +409,6 @@ function DrawerBody({
       </div>
 
       <FlareHost event={event} isHost={isHost} />
-
-      {isHost && threadOpen && (
-        <div className="mt-3 flex items-center gap-2">
-          {/* #616: the flare's own invite link, for people who are not on
-              sponti yet. */}
-          {featureFlags.flareInviteLink && (
-            <FlareInviteButton
-              event={event}
-              hostName={viewerName ?? event.hostName}
-            />
-          )}
-          <Button
-            variant="outline"
-            className="h-10 gap-1.5 rounded-full px-3.5 text-sm"
-            onClick={() => router.push(`/event/${event.id}/edit`)}
-          >
-            <PencilSimpleIcon className="h-4 w-4" />
-            edit
-          </Button>
-        </div>
-      )}
 
       {viewer === "joined" && etaAvailable(timing) && (
         <div className="mt-4">
@@ -447,6 +446,62 @@ function DrawerBody({
         }}
         className="mt-5"
       />
+
+      {/* Room for the action bar, so the end of the list scrolls past it. */}
+      <div aria-hidden data-flare-bar-room style={{ height: barHeight }} />
+
+      {barShown &&
+        createPortal(
+          <div
+            ref={barRef}
+            data-flare-action-bar
+            // Outside the drawer, so it stays above the nav at every height
+            // and while the drawer moves. Pointer events still bubble to the
+            // drawer through React, where vaul would read them as a drag.
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerMove={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            className="fixed inset-x-0 z-[36] border-t border-border/60 bg-background px-4 py-2"
+            style={{
+              bottom:
+                composing && keyboard > 0
+                  ? keyboard
+                  : "var(--sponti-nav-h, 64px)",
+            }}
+          >
+            {membership.rsvpError && (
+              <p
+                className="mb-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                role="alert"
+              >
+                {membership.rsvpError}
+              </p>
+            )}
+            {composing && canSeeThread && !thread.closedByServer ? (
+              <EventThreadComposer
+                ref={composerRef}
+                thread={thread}
+                placeholder={
+                  isHost ? "announce to everyone..." : "say something..."
+                }
+                onClose={() => setComposing(false)}
+              />
+            ) : (
+              <FlareActions
+                viewer={viewer}
+                timing={timing}
+                declined={event.myRsvp === "declined"}
+                eta={membership.eta}
+                onEtaChange={membership.setEta}
+                saving={membership.saving}
+                onJoin={membership.join}
+                onDecline={membership.decline}
+                onShareUpdate={openComposer}
+              />
+            )}
+          </div>,
+          document.body
+        )}
     </>
   )
 }
@@ -553,4 +608,41 @@ function subscribeGeometry(onChange: () => void) {
 /** The screen and nav heights the snap points are measured from. */
 function useDrawerGeometry(): DrawerGeometry | null {
   return useSyncExternalStore(subscribeGeometry, readGeometry, () => null)
+}
+
+/** An element's height while it's shown, 0 otherwise. */
+function useHeight(ref: RefObject<HTMLElement | null>, shown: boolean): number {
+  const [height, setHeight] = useState(0)
+  useEffect(() => {
+    const el = ref.current
+    if (!shown || !el) return
+    const observer = new ResizeObserver(() => setHeight(el.offsetHeight))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [ref, shown])
+  return shown ? height : 0
+}
+
+// Below this, a smaller visual viewport is browser chrome, not a keyboard.
+const KEYBOARD_MIN_PX = 80
+
+function readKeyboardInset(): number {
+  const vv = window.visualViewport
+  if (!vv) return 0
+  const inset = Math.round(window.innerHeight - vv.height - vv.offsetTop)
+  return inset > KEYBOARD_MIN_PX ? inset : 0
+}
+function subscribeKeyboard(onChange: () => void) {
+  const vv = window.visualViewport
+  vv?.addEventListener("resize", onChange)
+  vv?.addEventListener("scroll", onChange)
+  return () => {
+    vv?.removeEventListener("resize", onChange)
+    vv?.removeEventListener("scroll", onChange)
+  }
+}
+
+/** How far the on-screen keyboard reaches up from the bottom, in px. */
+function useKeyboardInset(): number {
+  return useSyncExternalStore(subscribeKeyboard, readKeyboardInset, () => 0)
 }

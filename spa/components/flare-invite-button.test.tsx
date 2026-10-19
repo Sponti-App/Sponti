@@ -74,7 +74,7 @@ describe("FlareInviteButton (#616)", () => {
     const [data] = mocks.share.mock.calls[0]
     expect(data.url).toBe("https://app.sponti.fun/f/tok_123")
     expect(data.text).toMatch(
-      /^patrick invited you to drinks at klunkerkranich, \w{3} /
+      /^Patrick invited you to drinks at klunkerkranich on \w+day, /
     )
     expect(mocks.writeText).not.toHaveBeenCalled()
     expect(mocks.showActionFeedback).not.toHaveBeenCalled()

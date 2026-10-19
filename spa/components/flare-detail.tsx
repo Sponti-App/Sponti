@@ -60,6 +60,7 @@ export function FlareHeader({
   statusLine,
   timing,
   viewer,
+  aside,
   as: Heading = "h1",
 }: {
   type: EventType
@@ -67,6 +68,8 @@ export function FlareHeader({
   statusLine: string
   timing: FlareTiming
   viewer: FlareViewer
+  /** Under the badge, e.g. the host's invite and edit (the flare drawer). */
+  aside?: React.ReactNode
   as?: "h1" | "h2"
 }) {
   const live = timing === "live"
@@ -93,16 +96,19 @@ export function FlareHeader({
           {statusLine}
         </p>
       </div>
-      {viewer === "joined" && !over && (
-        <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent/15 px-2 py-1 text-xs font-medium text-accent-ink">
-          <CheckIcon className="h-3 w-3" /> going
-        </span>
-      )}
-      {viewer === "host" && (
-        <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
-          hosting
-        </span>
-      )}
+      <div className="flex shrink-0 flex-col items-end gap-2">
+        {viewer === "joined" && !over && (
+          <span className="flex items-center gap-1 rounded-full bg-accent/15 px-2 py-1 text-xs font-medium text-accent-ink">
+            <CheckIcon className="h-3 w-3" /> going
+          </span>
+        )}
+        {viewer === "host" && (
+          <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+            hosting
+          </span>
+        )}
+        {aside}
+      </div>
     </div>
   )
 }
