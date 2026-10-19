@@ -5,11 +5,13 @@ import {
   CircleMember,
   Connection,
   Event,
+  EventInviteLink,
   EventMember,
   EventUpdate,
   InviteLink,
   Notification,
   NotificationSettings,
+  PendingEventInvite,
   QrContactToken,
 } from "#models/index";
 import { cancelEvent } from "#services/eventService";
@@ -33,8 +35,8 @@ import { getUsersCollection } from "#services/userDirectoryService";
 // - their RSVPs and thread posts on other flares; "invited by" on others'
 //   guest lists is cleared.
 // - connections and blocks either way, their circles, their place in other
-//   people's circles, notifications to or from them, invite links, QR tokens
-//   and notification settings.
+//   people's circles, notifications to or from them, invite links (friend and
+//   flare, and invites waiting on them), QR tokens and notification settings.
 // The cancellation notices stay with the guests who got them, with no actor.
 
 export const PURGE_INTERVAL_MS = 5 * 60_000;
@@ -75,6 +77,10 @@ const purgeOne = async (userId: Types.ObjectId, now: Date) => {
       $or: [{ circleId: { $in: circleIds } }, { ownerId: userId }, { userId }],
     }),
     InviteLink.deleteMany({ userId }),
+    EventInviteLink.deleteMany({ $or: [{ eventId: { $in: hostedIds } }, { hostId: userId }] }),
+    PendingEventInvite.deleteMany({
+      $or: [{ eventId: { $in: hostedIds } }, { hostId: userId }, { guestId: userId }],
+    }),
     QrContactToken.deleteMany({ userId }),
     NotificationSettings.deleteMany({ userId }),
   ]);

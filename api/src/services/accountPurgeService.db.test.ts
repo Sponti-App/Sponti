@@ -7,11 +7,13 @@ import {
   CircleMember,
   Connection,
   Event,
+  EventInviteLink,
   EventMember,
   EventUpdate,
   InviteLink,
   Notification,
   NotificationSettings,
+  PendingEventInvite,
   QrContactToken,
 } from "#models/index";
 import { purgeDeletedAccounts, TOMBSTONE_GRACE_MS } from "#services/accountPurgeService";
@@ -121,6 +123,18 @@ const seed = async (deletedAgoMs: number) => {
   await QrContactToken.collection.insertOne({ userId: D, token: "y" });
   await NotificationSettings.collection.insertOne({ userId: D });
 
+  // #616: their flares' invite links, invites waiting on them, and the ones
+  // they were waiting on. A friend's link and a wait between others stay.
+  await EventInviteLink.collection.insertMany([
+    { eventId: theirs._id, hostId: D, token: "flare-d" },
+    { eventId: friends._id, hostId: F, token: "flare-f" },
+  ]);
+  await PendingEventInvite.collection.insertMany([
+    { eventId: theirs._id, hostId: D, guestId: G },
+    { eventId: friends._id, hostId: F, guestId: D },
+    { eventId: friends._id, hostId: F, guestId: G },
+  ]);
+
   return { theirs, friends, friendsCircle: friendsCircle.insertedId };
 };
 
@@ -178,6 +192,9 @@ describe("purgeDeletedAccounts", () => {
     expect(await InviteLink.countDocuments({ userId: D })).toBe(0);
     expect(await QrContactToken.countDocuments({ userId: D })).toBe(0);
     expect(await NotificationSettings.countDocuments({ userId: D })).toBe(0);
+
+    expect(await EventInviteLink.find().lean()).toMatchObject([{ token: "flare-f" }]);
+    expect(await PendingEventInvite.find().lean()).toMatchObject([{ hostId: F, guestId: G }]);
   });
 
   it("keeps a fresh tombstone for the next run, and a second run is a no-op", async () => {

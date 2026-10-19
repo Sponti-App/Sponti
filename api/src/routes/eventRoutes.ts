@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eventController, eventUpdateController } from "#controllers/index";
+import { eventController, eventUpdateController, flareInviteController } from "#controllers/index";
 import { requireAuth } from "#middleware/auth";
 import { validateRequest } from "#middleware/validateRequest";
 import {
@@ -8,6 +8,7 @@ import {
   createEventUpdateBodySchema,
   eventIdParamSchema,
   eventMemberParamSchema,
+  emptyFlareInviteBodySchema,
   eventUpdateParamSchema,
   getEventsQuerySchema,
   inviteEventMembersBodySchema,
@@ -62,6 +63,18 @@ router.delete(
   "/:eventId/members/:userId",
   validateRequest({ params: eventMemberParamSchema }),
   eventController.removeEventMember
+);
+// #616: the host's invite link for this flare. Only the host can read or reset
+// it; no other event payload carries the token.
+router.get(
+  "/:eventId/invite-link",
+  validateRequest({ params: eventIdParamSchema }),
+  flareInviteController.getHostInviteLink
+);
+router.post(
+  "/:eventId/invite-link/reset",
+  validateRequest({ params: eventIdParamSchema, body: emptyFlareInviteBodySchema }),
+  flareInviteController.resetHostInviteLink
 );
 router.patch(
   "/:eventId/cancel",

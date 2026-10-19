@@ -3,6 +3,7 @@ export * as circleController from "./circleController.js";
 export * as connectionController from "./connectionController.js";
 export * as eventController from "./eventController.js";
 export * as eventUpdateController from "./eventUpdateController.js";
+export * as flareInviteController from "./flareInviteController.js";
 export * as inboxController from "./inboxController.js";
 export * as inviteLinkController from "./inviteLinkController.js";
 export * as mapsController from "./mapsController.js";

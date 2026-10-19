@@ -336,16 +336,29 @@ export const dismissNotification = async (userId: string, notificationId: string
   };
 };
 
+// #616: a friend request that came through a flare's invite link says so, in
+// the same `connection_request` notification, so the feed's accept and decline
+// actions keep working unchanged. `joined`: the guest joined an open-to-all
+// flare. `waiting`: the guest is waiting for this answer to be invited to an
+// invite-only flare.
+export type ConnectionRequestFlare = {
+  eventId: string;
+  eventTitle: string;
+  kind: "joined" | "waiting";
+};
+
 export const createConnectionRequestNotification = async ({
   requesterId,
   receiverId,
   connectionId,
   session,
+  flare,
 }: {
   requesterId: string;
   receiverId: string;
   connectionId: string;
   session?: ClientSession;
+  flare?: ConnectionRequestFlare;
 }) => {
   const users = await getUsersByIds([requesterId]);
   const requester = users.get(requesterId);
@@ -358,13 +371,32 @@ export const createConnectionRequestNotification = async ({
     targetType: "connection",
     targetId: connectionId,
     session,
-    build: () => ({
-      title: `${requesterName} wants to connect`,
-      message: "Tap to respond to the request.",
-      metadata: {
-        actorUsername: requester?.username,
-      },
-    }),
+    build: () => {
+      if (!flare) {
+        return {
+          title: `${requesterName} wants to connect`,
+          message: "Tap to respond to the request.",
+          metadata: {
+            actorUsername: requester?.username,
+          },
+        };
+      }
+
+      return {
+        title:
+          flare.kind === "joined"
+            ? `${requesterName} joined via your link`
+            : `${requesterName} wants to join ${flare.eventTitle}`,
+        message:
+          flare.kind === "joined"
+            ? `They're going to ${flare.eventTitle}. Tap to add them as a friend.`
+            : "Accept to invite them to the flare.",
+        metadata: {
+          actorUsername: requester?.username,
+          flareInvite: { eventId: flare.eventId, eventTitle: flare.eventTitle, kind: flare.kind },
+        },
+      };
+    },
   });
 };
 
