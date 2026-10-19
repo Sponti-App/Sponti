@@ -7,11 +7,13 @@ import {
   SparkleIcon,
   UserCircleIcon,
 } from "@/components/icons"
+import { FeedbackButton } from "@/components/feedback-button"
 import { MenuPageShell } from "@/components/menu-page-shell"
 import { Card } from "@/components/ui/card"
 
 // #294: this page used to carry a fake "submit feedback" form. Feedback now
-// goes through /menu/support, the real mail flow.
+// opens the in-app feedback sheet (the auth-server mails it to us); safety
+// reports and account help stay on /menu/support, the mail flow.
 
 const faqGroups = [
   {
@@ -26,7 +28,7 @@ const faqGroups = [
       {
         question: "is sponti finished?",
         answer:
-          "not yet. sponti is a test build shared with a small group of testers. things can break and test data can be reset. if something goes wrong, tell us through support.",
+          "not yet. sponti is a test build shared with a small group of testers. things can break and test data can be reset. if something goes wrong, tell us with send feedback.",
       },
     ],
   },
@@ -84,7 +86,7 @@ const faqGroups = [
       {
         question: "where do i report a bug?",
         answer:
-          "use support and pick “bug or broken feature”. tell us which screen it happened on and what you expected instead.",
+          "open the menu and tap send feedback, then pick “bug”. tell us what happened and what you expected instead. we add your screen and device for you.",
       },
     ],
   },
@@ -118,7 +120,7 @@ export default function FaqFeedbackPage() {
           </h2>
           <p className="text-base leading-7 text-muted-foreground">
             start with the common questions. if the answer is missing, or you
-            have feedback, send it through support.
+            have feedback, send it from here.
           </p>
         </section>
 
@@ -164,11 +166,15 @@ export default function FaqFeedbackPage() {
           <h3 className="font-semibold">send feedback</h3>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             found a bug, hit a confusing flow, or have an idea that would make
-            meeting up easier? support opens an email to us, and it&apos;s also
-            where to report anything that feels unsafe.
+            meeting up easier? send it from here and it goes straight to us.
+            anything that feels unsafe belongs in support.
           </p>
           <div className="mt-4 flex flex-col gap-2">
-            <LinkRow href="/menu/support" label="send feedback or get help" />
+            <FeedbackButton label="send feedback" />
+            <LinkRow
+              href="/menu/support"
+              label="safety report or account help"
+            />
             <LinkRow href="/menu/terms" label="read the terms of service" />
             <LinkRow href="/menu/privacy" label="read the privacy note" />
             <LinkRow href="/menu/impressum" label="read the impressum" />

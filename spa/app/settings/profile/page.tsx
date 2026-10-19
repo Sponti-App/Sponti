@@ -1,24 +1,32 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowLeftIcon,
   AtIcon,
+  CameraIcon,
   ChatTextIcon,
   type Icon,
 } from "@/components/icons"
 import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { me, updateProfile, type UpdateProfilePayload } from "@/lib/api/auth"
+import {
+  me,
+  updateProfile,
+  uploadAvatar,
+  type UpdateProfilePayload,
+} from "@/lib/api/auth"
 import { getRefreshToken, getToken, setSession } from "@/lib/auth-store"
 import type { AuthUser } from "@/lib/auth-store"
 import {
   clearLegacyHandles,
+  initialsFromName,
   parseProfileErrors,
   readLegacyHandles,
   type ProfileFieldErrors,
@@ -37,6 +45,14 @@ import {
 // #289: the signed-in user's own bio, Instagram and Telegram handle. They are
 // auth-server fields (PATCH /auth/me/profile), not browser storage. Who can
 // see them is decided by api/, not here.
+//
+// The photo sits here too: it uploads the moment one is picked
+// (PATCH /auth/me/avatar), not with "save changes", so changing it never
+// waits on the text fields below.
+
+// Mirrors the auth-server's upload limit, so a big photo is turned away before
+// it is sent.
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024
 
 type FieldName = "bio" | "instagram" | "telegram"
 type Form = Record<FieldName, string>
@@ -113,6 +129,11 @@ function EditProfileContent({ user }: { user: AuthUser }) {
   const [submitting, setSubmitting] = useState(false)
   // Handles an older version kept only in this browser (#289). Offered once.
   const [legacy, setLegacy] = useState(() => readLegacyHandles(user.id))
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl ?? null)
+  const [uploading, setUploading] = useState(false)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
 
   const needsLoad = saved === null
   useEffect(() => {
@@ -197,6 +218,40 @@ function EditProfileContent({ user }: { user: AuthUser }) {
   const dismissOffer = () => {
     clearLegacyHandles(user.id)
     setLegacy(null)
+  }
+
+  const handleAvatarPick = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0]
+    // Clear the input so picking the same file again still fires onChange.
+    event.target.value = ""
+    if (!file || uploading) return
+    if (file.size > AVATAR_MAX_BYTES) {
+      setAvatarError("that photo is over 5 mb. pick a smaller one")
+      return
+    }
+    setUploading(true)
+    setAvatarError(null)
+    try {
+      const { avatarUrl: nextUrl } = await uploadAvatar(file)
+      setAvatarUrl(nextUrl)
+      const token = getToken()
+      const refreshToken = getRefreshToken()
+      if (token && refreshToken) {
+        setSession(token, refreshToken, { ...user, avatarUrl: nextUrl })
+      }
+      showActionFeedback("photo updated")
+    } catch (err) {
+      setAvatarError(
+        err instanceof Error && err.message
+          ? err.message
+          : "could not upload that photo"
+      )
+      showActionFeedback("couldn't upload that", { tone: "error" })
+    } finally {
+      setUploading(false)
+    }
   }
 
   const handleSave = async () => {
@@ -326,6 +381,65 @@ function EditProfileContent({ user }: { user: AuthUser }) {
             </div>
           </section>
         )}
+
+        <Section icon={CameraIcon} label="photo">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              // The labelled button beside it is the accessible one.
+              aria-hidden="true"
+              tabIndex={-1}
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-full focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-60"
+            >
+              <Avatar className="size-20 bg-muted ring-1 ring-border">
+                {avatarUrl ? (
+                  <AvatarImage
+                    src={avatarUrl}
+                    alt={`${user.displayName} profile photo`}
+                  />
+                ) : null}
+                <AvatarFallback className="bg-accent/10 text-lg font-semibold text-accent-ink">
+                  {initialsFromName(user.displayName || user.username)}
+                </AvatarFallback>
+              </Avatar>
+            </button>
+            <div className="min-w-0 flex-1 space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading
+                  ? "uploading..."
+                  : avatarUrl
+                    ? "change photo"
+                    : "add photo"}
+              </Button>
+              <p
+                role={avatarError ? "alert" : undefined}
+                className={
+                  avatarError
+                    ? "text-xs leading-relaxed text-destructive"
+                    : "text-xs leading-relaxed text-muted-foreground"
+                }
+              >
+                {avatarError ?? "everyone who finds you sees it"}
+              </p>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              aria-label="profile photo file"
+              className="hidden"
+              onChange={(event) => void handleAvatarPick(event)}
+            />
+          </div>
+        </Section>
 
         <Section icon={ChatTextIcon} label="about you">
           <BioField

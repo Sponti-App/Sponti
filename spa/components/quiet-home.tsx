@@ -6,11 +6,11 @@
 //   - the people you recently connected with, compact, after a fresh sign-in
 //     (lib/quiet-home.ts), with "group" into a circle and swipe to hide;
 //   - a 0-friend account: empty slots and one invite button;
-//   - two flare cards, right now and soon (signed in);
+//   - two flare cards, right now and soon (signed in), outlined in peach;
 //   - a signed-out visitor: the value prop and nearby idea cards.
 // Each block has two text styles at most, no card sits inside a card, and
-// nothing here is peach: the nav's flare button is the screen's one call to
-// action (BRAND.md).
+// the only peach here is those two cards' outline: the nav's flare button
+// stays the one filled call to action (BRAND.md).
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
@@ -351,7 +351,7 @@ export function FlareCtaCards({
             haptic("medium")
             onClick()
           }}
-          className="flex flex-col rounded-2xl border border-border/60 bg-background/90 p-3 text-left shadow-(--shadow-card) backdrop-blur-md active:scale-[0.98]"
+          className="flex flex-col rounded-2xl border-2 border-accent bg-background/90 p-3 text-left shadow-(--shadow-card) backdrop-blur-md active:scale-[0.98]"
         >
           <span className="flex size-10 items-center justify-center rounded-full bg-muted text-foreground">
             <Icon className="size-5" />

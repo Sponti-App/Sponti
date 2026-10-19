@@ -87,3 +87,15 @@ export const refreshTokenSchema = z.object({
 export const logoutSchema = z.object({
     refreshToken: z.string().min(1),
 });
+
+export const FEEDBACK_KINDS = ["bug", "confusing", "idea"] as const;
+
+// In-app feedback: what the tester typed, plus where they were and on what.
+// The context fields are optional and only ever land in the email body.
+export const feedbackSchema = z.object({
+    kind: z.enum(FEEDBACK_KINDS),
+    message: z.string().trim().min(3, "Tell us a little more").max(2000),
+    page: z.string().trim().max(300).optional(),
+    build: z.string().trim().max(100).optional(),
+    device: z.string().trim().max(1000).optional(),
+});

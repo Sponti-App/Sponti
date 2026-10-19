@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
+import userEvent from "@testing-library/user-event"
 import FaqFeedbackPage from "./page"
 
 // The shell's back arrow is covered by its own test; keep this page test
@@ -19,6 +20,12 @@ vi.mock("@/components/menu-page-shell", () => ({
   ),
 }))
 
+// The feedback sheet sends from a toast-aware component; the app's layout
+// provides this, so the page test stands in for it.
+vi.mock("@/components/action-feedback", () => ({
+  useActionFeedback: () => ({ showActionFeedback: vi.fn() }),
+}))
+
 describe("faq & feedback page (#294)", () => {
   it("has no fake feedback form", () => {
     const { container } = render(<FaqFeedbackPage />)
@@ -32,13 +39,20 @@ describe("faq & feedback page (#294)", () => {
     )
   })
 
-  it("sends feedback through support", () => {
+  it("opens the feedback sheet, and sends safety reports to support", async () => {
     render(<FaqFeedbackPage />)
 
     expect(
-      screen.getByRole("link", { name: "send feedback or get help" })
+      screen.getByRole("link", { name: "safety report or account help" })
     ).toHaveAttribute("href", "/menu/support")
     expect(document.body.textContent).not.toMatch(/@\w+\./)
+
+    // The sheet's form is only there once it is opened.
+    expect(screen.queryByRole("textbox")).toBeNull()
+    await userEvent.click(screen.getByRole("button", { name: "send feedback" }))
+    expect(
+      await screen.findByRole("textbox", { name: "your feedback" })
+    ).toBeInTheDocument()
   })
 
   it("links the three legal pages", () => {
