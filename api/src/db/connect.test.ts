@@ -7,6 +7,8 @@ const mongooseMock = vi.hoisted(() => ({
 }));
 const circleCreateIndexesMock = vi.hoisted(() => vi.fn());
 const blockCreateIndexesMock = vi.hoisted(() => vi.fn());
+const eventInviteLinkCreateIndexesMock = vi.hoisted(() => vi.fn());
+const pendingEventInviteCreateIndexesMock = vi.hoisted(() => vi.fn());
 
 vi.mock("mongoose", () => ({
   default: mongooseMock,
@@ -32,9 +34,23 @@ vi.mock("#models/Block", () => ({
   },
 }));
 
+vi.mock("#models/EventInviteLink", () => ({
+  EventInviteLink: {
+    createIndexes: eventInviteLinkCreateIndexesMock,
+  },
+}));
+
+vi.mock("#models/PendingEventInvite", () => ({
+  PendingEventInvite: {
+    createIndexes: pendingEventInviteCreateIndexesMock,
+  },
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
   blockCreateIndexesMock.mockResolvedValue([]);
+  eventInviteLinkCreateIndexesMock.mockResolvedValue([]);
+  pendingEventInviteCreateIndexesMock.mockResolvedValue([]);
   vi.resetModules();
   mongooseMock.connection.readyState = 0;
 });
@@ -77,7 +93,7 @@ describe("connectDB", () => {
     expect(second).toBe(mongooseMock);
   });
 
-  it("provisions the Circle and Block indexes before resolving", async () => {
+  it("provisions the Circle, Block and flare invite indexes before resolving", async () => {
     mongooseMock.connect.mockImplementation(async () => {
       mongooseMock.connection.readyState = mongooseMock.STATES.connected;
       return mongooseMock;
@@ -89,6 +105,9 @@ describe("connectDB", () => {
 
     expect(circleCreateIndexesMock).toHaveBeenCalledOnce();
     expect(blockCreateIndexesMock).toHaveBeenCalledOnce();
+    // #616: production runs with autoIndex off, and these rely on their unique indexes.
+    expect(eventInviteLinkCreateIndexesMock).toHaveBeenCalledOnce();
+    expect(pendingEventInviteCreateIndexesMock).toHaveBeenCalledOnce();
   });
 
   it("fails startup when the Block indexes cannot be built", async () => {
