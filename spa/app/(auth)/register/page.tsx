@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { fetchContactPreviewName } from "@/lib/api/contact-preview"
+import { fetchFlareInvitePreview } from "@/lib/api/flare-invites"
 import { parseContactPath } from "@/lib/contact-links"
+import { parseFlareInvitePath } from "@/lib/flare-invite-links"
 import { HttpError, warmBackends } from "@/lib/http"
 import { getRedirectTarget, useRedirectQuery } from "@/lib/redirect-path"
 import {
@@ -59,12 +61,22 @@ export default function RegisterPage() {
   // top. Only a live link resolves; anything else keeps the generic copy.
   const [inviterName, setInviterName] = useState<string | null>(null)
   useEffect(() => {
-    const contact = parseContactPath(getRedirectTarget())
-    if (!contact) return
+    const target = getRedirectTarget()
+    const contact = parseContactPath(target)
+    // #616: or from the link to a flare, which names its host the same way.
+    const flareInvite = parseFlareInvitePath(target)
     const controller = new AbortController()
-    fetchContactPreviewName(contact.kind, contact.token, controller.signal)
-      .then((name) => {
-        if (!controller.signal.aborted) setInviterName(name)
+    const lookup = contact
+      ? fetchContactPreviewName(contact.kind, contact.token, controller.signal)
+      : flareInvite
+        ? fetchFlareInvitePreview(flareInvite.token, controller.signal).then(
+            (preview) => preview?.host.displayName ?? null
+          )
+        : null
+    if (!lookup) return
+    lookup
+      .then((inviter) => {
+        if (!controller.signal.aborted) setInviterName(inviter)
       })
       .catch(() => {})
     return () => controller.abort()

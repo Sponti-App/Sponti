@@ -60,6 +60,7 @@ export type StubApiEvent = {
   startAt: string
   endAt: string
   locationName: string
+  locationAddress?: string | null
   location: { type: "Point"; coordinates: [number, number] }
   visibility: "public" | "private"
   allowGuestInvites: "multiple" | "single" | "none"

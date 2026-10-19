@@ -31,6 +31,7 @@ import {
   FlareHeader,
   YourPlan,
 } from "@/components/flare-detail"
+import { FlareInviteButton } from "@/components/flare-invite-button"
 import { FlareMapHero, useFlareDirections } from "@/components/flare-map-hero"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -57,6 +58,7 @@ import {
   type FlareTiming,
   type FlareViewer,
 } from "@/lib/flare-detail"
+import { featureFlags } from "@/lib/feature-flags"
 import { HttpError } from "@/lib/http"
 import { formatDayShort } from "@/lib/format-date"
 import { displayFlareTitle } from "@/lib/flare-title"
@@ -153,6 +155,7 @@ export default function EventDetailPage() {
       event={event}
       viewer={viewer}
       viewerId={user?.id}
+      viewerName={user?.displayName}
       onEventChange={setEvent}
       onReload={reload}
     />
@@ -163,12 +166,14 @@ function FlareDetail({
   event,
   viewer,
   viewerId,
+  viewerName,
   onEventChange,
   onReload,
 }: {
   event: HostedEvent
   viewer: FlareViewer
   viewerId?: string
+  viewerName?: string
   onEventChange: (
     update: (current: HostedEvent | null) => HostedEvent | null
   ) => void
@@ -383,13 +388,26 @@ function FlareDetail({
               <ArrowLeftIcon className="h-4 w-4" />
             </HeroButton>
             {isHost && (
-              <HeroButton
-                label="edit flare"
-                disabled={timing === "ended"}
-                onClick={() => router.push(`/event/${event.id}/edit`)}
-              >
-                <PencilSimpleIcon className="h-4 w-4" />
-              </HeroButton>
+              <div className="flex items-center gap-2">
+                {/* #616: the flare's own invite link, for people who are not
+                    on sponti yet. Not for a flare that is over: its link no
+                    longer works. */}
+                {featureFlags.flareInviteLink &&
+                  timing !== "ended" &&
+                  timing !== "cancelled" && (
+                    <FlareInviteButton
+                      event={event}
+                      hostName={viewerName ?? event.hostName}
+                    />
+                  )}
+                <HeroButton
+                  label="edit flare"
+                  disabled={timing === "ended"}
+                  onClick={() => router.push(`/event/${event.id}/edit`)}
+                >
+                  <PencilSimpleIcon className="h-4 w-4" />
+                </HeroButton>
+              </div>
             )}
           </div>
           {/* "open in maps": always available, near or far. */}
