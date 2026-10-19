@@ -159,4 +159,17 @@ export const featureFlags = {
    * it on.
    */
   floatingIdeas: process.env.NEXT_PUBLIC_FLOATING_IDEAS !== "off",
+
+  /**
+   * A flare's own invite link (#616): the host's "invite" button on the flare
+   * (the phone's share sheet, or "link copied"), "reset link" on the edit
+   * page, and the `/f/<token>` page a guest opens: host and flare for someone
+   * signed out, then "i'm in" through sign-up. Off, nothing links to or
+   * offers it (the api's endpoints stay; the page shows "link unavailable").
+   * On in BOTH profiles, because testers need to send flares to friends who
+   * are not on sponti yet. The opt-out is a kill switch: set
+   * NEXT_PUBLIC_FLARE_INVITE_LINK=off. Anything else, including unset, leaves
+   * it on.
+   */
+  flareInviteLink: process.env.NEXT_PUBLIC_FLARE_INVITE_LINK !== "off",
 } as const

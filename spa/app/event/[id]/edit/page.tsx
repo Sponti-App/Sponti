@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch"
 import { MakePrivateDialog } from "@/components/make-private-dialog"
 import { CancelEventDialog } from "@/components/cancel-event-dialog"
 import { EventGuestsSection } from "@/components/event-guests-section"
+import { FlareInviteLinkReset } from "@/components/flare-invite-link-reset"
 import {
   DURATION_PRESETS,
   NOW_DURATION_PRESETS,
@@ -38,6 +39,7 @@ import {
   type HostedEvent,
   type UpdateEventRequest,
 } from "@/lib/api/events"
+import { featureFlags } from "@/lib/feature-flags"
 import { sessionFetch } from "@/lib/http"
 import { emitEventsChanged } from "@/lib/use-events"
 import { PLACE_SEARCH_UNAVAILABLE } from "@/lib/place-search"
@@ -654,6 +656,9 @@ export default function EventEditPage() {
             canInvite={!isPast && !isCancelled}
             canRemove={!isPast && !isCancelled}
           />
+          {featureFlags.flareInviteLink && !isPast && !isCancelled && (
+            <FlareInviteLinkReset eventId={original.id} />
+          )}
         </Section>
 
         {/* Recurrence is intentionally omitted until the V2 backend model exists. */}

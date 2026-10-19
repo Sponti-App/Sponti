@@ -26,6 +26,10 @@ _Avoid_: QR link (when you mean the invite link).
 A long-lived (7 day), reusable, revocable link a user shares in group chats. Opening it sends the owner a connection request; it never connects instantly. Resetting it revokes the old link and issues a new one.
 _Avoid_: Share link, referral link, QR link.
 
+**Flare invite link**:
+A flare's own unguessable link (#616). Having it counts as being invited, so a host can send it to people who are not on Sponti, to open-to-all and invite-only flares alike. It stops working when the flare ends or is cancelled, and the host can reset it (the old link dies). On an open-to-all flare redeeming it joins the guest as going and sends the host a friend request. On an invite-only flare it never opens the flare by itself: a friend of the host is invited at once, anyone else sends the host a friend request and waits, and the host accepting that request invites them to the flare (declining lets it lapse). Never an automatic friendship.
+_Avoid_: Share link (for the flare page's own `/event/<id>` address, which a link does not replace), invite link (alone, that is the friend invite link).
+
 **RSVP**:
 A user's participation response to a flare (the join action). Carries an arrival-time intent (ETA) for imminent flares.
 _Avoid_: Join status, attendance (as the stored field name).

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { isContactPath } from "@/lib/contact-links"
+import { isFlareInvitePath } from "@/lib/flare-invite-links"
 import { LEGAL_PATHS } from "@/lib/legal-paths"
 import { useOnboardingFlags } from "@/lib/onboarding-flags"
 import {
@@ -30,11 +31,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const { browseBeforeSignup, decided } = useOnboardingFlags()
 
   // #124: QR and invite links open for signed-out visitors, who are sent
-  // on to sign-up from there. #389: with `browseBeforeSignup`, so does the
+  // on to sign-up from there. #616: so does a flare's own invite link. #389: with `browseBeforeSignup`, so does the
   // home map, which then renders its signed-out view.
   const isPublic =
     PUBLIC_PATHS.includes(pathname) ||
     isContactPath(pathname) ||
+    isFlareInvitePath(pathname) ||
     (browseBeforeSignup && pathname === "/")
   const isAuthPage = AUTH_PATHS.includes(pathname)
   // Signing out in this tab is the one move from "authenticated" straight to

@@ -1,5 +1,13 @@
 import { type ClientSession } from "mongoose";
-import { Block, Circle, CircleMember, Event, EventMember, EventUpdate } from "#models/index";
+import {
+  Block,
+  Circle,
+  CircleMember,
+  Event,
+  EventMember,
+  EventUpdate,
+  PendingEventInvite,
+} from "#models/index";
 import type { ArrivalStatus } from "#models/EventMember";
 import type {
   ActiveMapEventsQuery,
@@ -1019,6 +1027,10 @@ export const cancelEvent = async (hostId: string, eventId: string) => {
 
     event.status = "cancelled";
     await event.save({ session });
+
+    // #616: nobody still waiting on the host's answer is invited to a flare
+    // that was called off.
+    await PendingEventInvite.deleteMany({ eventId: event._id }, { session });
 
     await createEventStatusNotifications({
       eventId: String(event._id),

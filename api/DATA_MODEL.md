@@ -346,6 +346,47 @@ Table invite_links {
 }
 ```
 
+## event_invite_links
+
+A flare's own invite link (#616). Its own collection so the token can't ride along on an
+event document.
+
+```text
+Table event_invite_links {
+  _id ObjectId [pk]
+
+  eventId ObjectId [unique, ref: > events._id] // one per flare
+  hostId ObjectId [ref: > users._id]
+
+  token string [unique] // 32 random bytes, base64url; reset replaces it in place
+
+  createdAt datetime
+  updatedAt datetime
+}
+```
+
+## pending_event_invites
+
+An invite to an invite-only flare that waits on the host accepting a friend request (#616).
+Lapses (is deleted) on decline, cancel, flare cancelled; grants nothing once the flare ended.
+
+```text
+Table pending_event_invites {
+  _id ObjectId [pk]
+
+  eventId ObjectId [ref: > events._id]
+  hostId ObjectId [ref: > users._id]
+  guestId ObjectId [ref: > users._id]
+
+  createdAt datetime
+
+  indexes {
+    (eventId, guestId) [unique]
+    (hostId, guestId)
+  }
+}
+```
+
 ## refresh_tokens
 
 Owned by `auth-server`.

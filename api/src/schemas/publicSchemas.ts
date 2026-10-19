@@ -8,6 +8,10 @@ export const contactPreviewBodySchema = z
   })
   .strict();
 
+// POST /public/flare-invite-preview (#616): the token goes in the body so it
+// stays out of URLs and access logs.
+export const flareInvitePreviewBodySchema = z.object({ token: contactTokenSchema }).strict();
+
 export type ContactPreviewBody = z.infer<typeof contactPreviewBodySchema>;
 
 // Query for GET /public/events/map (#425). Same centre-plus-radius shape as
