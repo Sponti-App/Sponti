@@ -137,6 +137,11 @@ waiting | none`); `POST /flare-invites/redeem` is "i'm in". The flare id comes b
   adds them to a circle. A decline, the guest taking the request back, the flare ending, or the
   flare being cancelled lapses it. A host who already declined someone gets no new request and
   no hint.
+- The host's `connection_request` notification carries `metadata.flareInvite`
+  (`eventId`, `eventTitle`, `kind`, `circleIds`): the host's own circles the flare went to, so
+  the feed can offer "add to <circle>" first after accepting. Adding is the ordinary
+  `POST /circles/:id/members`, which checks the circle is the caller's and the guest is an
+  accepted connection; nothing about the flare grants circle membership.
 - Every dead link is the same `404 FLARE_INVITE_NOT_FOUND`: unknown or reset token, ended or
   cancelled flare, a suspended or deleted host, a block either way, a guest the host removed
   (a link never undoes a removal).

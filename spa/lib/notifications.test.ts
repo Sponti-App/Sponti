@@ -204,3 +204,45 @@ describe("adaptApiNotification for rsvp changes", () => {
     expect(notification.actorAvatarUrl).toBeNull()
   })
 })
+
+describe("adaptApiNotification for friend requests from a flare link (#616)", () => {
+  const request = (flareInvite: unknown) =>
+    adaptApiNotification(
+      apiNotification({
+        type: "connection_request",
+        targetType: "connection",
+        metadata: { flareInvite },
+      })
+    )
+
+  it("reads the kind and the circles the flare went to", () => {
+    expect(
+      request({
+        kind: "waiting",
+        eventTitle: "drinks",
+        circleIds: ["c1", 7, "c2"],
+      }).flareInvite
+    ).toEqual({
+      kind: "waiting",
+      eventTitle: "drinks",
+      circleIds: ["c1", "c2"],
+    })
+  })
+
+  it("treats anything else as an ordinary request", () => {
+    expect(request({ kind: "nope" }).flareInvite).toBeUndefined()
+    expect(request(null).flareInvite).toBeUndefined()
+    expect(
+      adaptApiNotification(apiNotification({ type: "connection_request" }))
+        .flareInvite
+    ).toBeUndefined()
+  })
+
+  it("reads a request without circle ids as one with none", () => {
+    expect(request({ kind: "joined" }).flareInvite).toEqual({
+      kind: "joined",
+      eventTitle: null,
+      circleIds: [],
+    })
+  })
+})

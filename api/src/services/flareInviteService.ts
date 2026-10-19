@@ -55,6 +55,7 @@ type LiveFlare = {
   locationName: string;
   visibility: "public" | "private";
   allowGuestInvites?: string | null;
+  invitedCircleIds?: Types.ObjectId[];
 };
 
 /**
@@ -107,7 +108,9 @@ const findLiveFlare = async (token: string): Promise<LiveFlare | null> => {
     status: "active",
     endAt: { $gt: new Date() },
   })
-    .select("_id hostId title type startAt endAt locationName visibility allowGuestInvites")
+    .select(
+      "_id hostId title type startAt endAt locationName visibility allowGuestInvites invitedCircleIds"
+    )
     .lean();
 
   if (!event) {
@@ -290,7 +293,12 @@ const requestFriendship = async (
     await sendConnectionRequest(
       viewerId,
       { receiverId: event.hostId.toString(), type: "shared_invitation" },
-      { eventId: event._id.toString(), eventTitle: event.title, kind }
+      {
+        eventId: event._id.toString(),
+        eventTitle: event.title,
+        kind,
+        circleIds: (event.invitedCircleIds ?? []).map(String),
+      }
     );
     return true;
   } catch (error) {

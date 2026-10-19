@@ -22,13 +22,18 @@ const TYPE_ORDER: Record<CircleType, number> = {
 
 export function orderCircleChoices(
   circles: Circle[],
-  personId?: string | null
+  personId?: string | null,
+  // #616: the circles a flare went to, when the person came through that
+  // flare's invite link. They go first, whatever their size.
+  firstIds: readonly string[] = []
 ): Circle[] {
+  const first = (circle: Circle) => (firstIds.includes(circle.id) ? 0 : 1)
   return circles
     .filter((circle) => circle.type !== "all")
     .filter((circle) => !personId || !circle.memberIds.includes(personId))
     .sort(
       (a, b) =>
+        first(a) - first(b) ||
         b.memberIds.length - a.memberIds.length ||
         TYPE_ORDER[a.type] - TYPE_ORDER[b.type] ||
         a.name.localeCompare(b.name)

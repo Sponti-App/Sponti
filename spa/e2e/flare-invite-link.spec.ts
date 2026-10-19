@@ -297,3 +297,29 @@ test.describe("the host's invite button", () => {
     expect(calls.hostLinkResets).toEqual([EVENT_ID])
   })
 })
+
+// The link preview card is made on the server, which these specs can't stub
+// (page.route only sees the browser), and the stubbed api isn't a real host.
+// So here every link is one that can't be previewed: it must keep the site's
+// generic card, stay out of search, and its image must go to the generic one.
+// The card of a live link is covered by app/f/[token]/*.test.ts.
+test.describe("a flare invite link's preview card", () => {
+  test("falls back to the generic card for a link that can't be previewed", async ({
+    page,
+  }) => {
+    const html = await (await page.request.get(`/f/${INVITE_TOKEN}`)).text()
+
+    expect(html).toMatch(/<meta name="robots" content="noindex, nofollow"/)
+    expect(html).toMatch(/<meta property="og:title" content="sponti"/)
+    expect(html).not.toContain(`/f/${INVITE_TOKEN}/og`)
+  })
+
+  test("sends its image to the generic one", async ({ page }) => {
+    const response = await page.request.get(`/f/${INVITE_TOKEN}/og`, {
+      maxRedirects: 0,
+    })
+
+    expect(response.status()).toBe(307)
+    expect(response.headers()["location"]).toMatch(/\/opengraph-image\.png$/)
+  })
+})
