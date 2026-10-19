@@ -697,8 +697,11 @@ test.describe("quiet home (#522, #561, #562)", () => {
     await expect(
       dock(page).getByRole("button", { name: "drinks", exact: true })
     ).toHaveCount(0)
-    // No peach in the sheet: the nav's flare button is the one.
+    // No filled peach in the sheet: the nav's flare button is the one. The two
+    // flare cards are only outlined in it.
     await expect(quietHome(page).locator(".bg-accent")).toHaveCount(0)
+    await expect(cta(page, "now")).toHaveClass(/border-accent/)
+    await expect(cta(page, "soon")).toHaveClass(/border-accent/)
   })
 
   test("after a fresh sign-in with two new connections: a compact card with profile links", async ({

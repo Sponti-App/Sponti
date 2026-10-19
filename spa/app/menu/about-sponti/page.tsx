@@ -178,6 +178,12 @@ export default function AboutSpontiPage() {
           <p className="text-lg leading-7 font-medium">
             sponti does not want your attention. it wants your presence.
           </p>
+          <p className="text-sm leading-6 font-medium">
+            <span aria-hidden="true">— </span>Patrick
+            <span className="font-normal text-muted-foreground">
+              , who started sponti
+            </span>
+          </p>
         </section>
 
         <div className="h-px bg-border" />

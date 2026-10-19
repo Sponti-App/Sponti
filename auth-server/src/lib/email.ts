@@ -27,3 +27,26 @@ export const sendPasswordResetEmail = async (to: string, resetUrl: string) => {
         throw new Error("Failed to send password reset email", { cause: { status: 500 } });
     }
 };
+
+type FeedbackEmail = {
+    /** The tester's own address, so replying in the inbox reaches them. */
+    replyTo: string;
+    subject: string;
+    text: string;
+};
+
+// Plain text on purpose: the message is whatever the tester typed, and a text
+// body has nothing to escape.
+export const sendFeedbackEmail = async ({ replyTo, subject, text }: FeedbackEmail) => {
+    const { error } = await resend.emails.send({
+        from: FROM_ADDRESS,
+        to: env.FEEDBACK_TO,
+        replyTo,
+        subject,
+        text,
+    });
+
+    if (error) {
+        throw new Error("Failed to send feedback", { cause: { status: 502 } });
+    }
+};

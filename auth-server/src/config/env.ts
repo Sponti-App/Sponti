@@ -21,6 +21,11 @@ const envSchema = z.object({
     GOOGLE_CLIENT_ID: optionalString(),
     RESEND_API_KEY: requiredString("RESEND_API_KEY"),
     EMAIL_FROM: requiredString("EMAIL_FROM"),
+    // Where in-app feedback lands. Unset, it goes to the support inbox.
+    FEEDBACK_TO: z.preprocess(
+        (value) => (value === "" || value == null ? undefined : value),
+        z.string().email().default("hello@sponti.fun")
+    ),
     CLOUDINARY_CLOUD_NAME: requiredString("CLOUDINARY_CLOUD_NAME"),
     CLOUDINARY_API_KEY: requiredString("CLOUDINARY_API_KEY"),
     CLOUDINARY_API_SECRET: requiredString("CLOUDINARY_API_SECRET"),

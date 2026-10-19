@@ -3,7 +3,7 @@ import crypto from "crypto";
 import type { Request, Response } from "express";
 import { OAuth2Client, type LoginTicket } from "google-auth-library";
 import { User, NotificationSettings, RefreshToken, PasswordResetToken } from "#models";
-import { sendPasswordResetEmail } from "#lib/email";
+import { sendFeedbackEmail, sendPasswordResetEmail } from "#lib/email";
 import {
     createAccessToken,
     createRefreshToken,
@@ -569,4 +569,42 @@ export const deleteAccount = async (req: Request, res: Response) => {
     }
 
     res.status(204).end();
+};
+
+// POST /auth/feedback: a signed-in tester's bug report, confusion or idea,
+// mailed to the support inbox with the tester as reply-to.
+export const sendFeedback = async (req: Request, res: Response) => {
+    const { kind, message, page, build, device } = req.body as {
+        kind: string;
+        message: string;
+        page?: string;
+        build?: string;
+        device?: string;
+    };
+
+    const user = await User.findById(req.userId).select("displayName username email");
+
+    if (!user) {
+        throw new Error("User not found", { cause: { status: 404 } });
+    }
+
+    // A header can't hold a line break, and the tester controls the message.
+    const preview = message.replace(/\s+/g, " ").slice(0, 60);
+    const subject = `[sponti ${kind}] ${preview}`;
+    const text = [
+        message,
+        "",
+        "---",
+        `from: ${user.displayName} (@${user.username}) <${user.email}>`,
+        `user id: ${user.id}`,
+        page ? `screen: ${page}` : null,
+        `sponti build: ${build || "unknown"}`,
+        device || null,
+    ]
+        .filter((line) => line !== null)
+        .join("\n");
+
+    await sendFeedbackEmail({ replyTo: user.email, subject, text });
+
+    res.status(202).json({ message: "Thanks, we got it." });
 };

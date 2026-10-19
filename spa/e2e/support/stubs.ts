@@ -296,6 +296,8 @@ export type StubBackendHandle = {
   profilePatches: Array<Record<string, unknown>>
   /** Body of every DELETE /auth/me (#449) the app sent, in order. */
   deleteAccountRequests: Array<Record<string, unknown>>
+  /** Body of every POST /auth/feedback the app sent, in order. */
+  feedbackRequests: Array<Record<string, unknown>>
   /** Changes how many accepted connections GET /connections lists. */
   setFriends: (count: number) => void
 }
@@ -333,6 +335,7 @@ export async function stubBackend(
 ): Promise<StubBackendHandle> {
   const profilePatches: Array<Record<string, unknown>> = []
   const deleteAccountRequests: Array<Record<string, unknown>> = []
+  const feedbackRequests: Array<Record<string, unknown>> = []
   const ownProfile: StubOwnProfile = {
     bio: null,
     instagram: null,
@@ -458,6 +461,16 @@ export async function stubBackend(
       } else {
         await fulfillJson(route, { message: "that password isn't right" }, 403)
       }
+      return
+    }
+    if (
+      url.pathname === "/auth/feedback" &&
+      route.request().method() === "POST"
+    ) {
+      feedbackRequests.push(
+        route.request().postDataJSON() as Record<string, unknown>
+      )
+      await fulfillJson(route, { message: "Thanks, we got it." }, 202)
       return
     }
     if (url.pathname === "/auth/me") {
@@ -726,6 +739,7 @@ export async function stubBackend(
   return {
     profilePatches,
     deleteAccountRequests,
+    feedbackRequests,
     setFriends: (count) => {
       connections = makeConnections(count)
     },

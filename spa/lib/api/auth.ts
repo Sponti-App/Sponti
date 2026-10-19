@@ -108,6 +108,29 @@ export function updateProfile(
   })
 }
 
+export type FeedbackKind = "bug" | "confusing" | "idea"
+
+export type FeedbackPayload = {
+  kind: FeedbackKind
+  message: string
+  /** Where the tester was, the build and the device: mailed under the message. */
+  page?: string
+  build?: string
+  device?: string
+}
+
+// In-app feedback: the auth-server mails it to the support inbox with the
+// signed-in tester as reply-to.
+export function sendFeedback(
+  payload: FeedbackPayload
+): Promise<{ message: string }> {
+  return authFetch<{ message: string }>("/auth/feedback", {
+    method: "POST",
+    auth: true,
+    body: payload,
+  })
+}
+
 // #449: deletes the signed-in account. Accounts with a password confirm with
 // it; Google-only accounts with their @username. The server ends every
 // session, so the caller clears the local one afterwards.
