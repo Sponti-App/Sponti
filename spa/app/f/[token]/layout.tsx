@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { headers } from "next/headers"
 import {
   fetchFlareInvitePreviewOnServer,
   flareInviteCard,
@@ -32,7 +33,9 @@ export async function generateMetadata({
   if (!preview) return { robots: ROBOTS }
 
   const card = flareInviteCard(preview)
-  const image = `/f/${encodeURIComponent(token)}/og`
+  // On the site the link was opened on: the root layout's metadataBase is the
+  // production domain, which a preview deploy's link may not exist on.
+  const image = `${await requestOrigin()}/f/${encodeURIComponent(token)}/og`
   return {
     title: card.title,
     description: card.description,
@@ -51,6 +54,15 @@ export async function generateMetadata({
       images: [image],
     },
   }
+}
+
+/** "https://<host>" of this request, or "" to fall back on metadataBase. */
+async function requestOrigin(): Promise<string> {
+  const h = await headers()
+  const host = h.get("x-forwarded-host") ?? h.get("host")
+  if (!host) return ""
+  const proto = h.get("x-forwarded-proto")?.split(",")[0]?.trim() ?? "https"
+  return `${proto}://${host}`
 }
 
 export default function FlareInviteLayout({

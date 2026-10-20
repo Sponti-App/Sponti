@@ -29,7 +29,7 @@ export const viewport: Viewport = {
 // Shared link-preview copy (#127). This is intentionally the same for every
 // route, including `/event/[id]` — event links must stay generic (no title,
 // location, or host) so private event details never leak into a chat preview.
-// The image is the static `app/opengraph-image.png` / `app/twitter-image.png`
+// The image is the static `app/opengraph-image.jpg` / `app/twitter-image.jpg`
 // (Next's file convention, #558), which every page inherits unless it defines
 // its own — no page does, so the same image is used everywhere.
 const title = "sponti"

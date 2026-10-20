@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { generateMetadata } from "./layout"
 
+const requestHeaders = vi.hoisted(() => ({
+  current: new Headers({
+    host: "sponti-git-dev.vercel.app",
+    "x-forwarded-proto": "https",
+  }),
+}))
+vi.mock("next/headers", () => ({
+  headers: async () => requestHeaders.current,
+}))
+
 // #616: the link preview of a flare's invite link. A live link gets its own
 // card; every other link keeps the site's generic one.
 
@@ -34,19 +44,25 @@ describe("flare invite link metadata (#616)", () => {
     const metadata = await forToken("tok_123")
 
     expect(metadata.title).toBe(
-      "patrick invited you to drinks at klunkerkranich"
+      "Patrick invited you to drinks at klunkerkranich"
     )
     expect(metadata.description).toMatch(
-      /^drinks · sat 7:00\s?pm · klunkerkranich$/
+      /^Drinks · Saturday, October 24 at 7:00\s?PM · klunkerkranich$/
     )
     expect(metadata.robots).toEqual({ index: false, follow: false })
     expect(metadata.openGraph).toMatchObject({
-      title: "patrick invited you to drinks at klunkerkranich",
-      images: [{ url: "/f/tok_123/og", width: 1200, height: 630 }],
+      title: "Patrick invited you to drinks at klunkerkranich",
+      images: [
+        {
+          url: "https://sponti-git-dev.vercel.app/f/tok_123/og",
+          width: 1200,
+          height: 630,
+        },
+      ],
     })
     expect(metadata.twitter).toMatchObject({
       card: "summary_large_image",
-      images: ["/f/tok_123/og"],
+      images: ["https://sponti-git-dev.vercel.app/f/tok_123/og"],
     })
   })
 

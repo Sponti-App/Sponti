@@ -59,7 +59,7 @@ describe("flare invite link image (#616)", () => {
 
     expect(response.status).toBe(307)
     expect(response.headers.get("location")).toBe(
-      "https://app.sponti.test/opengraph-image.png"
+      "https://app.sponti.test/opengraph-image.jpg"
     )
   })
 

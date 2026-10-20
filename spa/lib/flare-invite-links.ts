@@ -1,6 +1,10 @@
 import type { EventType } from "@/lib/api/events"
 import { contactLinkOrigin } from "@/lib/contact-links"
-import { formatClock, formatDayShort } from "@/lib/format-date"
+import {
+  formatClock,
+  formatDayShort,
+  type DateLabelZone,
+} from "@/lib/format-date"
 import { displayFlareTitle } from "@/lib/flare-title"
 
 // A flare's own invite link (#616): `/f/<token>`. Having the link counts as
@@ -105,14 +109,28 @@ function messageWhen(
   const start = new Date(flare.startAt)
   if (now >= start.getTime() && now <= new Date(flare.endAt).getTime())
     return ", happening now"
-  const day = start.toLocaleDateString(undefined, {
+  return ` on ${inviteDateTime(start)}`
+}
+
+/**
+ * "Saturday, October 31 at 7:00 PM": when, written out for people reading it
+ * in another app (the share message, the link's preview card). Not lowercase.
+ */
+export function inviteDateTime(
+  value: string | Date,
+  zone?: DateLabelZone
+): string {
+  const start = new Date(value)
+  const day = start.toLocaleDateString(zone?.locale, {
     weekday: "long",
     month: "long",
     day: "numeric",
+    timeZone: zone?.timeZone,
   })
-  const time = start.toLocaleTimeString(undefined, {
+  const time = start.toLocaleTimeString(zone?.locale, {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: zone?.timeZone,
   })
-  return ` on ${day} at ${time}`
+  return `${day} at ${time}`
 }
