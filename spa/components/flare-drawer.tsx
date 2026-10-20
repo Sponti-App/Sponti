@@ -121,6 +121,14 @@ export function FlareDrawer({
     onCoverChange(cover)
   }, [cover, onCoverChange])
 
+  // Below full the content doesn't scroll, so leaving full with it scrolled
+  // down would keep the header cut off. Back to the top as the drawer drops.
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (snap !== "full")
+      scrollerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+  }, [snap])
+
   const loaded = useHostedEvent(eventId)
   const event = loaded.event
   useEffect(() => {
@@ -204,6 +212,7 @@ export function FlareDrawer({
             <XIcon className="h-4 w-4" />
           </button>
           <div
+            ref={scrollerRef}
             // Scrolls only at full; below that a drag moves the drawer.
             className={cn(
               "min-h-0 flex-1 px-4",
