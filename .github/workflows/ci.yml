@@ -59,7 +59,9 @@ jobs:
   spa-e2e:
     name: spa (browser smoke tests)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # ~3 min of setup plus ~12 min of tests (two dev servers, 450+ tests) by
+    # 2026-10-20: 15 cut the run off just before the end.
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: spa

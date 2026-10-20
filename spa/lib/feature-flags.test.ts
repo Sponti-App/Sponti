@@ -55,17 +55,16 @@ describe("featureFlags profile", () => {
     expect(featureFlags.coachMarks).toBe(true)
   })
 
-  it("keeps the flare drawer (#615) off in the tester build, on in full and the dev deploy", async () => {
+  it("has the flare drawer (#615) on in both profiles, unless switched off", async () => {
     vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", undefined)
-    vi.stubEnv("NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF", undefined)
-    expect((await loadFlags()).featureFlags.flareDrawer).toBe(false)
-
-    vi.stubEnv("NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF", "dev")
+    vi.stubEnv("NEXT_PUBLIC_FLARE_DRAWER", undefined)
     expect((await loadFlags()).featureFlags.flareDrawer).toBe(true)
 
-    vi.stubEnv("NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF", undefined)
     vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "full")
     expect((await loadFlags()).featureFlags.flareDrawer).toBe(true)
+
+    vi.stubEnv("NEXT_PUBLIC_FLARE_DRAWER", "off")
+    expect((await loadFlags()).featureFlags.flareDrawer).toBe(false)
   })
 
   it("keeps seedDemoData reading its own env var, independent of the profile", async () => {

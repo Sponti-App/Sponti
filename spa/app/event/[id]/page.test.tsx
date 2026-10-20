@@ -20,6 +20,12 @@ const mocks = vi.hoisted(() => ({
   userId: "guest-1",
 }))
 
+// The flare page as it is with the drawer switched off (#615's kill switch);
+// with it on, the page only hands over to the drawer.
+vi.mock("@/lib/feature-flags", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/feature-flags")>()
+  return { featureFlags: { ...actual.featureFlags, flareDrawer: false } }
+})
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "event-1" }),
   useRouter: () => ({ push: mocks.push }),

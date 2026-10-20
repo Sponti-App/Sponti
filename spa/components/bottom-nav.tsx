@@ -16,6 +16,13 @@ import { haptic } from "@/lib/haptics"
 import { useSuggestedFlareType } from "@/lib/suggested-flare-type"
 import { EVENT_TYPES } from "@/types/utils"
 
+/**
+ * Sent when home is tapped while already on the home map, which the push
+ * alone wouldn't change: the map closes an open flare drawer (#615). The old
+ * modal sheet closed on any tap outside it; the drawer is non-modal.
+ */
+export const HOME_TAB_AGAIN_EVENT = "sponti:home-tab-again"
+
 type NavItem =
   | {
       kind: "route"
@@ -221,6 +228,8 @@ function NavBar({ items }: { items: NavItem[] }) {
           item.kind === "route"
             ? () => {
                 haptic("selection")
+                if (item.href === "/" && pathname === "/")
+                  window.dispatchEvent(new Event(HOME_TAB_AGAIN_EVENT))
                 router.push(item.href)
               }
             : () => {

@@ -7,7 +7,12 @@ import {
 } from "./support/stubs"
 
 // #265: a guest in "who's going" opens their profile, the way the host row
-// does (#199). Your own row and a guest without a username stay plain.
+// does (#199). Your own row and a guest without a username stay plain. The
+// flare opens in the drawer (#615), whose guest list is the flare page's.
+
+const FLARE_ID = "eeeeeeeeeeeeeeeeeeeeeeee"
+const drawer = (page: import("@playwright/test").Page) =>
+  page.locator(`[data-flare-drawer="${FLARE_ID}"]`)
 
 const HOST = {
   _id: "user-e2e-host",
@@ -50,7 +55,7 @@ const GUESTS = [
 
 const flare = (hostId: typeof HOST | string = HOST) =>
   makeStubFlare({
-    _id: "event-guest-link",
+    _id: FLARE_ID,
     title: "drinks after work",
     hostId,
     goingCount: GUESTS.length,
@@ -58,25 +63,33 @@ const flare = (hostId: typeof HOST | string = HOST) =>
   })
 
 test.describe("guest profile link (#265)", () => {
-  test("on the flare page, a guest opens their profile; you and a username-less guest stay plain", async ({
+  test("in the flare drawer, a guest opens their profile; you and a username-less guest stay plain", async ({
     page,
   }) => {
     await stubBackend(page, {
       events: [flare()],
       profiles: { maya: guestProfile },
     })
-    await page.goto("/event/event-guest-link")
+    await page.goto(`/event/${FLARE_ID}`)
 
-    const maya = page.getByRole("link", { name: "maya chen, open profile" })
+    const maya = drawer(page).getByRole("link", {
+      name: "maya chen, open profile",
+    })
     await expect(maya).toBeVisible()
     // Own row and the username-less guest render, but not as links.
-    await expect(page.getByText("you", { exact: true })).toBeVisible()
-    await expect(page.getByText("ghost", { exact: true })).toBeVisible()
+    await expect(drawer(page).getByText("you", { exact: true })).toBeAttached()
     await expect(
-      page.getByRole("link", { name: /flare tester|you, open profile/ })
+      drawer(page).getByText("ghost", { exact: true })
+    ).toBeAttached()
+    await expect(
+      drawer(page).getByRole("link", { name: /flare tester|you, open profile/ })
     ).toHaveCount(0)
-    await expect(page.getByRole("link", { name: /ghost guest/ })).toHaveCount(0)
-    await expect(page.getByRole("link", { name: /open profile/ })).toHaveCount(
+    await expect(
+      drawer(page).getByRole("link", { name: /ghost guest/ })
+    ).toHaveCount(0)
+    await expect(
+      drawer(page).getByRole("link", { name: /open profile/ })
+    ).toHaveCount(
       // the host card link is "hosted by ..." (no aria-label), so only maya
       1
     )
@@ -94,7 +107,7 @@ test.describe("guest profile link (#265)", () => {
     await stubBackend(page, {
       events: [
         makeStubFlare({
-          _id: "event-guest-link",
+          _id: FLARE_ID,
           title: "drinks after work",
           hostId: STUB_USER.id,
           goingCount: 1,
@@ -111,12 +124,18 @@ test.describe("guest profile link (#265)", () => {
       ],
       profiles: { maya: guestProfile },
     })
-    await page.goto("/event/event-guest-link")
+    await page.goto(`/event/${FLARE_ID}`)
 
-    const maya = page.getByRole("link", { name: "maya chen, open profile" })
-    await expect(maya).toBeVisible()
+    const maya = drawer(page).getByRole("link", {
+      name: "maya chen, open profile",
+    })
+    await expect(maya).toBeAttached()
     // The ETA is beside the link, not part of it.
-    const row = page.getByRole("listitem").filter({ has: maya })
+    const row = drawer(page)
+      .getByRole("listitem")
+      .filter({
+        has: page.getByRole("link", { name: "maya chen, open profile" }),
+      })
     await expect(row).toContainText(/\d+ min|\d+:\d+|in /)
     await expect(maya).not.toContainText(/min/)
 
@@ -124,7 +143,7 @@ test.describe("guest profile link (#265)", () => {
     await expect(page).toHaveURL(/\/profile\/maya$/, NAV)
   })
 
-  test("on the map's flare sheet, tapping a guest closes the sheet and opens their profile", async ({
+  test("opened from the map, tapping a guest leaves the drawer for their profile", async ({
     page,
   }) => {
     await stubBackend(page, {
@@ -137,38 +156,18 @@ test.describe("guest profile link (#265)", () => {
       .getByRole("region", { name: "flares near you" })
       .getByText("drinks after work")
       .click()
-    const sheet = page.getByRole("dialog")
-    await expect(sheet).toBeVisible()
-    // Only guests with somewhere to go are links.
-    await expect(sheet.getByRole("link", { name: /open profile/ })).toHaveCount(
-      2
-    ) // the host row, and maya's name
+    await expect(drawer(page)).toBeVisible()
+    // The host row isn't counted: its link has no "open profile" label.
+    await expect(
+      drawer(page).getByRole("link", { name: /open profile/ })
+    ).toHaveCount(1)
 
-    await sheet.getByRole("link", { name: "maya chen, open profile" }).click()
+    await drawer(page)
+      .getByRole("link", { name: "maya chen, open profile" })
+      .click()
 
     await expect(page).toHaveURL(/\/profile\/maya$/, NAV)
-    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await expect(drawer(page)).toHaveCount(0)
     await expect(page.getByText("@maya")).toBeVisible()
-  })
-
-  test("on the sheet, the avatar in the stack is a tap shortcut to the same profile", async ({
-    page,
-  }) => {
-    await stubBackend(page, {
-      mapEvents: [flare()],
-      profiles: { maya: guestProfile },
-    })
-    await page.goto("/")
-
-    await page
-      .getByRole("region", { name: "flares near you" })
-      .getByText("drinks after work")
-      .click()
-    const sheet = page.getByRole("dialog")
-    // Hidden from the accessibility tree: the name link is the accessible one.
-    await sheet.locator('a[href="/profile/maya"][aria-hidden="true"]').click()
-
-    await expect(page).toHaveURL(/\/profile\/maya$/, NAV)
-    await expect(page.getByRole("dialog")).toHaveCount(0)
   })
 })

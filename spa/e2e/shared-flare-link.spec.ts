@@ -84,9 +84,9 @@ test.describe("shared flare link", () => {
     await expect(sheet(page)).toContainText("sign up to join")
     await expect(
       sheet(page).getByRole("link", { name: "i have an account" })
-    ).toHaveAttribute("href", `/login?redirectTo=%2Fevent%2F${ID}`)
+    ).toHaveAttribute("href", `/login?redirectTo=%2F%3Fflare%3D${ID}`)
     await sheet(page).getByRole("link", { name: "create an account" }).click()
-    await expect(page).toHaveURL(`/register?redirectTo=%2Fevent%2F${ID}`)
+    await expect(page).toHaveURL(`/register?redirectTo=%2F%3Fflare%3D${ID}`)
     expect(offending).toEqual([])
 
     await page.getByLabel("your name").fill("Sam")
@@ -95,7 +95,7 @@ test.describe("shared flare link", () => {
     await page.getByLabel("password").fill("password123")
     await page.getByRole("button", { name: /create account/i }).click()
 
-    await expect(page).toHaveURL(`/event/${ID}`)
+    await expect(page).toHaveURL(`/?flare=${ID}`)
     await expect(page.getByText("drinks at the canal").first()).toBeVisible()
   })
 
@@ -137,7 +137,7 @@ test.describe("shared flare link", () => {
     await slides(page)
       .getByRole("button", { name: /i have an account/i })
       .click()
-    await expect(page).toHaveURL(`/login?redirectTo=%2Fevent%2F${ID}`)
+    await expect(page).toHaveURL(`/login?redirectTo=%2F%3Fflare%3D${ID}`)
   })
 
   test("a flare later than the map's window is there, with its start time", async ({
@@ -183,7 +183,7 @@ test.describe("shared flare link", () => {
     await expect(card(page)).toContainText("this flare isn't open")
     await expect(
       card(page).getByRole("link", { name: "sign in" })
-    ).toHaveAttribute("href", `/login?redirectTo=%2Fevent%2F${ID}`)
+    ).toHaveAttribute("href", `/login?redirectTo=%2F%3Fflare%3D${ID}`)
   })
 
   test("signed in, the link goes straight to the flare", async ({ page }) => {
@@ -192,7 +192,7 @@ test.describe("shared flare link", () => {
     })
     await page.goto(`/?flare=${ID}`)
 
-    await expect(page).toHaveURL(`/event/${ID}`)
+    await expect(page).toHaveURL(`/?flare=${ID}`)
     await expect(page.getByText("drinks at the canal").first()).toBeVisible()
   })
 })
