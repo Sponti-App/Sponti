@@ -14,6 +14,8 @@ import {
 // invite-only flare waits on the host instead of opening.
 
 const EVENT_ID = "6650a1b2c3d4e5f6a7b8c9d0"
+// A flare opens in the drawer on the home map (#615).
+const drawer = (page: Page) => page.locator(`[data-flare-drawer="${EVENT_ID}"]`)
 const HOST = {
   _id: "user-e2e-host",
   username: "patrick",
@@ -90,9 +92,11 @@ test.describe("a flare's invite link, signed out", () => {
     await page.getByLabel("password").fill("password123")
     await page.getByRole("button", { name: /create account/i }).click()
 
-    await expect(page).toHaveURL(`/event/${EVENT_ID}`)
+    await expect(page).toHaveURL(`/?flare=${EVENT_ID}`)
     await expect(
-      page.getByRole("heading", { name: "drinks at klunkerkranich" })
+      drawer(page).locator("h2:not(.sr-only)", {
+        hasText: "drinks at klunkerkranich",
+      })
     ).toBeVisible()
     // Redeemed once, with the new session, as soon as they were signed in.
     expect(calls.redeems).toHaveLength(1)
@@ -119,7 +123,7 @@ test.describe("a flare's invite link, signed out", () => {
     await page.getByLabel("password").fill("password123")
     await page.getByRole("button", { name: /sign in/i }).click()
 
-    await expect(page).toHaveURL(`/event/${EVENT_ID}`)
+    await expect(page).toHaveURL(`/?flare=${EVENT_ID}`)
     expect(calls.redeems).toHaveLength(1)
   })
 
@@ -170,7 +174,7 @@ test.describe("a flare's invite link, signed in", () => {
 
     await page.goto(`/f/${INVITE_TOKEN}`)
 
-    await expect(page).toHaveURL(`/event/${EVENT_ID}`)
+    await expect(page).toHaveURL(`/?flare=${EVENT_ID}`)
   })
 })
 
@@ -221,7 +225,7 @@ test.describe("the host's invite button", () => {
     const calls = await stubFlareInvite(page)
 
     await page.goto(`/event/${EVENT_ID}`)
-    const invite = page.getByRole("button", { name: "invite" })
+    const invite = drawer(page).getByRole("button", { name: "invite" })
     await expect(invite).toBeEnabled()
     // Fetched before the tap, so the share sheet opens inside the gesture.
     expect(new Set(calls.hostLinkReads)).toEqual(new Set([EVENT_ID]))
@@ -234,10 +238,10 @@ test.describe("the host's invite button", () => {
     expect(shares).toHaveLength(1)
     const [shared] = shares as Array<{ text: string; url: string }>
     expect(shared.url).toBe(`${new URL(page.url()).origin}/f/${INVITE_TOKEN}`)
+    // Read in another app, so a normal sentence with the full date (#621).
     expect(shared.text).toMatch(
-      /^flare invited you to drinks at klunkerkranich, \w{3} /
+      /^Flare invited you to drinks at klunkerkranich on \w+day, /
     )
-    expect(shared.text).toBe(shared.text.toLowerCase())
   })
 
   test("copies the link and says so when there is no share sheet", async ({
@@ -248,7 +252,7 @@ test.describe("the host's invite button", () => {
     await stubFlareInvite(page)
 
     await page.goto(`/event/${EVENT_ID}`)
-    const invite = page.getByRole("button", { name: "invite" })
+    const invite = drawer(page).getByRole("button", { name: "invite" })
     await expect(invite).toBeEnabled()
     await invite.click()
 
@@ -268,9 +272,13 @@ test.describe("the host's invite button", () => {
     await page.goto(`/event/${EVENT_ID}`)
 
     await expect(
-      page.getByRole("heading", { name: "drinks at klunkerkranich" })
+      drawer(page).locator("h2:not(.sr-only)", {
+        hasText: "drinks at klunkerkranich",
+      })
     ).toBeVisible()
-    await expect(page.getByRole("button", { name: "invite" })).toHaveCount(0)
+    await expect(
+      drawer(page).getByRole("button", { name: "invite" })
+    ).toHaveCount(0)
     expect(calls.hostLinkReads).toEqual([])
   })
 
@@ -320,6 +328,6 @@ test.describe("a flare invite link's preview card", () => {
     })
 
     expect(response.status()).toBe(307)
-    expect(response.headers()["location"]).toMatch(/\/opengraph-image\.png$/)
+    expect(response.headers()["location"]).toMatch(/\/opengraph-image\.jpg$/)
   })
 })

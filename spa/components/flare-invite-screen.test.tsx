@@ -125,7 +125,7 @@ describe("FlareInviteScreen signed in (#616)", () => {
     await user.click(await screen.findByRole("button", { name: "i'm in" }))
 
     await waitFor(() =>
-      expect(mocks.replace).toHaveBeenCalledWith("/event/event-1")
+      expect(mocks.replace).toHaveBeenCalledWith("/?flare=event-1")
     )
   })
 
@@ -152,7 +152,7 @@ describe("FlareInviteScreen signed in (#616)", () => {
     render(<FlareInviteScreen token="tok" redeemOnOpen />)
 
     await waitFor(() =>
-      expect(mocks.replace).toHaveBeenCalledWith("/event/event-2")
+      expect(mocks.replace).toHaveBeenCalledWith("/?flare=event-2")
     )
     expect(mocks.redeemFlareInvite).toHaveBeenCalledTimes(1)
     expect(mocks.fetchFlareInviteStatus).not.toHaveBeenCalled()
@@ -164,7 +164,7 @@ describe("FlareInviteScreen signed in (#616)", () => {
     render(<FlareInviteScreen token="tok" />)
 
     await waitFor(() =>
-      expect(mocks.replace).toHaveBeenCalledWith("/event/event-3")
+      expect(mocks.replace).toHaveBeenCalledWith("/?flare=event-3")
     )
   })
 

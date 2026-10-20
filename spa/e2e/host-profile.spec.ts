@@ -7,7 +7,9 @@ import {
 
 // #199: tapping a flare's host opens their profile, and for a host the
 // viewer isn't connected to that profile is real (name, @username, add
-// friend), not "user not found".
+// friend), not "user not found". The flare opens in the drawer (#615).
+
+const FLARE_ID = "dddddddddddddddddddddddd"
 
 const HOST = {
   _id: "user-e2e-host",
@@ -29,13 +31,13 @@ const strangerProfile: StubUserProfile = {
 
 const flare = () =>
   makeStubFlare({
-    _id: "event-host-link",
+    _id: FLARE_ID,
     title: "drinks after work",
     hostId: HOST,
   })
 
 test.describe("host profile link (#199)", () => {
-  test("from the map's flare sheet, a stranger host's profile opens with add friend", async ({
+  test("from the flare drawer, a stranger host's profile opens with add friend", async ({
     page,
   }) => {
     await stubBackend(page, {
@@ -49,7 +51,8 @@ test.describe("host profile link (#199)", () => {
       .getByText("drinks after work")
       .click()
     await page
-      .getByRole("link", { name: /hosted by sarah kim, open profile/ })
+      .locator(`[data-flare-drawer="${FLARE_ID}"]`)
+      .getByRole("link", { name: /hosted by sarah kim/ })
       .click()
 
     await expect(page).toHaveURL(/\/profile\/sarah$/)
@@ -59,16 +62,19 @@ test.describe("host profile link (#199)", () => {
     await expect(page.getByText("user not found")).toHaveCount(0)
   })
 
-  test("from the full flare page, the host row opens their profile", async ({
+  test("from a flare link, the host row opens their profile", async ({
     page,
   }) => {
     await stubBackend(page, {
       events: [flare()],
       profiles: { sarah: strangerProfile },
     })
-    await page.goto("/event/event-host-link")
+    await page.goto(`/event/${FLARE_ID}`)
 
-    await page.getByRole("link", { name: /hosted by sarah kim/ }).click()
+    await page
+      .locator(`[data-flare-drawer="${FLARE_ID}"]`)
+      .getByRole("link", { name: /hosted by sarah kim/ })
+      .click()
 
     await expect(page).toHaveURL(/\/profile\/sarah$/)
     await expect(page.getByRole("button", { name: "add friend" })).toBeVisible()

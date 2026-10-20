@@ -6,6 +6,7 @@ import { HomeCoachMarks } from "@/components/coach-marks"
 import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
+import { HOME_TAB_AGAIN_EVENT } from "@/components/bottom-nav"
 import { FlareDrawer } from "@/components/flare-drawer"
 import type { FlareTab } from "@/components/flare-detail-parts"
 import { MenuDrawer } from "@/components/menu-drawer"
@@ -162,13 +163,24 @@ function SignedInHome() {
     else router.replace("/", { scroll: false })
   }
 
-  const closeFlare = () => {
+  /** `goBack`: a link opened from inside the app returns there. */
+  const closeFlare = (goBack = true) => {
     if (!openFlare) return
     setOpenFlare({ ...openFlare, open: false })
     setDrawerCover(0)
     if (openFlare.from === "calendar") setView("calendar")
-    leaveLink(openFlare, true)
+    leaveLink(openFlare, goBack)
   }
+  // Home tapped while home: close the drawer and stay on the map.
+  const closeFlareRef = useRef(closeFlare)
+  useEffect(() => {
+    closeFlareRef.current = closeFlare
+  })
+  useEffect(() => {
+    const onHomeAgain = () => closeFlareRef.current(false)
+    window.addEventListener(HOME_TAB_AGAIN_EVENT, onHomeAgain)
+    return () => window.removeEventListener(HOME_TAB_AGAIN_EVENT, onHomeAgain)
+  }, [])
 
   const handleFlareLoaded = useCallback((event: HostedEvent) => {
     setOpenFlare((prev) =>
