@@ -13,6 +13,25 @@ function pngSize(file: string) {
   return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) }
 }
 
+// JPEG width/height live in the first start-of-frame segment (SOF0-SOF15,
+// except DHT/JPG/DAC): height at +5, width at +7.
+function jpegSize(file: string) {
+  const buf = readFileSync(file)
+  let at = 2
+  while (at < buf.length) {
+    const marker = buf[at + 1]
+    const sof =
+      marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)
+    if (sof)
+      return {
+        width: buf.readUInt16BE(at + 7),
+        height: buf.readUInt16BE(at + 5),
+      }
+    at += 2 + buf.readUInt16BE(at + 2)
+  }
+  return null
+}
+
 describe("web app manifest (#131)", () => {
   const m = manifest()
 
@@ -58,10 +77,10 @@ describe("brand images (#558)", () => {
 
   it("serves one static 1200x630 link-preview image for og and twitter", () => {
     for (const name of ["opengraph-image", "twitter-image"]) {
-      expect(pngSize(path.join(appDir, `${name}.png`))).toEqual({
-        width: 1200,
-        height: 630,
-      })
+      const file = path.join(appDir, `${name}.jpg`)
+      expect(jpegSize(file)).toEqual({ width: 1200, height: 630 })
+      // WhatsApp and Telegram drop preview images much over 300 KB.
+      expect(readFileSync(file).length).toBeLessThan(300_000)
       expect(existsSync(path.join(appDir, `${name}.alt.txt`))).toBe(true)
       // The generated routes would shadow the static files.
       expect(existsSync(path.join(appDir, `${name}.tsx`))).toBe(false)

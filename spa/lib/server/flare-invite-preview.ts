@@ -2,8 +2,9 @@ import {
   adaptFlareInvitePreview,
   type FlareInvitePreview,
 } from "@/lib/api/flare-invites"
-import { displayFlareTitle, hostFirstName } from "@/lib/flare-title"
-import { formatWeekdayClock, type DateLabelZone } from "@/lib/format-date"
+import { inviteDateTime } from "@/lib/flare-invite-links"
+import { displayFlareTitle } from "@/lib/flare-title"
+import type { DateLabelZone } from "@/lib/format-date"
 import { EVENT_TYPES } from "@/types/utils"
 
 // #616: the link preview of a flare's invite link (`/f/<token>`), the card a
@@ -72,11 +73,11 @@ export async function fetchFlareInvitePreviewOnServer(
 export type FlareInviteCard = {
   /** "patrick invited you to drinks at klunkerkranich" */
   title: string
-  /** "drinks · sat 7:00 pm · klunkerkranich" */
+  /** "Drinks · Saturday, October 24 at 7:00 PM · klunkerkranich" */
   description: string
   /** The host as written, for the image's photo placeholder. */
   hostName: string
-  /** "patrick invited you" */
+  /** "Patrick invited you" */
   invitedLine: string
   /** The title as the host wrote it. */
   flareTitle: string
@@ -84,14 +85,16 @@ export type FlareInviteCard = {
   meta: string
 }
 
-/** The words of the preview, lowercase except what the host typed. */
+/**
+ * The words of the preview. It is read in a chat app, so like the share
+ * message it is written as normal sentences, not in sponti's lowercase, and
+ * names, titles and places stay as typed.
+ */
 export function flareInviteCard(
   preview: FlareInvitePreview,
   now: number = Date.now()
 ): FlareInviteCard {
-  const first =
-    hostFirstName(preview.host.displayName) ??
-    preview.host.displayName.trim().toLowerCase()
+  const first = preview.host.displayName.trim().split(/\s+/)[0]
   const flareTitle = displayFlareTitle({
     title: preview.title,
     type: preview.type,
@@ -101,9 +104,10 @@ export function flareInviteCard(
   const end = new Date(preview.endAt).getTime()
   const when =
     now >= start && now <= end
-      ? "now"
-      : formatWeekdayClock(preview.startAt, PREVIEW_ZONE)
-  const kind = EVENT_TYPES.find((t) => t.value === preview.type)?.label
+      ? "Happening now"
+      : inviteDateTime(preview.startAt, PREVIEW_ZONE)
+  const label = EVENT_TYPES.find((t) => t.value === preview.type)?.label
+  const kind = label && label.charAt(0).toUpperCase() + label.slice(1)
   const meta = [when, preview.placeName].filter(Boolean).join(" · ")
   return {
     title: `${first} invited you to ${flareTitle}`,

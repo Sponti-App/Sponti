@@ -99,16 +99,18 @@ describe("flareInviteCard (#616)", () => {
     new Date("2026-10-22T10:00:00Z").getTime()
   )
 
-  it("says who invited them to what, lowercase except what the host typed", () => {
-    expect(card.title).toBe("patrick invited you to Drinks at Klunkerkranich")
-    expect(card.invitedLine).toBe("patrick invited you")
+  it("says who invited them to what, as a sentence, with names as typed", () => {
+    expect(card.title).toBe("Patrick invited you to Drinks at Klunkerkranich")
+    expect(card.invitedLine).toBe("Patrick invited you")
     expect(card.flareTitle).toBe("Drinks at Klunkerkranich")
   })
 
-  it("gives the time in berlin, whatever the server's clock", () => {
-    expect(card.meta).toMatch(/^sat 7:00\s?pm · klunkerkranich$/)
+  it("gives the day, date and time in berlin, whatever the server's clock", () => {
+    expect(card.meta).toMatch(
+      /^Saturday, October 24 at 7:00\s?PM · klunkerkranich$/
+    )
     expect(card.description).toMatch(
-      /^drinks · sat 7:00\s?pm · klunkerkranich$/
+      /^Drinks · Saturday, October 24 at 7:00\s?PM · klunkerkranich$/
     )
   })
 
@@ -117,7 +119,7 @@ describe("flareInviteCard (#616)", () => {
       preview as Parameters<typeof flareInviteCard>[0],
       new Date("2026-10-24T18:00:00Z").getTime()
     )
-    expect(live.meta).toBe("now · klunkerkranich")
+    expect(live.meta).toBe("Happening now · klunkerkranich")
   })
 
   it("carries nothing beyond what the public preview has", () => {

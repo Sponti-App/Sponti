@@ -21,7 +21,7 @@ const CREAM = "#fbf1e8"
 const MUTED = "#c9bdb2"
 const PEACH = "#ffa770"
 const PEACH_INK = "#3a2418"
-const GENERIC_IMAGE = "/opengraph-image.png"
+const GENERIC_IMAGE = "/opengraph-image.jpg"
 
 // A minute at most on our side, so a reset or ended link stops previewing
 // soon. Chat apps keep what they fetched for as long as they like; the old
