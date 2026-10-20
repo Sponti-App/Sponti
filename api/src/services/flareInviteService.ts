@@ -51,7 +51,7 @@ type LiveFlare = {
   title: string;
   type: string;
   startAt: Date;
-  endAt: Date;
+  endAt: Date | null;
   locationName: string;
   visibility: "public" | "private";
   allowGuestInvites?: string | null;
@@ -70,7 +70,7 @@ export type FlareInvitePreview = {
   title: string;
   type: string;
   startAt: Date;
-  endAt: Date;
+  endAt: Date | null;
   placeName: string;
 };
 
@@ -106,7 +106,7 @@ const findLiveFlare = async (token: string): Promise<LiveFlare | null> => {
   const event = await Event.findOne({
     _id: link.eventId,
     status: "active",
-    endAt: { $gt: new Date() },
+    liveUntil: { $gt: new Date() },
   })
     .select(
       "_id hostId title type startAt endAt locationName visibility allowGuestInvites invitedCircleIds"
@@ -131,14 +131,14 @@ const findLiveFlare = async (token: string): Promise<LiveFlare | null> => {
 
 const findHostedLiveFlare = async (hostId: string, eventId: string) => {
   const event = await Event.findOne({ _id: toObjectId(eventId), hostId: toObjectId(hostId) })
-    .select("_id status endAt")
+    .select("_id status liveUntil")
     .lean();
 
   if (!event) {
     throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  if (event.status !== "active" || event.endAt <= new Date()) {
+  if (event.status !== "active" || event.liveUntil <= new Date()) {
     throw new AppError("This flare is over, so it has no invite link", 409, "EVENT_NOT_SHAREABLE");
   }
 

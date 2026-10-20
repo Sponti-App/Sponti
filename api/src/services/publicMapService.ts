@@ -21,7 +21,7 @@ export type PublicMapEvent = {
   type: EventType;
   location: { type: "Point"; coordinates: [number, number] };
   startAt: Date;
-  endAt: Date;
+  endAt: Date | null;
 };
 
 type PublicMapRow = {
@@ -29,7 +29,7 @@ type PublicMapRow = {
   type: EventType;
   location: { coordinates: number[] };
   startAt: Date;
-  endAt: Date;
+  endAt: Date | null;
 };
 
 const toPublicMapEvent = (row: PublicMapRow): PublicMapEvent => ({
@@ -86,7 +86,7 @@ export const getPublicMapEvents = async (query: PublicMapEventsQuery) => {
       $match: {
         visibility: "public",
         status: "active",
-        endAt: { $gt: now },
+        liveUntil: { $gt: now },
         startAt: { $lte: new Date(now.getTime() + MAP_SOON_WINDOW_MS) },
         location: {
           $geoWithin: {
@@ -127,7 +127,7 @@ export const getPublicMapEvent = async (id: string): Promise<PublicSharedEvent |
         _id: new Types.ObjectId(id),
         visibility: "public",
         status: "active",
-        endAt: { $gt: new Date() },
+        liveUntil: { $gt: new Date() },
       },
     },
     ...ACTIVE_HOST_STAGES,

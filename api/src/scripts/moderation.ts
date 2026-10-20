@@ -36,7 +36,7 @@ export const suspendUser = async (username: string, apply: boolean): Promise<Mod
   const user = await findUser(username);
   const [tokens, liveFlares] = await Promise.all([
     refreshTokens().countDocuments({ userId: user._id }),
-    Event.countDocuments({ hostId: user._id, status: "active", endAt: { $gt: new Date() } }),
+    Event.countDocuments({ hostId: user._id, status: "active", liveUntil: { $gt: new Date() } }),
   ]);
   const lines = [
     `user: @${user.username} (${user._id.toString()})`,
@@ -73,11 +73,11 @@ export const unsuspendUser = async (
 
 export const hideFlare = async (eventId: string, apply: boolean): Promise<ModerationResult> => {
   if (!Types.ObjectId.isValid(eventId)) throw new Error(`not a flare id: ${eventId}`);
-  const event = await Event.findById(eventId).select("_id hostId status endAt").lean();
+  const event = await Event.findById(eventId).select("_id hostId status liveUntil").lean();
   if (!event) throw new Error(`no flare with id ${eventId}`);
   const lines = [
     `flare: ${String(event._id)} by host ${String(event.hostId)}`,
-    `status: ${event.status}, ends ${new Date(event.endAt).toISOString()}`,
+    `status: ${event.status}, live until ${new Date(event.liveUntil).toISOString()}`,
   ];
   if (!apply) return { lines: [...lines, "dry run: nothing changed"], changed: false };
 

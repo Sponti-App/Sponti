@@ -663,7 +663,8 @@ describe("redeeming an invite-only flare (#616)", () => {
     const flare = await seedFlare();
     const token = await hostLink(flare.id);
     await redeem(GUEST_ID, token);
-    await Event.updateOne({ _id: flare.oid }, { $set: { endAt: new Date(Date.now() - 1000) } });
+    const ended = new Date(Date.now() - 1000);
+    await Event.updateOne({ _id: flare.oid }, { $set: { endAt: ended, liveUntil: ended } });
 
     await accept();
 

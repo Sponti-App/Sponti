@@ -12,6 +12,16 @@ export const EVENT_TYPES = [
 ] as const;
 export const EVENT_GUEST_INVITE_MODES = ["multiple", "single", "none"] as const;
 
+/**
+ * #225, #614: the longest a flare can run. A set end is at most this long after
+ * the start; an open end (`endAt: null`) is over this long after the start.
+ */
+export const MAX_FLARE_DURATION_MS = 12 * 60 * 60 * 1000;
+
+/** When a flare stops being live: its end, or for an open end the 12h cap. */
+export const flareLiveUntil = (startAt: Date, endAt: Date | null | undefined): Date =>
+  endAt ?? new Date(startAt.getTime() + MAX_FLARE_DURATION_MS);
+
 const eventSchema = new Schema(
   {
     hostId: {
@@ -42,7 +52,17 @@ const eventSchema = new Schema(
       type: Date,
       required: true,
     },
+    // Null is an open end (#614): the host set no end time.
     endAt: {
+      type: Date,
+      default: null,
+    },
+    // Derived, never sent by a client: `endAt`, or start + 12h for an open end
+    // (flareLiveUntil). Every "is it over yet" query filters on this, so an open
+    // end needs no special case there, and the map's $near query (which can't
+    // be combined with $or) stays a plain range. It is set on save; a raw
+    // updateOne that changes startAt or endAt must set it too.
+    liveUntil: {
       type: Date,
       required: true,
     },
@@ -137,6 +157,10 @@ const eventSchema = new Schema(
   }
 );
 
+eventSchema.pre("validate", function () {
+  if (this.startAt) this.liveUntil = flareLiveUntil(this.startAt, this.endAt);
+});
+
 eventSchema.index({ hostId: 1, startAt: 1 });
 eventSchema.index({ hostId: 1, invitedCircleIds: 1 });
 eventSchema.index({ status: 1, visibility: 1, startAt: 1 });
@@ -150,3 +174,25 @@ export type EventDocument = InferSchemaType<typeof eventSchema>;
 
 export const Event: Model<EventDocument> =
   (mongoose.models.Event as Model<EventDocument>) || model<EventDocument>("Event", eventSchema);
+
+/**
+ * #614: fills in `liveUntil` on flares saved before it existed. Run at start-up;
+ * it only touches flares without it, so after the first run it does nothing.
+ */
+export const backfillLiveUntil = async (): Promise<number> => {
+  const result = await Event.updateMany(
+    { liveUntil: { $exists: false } },
+    [
+      {
+        $set: {
+          liveUntil: {
+            $ifNull: ["$endAt", { $add: ["$startAt", MAX_FLARE_DURATION_MS] }],
+          },
+        },
+      },
+    ],
+    // An aggregation-pipeline update, so each flare's own startAt/endAt is read.
+    { updatePipeline: true }
+  );
+  return result.modifiedCount;
+};
