@@ -153,7 +153,7 @@ describe("GET /public/events/map (#425)", () => {
       type: "drinks",
       location: { type: "Point", coordinates: [BERLIN.lng, BERLIN.lat] },
       startAt: live.startAt.toISOString(),
-      endAt: live.endAt.toISOString(),
+      endAt: live.endAt!.toISOString(),
     });
 
     // Belt and braces: none of the private values appear anywhere in the body.

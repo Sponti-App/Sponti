@@ -19,7 +19,7 @@ type ThreadEvent = {
   hostId: unknown;
   title: string;
   status: string;
-  endAt: Date;
+  liveUntil: Date;
 };
 
 type EventUpdateLean = {
@@ -76,7 +76,7 @@ const resolveThreadAccess = async (userId: string, eventId: string) => {
   const accessibleFilter = await buildAccessibleEventFilter(userId);
   const [event, membership] = await Promise.all([
     Event.findOne(withConditions(accessibleFilter, { _id: eventObjectId }))
-      .select("_id hostId title status endAt")
+      .select("_id hostId title status liveUntil")
       .lean<ThreadEvent>(),
     EventMember.findOne({ eventId: eventObjectId, userId: toObjectId(userId) })
       .select("rsvpStatus removedAt")
@@ -147,7 +147,7 @@ export const createEventUpdate = async (
 ) => {
   const { event, isHost } = await resolveThreadAccess(userId, eventId);
 
-  if (event.status !== "active" || event.endAt.getTime() <= Date.now()) {
+  if (event.status !== "active" || event.liveUntil.getTime() <= Date.now()) {
     throw new AppError(
       "Updates can only be posted to active flares that haven't ended",
       409,

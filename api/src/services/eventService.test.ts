@@ -231,6 +231,7 @@ const eventDocument = (
     title: string;
     status: "active" | "cancelled" | "completed";
     endAt: Date;
+    liveUntil: Date;
     save: ReturnType<typeof vi.fn>;
   }> = {}
 ) => ({
@@ -239,6 +240,7 @@ const eventDocument = (
   title: "coffee after class",
   status: "active" as const,
   endAt: new Date("2026-05-14T14:00:00.000Z"),
+  liveUntil: new Date("2026-05-14T14:00:00.000Z"),
   save: vi.fn().mockResolvedValue(undefined),
   ...overrides,
 });
@@ -360,7 +362,7 @@ describe("eventService.inviteEventMembers", () => {
       hostId: USER_ID,
       title: "friday drinks",
       status: "active",
-      endAt: new Date("2026-05-14T14:00:00.000Z"),
+      liveUntil: new Date("2026-05-14T14:00:00.000Z"),
       allowGuestInvites: "none",
       ...overrides,
     });
@@ -445,7 +447,7 @@ describe("eventService.inviteEventMembers", () => {
 
   it.each([
     ["cancelled", { status: "cancelled" }],
-    ["ended", { endAt: new Date("2026-05-14T11:00:00.000Z") }],
+    ["ended", { liveUntil: new Date("2026-05-14T11:00:00.000Z") }],
   ])("rejects invites to a %s flare", async (_label, overrides) => {
     mockInvitableEvent(overrides);
 
@@ -495,7 +497,7 @@ describe("eventService.inviteEventMembers restoring removed guests", () => {
       hostId: USER_ID,
       title: "friday drinks",
       status: "active",
-      endAt: new Date("2026-05-14T14:00:00.000Z"),
+      liveUntil: new Date("2026-05-14T14:00:00.000Z"),
       allowGuestInvites: "none",
     });
     mockEventMembersForNotifications([{ userId: GUEST_ID }]);
@@ -595,7 +597,7 @@ describe("eventService circles remembered on flares (#150)", () => {
       hostId: USER_ID,
       title: "friday drinks",
       status: "active",
-      endAt: new Date("2026-05-14T14:00:00.000Z"),
+      liveUntil: new Date("2026-05-14T14:00:00.000Z"),
       allowGuestInvites: "none",
     });
     mockCircleFindLean([{ _id: CIRCLE_ID }]);
@@ -624,7 +626,7 @@ describe("eventService.removeEventMember", () => {
       title: "friday drinks",
       status: "active",
       startAt: new Date("2026-05-15T18:00:00.000Z"),
-      endAt: new Date("2026-05-15T21:00:00.000Z"),
+      liveUntil: new Date("2026-05-15T21:00:00.000Z"),
       ...overrides,
     });
 
@@ -694,7 +696,7 @@ describe("eventService.removeEventMember", () => {
   it("lets the host remove a guest from a flare that's live right now", async () => {
     removableEvent({
       startAt: new Date("2026-05-14T11:00:00.000Z"),
-      endAt: new Date("2026-05-15T21:00:00.000Z"),
+      liveUntil: new Date("2026-05-15T21:00:00.000Z"),
     });
     eventMemberFindOneAndUpdateMock.mockResolvedValue({ rsvpStatus: "invited" });
 
@@ -709,7 +711,7 @@ describe("eventService.removeEventMember", () => {
       "over",
       {
         startAt: new Date("2026-05-14T08:00:00.000Z"),
-        endAt: new Date("2026-05-14T11:00:00.000Z"),
+        liveUntil: new Date("2026-05-14T11:00:00.000Z"),
       },
     ],
   ])("locks the guest list once the flare is %s", async (_label, overrides) => {
@@ -1082,15 +1084,15 @@ describe("eventService.getEvents", () => {
     const hostedCondition = filter.$and.find((condition) => "hostId" in condition) as {
       hostId?: unknown;
     };
-    const endAtCondition = filter.$and.find((condition) => "endAt" in condition) as {
-      endAt?: { $gt?: Date };
+    const endAtCondition = filter.$and.find((condition) => "liveUntil" in condition) as {
+      liveUntil?: { $gt?: Date };
     };
 
     expect(String(hostedCondition.hostId)).toBe(USER_ID);
     expect(filter.$and).toEqual(
       expect.arrayContaining([expect.objectContaining({ status: "active" })])
     );
-    expect(endAtCondition.endAt?.$gt).toEqual(endAtFrom);
+    expect(endAtCondition.liveUntil?.$gt).toEqual(endAtFrom);
   });
 });
 
@@ -1219,25 +1221,25 @@ describe("eventService.getMyUpcomingEvents", () => {
     const hostedFilter = eventFindMock.mock.calls[0]?.[0] as {
       hostId?: unknown;
       status?: { $in?: string[] };
-      endAt?: { $gt?: Date };
+      liveUntil?: { $gt?: Date };
     };
     const invitedFilter = eventFindMock.mock.calls[1]?.[0] as {
       status?: string;
-      endAt?: { $gt?: Date };
+      liveUntil?: { $gt?: Date };
     };
     const pastFilter = eventFindMock.mock.calls[2]?.[0] as {
       hostId?: unknown;
-      endAt?: { $lte?: Date; $gte?: Date };
+      liveUntil?: { $lte?: Date; $gte?: Date };
     };
 
     expect(String(hostedFilter.hostId)).toBe(USER_ID);
     expect(hostedFilter.status?.$in).toEqual(["active", "cancelled"]);
-    expect(hostedFilter.endAt?.$gt).toEqual(NOW);
+    expect(hostedFilter.liveUntil?.$gt).toEqual(NOW);
     expect(invitedFilter.status).toBe("active");
-    expect(invitedFilter.endAt?.$gt).toEqual(NOW);
+    expect(invitedFilter.liveUntil?.$gt).toEqual(NOW);
     expect(String(pastFilter.hostId)).toBe(USER_ID);
-    expect(pastFilter.endAt?.$lte).toEqual(NOW);
-    expect(pastFilter.endAt?.$gte).toEqual(new Date(NOW.getTime() - 14 * 24 * 60 * 60 * 1000));
+    expect(pastFilter.liveUntil?.$lte).toEqual(NOW);
+    expect(pastFilter.liveUntil?.$gte).toEqual(new Date(NOW.getTime() - 14 * 24 * 60 * 60 * 1000));
   });
 
   // #542: a suspended or deleted host's flares leave the invited list.
@@ -1308,7 +1310,7 @@ describe("eventService.getActiveMapEvents", () => {
         Record<string, unknown>,
         {
           status: string;
-          endAt: { $gt: Date };
+          liveUntil: { $gt: Date };
           startAt: { $lte: Date };
           location: {
             $near: {
@@ -1322,8 +1324,8 @@ describe("eventService.getActiveMapEvents", () => {
     const mapCondition = filter.$and[1];
 
     expect(mapCondition.status).toBe("active");
-    expect(mapCondition.endAt.$gt).toBeInstanceOf(Date);
-    expect(mapCondition.endAt.$gt.getTime()).toBe(NOW.getTime());
+    expect(mapCondition.liveUntil.$gt).toBeInstanceOf(Date);
+    expect(mapCondition.liveUntil.$gt.getTime()).toBe(NOW.getTime());
     expect(mapCondition.startAt.$lte).toBeInstanceOf(Date);
     expect(mapCondition.startAt.$lte.getTime()).toBe(NOW.getTime() + MAP_SOON_WINDOW_MS);
     expect(mapCondition.location.$near.$geometry).toEqual({
