@@ -1,11 +1,13 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { HomeCoachMarks } from "@/components/coach-marks"
 import { MapView } from "@/components/map-view"
 import { CalendarView } from "@/components/calendar-view"
 import { EventDetailSheet } from "@/components/event-detail-sheet"
+import { FlareDrawer } from "@/components/flare-drawer"
+import type { FlareTab } from "@/components/flare-detail-parts"
 import { MenuDrawer } from "@/components/menu-drawer"
 import { InviteDialog } from "@/components/qr-share-sheet"
 import { FirstRunIntro } from "@/components/first-run-intro"
@@ -28,12 +30,21 @@ import {
 } from "@/components/icons"
 import {
   etaToIso,
+  eventCoords,
   isImminent,
   isJoined,
   updateMyRsvp,
   type ArrivalStatus,
   type EventItem,
+  type HostedEvent,
 } from "@/lib/api/events"
+import { featureFlags } from "@/lib/feature-flags"
+import {
+  pinEventFromHosted,
+  type DrawerOrigin,
+  type DrawerSnap,
+} from "@/lib/flare-drawer"
+import { hasInAppHistory } from "@/lib/in-app-history"
 import { useOnboardingFlags } from "@/lib/onboarding-flags"
 import { etaControlKind, flareTiming } from "@/lib/flare-detail"
 import { haptic } from "@/lib/haptics"
@@ -47,8 +58,14 @@ export default function Home() {
   // A shared flare link (`/?flare=<id>`) takes someone signed in straight to
   // the flare; a signed-out visitor gets the map opened on it.
   const sharedFlareId = useSharedFlareId()
+  // #615: with the flare drawer on, the home map opens the drawer on it
+  // instead (SignedInHome).
   useEffect(() => {
-    if (status === "authenticated" && sharedFlareId) {
+    if (
+      status === "authenticated" &&
+      sharedFlareId &&
+      !featureFlags.flareDrawer
+    ) {
       router.replace(flarePagePath(sharedFlareId))
     }
   }, [status, sharedFlareId, router])
@@ -59,8 +76,24 @@ export default function Home() {
   return <SignedInHome />
 }
 
+/** #615: the flare open in the drawer, and how it was opened. */
+type OpenFlare = {
+  id: string
+  /** The flare's pin: from the map or calendar, or once a link has loaded. */
+  pin: EventItem | null
+  from: DrawerOrigin
+  open: boolean
+  initialSnap: DrawerSnap
+  initialTab?: FlareTab
+  compose: boolean
+  /** Opened from another page in the app (`back=1`): closing goes back. */
+  back: boolean
+}
+
 function SignedInHome() {
   const { showActionFeedback } = useActionFeedback()
+  const router = useRouter()
+  const drawerOn = featureFlags.flareDrawer
   const [view, setView] = useState<HomeView>("map")
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const [activeRoute, setActiveRoute] = useState<EventItem | null>(null)
@@ -75,6 +108,87 @@ function SignedInHome() {
   // intro, with `introV2`).
   const { browseBeforeSignup, introV2 } = useOnboardingFlags()
   const checklist = useOnboardingChecklist(introV2)
+
+  // #615: one flare detail, a drawer over the map.
+  const [openFlare, setOpenFlare] = useState<OpenFlare | null>(null)
+  const [drawerCover, setDrawerCover] = useState(0)
+  // A flare link (`/?flare=<id>`, and `/event/<id>` sends people here too)
+  // opens the drawer once.
+  const linkId = useSharedFlareId()
+  const openedLink = useRef<string | null>(null)
+  useEffect(() => {
+    if (!drawerOn || !linkId || openedLink.current === linkId) return
+    openedLink.current = linkId
+    const params = new URLSearchParams(window.location.search)
+    const updates = params.get("tab") === "updates"
+    // Read once from the URL on arrival; there's no event to hang it on.
+    setOpenFlare({
+      id: linkId,
+      pin: null,
+      from: "link",
+      open: true,
+      initialSnap: updates ? "full" : "half",
+      initialTab: updates ? "updates" : undefined,
+      compose: params.get("compose") === "1",
+      back: params.get("back") === "1",
+    })
+  }, [drawerOn, linkId])
+
+  /** Opens a flare: the drawer with the flag on, the old sheet off. */
+  const selectFlare = (event: EventItem, from: DrawerOrigin) => {
+    if (!drawerOn) {
+      setSelectedEvent(event)
+      return
+    }
+    // The drawer lives over the map, so a calendar flare shows its pin there
+    // (#615), and closing it goes back to the calendar.
+    if (from === "calendar") setView("map")
+    setOpenFlare((prev) => ({
+      id: event.id,
+      pin: event,
+      // Another pin tapped while a drawer is open keeps where it started.
+      from: prev?.open ? prev.from : from,
+      open: true,
+      initialSnap: "half",
+      compose: false,
+      back: prev?.open ? prev.back : false,
+    }))
+  }
+
+  /** Puts the url back to the plain home map after a link's drawer. */
+  const leaveLink = (flare: OpenFlare, goBack: boolean) => {
+    if (flare.from !== "link") return
+    if (goBack && flare.back && hasInAppHistory()) router.back()
+    else router.replace("/", { scroll: false })
+  }
+
+  const closeFlare = () => {
+    if (!openFlare) return
+    setOpenFlare({ ...openFlare, open: false })
+    setDrawerCover(0)
+    if (openFlare.from === "calendar") setView("calendar")
+    leaveLink(openFlare, true)
+  }
+
+  const handleFlareLoaded = useCallback((event: HostedEvent) => {
+    setOpenFlare((prev) =>
+      prev && prev.id === event.id && !prev.pin
+        ? { ...prev, pin: pinEventFromHosted(event) }
+        : prev
+    )
+  }, [])
+
+  const handleFlareRsvp = useCallback((id: string, going: boolean) => {
+    setJoinedIds((prev) => {
+      const next = new Set(prev)
+      if (going) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }, [])
+
+  const openPin = openFlare?.open ? openFlare.pin : null
+  const openPinCoords = openPin ? eventCoords(openPin) : null
 
   // #579: no edge swipe opens the menu. It fired while panning the map, and on
   // iOS Safari that edge is the browser's back gesture. The menu button opens it.
@@ -186,17 +300,27 @@ function SignedInHome() {
       <div className="absolute inset-0 overflow-hidden">
         {view === "map" ? (
           <MapView
-            onEventSelect={setSelectedEvent}
+            onEventSelect={(event) => selectFlare(event, "map")}
             activeRoute={activeRoute}
             joinedIds={joinedIds}
             onRouteReady={handleRouteReady}
             onSeeCalendar={() => setView("calendar")}
             dockCard={checklist}
             holdLocationAsk={welcomeShowing}
+            openFlare={
+              openPin && openPinCoords
+                ? {
+                    id: openPin.id,
+                    coords: openPinCoords,
+                    event: openPin,
+                    coverPx: drawerCover,
+                  }
+                : null
+            }
           />
         ) : (
           <CalendarView
-            onEventSelect={setSelectedEvent}
+            onEventSelect={(event) => selectFlare(event, "calendar")}
             joinedIds={joinedIds}
           />
         )}
@@ -238,45 +362,82 @@ function SignedInHome() {
 
         {/* Route active pill — tap to reopen details, X to clear.
             top-[4.5rem] clears the floating header row (44px + inset + gap). */}
-        {activeRoute && !selectedEvent && view === "map" && (
-          <div className="absolute top-[4.5rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full bg-accent py-1.5 pr-1.5 pl-3 text-xs font-medium text-accent-foreground shadow-md">
-            <button
-              onClick={() => setSelectedEvent(activeRoute)}
-              className="flex items-center gap-2"
-            >
-              <NavigationArrowIcon className="h-3.5 w-3.5" />
-              <span>
-                routing to {activeRoute.location.name}
-                {routeEta ? ` · ETA ${routeEta}` : ""}
-              </span>
-            </button>
-            <button
-              onClick={handleClearRoute}
-              aria-label="Clear route"
-              className="ml-1 rounded-full p-1 hover:bg-accent-foreground/10"
-            >
-              <XIcon className="h-3 w-3" />
-            </button>
-          </div>
-        )}
+        {activeRoute &&
+          !selectedEvent &&
+          !openFlare?.open &&
+          view === "map" && (
+            <div className="absolute top-[4.5rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full bg-accent py-1.5 pr-1.5 pl-3 text-xs font-medium text-accent-foreground shadow-md">
+              <button
+                onClick={() => selectFlare(activeRoute, "map")}
+                className="flex items-center gap-2"
+              >
+                <NavigationArrowIcon className="h-3.5 w-3.5" />
+                <span>
+                  routing to {activeRoute.location.name}
+                  {routeEta ? ` · ETA ${routeEta}` : ""}
+                </span>
+              </button>
+              <button
+                onClick={handleClearRoute}
+                aria-label="Clear route"
+                className="ml-1 rounded-full p-1 hover:bg-accent-foreground/10"
+              >
+                <XIcon className="h-3 w-3" />
+              </button>
+            </div>
+          )}
       </div>
 
-      {/* Event Detail Sheet — vaul drawer, portal-rendered at z-50 */}
-      <EventDetailSheet
-        open={!!selectedEvent}
-        event={selectedEvent}
-        joined={selectedEvent ? isJoined(selectedEvent, joinedIds) : false}
-        isHost={!!user && !!selectedEvent && selectedEvent.hostId === user.id}
-        onClose={() => setSelectedEvent(null)}
-        onJoin={handleJoin}
-        onLeave={handleLeave}
-        onSeeRoute={handleSeeRoute}
-      />
+      {drawerOn ? (
+        // #615: one flare detail over the map, under the bottom nav.
+        <FlareDrawer
+          key={openFlare?.id ?? "none"}
+          eventId={openFlare?.id ?? null}
+          open={!!openFlare?.open}
+          initialSnap={openFlare?.initialSnap}
+          initialTab={openFlare?.initialTab}
+          compose={openFlare?.compose}
+          onClose={closeFlare}
+          onClosed={() =>
+            setOpenFlare((prev) => (prev && !prev.open ? null : prev))
+          }
+          onCoverChange={setDrawerCover}
+          onEventLoaded={handleFlareLoaded}
+          onSeeRoute={(event) => {
+            const target = openFlare?.pin ?? pinEventFromHosted(event)
+            if (openFlare) {
+              setOpenFlare({ ...openFlare, open: false })
+              leaveLink(openFlare, false)
+            }
+            setDrawerCover(0)
+            handleSeeRoute(target)
+          }}
+          onRsvpChange={handleFlareRsvp}
+        />
+      ) : (
+        /* Event Detail Sheet — vaul drawer, portal-rendered at z-50 */
+        <EventDetailSheet
+          open={!!selectedEvent}
+          event={selectedEvent}
+          joined={selectedEvent ? isJoined(selectedEvent, joinedIds) : false}
+          isHost={!!user && !!selectedEvent && selectedEvent.hostId === user.id}
+          onClose={() => setSelectedEvent(null)}
+          onJoin={handleJoin}
+          onLeave={handleLeave}
+          onSeeRoute={handleSeeRoute}
+        />
+      )}
 
       {/* #497, #560 (behind `coachMarks`): the coach marks, once per device,
           only after sign-in. Not over the checklist or any open sheet. */}
       <HomeCoachMarks
-        blocked={view !== "map" || menuOpen || inviteOpen || !!selectedEvent}
+        blocked={
+          view !== "map" ||
+          menuOpen ||
+          inviteOpen ||
+          !!selectedEvent ||
+          !!openFlare?.open
+        }
         onboardingCard={checklist !== null}
       />
 

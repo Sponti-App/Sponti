@@ -10,7 +10,12 @@ import { getBlockedRelationshipUserIds, hasAnyBlockBetweenUsers } from "#service
 import {
   createConnectionAcceptedNotification,
   createConnectionRequestNotification,
+  type ConnectionRequestFlare,
 } from "#services/notificationService";
+import {
+  grantPendingFlareInvites,
+  lapsePendingFlareInvites,
+} from "#services/pendingFlareInviteService";
 import { getUsersByIds } from "#services/userDirectoryService";
 import { AppError } from "#utils/AppError";
 import { toObjectId } from "#utils/objectId";
@@ -19,7 +24,10 @@ import { withTransactionFallback } from "#utils/transactions";
 
 export const sendConnectionRequest = async (
   requesterId: string,
-  input: SendConnectionRequestBody
+  input: SendConnectionRequestBody,
+  // #616: set when the request comes through a flare's invite link, so the
+  // host's notification says which flare it is about.
+  flare?: ConnectionRequestFlare
 ) => {
   if (requesterId === input.receiverId) {
     throw new AppError(
@@ -93,6 +101,7 @@ export const sendConnectionRequest = async (
       });
 
       await addNewFriendsToAllFriendsFlares(requesterId, input.receiverId, session);
+      await grantPendingFlareInvites(requesterId, input.receiverId, session);
 
       return {
         connection,
@@ -123,6 +132,7 @@ export const sendConnectionRequest = async (
       receiverId: input.receiverId,
       connectionId: String(connection._id),
       session,
+      flare,
     });
 
     return {
@@ -209,6 +219,7 @@ export const connectInPerson = async (scannerId: string, ownerId: string) => {
     });
 
     await addNewFriendsToAllFriendsFlares(scannerId, ownerId, session);
+    await grantPendingFlareInvites(scannerId, ownerId, session);
 
     return { connected: true, created: true };
   });
@@ -339,6 +350,12 @@ export const respondToConnectionRequest = async (
       });
 
       await addNewFriendsToAllFriendsFlares(userId, String(connection.requesterId), session);
+      // #616: someone waiting on this answer for an invite-only flare is
+      // invited to it now.
+      await grantPendingFlareInvites(userId, String(connection.requesterId), session);
+    } else {
+      // #616: a "no" ends the wait. Whoever sent the request is not told.
+      await lapsePendingFlareInvites(userId, String(connection.requesterId), session);
     }
 
     return connection;
@@ -370,6 +387,15 @@ export const deleteConnection = async (userId: string, connectionId: string) => 
           status: "accepted",
         },
         { session }
+      );
+    }
+
+    // #616: taking back a request also ends the wait for a flare invite.
+    if (connection.status === "pending") {
+      await lapsePendingFlareInvites(
+        String(connection.receiverId),
+        String(connection.requesterId),
+        session
       );
     }
   });

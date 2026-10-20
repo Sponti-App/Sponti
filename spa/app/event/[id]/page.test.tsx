@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   postEventUpdate: vi.fn(),
   deleteEventUpdate: vi.fn(),
   push: vi.fn(),
+  fetchEventInviteLink: vi.fn(() => Promise.resolve("invite-token")),
   searchParams: new URLSearchParams(),
   userId: "guest-1",
 }))
@@ -46,6 +47,10 @@ vi.mock("@/lib/api/events", async (importOriginal) => {
     deleteEventUpdate: mocks.deleteEventUpdate,
   }
 })
+
+vi.mock("@/lib/api/flare-invites", () => ({
+  fetchEventInviteLink: mocks.fetchEventInviteLink,
+}))
 
 const at = (offsetMin: number) =>
   new Date(Date.now() + offsetMin * MIN).toISOString()
@@ -171,6 +176,46 @@ describe("EventDetailPage layout (#139)", () => {
       screen.getByRole("button", { name: "edit flare" })
     ).toBeInTheDocument()
     expect(screen.getByText("hosting")).toBeInTheDocument()
+  })
+
+  it("gives the host an 'invite' button for the flare's own link (#616), and nobody else", async () => {
+    mocks.userId = "host-1"
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ myRsvp: "going" })
+    )
+
+    const { unmount } = render(<EventDetailPage />)
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /invite/ })).toBeEnabled()
+    )
+    expect(mocks.fetchEventInviteLink).toHaveBeenCalledWith(
+      "event-1",
+      expect.anything()
+    )
+    unmount()
+
+    vi.clearAllMocks()
+    mocks.userId = "guest-1"
+    mocks.fetchHostedEventById.mockResolvedValue(hostedEvent())
+    render(<EventDetailPage />)
+
+    await screen.findByRole("heading", { name: "rooftop party" })
+    expect(screen.queryByRole("button", { name: /invite/ })).toBeNull()
+    expect(mocks.fetchEventInviteLink).not.toHaveBeenCalled()
+  })
+
+  it("offers no invite link on a flare that is cancelled", async () => {
+    mocks.userId = "host-1"
+    mocks.fetchHostedEventById.mockResolvedValue(
+      hostedEvent({ myRsvp: "going", apiStatus: "cancelled" })
+    )
+
+    render(<EventDetailPage />)
+
+    await screen.findByRole("button", { name: "edit flare" })
+    expect(screen.queryByRole("button", { name: /invite/ })).toBeNull()
+    expect(mocks.fetchEventInviteLink).not.toHaveBeenCalled()
   })
 
   it("shows the host an arrival board sorted by ETA while live", async () => {

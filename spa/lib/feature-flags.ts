@@ -159,4 +159,30 @@ export const featureFlags = {
    * it on.
    */
   floatingIdeas: process.env.NEXT_PUBLIC_FLOATING_IDEAS !== "off",
+
+  /**
+   * A flare's own invite link (#616): the host's "invite" button on the flare
+   * (the phone's share sheet, or "link copied"), "reset link" on the edit
+   * page, and the `/f/<token>` page a guest opens: host and flare for someone
+   * signed out, then "i'm in" through sign-up. Off, nothing links to or
+   * offers it (the api's endpoints stay; the page shows "link unavailable").
+   * On in BOTH profiles, because testers need to send flares to friends who
+   * are not on sponti yet. The opt-out is a kill switch: set
+   * NEXT_PUBLIC_FLARE_INVITE_LINK=off. Anything else, including unset, leaves
+   * it on.
+   */
+  flareInviteLink: process.env.NEXT_PUBLIC_FLARE_INVITE_LINK !== "off",
+
+  /**
+   * One flare detail (#615, prototype #617): a drawer over the home map at
+   * three heights (peek, half, and full with a strip of map left on top),
+   * with the map centred on the flare above it and moved with one finger.
+   * `/event/<id>` and `/?flare=<id>` open the drawer; "directions" is a row
+   * that offers the in-app route or google maps. Off, the map sheet and the
+   * flare page are exactly as before. On in the full profile and the `dev`
+   * deploy so it can be tried on a phone; off in the tester build until then.
+   */
+  flareDrawer:
+    FEATURE_PROFILE === "full" ||
+    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF === "dev",
 } as const

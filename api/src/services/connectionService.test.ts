@@ -7,6 +7,8 @@ const hasAnyBlockBetweenUsersMock = vi.hoisted(() => vi.fn());
 const createConnectionAcceptedNotificationMock = vi.hoisted(() => vi.fn());
 const createConnectionRequestNotificationMock = vi.hoisted(() => vi.fn());
 const addNewFriendsToAllFriendsFlaresMock = vi.hoisted(() => vi.fn());
+const grantPendingFlareInvitesMock = vi.hoisted(() => vi.fn());
+const lapsePendingFlareInvitesMock = vi.hoisted(() => vi.fn());
 
 vi.mock("#models/index", () => ({
   Connection: {
@@ -18,6 +20,11 @@ vi.mock("#models/index", () => ({
 
 vi.mock("#services/allFriendsFlareService", () => ({
   addNewFriendsToAllFriendsFlares: addNewFriendsToAllFriendsFlaresMock,
+}));
+
+vi.mock("#services/pendingFlareInviteService", () => ({
+  grantPendingFlareInvites: grantPendingFlareInvitesMock,
+  lapsePendingFlareInvites: lapsePendingFlareInvitesMock,
 }));
 
 vi.mock("#services/blockService", () => ({
@@ -138,6 +145,8 @@ describe("connectionService.sendConnectionRequest", () => {
       RECEIVER_ID,
       undefined
     );
+    // #616: a guest waiting on this answer for an invite-only flare.
+    expect(grantPendingFlareInvitesMock).toHaveBeenCalledWith(REQUESTER_ID, RECEIVER_ID, undefined);
   });
 });
 
@@ -164,6 +173,8 @@ describe("connectionService.respondToConnectionRequest", () => {
       REQUESTER_ID,
       undefined
     );
+    expect(grantPendingFlareInvitesMock).toHaveBeenCalledWith(RECEIVER_ID, REQUESTER_ID, undefined);
+    expect(lapsePendingFlareInvitesMock).not.toHaveBeenCalled();
   });
 
   it("does not create connection_accepted when a pending request is rejected", async () => {
@@ -178,5 +189,8 @@ describe("connectionService.respondToConnectionRequest", () => {
     expect(connectionUpdateOneMock).not.toHaveBeenCalled();
     expect(createConnectionAcceptedNotificationMock).not.toHaveBeenCalled();
     expect(addNewFriendsToAllFriendsFlaresMock).not.toHaveBeenCalled();
+    // #616: a no ends the wait for a flare invite (host first, guest second).
+    expect(grantPendingFlareInvitesMock).not.toHaveBeenCalled();
+    expect(lapsePendingFlareInvitesMock).toHaveBeenCalledWith(RECEIVER_ID, REQUESTER_ID, undefined);
   });
 });

@@ -68,6 +68,11 @@ Authenticated `/api/v1`:
 - `POST /invite-links/me/reset`
 - `POST /invite-links/resolve`
 - `POST /public/contact-preview` (no auth)
+- `GET /events/:eventId/invite-link` (host only, #616)
+- `POST /events/:eventId/invite-link/reset` (host only)
+- `POST /flare-invites/status`
+- `POST /flare-invites/redeem`
+- `POST /public/flare-invite-preview` (no auth)
 - `GET /inbox/me`
 - `GET /users/search?q=<username-or-display-name>`
 - `GET /users/by-username/:username` (profile: what it holds depends on the viewer, see `API_RULES.md` Profile)

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react"
 import { fetchPublicFlare, type PublicSharedFlare } from "@/lib/api/public-map"
+import { featureFlags } from "@/lib/feature-flags"
 
 // A shared flare link: `/?flare=<id>`. A signed-out visitor lands on the map
 // centred on that open-to-all flare with its card open; joining asks them to
@@ -18,9 +19,34 @@ export function sharedFlarePath(id: string): string {
   return `/?${SHARED_FLARE_PARAM}=${encodeURIComponent(id)}`
 }
 
-/** The flare's own page, where a visitor lands after signing up. */
+/**
+ * Where a visitor lands on a flare after signing up, signing in or redeeming
+ * an invite: the flare's page, or with the flare drawer on (#615) the home map
+ * with the drawer open. Never `back=1`: closing it stays on the map rather
+ * than stepping back into the sign-in pages.
+ */
 export function flarePagePath(id: string): string {
-  return `/event/${encodeURIComponent(id)}`
+  return featureFlags.flareDrawer
+    ? flareDrawerPath(id)
+    : `/event/${encodeURIComponent(id)}`
+}
+
+/**
+ * #615: where `/event/<id>` sends someone signed in while the flare drawer is
+ * on: the home map with the drawer open on that flare. `tab=updates` and
+ * `compose=1` carry over from the old page's links; `back=1` says the person
+ * came from another page in the app, so closing the drawer goes back there.
+ */
+export function flareDrawerPath(
+  id: string,
+  { search = "", back = false }: { search?: string; back?: boolean } = {}
+): string {
+  const from = new URLSearchParams(search)
+  const to = new URLSearchParams({ [SHARED_FLARE_PARAM]: id })
+  if (from.get("tab") === "updates") to.set("tab", "updates")
+  if (from.get("compose") === "1") to.set("compose", "1")
+  if (back) to.set("back", "1")
+  return `/?${to.toString()}`
 }
 
 /** A well-formed id from `search` (a URL query string), or null. */

@@ -4,6 +4,7 @@ import { createRateLimiter } from "#middleware/rateLimit";
 import { validateRequest } from "#middleware/validateRequest";
 import {
   contactPreviewBodySchema,
+  flareInvitePreviewBodySchema,
   idParamSchema,
   publicMapEventsQuerySchema,
 } from "#schemas/index";
@@ -41,4 +42,16 @@ publicRoutes.get(
   createRateLimiter({ windowMs: 60_000, max: 60 }),
   validateRequest({ params: idParamSchema }),
   publicController.getPublicMapEvent
+);
+
+// #616: what a flare's invite link shows someone who is not signed in yet: the
+// host's name and photo, and the flare's title, kind, time and place name.
+// Whoever holds the link may see this, nothing more (see
+// services/flareInviteService.ts). POST so the token stays out of URLs and
+// logs; rate-limited like the contact preview because anyone can call it.
+publicRoutes.post(
+  "/flare-invite-preview",
+  createRateLimiter({ windowMs: 60_000, max: 60 }),
+  validateRequest({ body: flareInvitePreviewBodySchema }),
+  publicController.getFlareInvitePreview
 );

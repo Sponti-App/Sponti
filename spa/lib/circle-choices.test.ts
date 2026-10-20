@@ -57,6 +57,36 @@ describe("orderCircleChoices (#226)", () => {
   })
 })
 
+describe("orderCircleChoices for a flare's circles (#616)", () => {
+  it("puts the circles the flare went to first, whatever their size", () => {
+    const result = orderCircleChoices(
+      [
+        circle({ id: "big", memberIds: ["a", "b", "c"] }),
+        circle({ id: "close", type: "close" }),
+        circle({ id: "climbing" }),
+      ],
+      null,
+      ["climbing"]
+    )
+
+    expect(result.map((c) => c.id)).toEqual(["climbing", "big", "close"])
+  })
+
+  it("still leaves out all friends and circles the person is already in", () => {
+    const result = orderCircleChoices(
+      [
+        circle({ id: "all", type: "all" }),
+        circle({ id: "climbing", memberIds: ["p"] }),
+        circle({ id: "book" }),
+      ],
+      "p",
+      ["all", "climbing"]
+    )
+
+    expect(result.map((c) => c.id)).toEqual(["book"])
+  })
+})
+
 describe("shouldOfferCircles (#585)", () => {
   const all = circle({ id: "all", type: "all", memberIds: ["p"] })
 

@@ -197,6 +197,76 @@ describe("NotificationRow", () => {
       expect(screen.getByText("added to close friends")).toBeInTheDocument()
     })
 
+    it("a request from a flare's link says so, and offers the flare's circle first as 'add to <circle>' (#616)", async () => {
+      mocks.fetchMyCircles.mockResolvedValue([
+        ...(await mocks.fetchMyCircles()),
+        {
+          id: "climbing",
+          name: "climbing",
+          type: "custom",
+          memberIds: [],
+          description: "",
+        },
+      ])
+      renderRow({
+        ...request,
+        title: "maya wants to join drinks at the canal",
+        flareInvite: {
+          kind: "waiting",
+          eventTitle: "drinks at the canal",
+          circleIds: ["climbing"],
+        },
+      })
+      await flush()
+      expect(
+        screen.getByText("accept to invite them to the flare")
+      ).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "accept" }))
+      await flush()
+
+      const chips = screen.getByRole("group", { name: "add maya to a circle" })
+      expect(
+        within(chips)
+          .getAllByRole("button")
+          .map((b) => b.textContent)
+      ).toEqual(["add to climbing", "inner circle", "close friends", "skip"])
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ACCEPT_UNDO_MS)
+      })
+      fireEvent.click(screen.getByRole("button", { name: "add to climbing" }))
+      await flush()
+      // The same circle-members call every accept uses; the api checks the
+      // circle is theirs and maya is now a connection.
+      expect(mocks.addCircleMember).toHaveBeenCalledWith(
+        "climbing",
+        "user-maya"
+      )
+      expect(screen.getByText("added to climbing")).toBeInTheDocument()
+    })
+
+    it("an open-to-all flare sent to no circle offers the usual chips, with nothing singled out (#616)", async () => {
+      renderRow({
+        ...request,
+        flareInvite: { kind: "joined", eventTitle: "picnic", circleIds: [] },
+      })
+      await flush()
+      expect(
+        screen.getByText("joined your flare · accept to add them as a friend")
+      ).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "accept" }))
+      await flush()
+
+      const chips = screen.getByRole("group", { name: "add maya to a circle" })
+      expect(
+        within(chips)
+          .getAllByRole("button")
+          .map((b) => b.textContent)
+      ).toEqual(["inner circle", "close friends", "skip"])
+    })
+
     it("undo from the toast cancels the accept and brings the buttons back", async () => {
       renderRow(request)
       await flush()

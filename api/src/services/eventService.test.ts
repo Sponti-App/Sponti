@@ -52,6 +52,7 @@ vi.mock("#models/index", () => ({
   EventUpdate: {
     countDocuments: vi.fn().mockResolvedValue(0),
   },
+  PendingEventInvite: { deleteMany: vi.fn() },
   Notification: {
     create: notificationCreateMock,
     // #414: the first-join check. The host has had no join notice yet.

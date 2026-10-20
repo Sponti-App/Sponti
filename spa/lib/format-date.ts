@@ -18,17 +18,34 @@ function toDate(value: DateInput): Date {
   return value instanceof Date ? value : new Date(value)
 }
 
+/**
+ * Where a label is made for nobody in particular (a link preview rendered on
+ * the server, #616): the zone and locale to write it in. Left out, the label
+ * follows the viewer's own device, which is what every screen wants.
+ */
+export type DateLabelZone = { timeZone: string; locale: string }
+
 /** Clock time in the viewer's locale, lowercased: "12:42 pm". */
-export function formatClock(value: DateInput): string {
+export function formatClock(value: DateInput, zone?: DateLabelZone): string {
   return toDate(value)
-    .toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    .toLocaleTimeString(zone?.locale, {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: zone?.timeZone,
+    })
     .toLowerCase()
 }
 
 /** Short weekday: "sun". */
-export function formatWeekdayShort(value: DateInput): string {
+export function formatWeekdayShort(
+  value: DateInput,
+  zone?: DateLabelZone
+): string {
   return toDate(value)
-    .toLocaleDateString(undefined, { weekday: "short" })
+    .toLocaleDateString(zone?.locale, {
+      weekday: "short",
+      timeZone: zone?.timeZone,
+    })
     .toLowerCase()
 }
 
@@ -62,6 +79,9 @@ export function formatMonthName(value: DateInput): string {
 }
 
 /** Short weekday and clock time: "sun 12:42 pm". */
-export function formatWeekdayClock(value: DateInput): string {
-  return `${formatWeekdayShort(value)} ${formatClock(value)}`
+export function formatWeekdayClock(
+  value: DateInput,
+  zone?: DateLabelZone
+): string {
+  return `${formatWeekdayShort(value, zone)} ${formatClock(value, zone)}`
 }

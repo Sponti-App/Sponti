@@ -790,6 +790,7 @@ export function MapView({
   onSeeCalendar,
   dockCard,
   holdLocationAsk = false,
+  openFlare = null,
 }: {
   onEventSelect: (event: EventItem) => void
   activeRoute: EventItem | null
@@ -805,6 +806,8 @@ export function MapView({
   /** #479: something else is asking for the screen (the welcome-back sheet),
    * so the location ask waits, as it does while the composer is open. */
   holdLocationAsk?: boolean
+  /** #615: the flare open in the drawer over the map. */
+  openFlare?: OpenFlareFocus | null
 }) {
   const { open: composeOpen, openDrawer } = useNewEventDrawer()
   const router = useRouter()
@@ -909,10 +912,29 @@ export function MapView({
   const clearFocus = useCallback(() => setFocus(null), [])
   // What the dock and the nav cover: everything below the dock's top edge
   // (laid out even while the dock is faded out under the composer).
+  // #615: a flare open in the drawer is centred in the map left above it.
+  const openId = openFlare?.id
+  const openLat = openFlare?.coords.lat
+  const openLng = openFlare?.coords.lng
+  const openCover = openFlare?.coverPx ?? 0
   const focusInset = useCallback(() => {
+    if (openCover > 0) return openCover
     const top = dockRef.current?.getBoundingClientRect().top
     return top == null ? 0 : Math.max(0, window.innerHeight - top)
-  }, [])
+  }, [openCover])
+  // Follows the drawer: each new flare or drawer height is a new focus, so
+  // the map moves the pin to the middle of what's left. It never goes back to
+  // the viewer while the drawer is open (a focus counts as their navigation).
+  const openFocus = useMemo<MapFocus | null>(
+    () =>
+      openId != null && openLat != null && openLng != null
+        ? {
+            coords: { lat: openLat, lng: openLng },
+            key: `${openId}:${openCover}`,
+          }
+        : null,
+    [openId, openLat, openLng, openCover]
+  )
   const mapEvents = useMemo(
     () =>
       withLitFlares(map.events, litFlares, nowMs).filter(
@@ -1016,12 +1038,26 @@ export function MapView({
   // live/soon/all tab, plus the ended ones while the list has them unfolded.
   // A pin's chip and ring depend on the clock, so flare pins wait for it
   // (it is 0 until the first effect) instead of drawing every flare as "soon".
+  const openEvent = openFlare?.event ?? null
   const pinEvents = useMemo(() => {
     if (nowMs <= 0) return NO_EVENTS
-    return endedVisible && showEnded
-      ? [...visibleEvents, ...groupedEvents.ended]
-      : visibleEvents
-  }, [nowMs, visibleEvents, endedVisible, showEnded, groupedEvents.ended])
+    const pins =
+      endedVisible && showEnded
+        ? [...visibleEvents, ...groupedEvents.ended]
+        : visibleEvents
+    // #615: the open flare keeps its pin, even one days away (from the
+    // calendar) or outside the filters.
+    return openEvent && !pins.some((e) => e.id === openEvent.id)
+      ? [...pins, openEvent]
+      : pins
+  }, [
+    nowMs,
+    visibleEvents,
+    endedVisible,
+    showEnded,
+    groupedEvents.ended,
+    openEvent,
+  ])
   // A popover goes with its pin: one whose flare left the map (a refetch, the
   // clock) is not drawn. A chip or tab change closes it outright.
   const shownPreview =
@@ -1197,11 +1233,13 @@ export function MapView({
     !tappedIdea &&
     !showDockCard &&
     !showQuietHome
-  const highlightId = showRail
-    ? visibleEvents.some((e) => e.id === railFocusId)
-      ? railFocusId
-      : (visibleEvents[0]?.id ?? null)
-    : null
+  const highlightId = openFlare
+    ? openFlare.id
+    : showRail
+      ? visibleEvents.some((e) => e.id === railFocusId)
+        ? railFocusId
+        : (visibleEvents[0]?.id ?? null)
+      : null
 
   const toggleType = (type: EventType) => {
     haptic("selection")
@@ -1385,7 +1423,12 @@ export function MapView({
         : `${activeCount} active`
 
   // #408: the location ask's sheet has the only peach button while it's open.
-  const dockHidden = dock === "full" || composeOpen || start.mode !== "hidden"
+  // #615: the flare drawer covers the dock's place while it's open.
+  const dockHidden =
+    dock === "full" ||
+    composeOpen ||
+    start.mode !== "hidden" ||
+    openFlare !== null
   const listOpen = dock === "full" && !composeOpen
 
   return (
@@ -1422,7 +1465,7 @@ export function MapView({
               cameraCenter={cameraCenter}
               currentLocation={geo.coords}
               recenterTick={recenterTick}
-              focus={focus}
+              focus={openFocus ?? focus}
               focusInset={focusInset}
               onFocused={clearFocus}
               highlightId={highlightId}
@@ -2317,7 +2360,17 @@ function FilterChip({
 type TimeFilter = "live" | "upcoming" | "all"
 
 /** Where to move the map to (#376), once. */
-type MapFocus = { coords: GeoCoords }
+type MapFocus = { coords: GeoCoords; key?: string }
+
+/** #615: the flare open in the drawer over the map. */
+export type OpenFlareFocus = {
+  id: string
+  coords: GeoCoords
+  /** Its pin, drawn even when the map's own results don't have it. */
+  event: EventItem | null
+  /** How much of the screen's bottom the drawer and nav cover, in px. */
+  coverPx: number
+}
 
 function TimeTabs({
   value,

@@ -7,7 +7,7 @@ import { landingDisplay } from "./fonts"
 // rewrites "/" here; anywhere else it is reachable at /landing for review.
 // Statically rendered at build time: APP_ORIGIN (or NEXT_PUBLIC_SITE_URL) is
 // read then, so changing it needs a redeploy. The link-preview image is the
-// app's own (app/opengraph-image.png, app/twitter-image.png).
+// app's own (app/opengraph-image.jpg, app/twitter-image.jpg).
 export const dynamic = "force-static"
 
 // Search and share cards read the title cold: it says what sponti is. The
@@ -18,7 +18,7 @@ const description =
 
 // The page's own openGraph / twitter objects replace the root layout's, and
 // with them the file-convention image, so the link preview is named here.
-const images = ["/opengraph-image.png"]
+const images = ["/opengraph-image.jpg"]
 
 export const metadata: Metadata = {
   title,

@@ -110,6 +110,42 @@ When A blocks B:
   expired as `410 INVITE_LINK_EXPIRED`, and blocks either way as `404`.
 - Invite tokens are stored as-is (not hashed) so the owner can re-share the same link.
 
+## Flare Invite Links (#616)
+
+Each flare has one unguessable invite token (`event_invite_links`, 32 random bytes). Having
+the link counts as being invited, so it works for invite-only flares too. It never connects
+strangers and never opens an invite-only flare without the host's yes.
+
+- The host reads it with `GET /events/:eventId/invite-link` and replaces it with
+  `POST /events/:eventId/invite-link/reset` (the old link dies at once). Only the host; anyone
+  else gets `404`. An ended or cancelled flare has no link (`409 EVENT_NOT_SHAREABLE`). The
+  token is in no other payload (events, lists, map, guests); a test checks every one.
+- `POST /public/flare-invite-preview { token }` (no token needed, rate-limited) returns only
+  `{ host: { displayName, avatarUrl }, title, type, startAt, endAt, placeName }`. Never the
+  address, coordinates, flare id, description, guests or updates.
+- `POST /flare-invites/status` reads where the caller stands (`host | going | invited |
+waiting | none`); `POST /flare-invites/redeem` is "i'm in". The flare id comes back only
+  for `host | going | invited`, so a waiting guest never learns it.
+- Redeem, open-to-all flare: joins as `going` through `updateMyEventMembership` (blocks,
+  removal, the guest limit). Not yet friends: the host also gets a `connection_request`
+  ("x joined via your link"). Never an automatic connection.
+- Redeem, invite-only flare: already friends with the host, the guest is invited at once (an
+  `invited` member row and the usual invitation notification). Not friends: the host gets a
+  `connection_request` ("x wants to join <flare>") and the guest a `pending_event_invites`
+  row. Accepting that request (any of the three ways a connection becomes accepted, see
+  `pendingFlareInviteService`) invites the guest to that flare, whether or not the host also
+  adds them to a circle. A decline, the guest taking the request back, the flare ending, or the
+  flare being cancelled lapses it. A host who already declined someone gets no new request and
+  no hint.
+- The host's `connection_request` notification carries `metadata.flareInvite`
+  (`eventId`, `eventTitle`, `kind`, `circleIds`): the host's own circles the flare went to, so
+  the feed can offer "add to <circle>" first after accepting. Adding is the ordinary
+  `POST /circles/:id/members`, which checks the circle is the caller's and the guest is an
+  accepted connection; nothing about the flare grants circle membership.
+- Every dead link is the same `404 FLARE_INVITE_NOT_FOUND`: unknown or reset token, ended or
+  cancelled flare, a suspended or deleted host, a block either way, a guest the host removed
+  (a link never undoes a removal).
+
 ### Public Routes
 
 - `/api/v1/public/*` is mounted ahead of `requireAuth` and is reachable without a token.
