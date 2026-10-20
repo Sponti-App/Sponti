@@ -45,9 +45,12 @@ test.describe("cancelling a flare (#580)", () => {
     await expect(rail.getByText("my own flare")).toBeVisible()
     await expect(rail.getByText("someone else's flare")).toBeVisible()
 
-    // Open it, edit it, cancel it.
+    // Open it in the drawer (#615), edit it, cancel it.
     await rail.getByText("my own flare").click()
-    await page.getByRole("button", { name: "edit flare" }).click()
+    await page
+      .locator(`[data-flare-drawer="${MINE._id}"]`)
+      .getByRole("button", { name: "edit" })
+      .click()
     await expect(page).toHaveURL(/\/event\/event-mine\/edit$/)
     await page.getByRole("button", { name: "cancel this flare" }).click()
     await page.getByRole("button", { name: "cancel event" }).click()

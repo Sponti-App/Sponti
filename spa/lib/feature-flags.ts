@@ -179,10 +179,9 @@ export const featureFlags = {
    * with the map centred on the flare above it and moved with one finger.
    * `/event/<id>` and `/?flare=<id>` open the drawer; "directions" is a row
    * that offers the in-app route or google maps. Off, the map sheet and the
-   * flare page are exactly as before. On in the full profile and the `dev`
-   * deploy so it can be tried on a phone; off in the tester build until then.
+   * flare page are exactly as before. On in BOTH profiles since it passed a
+   * phone test (2026-10-20). The opt-out is a kill switch: set
+   * NEXT_PUBLIC_FLARE_DRAWER=off. Anything else, including unset, leaves it on.
    */
-  flareDrawer:
-    FEATURE_PROFILE === "full" ||
-    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF === "dev",
+  flareDrawer: process.env.NEXT_PUBLIC_FLARE_DRAWER !== "off",
 } as const
