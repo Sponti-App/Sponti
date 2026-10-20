@@ -161,4 +161,50 @@ test.describe("flare drawer (#615)", () => {
     })
     expect(gap).toBeGreaterThanOrEqual(0)
   })
+
+  test("dragging down from a scrolled full drawer brings the header back", async ({
+    page,
+  }) => {
+    // Enough guests that the full drawer scrolls.
+    const busy = makeStubFlare({
+      ...FLARE,
+      goingCount: 30,
+      attendees: Array.from({ length: 30 }, (_, n) => ({
+        _id: `guest-${n}`,
+        displayName: `guest ${n}`,
+        username: `guest${n}`,
+      })),
+    })
+    await stubBackend(page, { mapEvents: [busy] })
+    await page.goto(`/event/${FLARE._id}?tab=updates`)
+    await expect(drawer(page)).toHaveAttribute("data-snap", "full")
+    await drawer(page).getByRole("tab", { name: /going/ }).click()
+    await page.waitForTimeout(600)
+    const scrolled = await drawer(page).evaluate((el) => {
+      const scroller = el.querySelector("[data-flare-bar-room]")!.parentElement!
+      scroller.scrollTop = scroller.scrollHeight
+      return scroller.scrollTop
+    })
+    expect(scrolled).toBeGreaterThan(100)
+
+    // Drag the drawer down by its top edge, as a finger would.
+    const box = (await drawer(page).boundingBox())!
+    const x = box.x + box.width / 2
+    await page.mouse.move(x, box.y + 8)
+    await page.mouse.down()
+    await page.mouse.move(x, box.y + 150, { steps: 8 })
+    await page.mouse.move(x, box.y + 300, { steps: 8 })
+    await page.mouse.up()
+    await expect(drawer(page)).not.toHaveAttribute("data-snap", "full")
+
+    await expect
+      .poll(() =>
+        drawer(page).evaluate(
+          (el) =>
+            el.querySelector("[data-flare-bar-room]")!.parentElement!.scrollTop
+        )
+      )
+      .toBe(0)
+    await expect(title(page)).toBeInViewport()
+  })
 })
