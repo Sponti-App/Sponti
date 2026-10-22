@@ -13,7 +13,9 @@ git fetch --quiet origin "$BRANCH"
 git checkout --quiet "$BRANCH"
 git reset --quiet --hard "origin/$BRANCH"
 
-docker compose up -d --build --remove-orphans
+# --pull refreshes the node base image, so Node security releases land on deploy.
+docker compose build --pull
+docker compose up -d --remove-orphans
 docker image prune -f >/dev/null
 
 docker compose ps
