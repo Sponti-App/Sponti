@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  adaptApiEvent,
   createEventRequestFromDraft,
   durationChipFor,
   editedEndAt,
@@ -8,8 +9,9 @@ import {
   formatEventTime,
   formatRelativeStatus,
   inferEventStartShape,
+  timeRangeFromDraft,
 } from "./events.adapter"
-import type { DraftEvent, EventItem } from "./events.types"
+import type { ApiEvent, DraftEvent, EventItem } from "./events.types"
 
 const MIN = 60_000
 // Seconds and milliseconds on purpose: a flare lit "right now" keeps them.
@@ -60,7 +62,6 @@ describe("inferEventStartShape (#330)", () => {
     inferEventStartShape({
       createdAt: CREATED,
       startAt: at(startOffsetMin),
-      endAt: at(startOffsetMin + 60),
     })
 
   for (const offset of [0, 15, 30, 60]) {
@@ -69,7 +70,6 @@ describe("inferEventStartShape (#330)", () => {
         expect(shapeFor(offset + drift)).toEqual({
           mode: "now",
           startOffsetMinutes: offset,
-          durationMinutes: 60,
         })
       })
     }
@@ -82,7 +82,6 @@ describe("inferEventStartShape (#330)", () => {
       expect(shape.startOffsetMinutes).toBeUndefined()
       expect(shape.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       expect(shape.startTime).toMatch(/^\d{2}:\d{2}$/)
-      expect(shape.durationMinutes).toBe(60)
     })
   }
 })
@@ -129,20 +128,24 @@ describe("editedStartAt", () => {
 })
 
 describe("durationChipFor (#340)", () => {
+  const lasting = (minutes: number, openEnd?: boolean) => ({
+    startAt: CREATED,
+    endAt: at(minutes),
+    openEnd,
+  })
+
   it("selects the chip a stored length matches", () => {
-    expect(durationChipFor(60, "now")).toBe(60)
-    expect(durationChipFor(240, "now")).toBe(240)
-    expect(durationChipFor(240, "scheduled")).toBe(240)
+    expect(durationChipFor(lasting(60))).toBe(60)
+    expect(durationChipFor(lasting(240))).toBe(240)
   })
 
-  it("reads the open-ended fallback as open, for a right-now flare only", () => {
-    expect(durationChipFor(8 * 60, "now")).toBe(OPEN_ENDED)
-    expect(durationChipFor(8 * 60, "scheduled")).toBeNull()
+  it("selects open for a flare with no set end (#614)", () => {
+    expect(durationChipFor(lasting(12 * 60, true))).toBe(OPEN_ENDED)
   })
 
-  it("selects nothing for a length no chip offers", () => {
-    expect(durationChipFor(45, "now")).toBeNull()
-    expect(durationChipFor(15, "scheduled")).toBeNull()
+  it("selects nothing for a length no chip offers, old 8 hour flares included", () => {
+    expect(durationChipFor(lasting(45))).toBeNull()
+    expect(durationChipFor(lasting(8 * 60))).toBeNull()
   })
 })
 
@@ -177,10 +180,44 @@ describe("editedEndAt (#340)", () => {
     expect(editedEndAt(now, now.startAt, 240)).toBe("2099-06-01T22:00:37.123Z")
   })
 
-  it("saves open as the open-ended fallback after the start", () => {
-    expect(editedEndAt(now, now.startAt, OPEN_ENDED)).toBe(
-      "2099-06-02T02:00:37.123Z"
-    )
+  it("saves open as no end (#614)", () => {
+    expect(editedEndAt(now, now.startAt, OPEN_ENDED)).toBeNull()
+  })
+
+  it("keeps an open end open, and sets one when a length is picked (#614)", () => {
+    const open = { ...now, endAt: "2099-06-02T06:00:37.123Z", openEnd: true }
+    expect(editedEndAt(open, open.startAt, null)).toBeNull()
+    expect(editedEndAt(open, open.startAt, OPEN_ENDED)).toBeNull()
+    expect(editedEndAt(open, "2099-06-01T18:30:37.123Z", OPEN_ENDED)).toBeNull()
+    expect(editedEndAt(open, open.startAt, 60)).toBe("2099-06-01T19:00:37.123Z")
+  })
+})
+
+describe("an open end (#614)", () => {
+  it("is sent as no end", () => {
+    expect(timeRangeFromDraft(nowDraft({ durationMinutes: null }))).toEqual({
+      startAt: CREATED,
+      endAt: null,
+    })
+  })
+
+  it("reads back live until 12 hours after the start", () => {
+    const event = adaptApiEvent({
+      _id: "e1",
+      hostId: "h1",
+      title: "park",
+      type: "drinks",
+      startAt: CREATED,
+      endAt: null,
+      locationName: "the park",
+      location: { type: "Point", coordinates: [13.4, 52.5] },
+      visibility: "private",
+      allowGuestInvites: "none",
+      guestInviteLimit: 0,
+      status: "active",
+    } as ApiEvent)
+    expect(event.openEnd).toBe(true)
+    expect(event.endAt).toBe(at(12 * 60))
   })
 })
 

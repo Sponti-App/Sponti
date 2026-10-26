@@ -1,5 +1,6 @@
 import type { EventType } from "@/lib/api/events"
 import type { GeoCoords } from "@/lib/geolocation"
+import { liveUntil } from "@/lib/api/events/events.adapter"
 import { apiFetch, HttpError } from "@/lib/http"
 import { EVENT_TYPES } from "@/types/utils"
 
@@ -16,7 +17,7 @@ export type ApiPublicMapPin = {
   type: EventType
   location: { type: "Point"; coordinates: [number, number] }
   startAt: string
-  endAt: string
+  endAt: string | null
 }
 
 export type PublicMapPinsResponse = { data: ApiPublicMapPin[] }
@@ -27,7 +28,9 @@ export type PublicMapPin = {
   type: EventType
   visibility: "public"
   startAt: string
+  // The live-until time; `openEnd` when the host set no end (#614).
   endAt: string
+  openEnd: boolean
   position: GeoCoords
 }
 
@@ -51,7 +54,8 @@ export function adaptPublicMapPin(raw: unknown): PublicMapPin | null {
   const pin = raw as Partial<Record<keyof ApiPublicMapPin, unknown>>
   if (typeof pin._id !== "string" || !pin._id) return null
   if (!EVENT_TYPES.some((t) => t.value === pin.type)) return null
-  if (!isDate(pin.startAt) || !isDate(pin.endAt)) return null
+  if (!isDate(pin.startAt)) return null
+  if (pin.endAt !== null && !isDate(pin.endAt)) return null
   const coordinates = (pin.location as { coordinates?: unknown } | undefined)
     ?.coordinates
   if (!Array.isArray(coordinates) || coordinates.length !== 2) return null
@@ -63,7 +67,8 @@ export function adaptPublicMapPin(raw: unknown): PublicMapPin | null {
     type: pin.type as EventType,
     visibility: "public",
     startAt: pin.startAt,
-    endAt: pin.endAt,
+    endAt: liveUntil(pin.startAt, pin.endAt),
+    openEnd: pin.endAt === null,
     position: { lat, lng },
   }
 }

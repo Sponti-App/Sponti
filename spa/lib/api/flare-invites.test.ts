@@ -34,7 +34,10 @@ describe("flare invite api (#616)", () => {
   it("reads the preview without a token, the token in the body", async () => {
     apiFetch.mockResolvedValue({ data: preview })
 
-    expect(await fetchFlareInvitePreview("tok")).toEqual(preview)
+    expect(await fetchFlareInvitePreview("tok")).toEqual({
+      ...preview,
+      openEnd: false,
+    })
 
     expect(apiFetch).toHaveBeenCalledWith(
       "/public/flare-invite-preview",
@@ -70,6 +73,13 @@ describe("flare invite api (#616)", () => {
     expect(adaptFlareInvitePreview({ ...preview, title: "" })).toBeNull()
   })
 
+  it("reads a flare with no set end as live until 12 hours on (#614)", () => {
+    expect(adaptFlareInvitePreview({ ...preview, endAt: null })).toMatchObject({
+      endAt: "2026-10-25T05:00:00.000Z",
+      openEnd: true,
+    })
+  })
+
   it("reads where the viewer stands, and the flare only once they are on it", async () => {
     apiFetch.mockResolvedValue({
       data: { state: "invited", eventId: "e1", preview },
@@ -77,7 +87,7 @@ describe("flare invite api (#616)", () => {
     expect(await fetchFlareInviteStatus("tok")).toEqual({
       state: "invited",
       eventId: "e1",
-      preview,
+      preview: { ...preview, openEnd: false },
     })
 
     apiFetch.mockResolvedValue({

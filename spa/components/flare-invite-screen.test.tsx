@@ -52,6 +52,7 @@ const preview: FlareInvitePreview = {
   type: "drinks",
   startAt: new Date(Date.now() + 3_600_000).toISOString(),
   endAt: new Date(Date.now() + 7_200_000).toISOString(),
+  openEnd: false,
   placeName: "klunkerkranich",
 }
 

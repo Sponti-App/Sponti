@@ -16,9 +16,8 @@ export const NOW_START_PRESETS: { value: number; label: string }[] =
     label: NOW_START_LABELS[value],
   }))
 
-// The "how long?" chips (#340): "pick a time" and a scheduled flare's edit
-// page offer DURATION_PRESETS; the "right now" flow, in the composer and on
-// the edit page, adds "open".
+// The "how long?" chips (#340) of a "right now" flare and of the edit page,
+// "open" (no set end, #614) included.
 const DURATION_LABELS: Record<(typeof DURATIONS_MIN)[number], string> = {
   30: "30m",
   60: "1h",
@@ -27,11 +26,8 @@ const DURATION_LABELS: Record<(typeof DURATIONS_MIN)[number], string> = {
   240: "4h",
 }
 
-export const DURATION_PRESETS: { value: number; label: string }[] =
-  DURATIONS_MIN.map((value) => ({ value, label: DURATION_LABELS[value] }))
-
-export const NOW_DURATION_PRESETS: { value: number; label: string }[] = [
-  ...DURATION_PRESETS,
+export const DURATION_PRESETS: { value: number; label: string }[] = [
+  ...DURATIONS_MIN.map((value) => ({ value, label: DURATION_LABELS[value] })),
   { value: OPEN_ENDED, label: "open" },
 ]
 

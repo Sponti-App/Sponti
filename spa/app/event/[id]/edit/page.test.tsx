@@ -349,6 +349,14 @@ describe("EventEditPage duration chips (#340)", () => {
         new Date(startAt).getTime() + minutes * MIN
       ).toISOString(),
     })
+  // #614: no set end, live until 12 hours after the start.
+  const openFlare = () =>
+    hostedEvent({
+      createdAt,
+      startAt,
+      endAt: "2099-06-02T06:00:37.123Z",
+      openEnd: true,
+    })
 
   const chips = async () =>
     Array.from(
@@ -366,7 +374,7 @@ describe("EventEditPage duration chips (#340)", () => {
   })
 
   it("offers the composer's right-now presets with open, and selects an open-ended flare's open", async () => {
-    mocks.fetchHostedEventById.mockResolvedValue(nowFlare(8 * 60))
+    mocks.fetchHostedEventById.mockResolvedValue(openFlare())
     render(<EventEditPage />)
     expect(await chips()).toEqual([
       ["30m", "false"],
@@ -396,7 +404,7 @@ describe("EventEditPage duration chips (#340)", () => {
     )
   })
 
-  it("offers a scheduled flare the pick-a-time presets, without open", async () => {
+  it("offers a scheduled flare the same presets, open included (#614)", async () => {
     mocks.fetchHostedEventById.mockResolvedValue(hostedEvent())
     render(<EventEditPage />)
     expect(await chips()).toEqual([
@@ -405,11 +413,12 @@ describe("EventEditPage duration chips (#340)", () => {
       ["2h", "false"],
       ["3h", "false"],
       ["4h", "false"],
+      ["open", "false"],
     ])
   })
 
   it.each([
-    ["an open-ended", nowFlare(8 * 60)],
+    ["an open-ended", openFlare()],
     ["an unmatched", nowFlare(45)],
     ["a scheduled", hostedEvent({ endAt: "2099-06-01T19:00:59.999Z" })],
   ])(
@@ -430,13 +439,13 @@ describe("EventEditPage duration chips (#340)", () => {
         "event-1",
         expect.objectContaining({
           startAt: flare.startAt,
-          endAt: flare.endAt,
+          endAt: flare.openEnd ? null : flare.endAt,
         })
       )
     }
   )
 
-  it("saves open with the end the composer gives an open-ended flare", async () => {
+  it("saves open as no end, as the composer does (#614)", async () => {
     mocks.fetchHostedEventById.mockResolvedValue(nowFlare(60))
     const user = userEvent.setup()
     render(<EventEditPage />)

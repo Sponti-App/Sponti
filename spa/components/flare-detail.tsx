@@ -126,7 +126,8 @@ export function FlareFacts({
   mapsUrl,
 }: {
   when: string
-  until: string
+  /** Left out for an open end (#614). */
+  until?: string
   placeName: string
   /** "1.2 km · 47 chandos pl" */
   placeDetail?: string | null
@@ -141,7 +142,9 @@ export function FlareFacts({
         />
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{when}</p>
-          <p className="truncate text-xs text-muted-foreground">{until}</p>
+          {until && (
+            <p className="truncate text-xs text-muted-foreground">{until}</p>
+          )}
         </div>
       </div>
       {mapsUrl ? (

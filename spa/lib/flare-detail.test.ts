@@ -120,6 +120,16 @@ describe("flareStatusLine", () => {
     ).toBe("live · ends in 1h 35m")
   })
 
+  it("says since when, not an end, for an open end (#614)", () => {
+    expect(
+      flareStatusLine(
+        { startAt: at(-10), endAt: at(710), openEnd: true },
+        "live",
+        NOW
+      )
+    ).toMatch(/^live · since \d{1,2}:\d{2}\s?[ap]m$/)
+  })
+
   it("counts down to the start before it", () => {
     expect(
       flareStatusLine({ startAt: at(40), endAt: at(160) }, "soon", NOW)
