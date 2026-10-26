@@ -19,6 +19,7 @@ import {
 import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { Drawer } from "vaul"
+import { FocusScope } from "@radix-ui/react-focus-scope"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
 import { EventThreadComposer, useEventThread } from "@/components/event-thread"
@@ -461,54 +462,67 @@ function DrawerBody({
 
       {barShown &&
         createPortal(
-          <div
-            ref={barRef}
-            data-flare-action-bar
-            // Outside the drawer, so it stays above the nav at every height
-            // and while the drawer moves. Pointer events still bubble to the
-            // drawer through React, where vaul would read them as a drag.
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerMove={(e) => e.stopPropagation()}
-            onPointerUp={(e) => e.stopPropagation()}
-            className="fixed inset-x-0 z-[36] border-t border-border/60 bg-background px-4 py-2"
-            style={{
-              bottom:
-                composing && keyboard > 0
-                  ? keyboard
-                  : "var(--sponti-nav-h, 64px)",
-            }}
+          // vaul keeps Radix's focus trap on even with modal={false}, and the
+          // trap pulls focus out of anything outside the drawer's DOM, so on
+          // iOS the composer lost focus and closed the moment it opened.
+          // Mounting a scope here pauses the drawer's while the bar is up. It
+          // must mount after the drawer's, which holds as the bar waits for
+          // the flare to load, and share its stack: the package is pinned to
+          // the version radix-ui's Dialog uses.
+          <FocusScope
+            asChild
+            onMountAutoFocus={(e) => e.preventDefault()}
+            onUnmountAutoFocus={(e) => e.preventDefault()}
           >
-            {membership.rsvpError && (
-              <p
-                className="mb-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-                role="alert"
-              >
-                {membership.rsvpError}
-              </p>
-            )}
-            {composing && canSeeThread && !thread.closedByServer ? (
-              <EventThreadComposer
-                ref={composerRef}
-                thread={thread}
-                placeholder={
-                  isHost ? "announce to everyone..." : "say something..."
-                }
-                onClose={() => setComposing(false)}
-              />
-            ) : (
-              <FlareActions
-                viewer={viewer}
-                timing={timing}
-                declined={event.myRsvp === "declined"}
-                eta={membership.eta}
-                onEtaChange={membership.setEta}
-                saving={membership.saving}
-                onJoin={membership.join}
-                onDecline={membership.decline}
-                onShareUpdate={openComposer}
-              />
-            )}
-          </div>,
+            <div
+              ref={barRef}
+              data-flare-action-bar
+              // Outside the drawer, so it stays above the nav at every height
+              // and while the drawer moves. Pointer events still bubble to the
+              // drawer through React, where vaul would read them as a drag.
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerMove={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              className="fixed inset-x-0 z-[36] border-t border-border/60 bg-background px-4 py-2"
+              style={{
+                bottom:
+                  composing && keyboard > 0
+                    ? keyboard
+                    : "var(--sponti-nav-h, 64px)",
+              }}
+            >
+              {membership.rsvpError && (
+                <p
+                  className="mb-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                  role="alert"
+                >
+                  {membership.rsvpError}
+                </p>
+              )}
+              {composing && canSeeThread && !thread.closedByServer ? (
+                <EventThreadComposer
+                  ref={composerRef}
+                  thread={thread}
+                  placeholder={
+                    isHost ? "announce to everyone..." : "say something..."
+                  }
+                  onClose={() => setComposing(false)}
+                />
+              ) : (
+                <FlareActions
+                  viewer={viewer}
+                  timing={timing}
+                  declined={event.myRsvp === "declined"}
+                  eta={membership.eta}
+                  onEtaChange={membership.setEta}
+                  saving={membership.saving}
+                  onJoin={membership.join}
+                  onDecline={membership.decline}
+                  onShareUpdate={openComposer}
+                />
+              )}
+            </div>
+          </FocusScope>,
           document.body
         )}
     </>

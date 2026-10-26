@@ -207,4 +207,26 @@ test.describe("flare drawer (#615)", () => {
       .toBe(0)
     await expect(title(page)).toBeInViewport()
   })
+
+  test("share an update opens the composer, and it keeps focus", async ({
+    page,
+  }) => {
+    // The composer sits outside the drawer's DOM, where the drawer's focus
+    // trap used to pull focus back and close it at once. Focus inside the
+    // drawer first (the tab), as iOS always has it there.
+    await stubBackend(page, { mapEvents: [{ ...FLARE, myRsvp: "going" }] })
+    await page.goto(`/event/${FLARE._id}`)
+    await drawer(page)
+      .getByRole("tab", { name: /updates/ })
+      .click()
+    await actionBar(page)
+      .getByRole("button", { name: /share an update/ })
+      .click()
+    const input = actionBar(page).getByRole("textbox", { name: "update" })
+    await expect(input).toBeFocused()
+    await page.waitForTimeout(300)
+    await expect(input).toBeFocused()
+    await input.fill("on my way")
+    await expect(input).toHaveValue("on my way")
+  })
 })
