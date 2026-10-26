@@ -36,7 +36,7 @@ const addInviteeToHostAllFriendsFlares = async (
     hostId: hostObjectId,
     invitedCircleIds: allCircle._id,
     status: "active",
-    endAt: { $gt: new Date() },
+    liveUntil: { $gt: new Date() },
   })
     .select("_id title allowGuestInvites")
     .session(session ?? null)

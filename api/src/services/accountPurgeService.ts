@@ -45,10 +45,10 @@ export const TOMBSTONE_GRACE_MS = 20 * 60_000;
 export type PurgeSummary = { userId: string; tombstoneRemoved: boolean };
 
 const purgeOne = async (userId: Types.ObjectId, now: Date) => {
-  const hosted = await Event.find({ hostId: userId }).select("_id status endAt").lean();
+  const hosted = await Event.find({ hostId: userId }).select("_id status liveUntil").lean();
 
   for (const event of hosted) {
-    if (event.status === "active" && new Date(event.endAt) > now) {
+    if (event.status === "active" && new Date(event.liveUntil) > now) {
       await cancelEvent(userId.toString(), String(event._id));
     }
   }

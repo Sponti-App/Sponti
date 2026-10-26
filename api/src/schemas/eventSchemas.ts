@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { paginationQuerySchema } from "#utils/pagination";
 import { objectIdSchema } from "#utils/objectId";
-import { EVENT_GUEST_INVITE_MODES, EVENT_TYPES, MAX_GUEST_INVITE_LIMIT } from "#models/Event";
+import {
+  EVENT_GUEST_INVITE_MODES,
+  EVENT_TYPES,
+  MAX_FLARE_DURATION_MS,
+  MAX_GUEST_INVITE_LIMIT,
+} from "#models/Event";
 import { EVENT_UPDATE_BODY_MAX_LENGTH } from "#models/EventUpdate";
 import { isoDateSchema, optionalIsoDateSchema } from "./commonSchemas.js";
 
@@ -44,7 +49,8 @@ export const createEventBodySchema = z
     description: z.string().trim().max(2000).nullable().optional(),
     type: eventTypeSchema.default("hangout"),
     startAt: isoDateSchema,
-    endAt: isoDateSchema,
+    // Null is an open end (#614).
+    endAt: isoDateSchema.nullable(),
     locationName: z.string().trim().min(1).max(160),
     locationAddress: z.string().trim().max(240).nullable().optional(),
     location: locationSchema,
@@ -55,10 +61,15 @@ export const createEventBodySchema = z
     circles: z.array(eventCircleInviteSchema).default([]),
   })
   .strict()
-  .refine((body) => body.endAt.getTime() > body.startAt.getTime(), {
+  .refine((body) => body.endAt === null || body.endAt.getTime() > body.startAt.getTime(), {
     message: "endAt must be strictly after startAt",
     path: ["endAt"],
-  });
+  })
+  .refine(
+    (body) =>
+      body.endAt === null || body.endAt.getTime() - body.startAt.getTime() <= MAX_FLARE_DURATION_MS,
+    { message: "endAt can be at most 12 hours after startAt", path: ["endAt"] }
+  );
 
 export const updateEventBodySchema = z
   .object({
@@ -66,7 +77,8 @@ export const updateEventBodySchema = z
     description: z.string().trim().max(2000).nullable().optional(),
     type: eventTypeSchema.optional(),
     startAt: isoDateSchema.optional(),
-    endAt: isoDateSchema.optional(),
+    // Null makes it an open end (#614).
+    endAt: isoDateSchema.nullable().optional(),
     locationName: z.string().trim().min(1).max(160).optional(),
     locationAddress: z.string().trim().max(240).nullable().optional(),
     location: locationSchema.optional(),
@@ -80,6 +92,7 @@ export const updateEventBodySchema = z
   })
   .refine(
     (body) => {
+      // The service checks against the stored start when only one is sent.
       if (!body.startAt || !body.endAt) {
         return true;
       }
