@@ -85,6 +85,7 @@ import {
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { eventDisplayTitle } from "@/lib/flare-title"
+import { formatClock } from "@/lib/format-date"
 import { useTheme } from "next-themes"
 import { IdeaIcon } from "@/components/idea-icon"
 import { InviteDialog } from "@/components/qr-share-sheet"
@@ -2181,6 +2182,7 @@ function EmptyState({
 }
 
 function endingInLabel(event: EventItem, now: number = Date.now()): string {
+  if (event.openEnd) return `since ${formatClock(event.startAt)}`
   const end = new Date(event.endAt).getTime()
   const mins = Math.max(0, Math.round((end - now) / 60_000))
   if (mins < 60) return `ending in ${mins} min`

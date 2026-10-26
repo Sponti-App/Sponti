@@ -62,9 +62,17 @@ describe("fetchPublicMapPins (#389)", () => {
         visibility: "public",
         startAt: PIN.startAt,
         endAt: PIN.endAt,
+        openEnd: false,
         position: { lat: 52.5, lng: 13.42 },
       },
     ])
+  })
+
+  it("keeps a pin with no set end, live until 12 hours on (#614)", () => {
+    expect(adaptPublicMapPin({ ...PIN, endAt: null })).toMatchObject({
+      endAt: new Date(Date.parse(PIN.startAt) + 12 * 3_600_000).toISOString(),
+      openEnd: true,
+    })
   })
 
   it("drops pins it can't place and keeps the rest", async () => {
@@ -110,6 +118,7 @@ describe("adaptPublicMapPin", () => {
     expect(pin && Object.keys(pin).sort()).toEqual([
       "endAt",
       "id",
+      "openEnd",
       "position",
       "startAt",
       "type",

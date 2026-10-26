@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation"
 import { Drawer } from "vaul"
 import { FocusScope } from "@radix-ui/react-focus-scope"
 import { Button } from "@/components/ui/button"
+import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { EventThreadComposer, useEventThread } from "@/components/event-thread"
 import {
@@ -45,9 +46,10 @@ import {
   CaretRightIcon,
   NavigationArrowIcon,
   PencilSimpleIcon,
+  StopCircleIcon,
   XIcon,
 } from "@/components/icons"
-import { formatDistance, type HostedEvent } from "@/lib/api/events"
+import { formatDistance, updateEvent, type HostedEvent } from "@/lib/api/events"
 import { featureFlags } from "@/lib/feature-flags"
 import {
   etaAvailable,
@@ -67,6 +69,7 @@ import {
 } from "@/lib/flare-drawer"
 import { displayFlareTitle } from "@/lib/flare-title"
 import { haptic } from "@/lib/haptics"
+import { emitEventsChanged } from "@/lib/use-events"
 import { useHostedEvent } from "@/lib/use-hosted-event"
 import { cn } from "@/lib/utils"
 
@@ -379,6 +382,9 @@ function DrawerBody({
                     hostName={viewerName ?? event.hostName}
                   />
                 )}
+                {event.openEnd && timing === "live" && (
+                  <EndNowButton eventId={event.id} onEnded={onReload} />
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -397,7 +403,9 @@ function DrawerBody({
       <div className="mt-4">
         <FlareFacts
           when={whenLabel(event.startAt, timing)}
-          until={`until ${formatClock(event.endAt)}`}
+          until={
+            event.openEnd ? undefined : `until ${formatClock(event.endAt)}`
+          }
           placeName={event.locationLabel}
           placeDetail={
             [
@@ -533,6 +541,61 @@ function DrawerBody({
  * Directions, as a choice: the walking route on sponti's own map, or google
  * maps. The old page's "open in maps" left the app on a single tap.
  */
+/**
+ * #614: ends a flare with an open end. The first tap asks ("end now?"), the
+ * second saves the end as now; moving focus away asks again next time.
+ */
+function EndNowButton({
+  eventId,
+  onEnded,
+}: {
+  eventId: string
+  onEnded: () => void
+}) {
+  const { showActionFeedback } = useActionFeedback()
+  const [asking, setAsking] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  if (!asking) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="end now"
+        className="size-9 rounded-full bg-muted text-foreground hover:bg-muted/70"
+        onClick={() => setAsking(true)}
+      >
+        <StopCircleIcon className="h-4 w-4" />
+      </Button>
+    )
+  }
+  return (
+    <Button
+      variant="ghost"
+      autoFocus
+      disabled={saving}
+      className="h-9 rounded-full bg-muted px-3 text-sm text-destructive hover:bg-muted/70"
+      onBlur={() => setAsking(false)}
+      onClick={async () => {
+        setSaving(true)
+        try {
+          await updateEvent(eventId, { endAt: new Date().toISOString() })
+          emitEventsChanged()
+          showActionFeedback("flare ended")
+          onEnded()
+        } catch {
+          showActionFeedback("couldn't end it", { tone: "error" })
+        } finally {
+          setSaving(false)
+          setAsking(false)
+        }
+      }}
+    >
+      end now?
+    </Button>
+  )
+}
+
 function DirectionsRow({
   travelLabel,
   canRoute,

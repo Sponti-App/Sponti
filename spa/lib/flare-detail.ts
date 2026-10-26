@@ -9,6 +9,7 @@ import type {
   EventRsvp,
   EventVisibility,
 } from "@/lib/api/events"
+import { formatClock } from "@/lib/format-date"
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -107,15 +108,23 @@ export function formatSpan(ms: number): string {
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`
 }
 
-/** The line under the title: "live · ends in 1h 35m", "starts in 40 min". */
+/**
+ * The line under the title: "live · ends in 1h 35m", "starts in 40 min", or
+ * "live · since 7:00 pm" for an open end (#614).
+ */
 export function flareStatusLine(
-  { startAt, endAt }: { startAt: string; endAt: string },
+  {
+    startAt,
+    endAt,
+    openEnd,
+  }: { startAt: string; endAt: string; openEnd?: boolean },
   timing: FlareTiming,
   now: number = Date.now()
 ): string {
   if (timing === "cancelled") return "cancelled"
   if (timing === "ended") return "ended"
   if (timing === "live") {
+    if (openEnd) return `live · since ${formatClock(startAt)}`
     return `live · ends in ${formatSpan(new Date(endAt).getTime() - now)}`
   }
   return `starts in ${formatSpan(new Date(startAt).getTime() - now)}`

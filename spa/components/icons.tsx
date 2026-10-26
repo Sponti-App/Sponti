@@ -119,6 +119,7 @@ import { SneakerIcon as PhSneaker } from "@phosphor-icons/react/dist/ssr/Sneaker
 import { SnowflakeIcon as PhSnowflake } from "@phosphor-icons/react/dist/ssr/Snowflake"
 import { SoccerBallIcon as PhSoccerBall } from "@phosphor-icons/react/dist/ssr/SoccerBall"
 import { SparkleIcon as PhSparkle } from "@phosphor-icons/react/dist/ssr/Sparkle"
+import { StopCircleIcon as PhStopCircle } from "@phosphor-icons/react/dist/ssr/StopCircle"
 import { StorefrontIcon as PhStorefront } from "@phosphor-icons/react/dist/ssr/Storefront"
 import { SunIcon as PhSun } from "@phosphor-icons/react/dist/ssr/Sun"
 import { SunHorizonIcon as PhSunHorizon } from "@phosphor-icons/react/dist/ssr/SunHorizon"
@@ -230,6 +231,7 @@ export const ShieldCheckIcon = appIcon(PhShieldCheck, "shield-check")
 export const ShieldWarningIcon = appIcon(PhShieldWarning, "shield-warning")
 export const SignOutIcon = appIcon(PhSignOut, "sign-out")
 export const SparkleIcon = appIcon(PhSparkle, "sparkle")
+export const StopCircleIcon = appIcon(PhStopCircle, "stop-circle")
 export const SunIcon = appIcon(PhSun, "sun")
 export const TrashIcon = appIcon(PhTrash, "trash")
 export const UploadSimpleIcon = appIcon(PhUploadSimple, "upload-simple")

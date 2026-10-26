@@ -111,6 +111,34 @@ test.describe("flare composer", () => {
     expect(Date.parse(body.endAt) - start).toBe(60 * MIN)
   })
 
+  // #614: a planned flare can have no set end; the end wheel steps aside.
+  test("pick a time with an open end lights a flare with no end", async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(["geolocation"])
+    await context.setGeolocation({ latitude: 37.7749, longitude: -122.4194 })
+    await page.getByRole("button", { name: "flare", exact: true }).click()
+    await page.getByRole("tab", { name: "pick a time" }).click()
+    const end = page.getByRole("listbox", { name: "end time" })
+    await expect(end).toBeVisible()
+
+    await page.getByRole("switch", { name: "open end" }).click()
+    await expect(end).toHaveCount(0)
+    await expect(page.getByText("no set end")).toBeVisible()
+
+    const posted = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        new URL(req.url()).pathname.endsWith("/events")
+    )
+    await page
+      .getByRole("button", { name: "light a flare", exact: true })
+      .click()
+    const body = (await posted).postDataJSON() as { endAt: string | null }
+    expect(body.endAt).toBeNull()
+  })
+
   // #494: an empty title becomes a short phrase, not the metadata list.
   test("lights an untitled flare with a short title", async ({
     page,

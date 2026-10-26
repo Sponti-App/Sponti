@@ -191,7 +191,11 @@ export function EventDetailSheet({
                 <div className="my-4">
                   <FlareFacts
                     when={formatWhen(displayEvent.startAt, timing === "live")}
-                    until={`until ${formatClock(displayEvent.endAt)}`}
+                    until={
+                      displayEvent.openEnd
+                        ? undefined
+                        : `until ${formatClock(displayEvent.endAt)}`
+                    }
                     placeName={displayEvent.location.name}
                     placeDetail={
                       [

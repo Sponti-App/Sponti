@@ -13,6 +13,8 @@ import {
   getInitialEventDraftState,
   isUntouchedDraft,
   normalizePrefill,
+  END_WHEEL_DURATIONS_MIN,
+  snapToEndWheel,
 } from "./new-event-drawer"
 import { visibleSlotHeight } from "@/lib/use-sheet-visible-height"
 
@@ -255,7 +257,7 @@ describe("buildTimeRange", () => {
     expect(result.endAt).toBe(end.toISOString())
   })
 
-  it("uses open-ended fallback (480min) when durationMin is null", () => {
+  it("sends no end for an open end (#614)", () => {
     const result = buildTimeRange({
       mode: "now",
       createdAt: "2026-07-15T12:00:00.000Z",
@@ -264,9 +266,24 @@ describe("buildTimeRange", () => {
       startTimeMin: 0,
       durationMin: null,
     })
-    const expectedEnd =
-      new Date("2026-07-15T12:00:00.000Z").getTime() + 480 * 60_000
-    expect(result.endAt).toBe(new Date(expectedEnd).toISOString())
+    expect(result.endAt).toBeNull()
+  })
+})
+
+describe("the end wheel (#614)", () => {
+  it("steps by 15 minutes to 4 hours, then by 30 minutes to 12", () => {
+    expect(END_WHEEL_DURATIONS_MIN).toHaveLength(32)
+    expect(END_WHEEL_DURATIONS_MIN.slice(0, 2)).toEqual([15, 30])
+    expect(END_WHEEL_DURATIONS_MIN.slice(15, 18)).toEqual([240, 270, 300])
+    expect(END_WHEEL_DURATIONS_MIN.at(-1)).toBe(12 * 60)
+  })
+
+  it("snaps a length to the nearest row, inside 15 minutes to 12 hours", () => {
+    expect(snapToEndWheel(45)).toBe(45)
+    expect(snapToEndWheel(255)).toBe(240)
+    expect(snapToEndWheel(0)).toBe(15)
+    expect(snapToEndWheel(-60)).toBe(15)
+    expect(snapToEndWheel(13 * 60)).toBe(12 * 60)
   })
 })
 
@@ -309,7 +326,7 @@ describe("right now start offset (#312)", () => {
     })
   })
 
-  it("open end with a start offset gives a valid start and end", () => {
+  it("open end with a start offset gives a valid start and no end", () => {
     const range = nowRangeAfterDurationPick({ startOffsetMin: 60 }, -1)
     expect(nowRangeAfterStartPick(range, 15).endOffsetMin).toBe(-1)
     const result = buildTimeRange({
@@ -321,9 +338,7 @@ describe("right now start offset (#312)", () => {
       durationMin: null,
     })
     expect(result.startAt).toBe(new Date(created + 60 * 60_000).toISOString())
-    expect(result.endAt).toBe(
-      new Date(created + (60 + 480) * 60_000).toISOString()
-    )
+    expect(result.endAt).toBeNull()
   })
 
   it("labels the when chip with the offset", () => {

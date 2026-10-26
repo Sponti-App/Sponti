@@ -75,15 +75,12 @@ import {
 } from "@/lib/current-location"
 import { EVENT_TYPES } from "@/types/utils"
 import {
-  NOW_DURATION_PRESETS,
+  DURATION_PRESETS,
   NOW_START_PRESETS,
   NowChipRow,
 } from "@/components/now-chip-row"
 // The adapter module itself, not the "@/lib/api/events" barrel that tests mock.
-import {
-  OPEN_ENDED,
-  OPEN_ENDED_FALLBACK_MIN,
-} from "@/lib/api/events/events.adapter"
+import { liveUntil, OPEN_ENDED } from "@/lib/api/events/events.adapter"
 
 type Mode = "now" | "scheduled"
 type WhereType = "current" | "search"
@@ -100,8 +97,12 @@ type PlaceDetailsResponse = {
 
 const STEP_MIN = 15
 const TITLE_MAX_LENGTH = 80
-const MAX_DURATION_MIN = 240
-const MIN_DURATION_MIN = 15
+const DEFAULT_SCHEDULED_DURATION_MIN = 60
+// The end wheel's lengths (#614), up to the api's 12-hour cap.
+export const END_WHEEL_DURATIONS_MIN = [
+  ...Array.from({ length: 16 }, (_, i) => 15 + i * 15), // 15m to 4h
+  ...Array.from({ length: 16 }, (_, i) => 270 + i * 30), // 4h 30m to 12h
+]
 const SCHEDULED_MAX_DAYS = 14
 const SCHEDULED_DAY_START_MIN = 6 * 60
 const SCHEDULED_DAY_END_MIN = 26 * 60
@@ -130,6 +131,13 @@ function formatTimeOfDay(minSinceMidnight: number): string {
   return m === 0
     ? `${h12}${ampm}`
     : `${h12}:${String(m).padStart(2, "0")}${ampm}`
+}
+
+// The length an end wheel row stands for nearest to `durationMin`.
+export function snapToEndWheel(durationMin: number): number {
+  return END_WHEEL_DURATIONS_MIN.reduce((best, d) =>
+    Math.abs(d - durationMin) < Math.abs(best - durationMin) ? d : best
+  )
 }
 
 function formatDayChip(d: Date): { weekday: string; date: string } {
@@ -291,7 +299,7 @@ export function buildTimeRange(args: {
   startDate: string
   startTimeMin: number
   durationMin: number | null
-}): { startAt: string; endAt: string } {
+}): { startAt: string; endAt: string | null } {
   let startMs: number
   if (args.mode === "now") {
     startMs = new Date(args.createdAt).getTime() + args.startOffsetMin * 60_000
@@ -300,11 +308,12 @@ export function buildTimeRange(args: {
     start.setMinutes(start.getMinutes() + args.startTimeMin)
     startMs = start.getTime()
   }
-  const dur =
-    args.durationMin !== null ? args.durationMin : OPEN_ENDED_FALLBACK_MIN
   return {
     startAt: new Date(startMs).toISOString(),
-    endAt: new Date(startMs + dur * 60_000).toISOString(),
+    endAt:
+      args.durationMin === null
+        ? null
+        : new Date(startMs + args.durationMin * 60_000).toISOString(),
   }
 }
 
@@ -1162,13 +1171,10 @@ export function NewEventDrawer({
 
   const handleStartTime = (next: number): void => {
     setStartTimeMin(next)
-    setEndTimeMin((prev) => {
-      const min = next + MIN_DURATION_MIN
-      const max = next + MAX_DURATION_MIN
-      if (prev < min) return min
-      if (prev > max) return max
-      return prev
-    })
+    // The end stays put where it can, on the nearest row where it can't.
+    setEndTimeMin((prev) =>
+      prev === OPEN_ENDED ? prev : next + snapToEndWheel(prev - next)
+    )
   }
 
   const currentLocation = useMemo<DraftEventLocation | null>(() => {
@@ -1347,21 +1353,29 @@ export function NewEventDrawer({
     return out
   }, [])
 
-  const scheduledEndOptions = useMemo(() => {
-    const out: { value: number; label: string }[] = []
-    const min = startTimeMin + MIN_DURATION_MIN
-    const max = startTimeMin + MAX_DURATION_MIN
-    for (let m = min; m <= max; m += STEP_MIN) {
-      out.push({ value: m, label: formatTimeOfDay(m) })
-    }
-    return out
-  }, [startTimeMin])
+  // An end after midnight names its day: "7am sun".
+  const scheduledEndOptions = useMemo(
+    () =>
+      END_WHEEL_DURATIONS_MIN.map((duration) => {
+        const m = startTimeMin + duration
+        const day = new Date(`${startDate}T00:00:00`)
+        day.setMinutes(m)
+        return {
+          value: m,
+          label:
+            m >= 24 * 60
+              ? `${formatTimeOfDay(m)} ${formatWeekdayShort(day)}`
+              : formatTimeOfDay(m),
+        }
+      }),
+    [startTimeMin, startDate]
+  )
 
   const durationMin = useMemo<number | null>(() => {
     if (mode === "now") {
       return endOffsetMin === OPEN_ENDED ? null : endOffsetMin - startOffsetMin
     }
-    return endTimeMin - startTimeMin
+    return endTimeMin === OPEN_ENDED ? null : endTimeMin - startTimeMin
   }, [mode, endOffsetMin, startOffsetMin, endTimeMin, startTimeMin])
 
   const whereLabel = useMemo<string | null>(() => {
@@ -1522,8 +1536,6 @@ export function NewEventDrawer({
           : { kind: "members", memberIds: directlyInvitedIds }
       }
 
-      const effectiveDuration =
-        durationMin !== null ? durationMin : OPEN_ENDED_FALLBACK_MIN
       // The host's first name is added when the flare is shown to others, so
       // it is not stored here (#494).
       const finalTitle =
@@ -1543,7 +1555,7 @@ export function NewEventDrawer({
         eventType: effectiveType,
         title: finalTitle,
         details: details.trim() || undefined,
-        durationMinutes: effectiveDuration,
+        durationMinutes: durationMin,
         startOffsetMinutes: mode === "now" ? startOffsetMin : undefined,
         startDate:
           mode === "scheduled" ? formatDateInput(scheduledStart) : undefined,
@@ -1590,7 +1602,7 @@ export function NewEventDrawer({
             visibility: draft.visibility,
             title: finalTitle,
             startAt: timeRange.startAt,
-            endAt: timeRange.endAt,
+            endAt: liveUntil(timeRange.startAt, timeRange.endAt),
           }),
         })
         const [lng, lat] = draftLocation.coordinates
@@ -1903,7 +1915,7 @@ export function NewEventDrawer({
                         </p>
                         <NowChipRow
                           ariaLabel="how long?"
-                          presets={NOW_DURATION_PRESETS}
+                          presets={DURATION_PRESETS}
                           value={
                             endOffsetMin === OPEN_ENDED
                               ? OPEN_ENDED
@@ -1942,6 +1954,13 @@ export function NewEventDrawer({
                           endValue={endTimeMin}
                           onStart={handleStartTime}
                           onEnd={setEndTimeMin}
+                          onOpenEnd={(open) =>
+                            setEndTimeMin(
+                              open
+                                ? OPEN_ENDED
+                                : startTimeMin + DEFAULT_SCHEDULED_DURATION_MIN
+                            )
+                          }
                         />
                         {durationMin !== null && (
                           <p className="mt-2 text-xs text-muted-foreground">
@@ -2307,7 +2326,7 @@ function EventTypePills({
 // the twin scroll wheels which trapped vertical-scroll gestures in a narrow
 // drawer. "starts" offers a short delay ("heading there in half an hour",
 // #312; NOW_START_PRESETS in now-chip-row.tsx); anything later belongs in
-// "pick a time". "how long?" offers NOW_DURATION_PRESETS (now-chip-row.tsx),
+// "pick a time". "how long?" offers DURATION_PRESETS (now-chip-row.tsx),
 // which the edit page shares (#340).
 
 // ----- Time wheels -----
@@ -2319,6 +2338,7 @@ function TimeRange({
   endValue,
   onStart,
   onEnd,
+  onOpenEnd,
 }: {
   startOptions: { value: number; label: string }[]
   endOptions: { value: number; label: string }[]
@@ -2326,7 +2346,9 @@ function TimeRange({
   endValue: number
   onStart: (v: number) => void
   onEnd: (v: number) => void
+  onOpenEnd: (open: boolean) => void
 }) {
+  const openEnd = endValue === OPEN_ENDED
   return (
     <div className="rounded-xl border border-border bg-secondary/30 p-2">
       <div className="grid grid-cols-2 gap-2">
@@ -2345,14 +2367,25 @@ function TimeRange({
           <div className="mb-1 text-center text-xs text-muted-foreground">
             end
           </div>
-          <TimeWheel
-            options={endOptions}
-            value={endValue}
-            onChange={onEnd}
-            ariaLabel="end time"
-          />
+          {openEnd ? (
+            <div className="flex h-27 items-center justify-center rounded-lg bg-background text-sm text-muted-foreground">
+              no set end
+            </div>
+          ) : (
+            <TimeWheel
+              options={endOptions}
+              value={endValue}
+              onChange={onEnd}
+              ariaLabel="end time"
+            />
+          )}
         </div>
       </div>
+      {/* #614: live until 12 hours after the start, or until the host ends it. */}
+      <label className="mt-2 flex items-center justify-end gap-2 px-1 text-xs text-muted-foreground">
+        open end
+        <Switch checked={openEnd} onCheckedChange={onOpenEnd} size="sm" />
+      </label>
     </div>
   )
 }

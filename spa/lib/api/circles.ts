@@ -128,7 +128,7 @@ export type CircleFlare = {
   id: string
   title: string
   startAt: string
-  endAt: string
+  endAt: string | null
 }
 
 /**
@@ -145,7 +145,12 @@ export function fetchCircleFlares(
   const query = userId ? `?${new URLSearchParams({ userId })}` : ""
 
   return apiFetch<{
-    data: Array<{ _id: string; title: string; startAt: string; endAt: string }>
+    data: Array<{
+      _id: string
+      title: string
+      startAt: string
+      endAt: string | null
+    }>
   }>(`/circles/${circleId}/events${query}`, { signal }).then((response) =>
     response.data.map((flare) => ({
       id: flare._id,

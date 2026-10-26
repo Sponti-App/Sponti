@@ -1,4 +1,5 @@
 import type { EventType } from "@/lib/api/events"
+import { liveUntil } from "@/lib/api/events/events.adapter"
 import { apiFetch, HttpError } from "@/lib/http"
 import { EVENT_TYPES } from "@/types/utils"
 
@@ -14,7 +15,9 @@ export type FlareInvitePreview = {
   title: string
   type: EventType
   startAt: string
+  // The live-until time; `openEnd` when the host set no end (#614).
   endAt: string
+  openEnd: boolean
   placeName: string
 }
 
@@ -64,7 +67,8 @@ export function adaptFlareInvitePreview(
   if (!host || !isText(host.displayName)) return null
   if (!isText(preview.title)) return null
   if (!EVENT_TYPES.some((t) => t.value === preview.type)) return null
-  if (!isDate(preview.startAt) || !isDate(preview.endAt)) return null
+  if (!isDate(preview.startAt)) return null
+  if (preview.endAt !== null && !isDate(preview.endAt)) return null
   return {
     host: {
       displayName: host.displayName,
@@ -73,7 +77,8 @@ export function adaptFlareInvitePreview(
     title: preview.title,
     type: preview.type as EventType,
     startAt: preview.startAt,
-    endAt: preview.endAt,
+    endAt: liveUntil(preview.startAt, preview.endAt),
+    openEnd: preview.endAt === null,
     placeName: typeof preview.placeName === "string" ? preview.placeName : "",
   }
 }
