@@ -23,7 +23,10 @@ export interface EventItem {
   title: string
   type: EventType
   startAt: string
+  // When the flare stops being live. For an open end (#614) that's 12 hours
+  // after the start, as the api decides it; `openEnd` says not to show it.
   endAt: string
+  openEnd?: boolean
   visibility: EventVisibility
   myRsvp?: EventRsvp | null
   host: {
@@ -83,7 +86,8 @@ export type DraftEvent = {
   eventType: EventType
   title: string
   details?: string
-  durationMinutes: number
+  // null: an open end (#614).
+  durationMinutes: number | null
   startOffsetMinutes?: number
   startDate?: string
   startTime?: string
@@ -116,7 +120,9 @@ export type HostedEvent = {
   type: EventType
   coverImageUrl?: string
   startAt: string
+  // As on EventItem: the live-until time when `openEnd` (#614).
   endAt: string
+  openEnd?: boolean
   locationLabel: string
   locationDetail?: string
   // The flare's pin, for the detail page's map hero and "open in maps" (#139).
@@ -170,7 +176,8 @@ export type EventAudienceTarget =
 
 export type EventTimeRange = {
   startAt: string
-  endAt: string
+  // null: an open end (#614).
+  endAt: string | null
 }
 
 export type EventMemberInviteRequest = {
@@ -189,7 +196,8 @@ export type CreateEventRequest = {
   type: EventType
   coverImageUrl?: string | null
   startAt: string
-  endAt: string
+  // null: an open end, live until 12 hours after the start (#614).
+  endAt: string | null
   locationName: string
   locationAddress?: string | null
   location: {
@@ -273,7 +281,8 @@ export type ApiEvent = {
   type: EventType
   coverImageUrl?: string | null
   startAt: string
-  endAt: string
+  // null: an open end (#614).
+  endAt: string | null
   locationName: string
   locationAddress?: string | null
   location: { type: "Point"; coordinates: [number, number] }

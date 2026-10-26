@@ -8,6 +8,7 @@ import {
   EventUpdate,
   PendingEventInvite,
 } from "#models/index";
+import { MAX_FLARE_DURATION_MS } from "#models/Event";
 import type { ArrivalStatus } from "#models/EventMember";
 import type {
   ActiveMapEventsQuery,
@@ -515,18 +516,19 @@ export const getEvents = async (userId: string, query: GetEventsQuery) => {
     conditions.push({ startAt });
   }
 
+  // The query keeps its endAt names; an open end (#614) counts as start + 12h.
   if (query.endAtFrom || query.endAtTo) {
-    const endAt: Record<string, Date> = {};
+    const liveUntil: Record<string, Date> = {};
 
     if (query.endAtFrom) {
-      endAt.$gt = query.endAtFrom;
+      liveUntil.$gt = query.endAtFrom;
     }
 
     if (query.endAtTo) {
-      endAt.$lte = query.endAtTo;
+      liveUntil.$lte = query.endAtTo;
     }
 
-    conditions.push({ endAt });
+    conditions.push({ liveUntil });
   }
 
   const filter = conditions.length > 0 ? withConditions(baseFilter, ...conditions) : baseFilter;
@@ -604,7 +606,7 @@ export const getMyUpcomingEvents = async (userId: string, query: MyUpcomingEvent
     Event.find({
       hostId: userObjectId,
       status: { $in: ["active", "cancelled"] },
-      endAt: { $gt: now },
+      liveUntil: { $gt: now },
     })
       .sort({ startAt: 1 })
       .lean(),
@@ -612,13 +614,13 @@ export const getMyUpcomingEvents = async (userId: string, query: MyUpcomingEvent
       _id: { $in: memberEventIds },
       hostId: { $ne: userObjectId, $nin: blockedObjectIds },
       status: "active",
-      endAt: { $gt: now },
+      liveUntil: { $gt: now },
     })
       .sort({ startAt: 1 })
       .lean(),
     Event.find({
       hostId: userObjectId,
-      endAt: { $lte: now, $gte: pastFrom },
+      liveUntil: { $lte: now, $gte: pastFrom },
     })
       .sort({ startAt: -1 })
       .lean(),
@@ -662,10 +664,24 @@ export const updateEvent = async (hostId: string, eventId: string, input: Update
   }
 
   const nextStartAt = input.startAt ?? event.startAt;
-  const nextEndAt = input.endAt ?? event.endAt;
+  // `null` in the input makes it an open end (#614); left out keeps the old end.
+  const nextEndAt = input.endAt !== undefined ? input.endAt : event.endAt;
 
-  if (nextEndAt.getTime() <= nextStartAt.getTime()) {
+  if (nextEndAt && nextEndAt.getTime() <= nextStartAt.getTime()) {
     throw new AppError("endAt must be strictly after startAt", 400, "INVALID_EVENT_TIME_RANGE");
+  }
+
+  const timesChanging = input.startAt !== undefined || input.endAt !== undefined;
+  if (
+    timesChanging &&
+    nextEndAt &&
+    nextEndAt.getTime() - nextStartAt.getTime() > MAX_FLARE_DURATION_MS
+  ) {
+    throw new AppError(
+      "endAt can be at most 12 hours after startAt",
+      400,
+      "INVALID_EVENT_TIME_RANGE"
+    );
   }
 
   const wasPublic = event.visibility === "public";
@@ -770,14 +786,14 @@ export const inviteEventMembers = async (
   input: InviteEventMembersBody
 ) => {
   const event = await Event.findOne({ _id: toObjectId(eventId), hostId: toObjectId(hostId) })
-    .select("_id title status endAt allowGuestInvites")
+    .select("_id title status liveUntil allowGuestInvites")
     .lean();
 
   if (!event) {
     throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  if (event.status !== "active" || event.endAt.getTime() <= Date.now()) {
+  if (event.status !== "active" || event.liveUntil.getTime() <= Date.now()) {
     throw new AppError(
       "Only active events that haven't ended can take new invitees",
       409,
@@ -916,7 +932,7 @@ export const getCircleUpcomingEvents = async (
     hostId: hostObjectId,
     invitedCircleIds: circleObjectId,
     status: "active",
-    endAt: { $gt: new Date() },
+    liveUntil: { $gt: new Date() },
   };
 
   if (query.userId) {
@@ -947,14 +963,14 @@ export const removeEventMember = async (hostId: string, eventId: string, guestId
   }
 
   const event = await Event.findOne({ _id: toObjectId(eventId), hostId: toObjectId(hostId) })
-    .select("_id title status endAt visibility")
+    .select("_id title status liveUntil visibility")
     .lean();
 
   if (!event) {
     throw new AppError("Event not found", 404, "EVENT_NOT_FOUND");
   }
 
-  if (event.status !== "active" || event.endAt.getTime() <= Date.now()) {
+  if (event.status !== "active" || event.liveUntil.getTime() <= Date.now()) {
     throw new AppError(
       "Guests can only be removed from active events that haven't ended",
       409,
@@ -1072,7 +1088,7 @@ export const reactivateEvent = async (hostId: string, eventId: string) => {
       throw new AppError("Event cannot be reactivated", 409, "EVENT_NOT_REACTIVATABLE");
     }
 
-    if (event.endAt.getTime() <= Date.now()) {
+    if (event.liveUntil.getTime() <= Date.now()) {
       throw new AppError("Past events cannot be reactivated", 409, "EVENT_NOT_REACTIVATABLE");
     }
 
@@ -1484,7 +1500,7 @@ export const getActiveMapEvents = async (userId: string, query: ActiveMapEventsQ
   const now = new Date();
   const filter = withConditions(baseFilter, {
     status: "active",
-    endAt: { $gt: now },
+    liveUntil: { $gt: now },
     startAt: { $lte: new Date(now.getTime() + MAP_SOON_WINDOW_MS) },
     location: {
       $near: {

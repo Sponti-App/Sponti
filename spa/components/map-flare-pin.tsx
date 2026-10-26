@@ -114,13 +114,17 @@ export function pinChipLabel(
   return own ? `you · ${label}` : label
 }
 
-/** The popover's time line: "live · ends in 1h 10m" or "starts 7pm". */
+/**
+ * The popover's time line: "live · ends in 1h 10m", "live · since 7pm" for an
+ * open end (#614), or "starts 7pm".
+ */
 export function popoverTimeLabel(
   event: EventItem,
   now: number = Date.now()
 ): string {
   const timing = timingOf(event, now)
   if (timing === "live") {
+    if (event.openEnd) return `live · since ${pinClock(event.startAt)}`
     const left = new Date(event.endAt).getTime() - now
     return `live · ends in ${timeLeftLabel(left)}`
   }

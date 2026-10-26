@@ -19,7 +19,9 @@ import {
 import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { Drawer } from "vaul"
+import { FocusScope } from "@radix-ui/react-focus-scope"
 import { Button } from "@/components/ui/button"
+import { useActionFeedback } from "@/components/action-feedback"
 import { useAuth } from "@/components/auth-provider"
 import { EventThreadComposer, useEventThread } from "@/components/event-thread"
 import {
@@ -44,9 +46,10 @@ import {
   CaretRightIcon,
   NavigationArrowIcon,
   PencilSimpleIcon,
+  StopCircleIcon,
   XIcon,
 } from "@/components/icons"
-import { formatDistance, type HostedEvent } from "@/lib/api/events"
+import { formatDistance, updateEvent, type HostedEvent } from "@/lib/api/events"
 import { featureFlags } from "@/lib/feature-flags"
 import {
   etaAvailable,
@@ -66,6 +69,7 @@ import {
 } from "@/lib/flare-drawer"
 import { displayFlareTitle } from "@/lib/flare-title"
 import { haptic } from "@/lib/haptics"
+import { emitEventsChanged } from "@/lib/use-events"
 import { useHostedEvent } from "@/lib/use-hosted-event"
 import { cn } from "@/lib/utils"
 
@@ -378,6 +382,9 @@ function DrawerBody({
                     hostName={viewerName ?? event.hostName}
                   />
                 )}
+                {event.openEnd && timing === "live" && (
+                  <EndNowButton eventId={event.id} onEnded={onReload} />
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -396,7 +403,9 @@ function DrawerBody({
       <div className="mt-4">
         <FlareFacts
           when={whenLabel(event.startAt, timing)}
-          until={`until ${formatClock(event.endAt)}`}
+          until={
+            event.openEnd ? undefined : `until ${formatClock(event.endAt)}`
+          }
           placeName={event.locationLabel}
           placeDetail={
             [
@@ -461,54 +470,67 @@ function DrawerBody({
 
       {barShown &&
         createPortal(
-          <div
-            ref={barRef}
-            data-flare-action-bar
-            // Outside the drawer, so it stays above the nav at every height
-            // and while the drawer moves. Pointer events still bubble to the
-            // drawer through React, where vaul would read them as a drag.
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerMove={(e) => e.stopPropagation()}
-            onPointerUp={(e) => e.stopPropagation()}
-            className="fixed inset-x-0 z-[36] border-t border-border/60 bg-background px-4 py-2"
-            style={{
-              bottom:
-                composing && keyboard > 0
-                  ? keyboard
-                  : "var(--sponti-nav-h, 64px)",
-            }}
+          // vaul keeps Radix's focus trap on even with modal={false}, and the
+          // trap pulls focus out of anything outside the drawer's DOM, so on
+          // iOS the composer lost focus and closed the moment it opened.
+          // Mounting a scope here pauses the drawer's while the bar is up. It
+          // must mount after the drawer's, which holds as the bar waits for
+          // the flare to load, and share its stack: the package is pinned to
+          // the version radix-ui's Dialog uses.
+          <FocusScope
+            asChild
+            onMountAutoFocus={(e) => e.preventDefault()}
+            onUnmountAutoFocus={(e) => e.preventDefault()}
           >
-            {membership.rsvpError && (
-              <p
-                className="mb-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-                role="alert"
-              >
-                {membership.rsvpError}
-              </p>
-            )}
-            {composing && canSeeThread && !thread.closedByServer ? (
-              <EventThreadComposer
-                ref={composerRef}
-                thread={thread}
-                placeholder={
-                  isHost ? "announce to everyone..." : "say something..."
-                }
-                onClose={() => setComposing(false)}
-              />
-            ) : (
-              <FlareActions
-                viewer={viewer}
-                timing={timing}
-                declined={event.myRsvp === "declined"}
-                eta={membership.eta}
-                onEtaChange={membership.setEta}
-                saving={membership.saving}
-                onJoin={membership.join}
-                onDecline={membership.decline}
-                onShareUpdate={openComposer}
-              />
-            )}
-          </div>,
+            <div
+              ref={barRef}
+              data-flare-action-bar
+              // Outside the drawer, so it stays above the nav at every height
+              // and while the drawer moves. Pointer events still bubble to the
+              // drawer through React, where vaul would read them as a drag.
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerMove={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              className="fixed inset-x-0 z-[36] border-t border-border/60 bg-background px-4 py-2"
+              style={{
+                bottom:
+                  composing && keyboard > 0
+                    ? keyboard
+                    : "var(--sponti-nav-h, 64px)",
+              }}
+            >
+              {membership.rsvpError && (
+                <p
+                  className="mb-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                  role="alert"
+                >
+                  {membership.rsvpError}
+                </p>
+              )}
+              {composing && canSeeThread && !thread.closedByServer ? (
+                <EventThreadComposer
+                  ref={composerRef}
+                  thread={thread}
+                  placeholder={
+                    isHost ? "announce to everyone..." : "say something..."
+                  }
+                  onClose={() => setComposing(false)}
+                />
+              ) : (
+                <FlareActions
+                  viewer={viewer}
+                  timing={timing}
+                  declined={event.myRsvp === "declined"}
+                  eta={membership.eta}
+                  onEtaChange={membership.setEta}
+                  saving={membership.saving}
+                  onJoin={membership.join}
+                  onDecline={membership.decline}
+                  onShareUpdate={openComposer}
+                />
+              )}
+            </div>
+          </FocusScope>,
           document.body
         )}
     </>
@@ -519,6 +541,61 @@ function DrawerBody({
  * Directions, as a choice: the walking route on sponti's own map, or google
  * maps. The old page's "open in maps" left the app on a single tap.
  */
+/**
+ * #614: ends a flare with an open end. The first tap asks ("end now?"), the
+ * second saves the end as now; moving focus away asks again next time.
+ */
+function EndNowButton({
+  eventId,
+  onEnded,
+}: {
+  eventId: string
+  onEnded: () => void
+}) {
+  const { showActionFeedback } = useActionFeedback()
+  const [asking, setAsking] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  if (!asking) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="end now"
+        className="size-9 rounded-full bg-muted text-foreground hover:bg-muted/70"
+        onClick={() => setAsking(true)}
+      >
+        <StopCircleIcon className="h-4 w-4" />
+      </Button>
+    )
+  }
+  return (
+    <Button
+      variant="ghost"
+      autoFocus
+      disabled={saving}
+      className="h-9 rounded-full bg-muted px-3 text-sm text-destructive hover:bg-muted/70"
+      onBlur={() => setAsking(false)}
+      onClick={async () => {
+        setSaving(true)
+        try {
+          await updateEvent(eventId, { endAt: new Date().toISOString() })
+          emitEventsChanged()
+          showActionFeedback("flare ended")
+          onEnded()
+        } catch {
+          showActionFeedback("couldn't end it", { tone: "error" })
+        } finally {
+          setSaving(false)
+          setAsking(false)
+        }
+      }}
+    >
+      end now?
+    </Button>
+  )
+}
+
 function DirectionsRow({
   travelLabel,
   canRoute,

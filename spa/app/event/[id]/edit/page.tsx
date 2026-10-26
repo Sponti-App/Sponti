@@ -21,7 +21,6 @@ import { EventGuestsSection } from "@/components/event-guests-section"
 import { FlareInviteLinkReset } from "@/components/flare-invite-link-reset"
 import {
   DURATION_PRESETS,
-  NOW_DURATION_PRESETS,
   NOW_START_PRESETS,
   NowChipRow,
 } from "@/components/now-chip-row"
@@ -102,9 +101,8 @@ export default function EventEditPage() {
   const [startTime, setStartTime] = useState("")
   // A "right now" flare's start, in minutes after it was lit (#330).
   const [startOffsetMinutes, setStartOffsetMinutes] = useState(0)
-  // The selected "how long?" chip (#340): the composer's presets for the
-  // flare's shape, OPEN_ENDED for "open", or null when the stored length
-  // matches no chip.
+  // The selected "how long?" chip (#340): OPEN_ENDED for "open" (#614), or
+  // null when the stored length matches no chip.
   const [durationChip, setDurationChip] = useState<number | null>(null)
   const [locationLabel, setLocationLabel] = useState("")
   const [locationDetail, setLocationDetail] = useState("")
@@ -232,7 +230,7 @@ export default function EventEditPage() {
         setStartDate(shape.startDate ?? "")
         setStartTime(shape.startTime ?? "")
         setStartOffsetMinutes(shape.startOffsetMinutes ?? 0)
-        setDurationChip(durationChipFor(shape.durationMinutes, shape.mode))
+        setDurationChip(durationChipFor(nextEvent))
         setLocationLabel(nextEvent.locationLabel)
         setLocationDetail(nextEvent.locationDetail ?? "")
         setIsPublic(nextEvent.visibility === "public")
@@ -298,7 +296,8 @@ export default function EventEditPage() {
     original.description?.length ?? 0
   )
   const timeChanged =
-    nextStartAt !== original.startAt || nextEndAt !== original.endAt
+    nextStartAt !== original.startAt ||
+    nextEndAt !== (original.openEnd ? null : original.endAt)
   const locationChanged =
     locationLabel.trim() !== original.locationLabel ||
     (locationDetail.trim() || undefined) !== original.locationDetail ||
@@ -545,15 +544,11 @@ export default function EventEditPage() {
         )}
 
         {/* #340: the composer's own "how long?" chips for the flare's
-            shape. "open" is for "right now" flares only (#225). */}
+            shape, "open" included (#614). */}
         <Section label="how long">
           <NowChipRow
             ariaLabel="how long"
-            presets={
-              initialShape.mode === "now"
-                ? NOW_DURATION_PRESETS
-                : DURATION_PRESETS
-            }
+            presets={DURATION_PRESETS}
             value={durationChip}
             onChange={setDurationChip}
             isDisabled={() => isPast || isCancelled || saving}

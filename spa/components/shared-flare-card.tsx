@@ -18,7 +18,10 @@ function sameDay(a: Date, b: Date) {
 
 /** "live now · until 9:00 pm", "starts 8:00 pm" or "starts sat 8:00 pm". */
 export function sharedFlareWhen(pin: PublicMapPin, now: number): string {
-  if (isLive(pin, now)) return `live now · until ${formatClock(pin.endAt)}`
+  if (isLive(pin, now))
+    return pin.openEnd
+      ? "live now"
+      : `live now · until ${formatClock(pin.endAt)}`
   const start = new Date(pin.startAt)
   return sameDay(start, new Date(now))
     ? `starts ${formatClock(start)}`

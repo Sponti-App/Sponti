@@ -90,7 +90,7 @@ const grantPendingInvites = async (
           _id: { $in: pending.map((row) => row.eventId) },
           hostId: hostObjectId,
           status: "active",
-          endAt: { $gt: new Date() },
+          liveUntil: { $gt: new Date() },
         })
           .select("_id hostId title allowGuestInvites")
           .session(session ?? null)

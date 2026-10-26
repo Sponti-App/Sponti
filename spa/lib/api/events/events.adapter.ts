@@ -23,6 +23,20 @@ const DAY = 24 * 60 * MIN
 // right away, rather than only on the calendar.
 export const MAP_SOON_WINDOW_MS = DAY
 
+// Mirrors the api's MAX_FLARE_DURATION_MS (api/src/models/Event.ts): the
+// longest a flare can last, and how long one with an open end stays live.
+export const MAX_FLARE_DURATION_MIN = 12 * 60
+
+/** When a flare stops being live: its end, or 12 hours on with none (#614). */
+export function liveUntil(startAt: string, endAt: string | null): string {
+  return (
+    endAt ??
+    new Date(
+      new Date(startAt).getTime() + MAX_FLARE_DURATION_MIN * MIN
+    ).toISOString()
+  )
+}
+
 export function isJoined(event: EventItem, joinedIds: Set<string>): boolean {
   return event.myRsvp === "going" || joinedIds.has(event.id)
 }
@@ -217,7 +231,8 @@ export function adaptApiEvent(api: ApiEvent): EventItem {
     title: api.title,
     type: api.type,
     startAt: api.startAt,
-    endAt: api.endAt,
+    endAt: liveUntil(api.startAt, api.endAt),
+    openEnd: api.endAt === null,
     visibility: api.visibility,
     myRsvp: api.myRsvp ?? null,
     host: hostFromApi(api.hostId),
@@ -257,7 +272,8 @@ export function adaptApiHostedEvent(api: ApiEvent): HostedEvent {
     type: api.type,
     coverImageUrl: api.coverImageUrl ?? undefined,
     startAt: api.startAt,
-    endAt: api.endAt,
+    endAt: liveUntil(api.startAt, api.endAt),
+    openEnd: api.endAt === null,
     locationLabel: displayLocationName(api.locationName),
     locationDetail: api.locationAddress ?? undefined,
     coordinates: coordinatesFromApi(api.location),
@@ -310,38 +326,25 @@ export function deriveStatus(
 export const NOW_START_OFFSETS_MIN = [0, 15, 30, 60] as const
 
 /**
- * The lengths a flare's "how long?" chips offer, in minutes. "Pick a time"
- * and a scheduled flare's edit page offer exactly these; the "right now"
- * flow adds "open" (`OPEN_ENDED`) after them (#340). An open end for a
- * scheduled flare is #225.
+ * The lengths a flare's "how long?" chips offer, in minutes, followed by
+ * "open" (`OPEN_ENDED`, #340, #614).
  */
 export const DURATIONS_MIN = [30, 60, 120, 180, 240] as const
 
-/** The "open" chip's value: a "right now" flare without a set end. */
+/** The "open" chip's value: a flare without a set end, saved as `endAt: null`. */
 export const OPEN_ENDED = -1
 
 /**
- * The length an "open" flare is saved with, since the api needs an end. A
- * stored flare this long reads back as "open" on the edit page (#340).
- */
-export const OPEN_ENDED_FALLBACK_MIN = 8 * 60
-
-/** The minutes a "how long?" chip stands for, "open" included. */
-export function durationChipMinutes(chip: number): number {
-  return chip === OPEN_ENDED ? OPEN_ENDED_FALLBACK_MIN : chip
-}
-
-/**
- * The "how long?" chip a stored length selects on the edit page (#340), or
- * null when no chip matches. Only a "right now" flare offers "open".
+ * The "how long?" chip a stored flare selects on the edit page (#340), or
+ * null when no chip matches its length.
  */
 export function durationChipFor(
-  durationMinutes: number,
-  mode: "now" | "scheduled"
+  event: Pick<HostedEvent, "startAt" | "endAt" | "openEnd">
 ): number | null {
-  if (mode === "now" && durationMinutes === OPEN_ENDED_FALLBACK_MIN) {
-    return OPEN_ENDED
-  }
+  if (event.openEnd) return OPEN_ENDED
+  const durationMinutes = Math.round(
+    (new Date(event.endAt).getTime() - new Date(event.startAt).getTime()) / MIN
+  )
   return (DURATIONS_MIN as readonly number[]).includes(durationMinutes)
     ? durationMinutes
     : null
@@ -360,17 +363,14 @@ const NOW_OFFSET_TOLERANCE_MIN = 2
  * "right now" too, which is accepted: nothing stores how a flare was made.
  */
 export function inferEventStartShape(
-  event: Pick<HostedEvent, "startAt" | "endAt" | "createdAt">
+  event: Pick<HostedEvent, "startAt" | "createdAt">
 ): {
   mode: "now" | "scheduled"
   startOffsetMinutes?: number
   startDate?: string
   startTime?: string
-  durationMinutes: number
 } {
   const start = new Date(event.startAt)
-  const end = new Date(event.endAt)
-  const durationMinutes = Math.round((end.getTime() - start.getTime()) / MIN)
   const created = new Date(event.createdAt).getTime()
   const startMs = start.getTime()
   const createdStartDiffMin = (startMs - created) / MIN
@@ -380,7 +380,7 @@ export function inferEventStartShape(
       Math.abs(createdStartDiffMin - offset) <= NOW_OFFSET_TOLERANCE_MIN
   )
   if (startOffsetMinutes !== undefined) {
-    return { mode: "now", startOffsetMinutes, durationMinutes }
+    return { mode: "now", startOffsetMinutes }
   }
 
   const yyyy = start.getFullYear()
@@ -393,7 +393,6 @@ export function inferEventStartShape(
     mode: "scheduled",
     startDate: `${yyyy}-${mm}-${dd}`,
     startTime: `${hh}:${mi}`,
-    durationMinutes,
   }
 }
 
@@ -439,28 +438,24 @@ export function editedStartAt(
  * (no chip, or the one the flare opened with) the flare keeps its stored
  * length to the millisecond, so an untouched form saves `endAt` unchanged and
  * a moved start carries the same length along. A newly picked chip ends the
- * flare that long after its start; "open" gives the end the composer gives
- * an open-ended flare.
+ * flare that long after its start; "open" saves no end (#614).
  */
 export function editedEndAt(
-  original: Pick<HostedEvent, "startAt" | "endAt" | "createdAt">,
+  original: Pick<HostedEvent, "startAt" | "endAt" | "openEnd">,
   nextStartAt: string,
   durationChip: number | null
-): string {
-  const shape = inferEventStartShape(original)
+): string | null {
+  const chip =
+    durationChip === null || durationChip === durationChipFor(original)
+      ? null
+      : durationChip
+  if (chip === OPEN_ENDED || (chip === null && original.openEnd)) return null
   const startMs = new Date(nextStartAt).getTime()
-  if (
-    durationChip === null ||
-    durationChip === durationChipFor(shape.durationMinutes, shape.mode)
-  ) {
-    if (nextStartAt === original.startAt) return original.endAt
-    const lengthMs =
-      new Date(original.endAt).getTime() - new Date(original.startAt).getTime()
-    return new Date(startMs + lengthMs).toISOString()
-  }
-  return new Date(
-    startMs + durationChipMinutes(durationChip) * MIN
-  ).toISOString()
+  if (chip !== null) return new Date(startMs + chip * MIN).toISOString()
+  if (nextStartAt === original.startAt) return original.endAt
+  const lengthMs =
+    new Date(original.endAt).getTime() - new Date(original.startAt).getTime()
+  return new Date(startMs + lengthMs).toISOString()
 }
 
 /**
@@ -531,10 +526,12 @@ export function timeRangeFromDraft(draft: DraftEvent): EventTimeRange {
     startMs = new Date(draft.createdAt).getTime()
   }
 
-  const endMs = startMs + draft.durationMinutes * MIN
   return {
     startAt: new Date(startMs).toISOString(),
-    endAt: new Date(endMs).toISOString(),
+    endAt:
+      draft.durationMinutes === null
+        ? null
+        : new Date(startMs + draft.durationMinutes * MIN).toISOString(),
   }
 }
 

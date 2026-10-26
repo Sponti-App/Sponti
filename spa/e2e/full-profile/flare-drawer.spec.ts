@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import { makeStubFlare, stubBackend } from "../support/stubs"
+import { makeStubFlare, STUB_USER, stubBackend } from "../support/stubs"
 
 // #615: one flare detail, a drawer over the home map (the full profile has
 // `flareDrawer` on). The map's rail and pins open it, `/event/<id>` opens it
@@ -206,5 +206,50 @@ test.describe("flare drawer (#615)", () => {
       )
       .toBe(0)
     await expect(title(page)).toBeInViewport()
+  })
+
+  test("share an update opens the composer, and it keeps focus", async ({
+    page,
+  }) => {
+    // The composer sits outside the drawer's DOM, where the drawer's focus
+    // trap used to pull focus back and close it at once. Focus inside the
+    // drawer first (the tab), as iOS always has it there.
+    await stubBackend(page, { mapEvents: [{ ...FLARE, myRsvp: "going" }] })
+    await page.goto(`/event/${FLARE._id}`)
+    await drawer(page)
+      .getByRole("tab", { name: /updates/ })
+      .click()
+    await actionBar(page)
+      .getByRole("button", { name: /share an update/ })
+      .click()
+    const input = actionBar(page).getByRole("textbox", { name: "update" })
+    await expect(input).toBeFocused()
+    await page.waitForTimeout(300)
+    await expect(input).toBeFocused()
+    await input.fill("on my way")
+    await expect(input).toHaveValue("on my way")
+  })
+
+  test("a flare with no set end shows no end, and its host can end it now (#614)", async ({
+    page,
+  }) => {
+    await stubBackend(page, {
+      mapEvents: [{ ...FLARE, hostId: STUB_USER.id, endAt: null }],
+    })
+    const patched = page.waitForRequest(
+      (req) =>
+        req.method() === "PATCH" &&
+        new URL(req.url()).pathname.endsWith(`/events/${FLARE._id}`)
+    )
+    await page.goto(`/event/${FLARE._id}`)
+    await expect(drawer(page).getByText(/^live · since /)).toBeVisible()
+    await expect(drawer(page).getByText(/^until /)).toHaveCount(0)
+
+    await drawer(page)
+      .getByRole("button", { name: "end now", exact: true })
+      .click()
+    await drawer(page).getByRole("button", { name: "end now?" }).click()
+    const body = (await patched).postDataJSON() as { endAt: string }
+    expect(Math.abs(Date.parse(body.endAt) - Date.now())).toBeLessThan(10_000)
   })
 })

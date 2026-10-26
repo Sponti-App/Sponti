@@ -58,7 +58,7 @@ export type StubApiEvent = {
   title: string
   type: string
   startAt: string
-  endAt: string
+  endAt: string | null
   locationName: string
   locationAddress?: string | null
   location: { type: "Point"; coordinates: [number, number] }
@@ -723,7 +723,7 @@ export async function stubBackend(
         hostId: user.id,
         title: body.title ?? base.title,
         startAt: body.startAt ?? base.startAt,
-        endAt: body.endAt ?? base.endAt,
+        endAt: body.endAt !== undefined ? body.endAt : base.endAt,
         location: body.location ?? base.location,
       }
       hostedFlares?.push(created)

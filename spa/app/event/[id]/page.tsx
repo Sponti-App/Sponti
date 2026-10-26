@@ -266,7 +266,9 @@ function FlareDetail({
           <div className="mt-4">
             <FlareFacts
               when={whenLabel(event.startAt, timing)}
-              until={`until ${formatClock(event.endAt)}`}
+              until={
+                event.openEnd ? undefined : `until ${formatClock(event.endAt)}`
+              }
               placeName={event.locationLabel}
               placeDetail={
                 [
