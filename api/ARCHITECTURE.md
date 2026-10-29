@@ -35,8 +35,6 @@ Notifications are currently represented by:
 - `connections` with `status = "pending"`
 - `event_members` with `rsvpStatus = "invited"`
 
-`notificationHookService` contains no-op stubs for future async queue integration.
-
 ## API Contract
 
 Base path: `/api/v1`
