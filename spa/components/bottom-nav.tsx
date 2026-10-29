@@ -15,6 +15,7 @@ import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
 import { haptic } from "@/lib/haptics"
 import { useSuggestedFlareType } from "@/lib/suggested-flare-type"
 import { EVENT_TYPES } from "@/types/utils"
+import { useJoinBell, type BellCue } from "@/lib/join-bell"
 
 /**
  * Sent when home is tapped while already on the home map, which the push
@@ -41,6 +42,8 @@ type NavItem =
       onClick: () => void
       center?: boolean
       badge?: number
+      /** The bell reacting to a join (#380). */
+      cue?: BellCue | null
       /** The flare button's circle is away, morphing (#376). */
       circleHidden?: boolean
     }
@@ -83,6 +86,8 @@ export function BottomNav({
   // resets it when it unmounts; the pathname check is a second guard so no
   // other screen ever shows a type icon.
   const suggestedType = useSuggestedFlareType()
+  // #380: while a first join is in the air, the badge waits for it to land.
+  const joinBell = useJoinBell()
   const flareIcon =
     (pathname === "/" &&
       EVENT_TYPES.find((t) => t.value === suggestedType)?.icon) ||
@@ -95,7 +100,8 @@ export function BottomNav({
       icon: BellIcon,
       label: "Feed",
       onClick: onOpenNotifications ?? (() => router.push("/")),
-      badge: notificationsUnread,
+      badge: joinBell.heldUnread ?? notificationsUnread,
+      cue: joinBell.cue,
     },
     {
       kind: "action",
@@ -224,6 +230,7 @@ function NavBar({ items }: { items: NavItem[] }) {
         }
         const Icon = item.icon
         const active = item.kind === "route" && isActive(item)
+        const cue = item.kind === "action" ? item.cue : null
         const handleClick =
           item.kind === "route"
             ? () => {
@@ -243,6 +250,7 @@ function NavBar({ items }: { items: NavItem[] }) {
             type="button"
             onClick={handleClick}
             aria-label={item.label}
+            data-nav-tab={item.label.toLowerCase()}
             className={`relative flex min-h-11 max-w-20 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-xs font-medium active:scale-95 active:opacity-80 ${
               active
                 ? "text-accent-ink"
@@ -250,12 +258,25 @@ function NavBar({ items }: { items: NavItem[] }) {
             }`}
           >
             {/* The active tab's icon takes Phosphor's fill weight (#345). */}
-            <Icon className="h-5 w-5" weight={active ? "fill" : "regular"} />
+            <span
+              key={`icon-${cue?.key}`}
+              data-bell-cue={cue?.kind}
+              className={`relative flex ${cue?.kind === "swing" ? "animate-bell-swing" : ""} ${cue?.kind === "highlight" ? "text-accent-ink" : ""}`}
+            >
+              <Icon className="h-5 w-5" weight={active ? "fill" : "regular"} />
+              {cue?.kind === "swing" && (
+                <span
+                  aria-hidden
+                  className="animate-bell-ripple absolute inset-0 rounded-full border-2 border-primary"
+                />
+              )}
+            </span>
             <span>{item.label.toLowerCase()}</span>
             {(item.badge ?? 0) > 0 && (
               <span
+                key={`badge-${cue?.key}`}
                 aria-label={`${item.badge} unread`}
-                className="absolute top-1 left-1/2 ml-1.5 h-1.5 w-1.5 rounded-full bg-accent"
+                className={`absolute top-1 left-1/2 ml-1.5 h-1.5 w-1.5 rounded-full bg-accent ${cue ? "animate-badge-pop" : ""}`}
               />
             )}
           </button>

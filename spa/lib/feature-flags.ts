@@ -79,6 +79,19 @@ export const featureFlags = {
     process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF === "dev",
 
   /**
+   * The first-join moment (#380, flare moments #370): when the unread poll
+   * brings the first join on one of your flares, the friend's avatar pops up
+   * with "mia joined your flare" and arcs into the nav's bell, which swings
+   * as the badge pops (2.5 s). Later joins only swing the bell. Joins in one
+   * poll stack into one overlay; polls queue. Same rollout as
+   * `flareLightMoment`: on in the full profile and the `dev` branch's deploy,
+   * off for testers until a phone check. Off, the bell is exactly as before.
+   */
+  joinMoment:
+    FEATURE_PROFILE === "full" ||
+    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF === "dev",
+
+  /**
    * The filter menu on the my flares page (#582): date / latest / going /
    * private. Its options aren't wired to the list yet (the menu says "sorting
    * hookup pending"), so picking one does nothing. Hidden in the tester build
