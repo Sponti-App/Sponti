@@ -12,6 +12,8 @@ import {
   useUnreadCountRefresh,
 } from "@/lib/use-notifications"
 import { haptic } from "@/lib/haptics"
+import { JoinMoment } from "@/components/join-moment"
+import { featureFlags } from "@/lib/feature-flags"
 
 const AUTH_PATHS = [
   "/login",
@@ -124,6 +126,7 @@ function AuthenticatedChrome({ children }: { children: React.ReactNode }) {
           notificationsUnread={unreadCount}
         />
       </div>
+      {featureFlags.joinMoment && <JoinMoment />}
     </>
   )
 }

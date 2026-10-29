@@ -234,6 +234,11 @@ export function subscribeToNotificationArrivals(
   }
 }
 
+/** The unread count the store holds right now, outside React. */
+export function unreadCountNow(): number {
+  return state.unreadCount
+}
+
 export async function refreshUnreadCount(): Promise<void> {
   if (!apiEnabled()) return
 
@@ -246,7 +251,9 @@ export async function refreshUnreadCount(): Promise<void> {
     const rise = state.unreadCountLoaded ? count - state.unreadCount : 0
     if (rise > 0) {
       emitEventsChanged()
-      void announceArrivals(rise)
+      // Announce before the count moves, so the join moment (#380) can hold
+      // the bell's badge back until the avatar lands in it.
+      await announceArrivals(rise)
     }
     setState((current) => ({
       ...current,
