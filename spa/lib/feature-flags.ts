@@ -91,7 +91,8 @@ export const featureFlags = {
   // onboarding. A device can switch them all on at runtime ("new onboarding" in
   // settings), whatever the build profile. Read them through
   // `useOnboardingFlags` / `getOnboardingFlags` (lib/onboarding-flags.ts), never
-  // off `featureFlags` directly, or that switch won't reach the reader.
+  // off `featureFlags` directly, or that switch won't reach the reader. ESLint
+  // enforces it (`no-restricted-syntax` in eslint.config.mjs, #484).
 
   /**
    * Browse before sign-up (#389, flare moments #370): a signed-out visitor
