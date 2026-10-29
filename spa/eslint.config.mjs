@@ -43,6 +43,24 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // The new-onboarding flags are read through useOnboardingFlags() /
+  // getOnboardingFlags() (#482), so the settings switch reaches every reader.
+  // Reading them off `featureFlags` directly would ignore it (#484). When
+  // lib/onboarding-flags.ts gains a flag name, add it here too.
+  {
+    ignores: ["lib/onboarding-flags.ts", "lib/feature-flags.test.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "MemberExpression[object.name='featureFlags'][property.name=/^(browseBeforeSignup|introV2|locationAsk|coachMarks)$/]",
+          message:
+            "Read onboarding flags with useOnboardingFlags() or getOnboardingFlags() (lib/onboarding-flags.ts), or the new-onboarding switch won't reach them (#484).",
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
