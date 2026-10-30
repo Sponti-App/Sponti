@@ -198,4 +198,17 @@ export const featureFlags = {
    * NEXT_PUBLIC_FLARE_DRAWER=off. Anything else, including unset, leaves it on.
    */
   flareDrawer: process.env.NEXT_PUBLIC_FLARE_DRAWER !== "off",
+
+  /**
+   * Add to home screen (#641): a sheet asking the person to put sponti on
+   * their home screen, once, after they light their first flare, and again
+   * from the notification settings. iPhone Safari gets the steps (no prompt
+   * API), Android Chrome the install prompt; an installed app, a desktop or
+   * any other browser gets nothing. The home-screen app is also where iPhone
+   * web push (#640) works. Off, nothing offers or links to it. On in BOTH
+   * profiles, because testers open sponti in a phone browser. The opt-out is a
+   * kill switch: set NEXT_PUBLIC_HOME_SCREEN=off. Anything else, including
+   * unset, leaves it on.
+   */
+  homeScreen: process.env.NEXT_PUBLIC_HOME_SCREEN !== "off",
 } as const
