@@ -67,6 +67,18 @@ describe("featureFlags profile", () => {
     expect((await loadFlags()).featureFlags.flareDrawer).toBe(false)
   })
 
+  it("has the home screen offer (#641) on in both profiles, unless switched off", async () => {
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", undefined)
+    vi.stubEnv("NEXT_PUBLIC_HOME_SCREEN", undefined)
+    expect((await loadFlags()).featureFlags.homeScreen).toBe(true)
+
+    vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "full")
+    expect((await loadFlags()).featureFlags.homeScreen).toBe(true)
+
+    vi.stubEnv("NEXT_PUBLIC_HOME_SCREEN", "off")
+    expect((await loadFlags()).featureFlags.homeScreen).toBe(false)
+  })
+
   it("keeps seedDemoData reading its own env var, independent of the profile", async () => {
     vi.stubEnv("NEXT_PUBLIC_FEATURE_PROFILE", "full")
     vi.stubEnv("NEXT_PUBLIC_SEED_DEMO_DATA", undefined)

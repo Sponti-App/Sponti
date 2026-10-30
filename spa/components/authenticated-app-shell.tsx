@@ -12,6 +12,7 @@ import {
   useUnreadCountRefresh,
 } from "@/lib/use-notifications"
 import { haptic } from "@/lib/haptics"
+import { HomeScreenOffer } from "@/components/home-screen-offer"
 import { JoinMoment } from "@/components/join-moment"
 import { featureFlags } from "@/lib/feature-flags"
 
@@ -127,6 +128,7 @@ function AuthenticatedChrome({ children }: { children: React.ReactNode }) {
         />
       </div>
       {featureFlags.joinMoment && <JoinMoment />}
+      <HomeScreenOffer />
     </>
   )
 }

@@ -55,8 +55,10 @@ import { CopyIcon as PhCopy } from "@phosphor-icons/react/dist/ssr/Copy"
 import { CouchIcon as PhCouch } from "@phosphor-icons/react/dist/ssr/Couch"
 import { DiceFiveIcon as PhDiceFive } from "@phosphor-icons/react/dist/ssr/DiceFive"
 import { DiscoBallIcon as PhDiscoBall } from "@phosphor-icons/react/dist/ssr/DiscoBall"
+import { DeviceMobileIcon as PhDeviceMobile } from "@phosphor-icons/react/dist/ssr/DeviceMobile"
 import { DotsThreeIcon as PhDotsThree } from "@phosphor-icons/react/dist/ssr/DotsThree"
 import { EnvelopeIcon as PhEnvelope } from "@phosphor-icons/react/dist/ssr/Envelope"
+import { ExportIcon as PhExport } from "@phosphor-icons/react/dist/ssr/Export"
 import { EyeSlashIcon as PhEyeSlash } from "@phosphor-icons/react/dist/ssr/EyeSlash"
 import { FileTextIcon as PhFileText } from "@phosphor-icons/react/dist/ssr/FileText"
 import { FilmSlateIcon as PhFilmSlate } from "@phosphor-icons/react/dist/ssr/FilmSlate"
@@ -106,6 +108,7 @@ import { PingPongIcon as PhPingPong } from "@phosphor-icons/react/dist/ssr/PingP
 import { PlanetIcon as PhPlanet } from "@phosphor-icons/react/dist/ssr/Planet"
 import { PlantIcon as PhPlant } from "@phosphor-icons/react/dist/ssr/Plant"
 import { PlusIcon as PhPlus } from "@phosphor-icons/react/dist/ssr/Plus"
+import { PlusSquareIcon as PhPlusSquare } from "@phosphor-icons/react/dist/ssr/PlusSquare"
 import { QuestionIcon as PhQuestion } from "@phosphor-icons/react/dist/ssr/Question"
 import { QrCodeIcon as PhQrCode } from "@phosphor-icons/react/dist/ssr/QrCode"
 import { RepeatIcon as PhRepeat } from "@phosphor-icons/react/dist/ssr/Repeat"
@@ -181,8 +184,10 @@ export const CircleNotchIcon = appIcon(PhCircleNotch, "circle-notch")
 export const ClockIcon = appIcon(PhClock, "clock")
 export const ConfettiIcon = appIcon(PhConfetti, "confetti")
 export const CopyIcon = appIcon(PhCopy, "copy")
+export const DeviceMobileIcon = appIcon(PhDeviceMobile, "device-mobile")
 export const DotsThreeIcon = appIcon(PhDotsThree, "dots-three")
 export const EnvelopeIcon = appIcon(PhEnvelope, "envelope")
+export const ExportIcon = appIcon(PhExport, "export")
 export const EyeSlashIcon = appIcon(PhEyeSlash, "eye-slash")
 export const FileTextIcon = appIcon(PhFileText, "file-text")
 export const FireIcon = appIcon(PhFire, "fire")
@@ -221,6 +226,7 @@ export const PaperPlaneRightIcon = appIcon(
 )
 export const PencilSimpleIcon = appIcon(PhPencilSimple, "pencil-simple")
 export const PlusIcon = appIcon(PhPlus, "plus")
+export const PlusSquareIcon = appIcon(PhPlusSquare, "plus-square")
 export const QuestionIcon = appIcon(PhQuestion, "question")
 export const QrCodeIcon = appIcon(PhQrCode, "qr-code")
 export const RepeatIcon = appIcon(PhRepeat, "repeat")
