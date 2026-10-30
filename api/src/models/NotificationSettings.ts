@@ -29,6 +29,12 @@ const notificationSettingsSchema = new Schema(
       type: Boolean,
       default: true,
     },
+    // #432: push when someone joins your flare (#639). The feed always
+    // shows joins; this only stops them reaching the lock screen.
+    joinNotifications: {
+      type: Boolean,
+      default: true,
+    },
   },
   {
     collection: "notification_settings",

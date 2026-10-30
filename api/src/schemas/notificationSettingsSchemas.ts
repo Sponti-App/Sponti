@@ -11,6 +11,7 @@ export const updateNotificationSettingsBodySchema = z
     quietHoursEnd: hhMmSchema.optional(),
     eventReminders: z.boolean().optional(),
     invitationNotifications: z.boolean().optional(),
+    joinNotifications: z.boolean().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {
