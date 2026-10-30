@@ -15,6 +15,12 @@ const envSchema = z.object({
   // key never ships to the SPA. Optional: when unset, the route endpoint
   // returns 503 and the SPA falls back to drawing a straight line.
   GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
+  // Web push (#639). Optional: without both keys, push is off. Generate a pair
+  // with `npx web-push generate-vapid-keys`. The subject is a mailto: or https
+  // URL push services can reach the sender at; it defaults to CLIENT_BASE_URL.
+  VAPID_PUBLIC_KEY: z.string().min(1).optional(),
+  VAPID_PRIVATE_KEY: z.string().min(1).optional(),
+  VAPID_SUBJECT: z.string().min(1).optional(),
 });
 
 const result = envSchema.safeParse({

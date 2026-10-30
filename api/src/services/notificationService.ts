@@ -10,9 +10,11 @@ import type {
   GetNotificationsQuery,
   ReadNotificationsBatchBody,
 } from "#schemas/notificationSchemas";
+import { pushNotifications } from "#services/pushService";
 import { getUsersByIds, type UserSummary } from "#services/userDirectoryService";
 import { AppError } from "#utils/AppError";
 import { toObjectId, uniqueObjectIdStrings } from "#utils/objectId";
+import { runAfterCommit } from "#utils/transactions";
 
 type Cursor = {
   createdAt: Date;
@@ -151,6 +153,7 @@ const createNotifications = async (inputs: CreateNotificationInput[], session?: 
   }));
 
   const created = await Notification.create(docs, { session, ordered: true });
+  runAfterCommit(session, () => pushNotifications(created));
 
   return { created: created.length };
 };

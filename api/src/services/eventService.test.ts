@@ -86,6 +86,7 @@ vi.mock("#utils/transactions", () => ({
   withTransactionFallback: vi.fn((callback: (session?: unknown) => unknown) =>
     callback(transactionSessionMock)
   ),
+  runAfterCommit: vi.fn(),
 }));
 
 const {

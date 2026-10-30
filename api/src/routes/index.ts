@@ -9,6 +9,7 @@ import inviteLinkRoutes from "./inviteLinkRoutes.js";
 import mapsRoutes from "./mapsRoutes.js";
 import notificationRoutes from "./notificationRoutes.js";
 import notificationSettingsRoutes from "./notificationSettingsRoutes.js";
+import pushSubscriptionRoutes from "./pushSubscriptionRoutes.js";
 import qrContactTokenRoutes from "./qrContactTokenRoutes.js";
 import userSearchRoutes from "./userSearchRoutes.js";
 
@@ -21,6 +22,7 @@ apiRoutes.use("/circles", circleRoutes);
 apiRoutes.use("/maps", mapsRoutes);
 apiRoutes.use("/notifications", notificationRoutes);
 apiRoutes.use("/notification-settings", notificationSettingsRoutes);
+apiRoutes.use("/push-subscriptions", pushSubscriptionRoutes);
 apiRoutes.use("/qr-contact-tokens", qrContactTokenRoutes);
 apiRoutes.use("/invite-links", inviteLinkRoutes);
 apiRoutes.use("/flare-invites", flareInviteRoutes);

@@ -10,4 +10,5 @@ export * from "./InviteLink.js";
 export * from "./Notification.js";
 export * from "./NotificationSettings.js";
 export * from "./PendingEventInvite.js";
+export * from "./PushSubscription.js";
 export * from "./QrContactToken.js";
