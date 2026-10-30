@@ -198,4 +198,13 @@ export const featureFlags = {
    * NEXT_PUBLIC_FLARE_DRAWER=off. Anything else, including unset, leaves it on.
    */
   flareDrawer: process.env.NEXT_PUBLIC_FLARE_DRAWER !== "off",
+
+  /**
+   * #640: web push. The ask after a first lit flare, the "push on this
+   * device" switch in settings, and the service worker. Push also needs VAPID
+   * keys on the api (#639); without them the switch says it isn't available
+   * and the ask never shows. On in both profiles; the kill switch is
+   * NEXT_PUBLIC_WEB_PUSH=off.
+   */
+  webPush: process.env.NEXT_PUBLIC_WEB_PUSH !== "off",
 } as const

@@ -10,6 +10,7 @@ export type NotificationSettings = {
   quietHoursEnd: string // "HH:MM"
   eventReminders: boolean
   invitationNotifications: boolean
+  joinNotifications: boolean // #432: push only; the feed always shows joins
 }
 
 export type UpdateNotificationSettingsPayload = Partial<NotificationSettings>
