@@ -80,6 +80,7 @@ function notificationSettings(
     quietHoursEnd: "08:00",
     eventReminders: true,
     invitationNotifications: true,
+    joinNotifications: true,
     ...overrides,
   }
 }
