@@ -9,6 +9,7 @@ import {
   CameraIcon,
   CaretRightIcon,
   ClockIcon,
+  DeviceMobileIcon,
   LinkIcon,
   LockIcon,
   SignOutIcon,
@@ -35,6 +36,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/components/auth-provider"
 import { DeleteAccountDialog } from "@/components/delete-account-dialog"
+import { HomeScreenSheet } from "@/components/home-screen-sheet"
 import { updateProfile, uploadAvatar } from "@/lib/api/auth"
 import {
   fetchNotificationSettings,
@@ -42,6 +44,7 @@ import {
   type NotificationSettings as NotificationSettingsSchema,
 } from "@/lib/api/notification-settings"
 import { HttpError } from "@/lib/http"
+import { useHomeScreen } from "@/lib/home-screen"
 import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
 import { resetIntroSlides } from "@/lib/intro-slides"
 import { resetCoachMarks } from "@/lib/coach-marks"
@@ -149,6 +152,8 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
   const newOnboarding = useNewOnboarding()
   const isDark = resolvedTheme === "dark"
   const [deletingAccount, setDeletingAccount] = useState(false)
+  const homeScreen = useHomeScreen()
+  const [homeScreenOpen, setHomeScreenOpen] = useState(false)
 
   // Account draft — seeded from the auth session (already fresh: AuthProvider
   // revalidates against /auth/me on load, see components/auth-provider.tsx).
@@ -705,6 +710,31 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 </>
               )}
             </Section>
+
+            {/* #641: only where the browser has something to offer. */}
+            {homeScreen.mode !== "none" && (
+              <Section icon={DeviceMobileIcon} label="home screen">
+                <button
+                  type="button"
+                  onClick={() => setHomeScreenOpen(true)}
+                  className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-border px-3.5 py-2.5 text-left"
+                >
+                  <span>
+                    <span className="block text-sm font-medium">
+                      add sponti to your home screen
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      open it like an app
+                    </span>
+                  </span>
+                  <CaretRightIcon className="size-4 shrink-0 text-muted-foreground" />
+                </button>
+                <HomeScreenSheet
+                  open={homeScreenOpen}
+                  onClose={() => setHomeScreenOpen(false)}
+                />
+              </Section>
+            )}
 
             {/* Notification types — notification_settings: eventReminders, invitationNotifications */}
             <Section icon={BellIcon} label="Notify me about">
