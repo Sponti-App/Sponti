@@ -37,12 +37,14 @@ import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/components/auth-provider"
 import { DeleteAccountDialog } from "@/components/delete-account-dialog"
 import { HomeScreenSheet } from "@/components/home-screen-sheet"
+import { PushDeviceRow } from "@/components/push-device-row"
 import { updateProfile, uploadAvatar } from "@/lib/api/auth"
 import {
   fetchNotificationSettings,
   updateNotificationSettings,
   type NotificationSettings as NotificationSettingsSchema,
 } from "@/lib/api/notification-settings"
+import { featureFlags } from "@/lib/feature-flags"
 import { HttpError } from "@/lib/http"
 import { useHomeScreen } from "@/lib/home-screen"
 import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
@@ -101,6 +103,7 @@ type NotificationDraft = {
   quietHoursEnd: string // notification_settings.quietHoursEnd    ("HH:MM")
   eventReminders: boolean // notification_settings.eventReminders
   invitationNotifications: boolean // notification_settings.invitationNotifications
+  joinNotifications: boolean // notification_settings.joinNotifications (#432)
   // ── no backend field — local only, controls disabled ("coming soon") ───
   notifyWhen: NotifyWhen
   maxDistanceKm: number
@@ -205,6 +208,7 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
     quietHoursEnd: "08:00",
     eventReminders: true,
     invitationNotifications: true,
+    joinNotifications: true,
     notifyWhen: "any_friend",
     maxDistanceKm: 5,
   })
@@ -266,7 +270,11 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
   }
 
   const handleNotifToggle = (
-    field: "quietHoursEnabled" | "eventReminders" | "invitationNotifications",
+    field:
+      | "quietHoursEnabled"
+      | "eventReminders"
+      | "invitationNotifications"
+      | "joinNotifications",
     value: boolean
   ) => {
     patchNotif({ [field]: value } as Partial<NotificationDraft>)
@@ -645,6 +653,37 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
               </p>
             )}
 
+            {featureFlags.webPush && (
+              <Section icon={BellIcon} label="Push">
+                <PushDeviceRow />
+              </Section>
+            )}
+
+            {/* #641: only where the browser has something to offer. */}
+            {homeScreen.mode !== "none" && (
+              <Section icon={DeviceMobileIcon} label="home screen">
+                <button
+                  type="button"
+                  onClick={() => setHomeScreenOpen(true)}
+                  className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-border px-3.5 py-2.5 text-left"
+                >
+                  <span>
+                    <span className="block text-sm font-medium">
+                      add sponti to your home screen
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      open it like an app
+                    </span>
+                  </span>
+                  <CaretRightIcon className="size-4 shrink-0 text-muted-foreground" />
+                </button>
+                <HomeScreenSheet
+                  open={homeScreenOpen}
+                  onClose={() => setHomeScreenOpen(false)}
+                />
+              </Section>
+            )}
+
             {/* Quiet hours — notification_settings: quietHoursEnabled, quietHoursStart, quietHoursEnd.
                 Each control below auto-saves on change (see commitNotifField)
                 and reverts itself if the request fails. */}
@@ -653,7 +692,9 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                 <div>
                   <p className="text-sm font-medium">enable quiet hours</p>
                   <p className="text-xs text-muted-foreground">
-                    for push notifications · coming soon
+                    {featureFlags.webPush
+                      ? "no push during these times"
+                      : "for push notifications · coming soon"}
                   </p>
                 </div>
                 <Switch
@@ -711,31 +752,6 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
               )}
             </Section>
 
-            {/* #641: only where the browser has something to offer. */}
-            {homeScreen.mode !== "none" && (
-              <Section icon={DeviceMobileIcon} label="home screen">
-                <button
-                  type="button"
-                  onClick={() => setHomeScreenOpen(true)}
-                  className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-border px-3.5 py-2.5 text-left"
-                >
-                  <span>
-                    <span className="block text-sm font-medium">
-                      add sponti to your home screen
-                    </span>
-                    <span className="block text-xs text-muted-foreground">
-                      open it like an app
-                    </span>
-                  </span>
-                  <CaretRightIcon className="size-4 shrink-0 text-muted-foreground" />
-                </button>
-                <HomeScreenSheet
-                  open={homeScreenOpen}
-                  onClose={() => setHomeScreenOpen(false)}
-                />
-              </Section>
-            )}
-
             {/* Notification types — notification_settings: eventReminders, invitationNotifications */}
             <Section icon={BellIcon} label="Notify me about">
               <div className="space-y-2">
@@ -757,6 +773,17 @@ function SettingsPageContent({ user }: { user: AuthUser }) {
                     handleNotifToggle("invitationNotifications", v)
                   }
                 />
+                {featureFlags.webPush && (
+                  <ToggleRow
+                    label="Join notifications"
+                    sublabel="A push when someone joins your flare"
+                    checked={notif.joinNotifications}
+                    disabled={notifLoading}
+                    onCheckedChange={(v) =>
+                      handleNotifToggle("joinNotifications", v)
+                    }
+                  />
+                )}
               </div>
             </Section>
 
