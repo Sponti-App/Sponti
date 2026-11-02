@@ -10,3 +10,4 @@ export * from "./notificationSettingsSchemas.js";
 export * from "./publicSchemas.js";
 export * from "./qrContactTokenSchemas.js";
 export * from "./userSearchSchemas.js";
+export * from "./pushSubscriptionSchemas.js";
