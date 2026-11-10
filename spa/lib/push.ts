@@ -72,17 +72,18 @@ async function sendToApi(subscription: PushSubscription): Promise<void> {
 
 /**
  * Asks the browser (its own prompt) and subscribes this device. Must run from
- * a tap: iOS only shows the prompt for a user gesture. Resolves to the state
- * it ended in.
+ * a tap: iOS only shows the prompt for a user gesture, so the prompt comes
+ * before any network wait. Resolves to the state it ended in; throws when the
+ * api has no push keys.
  */
 export async function turnPushOn(): Promise<PushState> {
   if (!browserSupportsPush()) return getPushState()
-  const publicKey = await fetchVapidPublicKey()
-  if (!publicKey) return "unsupported"
-
   const permission = await Notification.requestPermission()
   if (permission !== "granted")
     return permission === "denied" ? "denied" : "off"
+
+  const publicKey = await fetchVapidPublicKey()
+  if (!publicKey) throw new Error("push is off on the api (no VAPID keys)")
 
   const registration = await navigator.serviceWorker.register(SW_PATH)
   await navigator.serviceWorker.ready

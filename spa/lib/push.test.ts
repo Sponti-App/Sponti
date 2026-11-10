@@ -7,7 +7,13 @@ const api = vi.hoisted(() => ({
 }))
 vi.mock("@/lib/api/push-subscriptions", () => api)
 
-import { getPushState, isIos, resyncPush, turnPushOff } from "@/lib/push"
+import {
+  getPushState,
+  isIos,
+  resyncPush,
+  turnPushOff,
+  turnPushOn,
+} from "@/lib/push"
 
 const IPHONE =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15"
@@ -109,5 +115,25 @@ describe("resyncPush and turnPushOff", () => {
     await expect(turnPushOff()).rejects.toThrow("offline")
     expect(api.removePushSubscription).toHaveBeenCalledWith(sub.endpoint)
     expect(sub.unsubscribe).toHaveBeenCalled()
+  })
+})
+
+describe("turnPushOn", () => {
+  it("prompts before waiting on the api, and throws when the api has no keys", async () => {
+    stubBrowser({})
+    const calls: string[] = []
+    vi.stubGlobal("Notification", {
+      permission: "default",
+      requestPermission: vi.fn(async () => {
+        calls.push("prompt")
+        return "granted"
+      }),
+    })
+    api.fetchVapidPublicKey.mockImplementation(async () => {
+      calls.push("key")
+      return null
+    })
+    await expect(turnPushOn()).rejects.toThrow("no VAPID keys")
+    expect(calls).toEqual(["prompt", "key"])
   })
 })

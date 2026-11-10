@@ -30,7 +30,7 @@ async function lightFlare(page: Page) {
 test("after a lit flare, push is offered once", async ({ page }) => {
   await lightFlare(page)
   const ask = page.getByRole("dialog", {
-    name: "want to know when someone joins?",
+    name: "turn on notifications?",
   })
   await expect(ask).toBeVisible()
   await ask.getByRole("button", { name: "not now" }).click()
@@ -94,7 +94,7 @@ test.describe("the iphone home-screen app", () => {
     await stubBackend(page)
     await page.goto("/")
     const ask = page.getByRole("dialog", {
-      name: "want to know when someone joins?",
+      name: "turn on notifications?",
     })
     await expect(ask).toBeVisible()
     await ask.getByRole("button", { name: "not now" }).click()
