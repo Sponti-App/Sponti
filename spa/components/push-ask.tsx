@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react"
 import { Drawer } from "vaul"
 import { BellIcon } from "@/components/icons"
+import { useActionFeedback } from "@/components/action-feedback"
 import { Button } from "@/components/ui/button"
 import { haptic } from "@/lib/haptics"
 import { isStandalone } from "@/lib/home-screen"
@@ -23,12 +24,13 @@ import {
   turnPushOn,
 } from "@/lib/push"
 
-export const PUSH_ASK_TITLE = "want to know when someone joins?"
+export const PUSH_ASK_TITLE = "turn on notifications?"
 
 // After the takeover hands the pin over to the map, a beat before asking.
 const ASK_DELAY_MS = 1200
 
 export function PushAsk() {
+  const { showActionFeedback } = useActionFeedback()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -65,6 +67,7 @@ export function PushAsk() {
       await turnPushOn()
     } catch (err) {
       console.error("[Sponti] couldn't turn push on", err)
+      showActionFeedback("couldn't turn on notifications", { tone: "error" })
     } finally {
       setBusy(false)
       setOpen(false)
