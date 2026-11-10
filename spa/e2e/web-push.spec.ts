@@ -80,3 +80,28 @@ test("a tapped push for the feed opens it", async ({ page }) => {
   ).toBeVisible()
   await expect(page).toHaveURL(/\/$/)
 })
+
+test.describe("the iphone home-screen app", () => {
+  test.use({
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+  })
+
+  test("asks for push on its first open, once", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "standalone", { value: true })
+    })
+    await stubBackend(page)
+    await page.goto("/")
+    const ask = page.getByRole("dialog", {
+      name: "want to know when someone joins?",
+    })
+    await expect(ask).toBeVisible()
+    await ask.getByRole("button", { name: "not now" }).click()
+    await expect(ask).toBeHidden()
+
+    await page.reload()
+    await page.waitForTimeout(2000)
+    await expect(ask).toBeHidden()
+  })
+})

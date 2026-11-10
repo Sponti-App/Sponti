@@ -84,14 +84,19 @@ function subscribe(listener: () => void): () => void {
   }
 }
 
-function currentMode(): HomeScreenMode {
-  const standalone =
+/** Opened from the home screen (an installed web app). Client only. */
+export function isStandalone(): boolean {
+  return (
     window.matchMedia?.("(display-mode: standalone)").matches ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true
+  )
+}
+
+function currentMode(): HomeScreenMode {
   return detectHomeScreenMode({
     userAgent: navigator.userAgent,
     maxTouchPoints: navigator.maxTouchPoints,
-    standalone,
+    standalone: isStandalone(),
     hasPrompt: deferred !== null,
   })
 }

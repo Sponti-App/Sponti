@@ -4,16 +4,20 @@
 // first flare someone lights here, when the lighting takeover has handed over.
 // The browser's own prompt only comes after "turn on". On iPhone in a Safari
 // tab push needs the home-screen app, so this stays quiet there (#641 offers
-// the home-screen step instead).
+// the home-screen step instead). The home-screen app has its own storage, so
+// it is a new device here: push is why the person added it, so the app asks on
+// its first signed-in open instead of waiting for another flare.
 
 import { useEffect, useState } from "react"
 import { Drawer } from "vaul"
 import { BellIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { haptic } from "@/lib/haptics"
+import { isStandalone } from "@/lib/home-screen"
 import { subscribeToLitFlare, subscribeToLitPinRelease } from "@/lib/lit-flare"
 import {
   getPushState,
+  isIos,
   markPushAskSeen,
   pushAskSeen,
   turnPushOn,
@@ -45,6 +49,8 @@ export function PushAsk() {
       if (!held) offer()
     })
     const offRelease = subscribeToLitPinRelease(offer)
+    if (isIos(navigator.userAgent, navigator.maxTouchPoints) && isStandalone())
+      offer()
     return () => {
       offLit()
       offRelease()

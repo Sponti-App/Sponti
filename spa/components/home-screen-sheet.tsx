@@ -10,6 +10,7 @@
 import { Drawer } from "vaul"
 import { ExportIcon, PlusSquareIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
+import { featureFlags } from "@/lib/feature-flags"
 import { haptic } from "@/lib/haptics"
 import { useHomeScreen } from "@/lib/home-screen"
 
@@ -56,7 +57,9 @@ export function HomeScreenSheet({
             add sponti to your home screen
           </Drawer.Title>
           <Drawer.Description className="mt-1 text-sm text-muted-foreground">
-            open it like an app, one tap away.
+            {mode === "ios" && featureFlags.webPush
+              ? "open it like an app, and get a push when friends join."
+              : "open it like an app, one tap away."}
           </Drawer.Description>
 
           {mode === "ios" && (
