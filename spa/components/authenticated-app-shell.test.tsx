@@ -57,7 +57,20 @@ vi.mock("@/components/notifications-sheet", () => ({
     open ? <div data-testid="notifications-feed" /> : null,
 }))
 
+import { ActionFeedbackProvider } from "./action-feedback"
 import { AuthenticatedAppShell } from "./authenticated-app-shell"
+
+// As in app-chrome.tsx: the shell lives inside the feedback provider, which
+// the push ask it mounts needs.
+function Shell() {
+  return (
+    <ActionFeedbackProvider>
+      <AuthenticatedAppShell>
+        <div>page content</div>
+      </AuthenticatedAppShell>
+    </ActionFeedbackProvider>
+  )
+}
 
 describe("AuthenticatedAppShell notification feed", () => {
   beforeEach(() => {
@@ -69,33 +82,21 @@ describe("AuthenticatedAppShell notification feed", () => {
   // used to resurrect it open, even though the user never reopened it.
   it("closes the feed on navigation and stays closed on returning to the page it was opened on", async () => {
     const user = userEvent.setup()
-    const { rerender } = render(
-      <AuthenticatedAppShell>
-        <div>page content</div>
-      </AuthenticatedAppShell>
-    )
+    const { rerender } = render(<Shell />)
 
     await user.click(screen.getByText("toggle feed"))
     expect(screen.getByTestId("notifications-feed")).toBeInTheDocument()
 
     // Navigate Home -> Circles. The shell stays mounted; only pathname changes.
     mocks.pathname = "/circles"
-    rerender(
-      <AuthenticatedAppShell>
-        <div>page content</div>
-      </AuthenticatedAppShell>
-    )
+    rerender(<Shell />)
     await waitFor(() =>
       expect(screen.queryByTestId("notifications-feed")).not.toBeInTheDocument()
     )
 
     // Navigate back to Home. The feed must not reopen on its own.
     mocks.pathname = "/"
-    rerender(
-      <AuthenticatedAppShell>
-        <div>page content</div>
-      </AuthenticatedAppShell>
-    )
+    rerender(<Shell />)
     await waitFor(() =>
       expect(screen.queryByTestId("notifications-feed")).not.toBeInTheDocument()
     )
