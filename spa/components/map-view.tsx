@@ -67,6 +67,12 @@ import {
 } from "@/lib/flare-ideas-anywhere"
 import { useFloatingIdeas } from "@/lib/use-floating-ideas"
 import { haptic } from "@/lib/haptics"
+import {
+  containerPointToLatLng,
+  lookUpPressedPlace,
+  useMapLongPress,
+  type ScreenPoint,
+} from "@/lib/map-long-press"
 import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
 import { useOptionalActionFeedback } from "@/components/action-feedback"
 import { useNewEventDrawer } from "@/components/new-event-drawer-provider"
@@ -760,6 +766,20 @@ export function ideaPrefill(idea: Idea): ComposerPrefill {
   }
 }
 
+// Hands the Google map to MapView, which sits outside the APIProvider, so a
+// long-press can read the map's camera (#178).
+function GoogleMapHandle({
+  mapRef,
+}: {
+  mapRef: React.MutableRefObject<google.maps.Map | null>
+}) {
+  const map = useMap()
+  useEffect(() => {
+    mapRef.current = map
+  }, [map, mapRef])
+  return null
+}
+
 // One-shot dev warning: AdvancedMarker silently renders nothing when the map
 // has no mapId. Surfacing this early saves a debugging session.
 let warnedNoMapId = false
@@ -849,23 +869,6 @@ export function MapView({
     }
   }, [])
 
-  // Long-press on the map canvas → open flare creation drawer.
-  // 500 ms is the standard long-press threshold on mobile.
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const handleMapPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget) return // let map controls handle their own events
-    longPressTimer.current = setTimeout(() => {
-      haptic("medium")
-      openDrawer()
-      longPressTimer.current = null
-    }, 500)
-  }
-  const handleMapPointerUp = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-  }
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_ID
   warnIfMissingMapId(apiKey, mapId)
@@ -887,6 +890,37 @@ export function MapView({
   const isUsingCachedLocation = start.usingLastKnown
   // The recenter button only makes sense on a real interactive map.
   const hasInteractiveMap = !!apiKey && cameraCenter != null
+
+  // #178: a long-press on the map (a right-click on desktop) marks the
+  // pressed point, names it, and opens the composer with that place filled in.
+  // The marker stays while the composer is open.
+  const mapLayerRef = useRef<HTMLDivElement | null>(null)
+  const googleMapRef = useRef<google.maps.Map | null>(null)
+  const [pressed, setPressed] = useState<
+    (ScreenPoint & { resolving: boolean }) | null
+  >(null)
+  const pressResolving = pressed?.resolving ?? false
+  const onLongPress = (client: ScreenPoint) => {
+    const layer = mapLayerRef.current
+    if (!layer || !cameraCenter || composeOpen || pressResolving) return
+    const rect = layer.getBoundingClientRect()
+    const point = { x: client.x - rect.left, y: client.y - rect.top }
+    const map = googleMapRef.current
+    // The static fallback is drawn around the camera centre at the default zoom.
+    const coords = containerPointToLatLng(
+      map?.getCenter()?.toJSON() ?? cameraCenter,
+      map?.getZoom() ?? 15,
+      rect,
+      point
+    )
+    haptic("medium")
+    setPressed({ ...point, resolving: true })
+    void lookUpPressedPlace(coords).then((place) => {
+      setPressed({ ...point, resolving: false })
+      openDrawer({ place })
+    })
+  }
+  const longPress = useMapLongPress(onLongPress, featureFlags.mapLongPress)
 
   const [searchRadiusKm, setSearchRadiusKm] = useState(DEFAULT_RADIUS_KM)
   const [typeFilters, setTypeFilters] = useState<Set<EventType>>(new Set())
@@ -1433,16 +1467,15 @@ export function MapView({
   const listOpen = dock === "full" && !composeOpen
 
   return (
-    <div
-      className="absolute inset-0 overflow-hidden"
-      onPointerDown={handleMapPointerDown}
-      onPointerUp={handleMapPointerUp}
-      onPointerCancel={handleMapPointerUp}
-      onPointerLeave={handleMapPointerUp}
-    >
+    <div className="absolute inset-0 overflow-hidden">
       {/* #376: the lighting takeover zooms and tilts this layer (the map and
           its pins only) with a CSS transform, and puts it back after. */}
-      <div data-lighting-map className="absolute inset-0">
+      <div
+        data-lighting-map
+        ref={mapLayerRef}
+        className="absolute inset-0"
+        {...longPress}
+      >
         {!cameraCenter ? (
           <MapCameraPlaceholder
             status={geo.status}
@@ -1451,6 +1484,7 @@ export function MapView({
           />
         ) : apiKey ? (
           <APIProvider apiKey={apiKey}>
+            <GoogleMapHandle mapRef={googleMapRef} />
             <GoogleMapContent
               // A picked area remounts the map on its centre (#408).
               key={start.cameraKey}
@@ -1494,6 +1528,18 @@ export function MapView({
             selectedIdeaId={selectedIdeaId}
             onIdeaSelect={selectIdeaPin}
           />
+        )}
+        {pressed && (pressed.resolving || composeOpen) && (
+          <div
+            data-pressed-point
+            aria-hidden
+            className={`pointer-events-none absolute flex size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-lg ${
+              pressed.resolving ? "animate-pulse" : ""
+            }`}
+            style={{ left: pressed.x, top: pressed.y }}
+          >
+            <MapPinIcon className="size-5" />
+          </div>
         )}
       </div>
 
