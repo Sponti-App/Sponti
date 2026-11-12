@@ -1,4 +1,5 @@
 import { haversineMeters } from "@/lib/api/events/events.adapter"
+import { FLARE_IDEAS } from "@/lib/flare-ideas.data"
 import type { GeoCoords, GeoStatus } from "@/lib/geolocation"
 import {
   BERLIN_AREAS,
@@ -129,17 +130,19 @@ export function matchAreas(query: string): StartArea[] {
   )
 }
 
-const BERLIN_CENTER: GeoCoords = { lat: 52.52, lng: 13.405 }
-// Generous enough for every idea spot in `flare-ideas.data.ts`, which all sit
-// inside the ring.
-const BERLIN_RADIUS_M = 25_000
+// The widest the idea search grows (IDEA_RADIUS_STEPS_KM), with room to pan.
+const IDEA_SPOT_REACH_M = 10_000
 
-/** Idea spots are berlin-only for now: elsewhere the map starts empty. */
+/** Idea spots exist only in a few cities (berlin, leipzig): elsewhere the map
+ * starts without them. */
 export function hasIdeaSpots(center: GeoCoords): boolean {
-  return haversineMeters(center, BERLIN_CENTER) <= BERLIN_RADIUS_M
+  return FLARE_IDEAS.some(
+    (idea) => haversineMeters(center, idea.place) <= IDEA_SPOT_REACH_M
+  )
 }
 
-/** A search suggestion that reads like a berlin place ("…, berlin, germany"). */
-export function looksLikeBerlin(label: string, address: string): boolean {
-  return /\bberlin\b/i.test(`${label} ${address}`)
+/** A search suggestion that reads like a place in a city with idea spots
+ * ("…, berlin, germany"). */
+export function looksLikeIdeaCity(label: string, address: string): boolean {
+  return /\b(berlin|leipzig)\b/i.test(`${label} ${address}`)
 }
