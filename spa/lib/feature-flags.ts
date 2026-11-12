@@ -220,4 +220,14 @@ export const featureFlags = {
    * NEXT_PUBLIC_WEB_PUSH=off.
    */
   webPush: process.env.NEXT_PUBLIC_WEB_PUSH !== "off",
+
+  /**
+   * #178: a long-press on the signed-in home map (a right-click on desktop)
+   * marks the pressed point and opens the composer with that place filled in
+   * (lib/map-long-press.ts). Not yet checked on a real phone, where it shares
+   * the finger with the map's pan and pinch. On in both profiles; the kill
+   * switch is NEXT_PUBLIC_MAP_LONG_PRESS=off, which leaves the map with no
+   * long-press at all.
+   */
+  mapLongPress: process.env.NEXT_PUBLIC_MAP_LONG_PRESS !== "off",
 } as const
