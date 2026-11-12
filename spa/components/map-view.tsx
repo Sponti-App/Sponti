@@ -66,6 +66,9 @@ import {
   type Idea,
 } from "@/lib/flare-ideas-anywhere"
 import { useFloatingIdeas } from "@/lib/use-floating-ideas"
+import { useIdeaArea } from "@/lib/idea-area"
+import { useStaticPan } from "@/lib/use-static-pan"
+import { SearchAreaPill } from "@/components/search-area-pill"
 import { haptic } from "@/lib/haptics"
 import { setIdeasHidden, useIdeasHidden } from "@/lib/idea-preferences"
 import { useOptionalActionFeedback } from "@/components/action-feedback"
@@ -231,10 +234,13 @@ function StaticMapFallback({
   selectedIdeaId = null,
   onIdeaSelect,
   heldIds = NO_HELD,
+  onMapCenter,
 }: {
   events: EventItem[]
   onEventSelect: (event: EventItem) => void
   joinedIds: Set<string>
+  /** The map's centre moved (#642). */
+  onMapCenter?: (center: GeoCoords) => void
   /** Flares just lit whose pins the lighting takeover holds hidden. */
   heldIds?: ReadonlySet<string>
   user: GeoCoords
@@ -251,6 +257,8 @@ function StaticMapFallback({
   onIdeaSelect?: (idea: Idea) => void
 }) {
   const drawn = events.slice(0, FLARE_PIN_SLOTS.length)
+  // About 4 m per pixel, the signed-in map's zoom 15.
+  const pan = useStaticPan(user, 4, (c) => onMapCenter?.(c))
   const previewIndex = previewEvent
     ? drawn.findIndex((e) => e.id === previewEvent.id)
     : -1
@@ -264,7 +272,8 @@ function StaticMapFallback({
   return (
     <div className="relative h-full w-full bg-muted">
       <div
-        className="absolute inset-0 opacity-30"
+        className="absolute inset-0 touch-none opacity-30"
+        {...pan}
         style={{
           backgroundImage: `
             linear-gradient(to right, var(--border) 1px, transparent 1px),
@@ -454,7 +463,10 @@ function GoogleMapContent({
   selectedIdeaId,
   onIdeaSelect,
   heldIds,
+  onMapCenter,
 }: {
+  /** The map's centre when it stops moving (#642). */
+  onMapCenter: (center: GeoCoords) => void
   events: EventItem[]
   onEventSelect: (event: EventItem) => void
   /** Flares just lit whose pins the lighting takeover holds hidden. */
@@ -558,6 +570,7 @@ function GoogleMapContent({
         selectedIdeaId={selectedIdeaId}
         onIdeaSelect={onIdeaSelect}
         heldIds={heldIds}
+        onMapCenter={onMapCenter}
       />
     )
   }
@@ -577,6 +590,10 @@ function GoogleMapContent({
       }}
       onCameraChanged={(event) => {
         if (event.domEvent) userInteractedRef.current = true
+      }}
+      onIdle={(event) => {
+        const c = event.map.getCenter()
+        if (c) onMapCenter({ lat: c.lat(), lng: c.lng() })
       }}
     >
       {currentLocation && (
@@ -1110,29 +1127,21 @@ export function MapView({
       }),
     [pinEvents]
   )
+  // "Search this area" (#642): the spots follow the map centre once the
+  // person taps it. The flares keep loading around the person, not the pan.
+  const ideaArea = useIdeaArea(cameraCenter)
+  const { ideaCenter } = ideaArea
   const ideaPins = useMemo(
     () =>
-      !ideasHidden &&
-      centerLat != null &&
-      centerLng != null &&
-      nowMs > 0 &&
-      !map.loading
+      !ideasHidden && ideaCenter && nowMs > 0 && !map.loading
         ? getIdeaPins({
-            center: { lat: centerLat, lng: centerLng },
+            center: ideaCenter,
             now: new Date(nowMs),
             categories: typeFilters,
             flarePositions,
           })
         : [],
-    [
-      ideasHidden,
-      centerLat,
-      centerLng,
-      nowMs,
-      map.loading,
-      typeFilters,
-      flarePositions,
-    ]
+    [ideasHidden, ideaCenter, nowMs, map.loading, typeFilters, flarePositions]
   )
   // Floating ideas (#515): place-less ideas around the person's own position
   // (the camera's centre until there is one). They keep clear of the flares
@@ -1475,6 +1484,7 @@ export function MapView({
               selectedIdeaId={selectedIdeaId}
               onIdeaSelect={selectIdeaPin}
               heldIds={heldIds}
+              onMapCenter={ideaArea.onMapCenter}
             />
           </APIProvider>
         ) : (
@@ -1493,6 +1503,7 @@ export function MapView({
             floatingIdeas={floatingIdeas}
             selectedIdeaId={selectedIdeaId}
             onIdeaSelect={selectIdeaPin}
+            onMapCenter={ideaArea.onMapCenter}
           />
         )}
       </div>
@@ -1516,6 +1527,9 @@ export function MapView({
             showingCachedLocation={isUsingCachedLocation}
             onRetry={geo.request}
           />
+          {ideaArea.canSearch && !ideasHidden && (
+            <SearchAreaPill onSearch={ideaArea.search} />
+          )}
         </div>
       )}
 
