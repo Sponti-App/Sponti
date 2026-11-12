@@ -201,7 +201,7 @@ describe("getIdeasNear", () => {
     expect(ids(winter)).not.toContain("humboldthain-rose-garden")
   })
 
-  it("finds nothing outside berlin", () => {
+  it("finds nothing outside the cities with spots", () => {
     expect(
       getIdeasNear({
         center: { lat: 48.1351, lng: 11.582 },
@@ -226,12 +226,16 @@ describe("FLARE_IDEAS data", () => {
     for (const id of all) expect(id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/)
   })
 
-  it("keeps every coordinate inside berlin", () => {
+  it("keeps every coordinate inside berlin or leipzig", () => {
+    const inside = (
+      { lat, lng }: { lat: number; lng: number },
+      [s, n, w, e]: number[]
+    ) => lat > s && lat < n && lng > w && lng < e
+    const BERLIN = [52.33, 52.68, 13.08, 13.77]
+    // The city plus the lakes to its south (cospudener see, kanupark).
+    const LEIPZIG = [51.24, 51.45, 12.23, 12.52]
     for (const { id, place } of FLARE_IDEAS) {
-      expect(place.lat, id).toBeGreaterThan(52.33)
-      expect(place.lat, id).toBeLessThan(52.68)
-      expect(place.lng, id).toBeGreaterThan(13.08)
-      expect(place.lng, id).toBeLessThan(13.77)
+      expect(inside(place, BERLIN) || inside(place, LEIPZIG), id).toBe(true)
     }
   })
 

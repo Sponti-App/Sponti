@@ -189,7 +189,7 @@ test.describe("location ask (#408)", () => {
     ).toBeVisible()
     await expect(
       sheet(page).getByText(
-        "idea spots are berlin-only for now. elsewhere the map starts empty."
+        "idea spots are only in berlin and leipzig for now. elsewhere the map starts empty."
       )
     ).toBeVisible()
     // No peach button left in the picker.
@@ -236,7 +236,7 @@ test.describe("location ask (#408)", () => {
     await expect(sheet(page)).toHaveCount(0)
     await expect(banner(page)).toContainText("showing hamburg")
     await expect.poll(() => centres.at(-1)).toEqual(HAMBURG)
-    // The spots are berlin-only; the place-less ideas (#515) still float
+    // The spots are in berlin and leipzig only; the place-less ideas (#515) still float
     // around the map's centre, and the quiet sheet (#522) offers them.
     await expect(
       page.getByText("less coordinating. more living.")

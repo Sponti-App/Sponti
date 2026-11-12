@@ -24,8 +24,9 @@ export const IDEA_RADIUS_STEPS_KM: readonly number[] = [
  * the radius. */
 export const MIN_IDEA_CANDIDATES = 3
 
-// The curated list is berlin-only, so season windows are read against the
-// berlin calendar day, whatever timezone the device reports.
+// The curated spots are in berlin and leipzig (one timezone), so season
+// windows are read against the berlin calendar day, whatever timezone the
+// device reports.
 const SEASON_TIME_ZONE = "Europe/Berlin"
 
 const monthDayFormat = new Intl.DateTimeFormat("en-CA", {

@@ -211,13 +211,13 @@ export function SignedOutMap({
         : ideas.length > 0
           ? "no flares yet. the dashed spots are ideas, tap one."
           : floatingIdeas.length > 0
-            ? // #515: the spots are berlin-only, the floating ideas work anywhere.
+            ? // #515: the spots are in a few cities, the floating ideas work anywhere.
               hasIdeaSpots(center)
               ? "no flares yet. the dashed ones are ideas, tap one."
               : "no flares yet, and no idea spots there yet. the dashed ones work anywhere, tap one."
             : hasIdeaSpots(center)
               ? "no flares yet."
-              : "no flares yet, and no idea spots there yet: they're berlin-only for now."
+              : "no flares yet, and no idea spots there yet: only berlin and leipzig have them for now."
 
   const canvasProps = {
     center,

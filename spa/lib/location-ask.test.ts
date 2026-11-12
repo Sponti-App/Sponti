@@ -4,7 +4,7 @@ import {
   hasIdeaSpots,
   locationAskMode,
   locationAutoRequest,
-  looksLikeBerlin,
+  looksLikeIdeaCity,
   matchAreas,
   shouldRememberLocation,
   startCamera,
@@ -208,14 +208,16 @@ describe("area search helpers", () => {
     expect(matchAreas("hamburg")).toEqual([])
   })
 
-  it("knows idea spots are berlin-only", () => {
+  it("knows idea spots are in berlin and leipzig only", () => {
     for (const area of BERLIN_AREAS)
       expect(hasIdeaSpots(area.center)).toBe(true)
+    expect(hasIdeaSpots({ lat: 51.34, lng: 12.375 })).toBe(true)
     expect(hasIdeaSpots({ lat: 53.55, lng: 9.99 })).toBe(false)
   })
 
-  it("spots a berlin suggestion by its address", () => {
-    expect(looksLikeBerlin("Kreuzberg", "Berlin, Germany")).toBe(true)
-    expect(looksLikeBerlin("Hamburg", "Germany")).toBe(false)
+  it("spots a berlin or leipzig suggestion by its address", () => {
+    expect(looksLikeIdeaCity("Kreuzberg", "Berlin, Germany")).toBe(true)
+    expect(looksLikeIdeaCity("Plagwitz", "Leipzig, Germany")).toBe(true)
+    expect(looksLikeIdeaCity("Hamburg", "Germany")).toBe(false)
   })
 })
