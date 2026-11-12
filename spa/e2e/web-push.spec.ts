@@ -5,10 +5,18 @@ import { API_BASE, BERLIN_COORDS, stubBackend } from "./support/stubs"
 // service, so this covers the soft ask, the settings switches and a tapped
 // push opening the feed; the subscribe itself needs a real phone.
 
+// A browser that hasn't been asked about notifications yet. CI's headless
+// chromium has no notification prompt and always reports "denied", granted or
+// not, and a denied browser is never asked.
+async function notAskedYet(page: Page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(Notification, "permission", { get: () => "default" })
+  })
+}
+
 async function lightFlare(page: Page) {
-  // Granting only geolocation makes Chromium report notifications as denied,
-  // and a denied browser is never asked.
-  await page.context().grantPermissions(["geolocation", "notifications"])
+  await notAskedYet(page)
+  await page.context().grantPermissions(["geolocation"])
   await page.context().setGeolocation({
     latitude: BERLIN_COORDS.lat,
     longitude: BERLIN_COORDS.lng,
@@ -41,6 +49,7 @@ test("after a lit flare, push is offered once", async ({ page }) => {
 })
 
 test("settings has push on this device and a join switch", async ({ page }) => {
+  await notAskedYet(page)
   await stubBackend(page)
   const patches: unknown[] = []
   await page.route(`${API_BASE}/**/notification-settings/me`, async (route) => {
@@ -91,6 +100,7 @@ test.describe("the iphone home-screen app", () => {
     await page.addInitScript(() => {
       Object.defineProperty(navigator, "standalone", { value: true })
     })
+    await notAskedYet(page)
     await stubBackend(page)
     await page.goto("/")
     const ask = page.getByRole("dialog", {
