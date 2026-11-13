@@ -53,6 +53,9 @@ import { BERLIN_START } from "@/lib/location-choice"
 import { haptic } from "@/lib/haptics"
 import { useIdeasHidden } from "@/lib/idea-preferences"
 import { useFloatingIdeas } from "@/lib/use-floating-ideas"
+import { useIdeaArea } from "@/lib/idea-area"
+import { useStaticPan } from "@/lib/use-static-pan"
+import { SearchAreaPill } from "@/components/search-area-pill"
 import { usePublicMapPins } from "@/lib/use-public-map-pins"
 import { EVENT_TYPES } from "@/types/utils"
 
@@ -150,17 +153,20 @@ export function SignedOutMap({
   // signed-in map, ideas don't wait for the flares: a cold backend can take a
   // minute, and the ideas are most of what a first visit shows.
   const ideasHidden = useIdeasHidden()
+  // "Search this area" (#642): the spots follow the map centre once tapped.
+  const ideaArea = useIdeaArea(center)
+  const { ideaCenter } = ideaArea
   const ideas = useMemo(
     () =>
-      !ideasHidden && nowMs > 0
+      !ideasHidden && ideaCenter && nowMs > 0
         ? getIdeaPins({
-            center,
+            center: ideaCenter,
             now: new Date(nowMs),
             categories: NO_IDEA_CATEGORIES,
             flarePositions: pins.map((p) => p.position),
           })
         : [],
-    [ideasHidden, nowMs, center, pins]
+    [ideasHidden, nowMs, ideaCenter, pins]
   )
   // Floating ideas (#515) around the visitor's position, or the map's start
   // until there is one, clear of the open-to-all pins and the idea spots.
@@ -211,13 +217,13 @@ export function SignedOutMap({
         : ideas.length > 0
           ? "no flares yet. the dashed spots are ideas, tap one."
           : floatingIdeas.length > 0
-            ? // #515: the spots are berlin-only, the floating ideas work anywhere.
-              hasIdeaSpots(center)
+            ? // #515: the spots are in a few cities, the floating ideas work anywhere.
+              hasIdeaSpots(ideaCenter ?? center)
               ? "no flares yet. the dashed ones are ideas, tap one."
               : "no flares yet, and no idea spots there yet. the dashed ones work anywhere, tap one."
-            : hasIdeaSpots(center)
+            : hasIdeaSpots(ideaCenter ?? center)
               ? "no flares yet."
-              : "no flares yet, and no idea spots there yet: they're berlin-only for now."
+              : "no flares yet, and no idea spots there yet: only berlin and leipzig have them for now."
 
   const canvasProps = {
     center,
@@ -229,6 +235,7 @@ export function SignedOutMap({
     highlightedPinId: sharedOpen ? (sharedPin?.id ?? null) : null,
     onPin: selectPin,
     onIdea: selectIdea,
+    onMapCenter: ideaArea.onMapCenter,
   }
 
   return (
@@ -246,6 +253,9 @@ export function SignedOutMap({
           (#490). */}
       <div className="pointer-events-none absolute inset-x-3 top-16 z-30 flex flex-col items-end gap-2">
         {banner}
+        {ideaArea.canSearch && !ideasHidden && (
+          <SearchAreaPill onSearch={ideaArea.search} />
+        )}
       </div>
 
       {/* The dock sits on the nav, like the signed-in map's. */}
@@ -344,11 +354,14 @@ type CanvasProps = {
   highlightedPinId: string | null
   onPin: (pin: PublicMapPin) => void
   onIdea: (idea: Idea) => void
+  /** The map's centre when it stops moving (#642). */
+  onMapCenter: (center: GeoCoords) => void
 }
 
 /** No maps key (local dev, e2e) or the SDK failed: a flat backdrop with the
  * pins in fixed slots, like the signed-in map's fallback. */
 function SignedOutStaticMap({
+  center,
   now,
   pins,
   ideas,
@@ -357,11 +370,15 @@ function SignedOutStaticMap({
   highlightedPinId,
   onPin,
   onIdea,
+  onMapCenter,
 }: CanvasProps) {
+  // About 12 m per pixel, this map's zoom 13.
+  const pan = useStaticPan(center, 12, onMapCenter)
   return (
     <div className="relative h-full w-full bg-muted">
       <div
-        className="absolute inset-0 opacity-30"
+        className="absolute inset-0 touch-none opacity-30"
+        {...pan}
         style={{
           backgroundImage: `
             linear-gradient(to right, var(--border) 1px, transparent 1px),
@@ -425,6 +442,7 @@ function SignedOutGoogleMap(props: CanvasProps) {
     highlightedPinId,
     onPin,
     onIdea,
+    onMapCenter,
   } = props
   const status = useApiLoadingStatus()
   const { resolvedTheme } = useTheme()
@@ -443,6 +461,10 @@ function SignedOutGoogleMap(props: CanvasProps) {
       disableDefaultUI
       gestureHandling="greedy"
       className="h-full w-full"
+      onIdle={(event) => {
+        const c = event.map.getCenter()
+        if (c) onMapCenter({ lat: c.lat(), lng: c.lng() })
+      }}
     >
       {ideas.map((idea) => (
         <AdvancedMarker

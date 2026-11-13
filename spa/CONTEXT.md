@@ -41,7 +41,7 @@ A flare's own link, `/f/<token>` (`lib/flare-invite-links.ts`, behind `flareInvi
 _Avoid_: Invite link (alone, that is the friend invite link, `/invite/<token>`), share link.
 
 **Idea spot**:
-A curated Berlin place offered as a one-tap flare when the map is quiet (`FlareIdea` in `lib/flare-ideas.data.ts`, picked by `getIdeasNear`). It carries a title, category, place and an optional yearly season window read on the Berlin calendar, and it opens the composer prefilled. It shows as an idea pin and, on a quiet map, an idea card. "Hide ideas" is a device-only setting (`lib/idea-preferences.ts`). The list is a draft with no owner yet.
+A curated Berlin place offered as a one-tap flare when the map is quiet (`FlareIdea` in `lib/flare-ideas.data.ts`, picked by `getIdeasNear`). It carries a title, category, place and an optional yearly season window read on the Berlin calendar, and it opens the composer prefilled. It shows as an idea pin and, on a quiet map, an idea card. Spots are picked around the **idea centre** (`useIdeaArea`, `lib/idea-area.ts`): the person's position, or the map's centre after a tap on "search this area" (#642, shown once the map is over 1 km from the idea centre; flares and the floating ideas do not follow it). "Hide ideas" is a device-only setting (`lib/idea-preferences.ts`). The list is a draft with no owner yet.
 _Avoid_: Suggestion, recommendation, demo flare (idea spots are not flares and are never stored).
 
 **Quiet map**:

@@ -12,6 +12,11 @@ import {
   useUnreadCountRefresh,
 } from "@/lib/use-notifications"
 import { haptic } from "@/lib/haptics"
+import { HomeScreenOffer } from "@/components/home-screen-offer"
+import { JoinMoment } from "@/components/join-moment"
+import { featureFlags } from "@/lib/feature-flags"
+import { PushAsk } from "@/components/push-ask"
+import { resyncPush } from "@/lib/push"
 
 const AUTH_PATHS = [
   "/login",
@@ -80,6 +85,32 @@ function AuthenticatedChrome({ children }: { children: React.ReactNode }) {
     return () => window.clearTimeout(timeout)
   }, [drawerOpen])
 
+  useEffect(() => {
+    if (!featureFlags.webPush) return
+    resyncPush().catch(() => {
+      // Retried on the next start; push keeps going to the old record meanwhile.
+    })
+  }, [])
+
+  // A tapped push for the feed lands here (`/?notifications=open`, sw.js).
+  // After the close-on-navigation effects above, whose timeouts run first.
+  useEffect(() => {
+    if (
+      new URL(window.location.href).searchParams.get("notifications") !== "open"
+    )
+      return
+    const timeout = window.setTimeout(() => {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("notifications")
+      window.history.replaceState(window.history.state, "", url)
+      void loadLatest()
+      setNotificationsOpen(true)
+    }, 0)
+    return () => window.clearTimeout(timeout)
+    // Once per start, not on every loadLatest identity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleOpenNotifications = () => {
     const next = !notificationsOpen
     if (next) {
@@ -124,6 +155,9 @@ function AuthenticatedChrome({ children }: { children: React.ReactNode }) {
           notificationsUnread={unreadCount}
         />
       </div>
+      {featureFlags.joinMoment && <JoinMoment />}
+      <HomeScreenOffer />
+      {featureFlags.webPush && <PushAsk />}
     </>
   )
 }

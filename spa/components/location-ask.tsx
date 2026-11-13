@@ -7,8 +7,8 @@
 // The ask: "where should the map start?" with "use my location" (the
 // browser's prompt only comes after this tap) or the berlin area chips. Once
 // location is denied or blocked it turns into "pick an area to start": a place
-// search, the chips, and a line saying idea spots are berlin-only. Picking a
-// place outside berlin opens an empty map there.
+// search, the chips, and a line saying where the idea spots are. Picking a
+// place elsewhere opens a map without them.
 
 import { useEffect, useRef, useState } from "react"
 import { Drawer } from "vaul"
@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { haptic } from "@/lib/haptics"
 import { sessionFetch } from "@/lib/http"
-import { looksLikeBerlin, matchAreas } from "@/lib/location-ask"
+import { looksLikeIdeaCity, matchAreas } from "@/lib/location-ask"
 import type { StartArea } from "@/lib/location-choice"
 
 export const LOCATION_ASK_TITLE = "where should the map start?"
@@ -272,7 +272,7 @@ function AreaPicker({ onPick }: { onPick: (area: StartArea) => void }) {
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {picking === s.placeId
                     ? "opening…"
-                    : looksLikeBerlin(s.label, s.address)
+                    : looksLikeIdeaCity(s.label, s.address)
                       ? ""
                       : "no idea spots there yet"}
                 </span>
@@ -301,7 +301,8 @@ function AreaPicker({ onPick }: { onPick: (area: StartArea) => void }) {
 
       {!q && (
         <p className="mt-3 text-xs text-muted-foreground">
-          idea spots are berlin-only for now. elsewhere the map starts empty.
+          idea spots are only in berlin and leipzig for now. elsewhere the map
+          starts empty.
         </p>
       )}
     </>

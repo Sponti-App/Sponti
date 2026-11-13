@@ -4,7 +4,9 @@ import { Agentation } from "agentation"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { InAppHistoryTracker } from "@/components/in-app-history-tracker"
+import { InstallPromptCapture } from "@/components/install-prompt-capture"
 import { AppChrome } from "@/components/app-chrome"
+import { EARLY_CAPTURE_SCRIPT } from "@/lib/home-screen-early"
 import { resolveSiteUrl } from "@/lib/site-url"
 
 const bricolageGrotesque = Bricolage_Grotesque({
@@ -86,9 +88,14 @@ export default function RootLayout({
       className={bricolageGrotesque.variable}
       suppressHydrationWarning
     >
+      <head>
+        {/* #641: catches the install prompt before hydration. */}
+        <script dangerouslySetInnerHTML={{ __html: EARLY_CAPTURE_SCRIPT }} />
+      </head>
       <body className="font-sans antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <InAppHistoryTracker />
+          <InstallPromptCapture />
           {/* The gates, session and app shell; not for the landing (#467). */}
           <AppChrome>{children}</AppChrome>
         </ThemeProvider>

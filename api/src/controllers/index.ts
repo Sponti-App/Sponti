@@ -10,5 +10,6 @@ export * as mapsController from "./mapsController.js";
 export * as notificationController from "./notificationController.js";
 export * as notificationSettingsController from "./notificationSettingsController.js";
 export * as publicController from "./publicController.js";
+export * as pushSubscriptionController from "./pushSubscriptionController.js";
 export * as qrContactTokenController from "./qrContactTokenController.js";
 export * as userSearchController from "./userSearchController.js";

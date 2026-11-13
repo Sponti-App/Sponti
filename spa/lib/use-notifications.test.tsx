@@ -32,6 +32,7 @@ import {
   markAllRead,
   refreshUnreadCount,
   subscribeToNotificationArrivals,
+  unreadCountNow,
   useNotifications,
   useUnreadCountRefresh,
 } from "./use-notifications"
@@ -274,6 +275,24 @@ describe("subscribeToNotificationArrivals", () => {
       expect(mocks.fetchNotifications).toHaveBeenCalledTimes(2)
     )
     expect(listener).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
+
+  // #380: the join moment holds the bell's badge at the count it had before
+  // the arrivals, so the listener must run before the store takes the new one.
+  it("announces before the store takes the new count", async () => {
+    const seen: number[] = []
+    const unsubscribe = subscribeToNotificationArrivals(() => {
+      seen.push(unreadCountNow())
+    })
+    mocks.fetchNotifications.mockResolvedValue({
+      notifications: [joinNotice("c1")],
+      pagination: { nextCursor: null },
+    })
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(1)
+    await refreshUnreadCount()
+    expect(seen).toEqual([0])
+    expect(unreadCountNow()).toBe(1)
     unsubscribe()
   })
 

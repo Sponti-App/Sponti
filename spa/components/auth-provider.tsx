@@ -20,6 +20,7 @@ import {
 } from "@/lib/auth-store"
 import { dropPendingOnboarding, markOnboardingPending } from "@/lib/onboarding"
 import { markFreshSignIn } from "@/lib/quiet-home"
+import { turnPushOff } from "@/lib/push"
 
 type Status = "loading" | "authenticated" | "unauthenticated"
 
@@ -218,6 +219,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const handleLogout = useCallback(async () => {
     const refreshToken = readSession().refreshToken
 
+    // The next person signed in here mustn't get this account's pushes.
+    // Before the server logout, while the token still works.
+    await turnPushOff().catch(() => {})
     try {
       if (refreshToken) {
         await authApi.logout(refreshToken)

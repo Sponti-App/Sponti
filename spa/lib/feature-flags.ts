@@ -79,6 +79,19 @@ export const featureFlags = {
     process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF === "dev",
 
   /**
+   * The first-join moment (#380, flare moments #370): when the unread poll
+   * brings the first join on one of your flares, the friend's avatar pops up
+   * with "mia joined your flare" and arcs into the nav's bell, which swings
+   * as the badge pops (2.5 s). Later joins only swing the bell. Joins in one
+   * poll stack into one overlay; polls queue. Same rollout as
+   * `flareLightMoment`: on in the full profile and the `dev` branch's deploy,
+   * off for testers until a phone check. Off, the bell is exactly as before.
+   */
+  joinMoment:
+    FEATURE_PROFILE === "full" ||
+    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF === "dev",
+
+  /**
    * The filter menu on the my flares page (#582): date / latest / going /
    * private. Its options aren't wired to the list yet (the menu says "sorting
    * hookup pending"), so picking one does nothing. Hidden in the tester build
@@ -91,7 +104,8 @@ export const featureFlags = {
   // onboarding. A device can switch them all on at runtime ("new onboarding" in
   // settings), whatever the build profile. Read them through
   // `useOnboardingFlags` / `getOnboardingFlags` (lib/onboarding-flags.ts), never
-  // off `featureFlags` directly, or that switch won't reach the reader.
+  // off `featureFlags` directly, or that switch won't reach the reader. ESLint
+  // enforces it (`no-restricted-syntax` in eslint.config.mjs, #484).
 
   /**
    * Browse before sign-up (#389, flare moments #370): a signed-out visitor
@@ -184,4 +198,36 @@ export const featureFlags = {
    * NEXT_PUBLIC_FLARE_DRAWER=off. Anything else, including unset, leaves it on.
    */
   flareDrawer: process.env.NEXT_PUBLIC_FLARE_DRAWER !== "off",
+
+  /**
+   * Add to home screen (#641): a sheet asking the person to put sponti on
+   * their home screen, once, after they light their first flare, and again
+   * from the notification settings. iPhone Safari gets the steps (no prompt
+   * API), Android Chrome the install prompt; an installed app, a desktop or
+   * any other browser gets nothing. The home-screen app is also where iPhone
+   * web push (#640) works. Off, nothing offers or links to it. On in BOTH
+   * profiles, because testers open sponti in a phone browser. The opt-out is a
+   * kill switch: set NEXT_PUBLIC_HOME_SCREEN=off. Anything else, including
+   * unset, leaves it on.
+   */
+  homeScreen: process.env.NEXT_PUBLIC_HOME_SCREEN !== "off",
+
+  /**
+   * #640: web push. The ask after a first lit flare, the "push on this
+   * device" switch in settings, and the service worker. Push also needs VAPID
+   * keys on the api (#639); without them the switch says it isn't available
+   * and the ask never shows. On in both profiles; the kill switch is
+   * NEXT_PUBLIC_WEB_PUSH=off.
+   */
+  webPush: process.env.NEXT_PUBLIC_WEB_PUSH !== "off",
+
+  /**
+   * #178: a long-press on the signed-in home map (a right-click on desktop)
+   * marks the pressed point and opens the composer with that place filled in
+   * (lib/map-long-press.ts). Not yet checked on a real phone, where it shares
+   * the finger with the map's pan and pinch. On in both profiles; the kill
+   * switch is NEXT_PUBLIC_MAP_LONG_PRESS=off, which leaves the map with no
+   * long-press at all.
+   */
+  mapLongPress: process.env.NEXT_PUBLIC_MAP_LONG_PRESS !== "off",
 } as const
